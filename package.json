@@ -1,0 +1,21 @@
+{
+  "name": "monett-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Monorepo for NestJS Backend, Expo Mobile/Web, and Shared Types",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n \"BACKEND,MOBILE\" -c \"blue,green\" \"npm run dev:backend\" \"npm run dev:mobile\"",
+    "dev:backend": "npm run start:dev --workspace=@monett/backend",
+    "dev:mobile": "npm run start --workspace=@monett/mobile-web",
+    "build:backend": "npm run build --workspace=@monett/backend",
+    "build:shared": "npm run build --workspace=@monett/shared",
+    "clean": "npm run clean --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
