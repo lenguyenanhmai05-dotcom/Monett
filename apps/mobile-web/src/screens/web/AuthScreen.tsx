@@ -12,12 +12,12 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import { useAuth } from '../contexts/AuthContext';
-import { useLanguage } from '../contexts/LanguageContext';
-import { LanguageToggle } from '../components/LanguageToggle';
-import { GOOGLE_LOGO_URI } from '../components/SocialLogos';
-import { requestGoogleLogin } from '../services/googleAuth';
-import { sendOtpApi, forgotPasswordApi, resetPasswordApi } from '../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { LanguageToggle } from '../../components/LanguageToggle';
+import { GOOGLE_LOGO_URI } from '../../components/SocialLogos';
+import { requestGoogleLogin } from '../../services/googleAuth';
+import { sendOtpApi, verifyOtpApi, forgotPasswordApi, resetPasswordApi } from '../../services/api';
 
 export interface AuthScreenProps {
   initialMode?: 'login' | 'register';
@@ -57,8 +57,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [countdown, setCountdown] = useState(0);
   const [otpSuccessMsg, setOtpSuccessMsg] = useState<string | null>(null);
 
-  // Quên mật khẩu State
-  const [forgotStep, setForgotStep] = useState<'request' | 'reset'>('request');
+  // Quên mật khẩu State: 'request' (nhập email) -> 'otp' (chỉ nhập OTP) -> 'new_password' (mật khẩu mới)
+  const [forgotStep, setForgotStep] = useState<'request' | 'otp' | 'new_password'>('request');
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotOtp, setForgotOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -215,24 +215,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     setLoading(true);
     try {
-      const res = await sendOtpApi(trimmedEmail);
+      await sendOtpApi(trimmedEmail);
       setOtpSent(true);
       setCountdown(60);
       setRegisterStep('otp');
-      if (res.simulatedOtp) {
-        setOtp(res.simulatedOtp);
-        setOtpSuccessMsg(
-          language === 'vi'
-            ? `Mã OTP thử nghiệm: ${res.simulatedOtp} (Đã tự động điền để thử nghiệm)`
-            : `Test OTP: ${res.simulatedOtp} (Auto-filled for testing)`,
-        );
-      } else {
-        setOtpSuccessMsg(
-          language === 'vi'
-            ? `Mã xác thực đã được gửi tới ${trimmedEmail}. Vui lòng kiểm tra hộp thư!`
-            : `Verification code sent to ${trimmedEmail}!`,
-        );
-      }
+      setOtp('');
+      setOtpSuccessMsg(
+        language === 'vi'
+          ? `Mã xác thực OTP đã được gửi tới ${trimmedEmail}. Vui lòng kiểm tra hộp thư đến (hoặc thư mục Spam/Rác)!`
+          : `Verification code sent to ${trimmedEmail}. Please check your inbox or spam folder!`,
+      );
     } catch (err: any) {
       setErrorMsg(err.message || 'Không thể gửi mã xác thực, vui lòng thử lại');
     } finally {
@@ -247,22 +239,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     setOtpSuccessMsg(null);
     setSendingOtp(true);
     try {
-      const res = await sendOtpApi(email.trim());
+      await sendOtpApi(email.trim());
       setCountdown(60);
-      if (res.simulatedOtp) {
-        setOtp(res.simulatedOtp);
-        setOtpSuccessMsg(
-          language === 'vi'
-            ? `Mã OTP mới: ${res.simulatedOtp} (Đã tự động cập nhật)`
-            : `New test OTP: ${res.simulatedOtp} (Updated)`,
-        );
-      } else {
-        setOtpSuccessMsg(
-          language === 'vi'
-            ? `Đã gửi lại mã OTP tới ${email.trim()}. Vui lòng kiểm tra hộp thư!`
-            : `OTP has been resent to ${email.trim()}.`,
-        );
-      }
+      setOtp('');
+      setOtpSuccessMsg(
+        language === 'vi'
+          ? `Đã gửi lại mã OTP tới ${email.trim()}. Vui lòng kiểm tra hộp thư đến (hoặc thư mục Spam/Rác)!`
+          : `OTP has been resent to ${email.trim()}. Please check your inbox or spam folder!`,
+      );
     } catch (err: any) {
       setErrorMsg(err.message || 'Không thể gửi lại mã, vui lòng thử lại sau');
     } finally {
@@ -337,23 +321,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     setSendingForgotOtp(true);
     try {
-      const res = await forgotPasswordApi(trimmedEmail);
-      setForgotStep('reset');
+      await forgotPasswordApi(trimmedEmail);
+      setForgotStep('otp');
       setForgotCountdown(60);
-      if (res.simulatedOtp) {
-        setForgotOtp(res.simulatedOtp);
-        setForgotSuccessMsg(
-          language === 'vi'
-            ? `Mã OTP: ${res.simulatedOtp} (Đã gửi tới hộp thư & tự động điền)`
-            : `Test OTP: ${res.simulatedOtp} (Auto-filled)`,
-        );
-      } else {
-        setForgotSuccessMsg(
-          language === 'vi'
-            ? `Mã xác thực đã được gửi tới ${trimmedEmail}. Vui lòng kiểm tra hộp thư!`
-            : `Verification code sent to ${trimmedEmail}!`,
-        );
-      }
+      setForgotOtp('');
+      setForgotSuccessMsg(
+        language === 'vi'
+          ? `Mã xác thực đã được gửi tới ${trimmedEmail}. Vui lòng kiểm tra hộp thư đến (hoặc thư mục Spam/Rác)!`
+          : `Verification code sent to ${trimmedEmail}. Please check your inbox or spam folder!`,
+      );
     } catch (err: any) {
       setErrorMsg(err.message || 'Không thể gửi mã xác thực, vui lòng thử lại');
     } finally {
@@ -361,19 +337,41 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     }
   };
 
-  // Xác nhận OTP và đặt lại mật khẩu mới
-  const handleResetPassword = async () => {
+  // Bước 2: Xác nhận OTP duy nhất trước khi nhập mật khẩu mới
+  const handleVerifyForgotOtp = async () => {
     setErrorMsg(null);
     setForgotSuccessMsg(null);
+    const cleanOtp = forgotOtp.trim();
 
-    if (!forgotOtp.trim() || forgotOtp.trim().length !== 6) {
+    if (!cleanOtp || cleanOtp.length !== 6) {
       setErrorMsg(
         language === 'vi'
           ? 'Vui lòng nhập đầy đủ 6 chữ số mã OTP'
-          : 'Please enter all 6 digits of the OTP code',
+          : 'Please enter 6-digit OTP code',
       );
       return;
     }
+
+    setLoading(true);
+    try {
+      await verifyOtpApi(forgotEmail.trim(), cleanOtp);
+      setForgotStep('new_password');
+      setForgotSuccessMsg(
+        language === 'vi'
+          ? 'Mã OTP chính xác! Bây giờ bạn hãy thiết lập mật khẩu mới.'
+          : 'OTP verified! Please set your new password.',
+      );
+    } catch (err: any) {
+      setErrorMsg(err.message || (language === 'vi' ? 'Mã OTP không chính xác hoặc đã hết hạn.' : 'Invalid or expired OTP code.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Bước 3: Xác nhận OTP và đặt lại mật khẩu mới
+  const handleResetPassword = async () => {
+    setErrorMsg(null);
+    setForgotSuccessMsg(null);
 
     const isNewPassMinLength = newPassword.length >= 8;
     const hasLetter = /[a-zA-Z]/.test(newPassword);
@@ -413,10 +411,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       setOtpSuccessMsg(
         language === 'vi'
           ? 'Đổi mật khẩu thành công! Bạn có thể đăng nhập bằng mật khẩu mới.'
-          : 'Password reset successfully! You can now log in.',
+          : 'Password reset successfully! You can now log in with your new password.',
       );
     } catch (err: any) {
-      setErrorMsg(err.message || 'Đặt lại mật khẩu thất bại, vui lòng thử lại');
+      setErrorMsg(err.message || 'Không thể đặt lại mật khẩu, vui lòng thử lại');
     } finally {
       setLoading(false);
     }
@@ -513,7 +511,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <View style={styles.leftTopBar}>
               <View style={styles.logoWrapper}>
                 <Image
-                  source={require('../../assets/monett-brand-logo.png')}
+                  source={require('../../../assets/monett-brand-logo.png')}
                   style={styles.logoImage as any}
                   resizeMode="contain"
                 />
@@ -684,7 +682,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               ]}
             >
               <Image
-                source={require('../../assets/frog-hat-coin.png')}
+                source={require('../../../assets/frog-hat-coin.png')}
                 style={styles.bigFrogMascotImage as any}
                 resizeMode="contain"
               />
@@ -850,7 +848,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                       </TouchableOpacity>
                     </View>
                   </>
-                ) : (
+                ) : forgotStep === 'otp' ? (
                   <>
                     {/* Nút quay lại bước nhập email */}
                     <TouchableOpacity
@@ -862,17 +860,17 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                       activeOpacity={0.7}
                     >
                       <Text style={styles.backBtnText}>
-                        ← {language === 'vi' ? 'Quay lại' : 'Back'}
+                        ← {language === 'vi' ? 'Đổi địa chỉ Email' : 'Change Email'}
                       </Text>
                     </TouchableOpacity>
 
-                    {/* Header Đặt lại mật khẩu mới */}
+                    {/* Header Xác thực mã OTP */}
                     <View style={styles.otpHeaderBox}>
                       <View style={styles.otpIconBadge}>
-                        <Text style={styles.otpIconText}>🔐</Text>
+                        <Text style={styles.otpIconText}>🔑</Text>
                       </View>
                       <Text style={styles.otpTitle}>
-                        {language === 'vi' ? 'Thiết lập mật khẩu mới ✨' : 'Set New Password ✨'}
+                        {language === 'vi' ? 'Xác thực mã OTP 🔐' : 'Verify OTP Code 🔐'}
                       </Text>
                       <Text style={styles.otpSubTitle}>
                         {language === 'vi'
@@ -882,6 +880,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                       <View style={styles.otpEmailPill}>
                         <Text style={styles.otpEmailText}>{forgotEmail.trim()}</Text>
                       </View>
+                      <Text style={styles.otpHelperText}>
+                        {language === 'vi'
+                          ? 'Vui lòng kiểm tra hộp thư đến (hoặc thư mục Spam/Rác) và nhập mã để tiếp tục.'
+                          : 'Please check your inbox or spam folder and enter the code to continue.'}
+                      </Text>
                     </View>
 
                     {/* Thông báo lỗi nếu có */}
@@ -892,7 +895,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                       </View>
                     )}
 
-                    {/* Thông báo thành công / Mã thử nghiệm */}
+                    {/* Thông báo thành công */}
                     {forgotSuccessMsg && (
                       <View style={styles.successBox}>
                         <Text style={styles.successIcon}>✨</Text>
@@ -929,6 +932,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                             onChangeText={setForgotOtp}
                             onFocus={() => setFocusedField('forgotOtp')}
                             onBlur={() => setFocusedField(null)}
+                            onSubmitEditing={handleVerifyForgotOtp}
+                            autoFocus={true}
                           />
                         </View>
                       </View>
@@ -958,7 +963,78 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                         </TouchableOpacity>
                       </View>
 
-                      {/* Ô nhập Mật khẩu mới */}
+                      {/* Nút Tiếp tục */}
+                      <TouchableOpacity
+                        style={[
+                          styles.submitBtn,
+                          (loading || forgotOtp.trim().length !== 6) && styles.submitBtnDisabled,
+                        ]}
+                        onPress={handleVerifyForgotOtp}
+                        disabled={loading || forgotOtp.trim().length !== 6}
+                        activeOpacity={0.88}
+                      >
+                        {loading ? (
+                          <ActivityIndicator color="#FFFFFF" />
+                        ) : (
+                          <View style={styles.btnContentRow}>
+                            <Text style={styles.submitBtnText}>
+                              {language === 'vi' ? 'Tiếp tục' : 'Continue'}
+                            </Text>
+                            <Text style={styles.arrowIcon}>➔</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    {/* Nút quay lại bước nhập OTP */}
+                    <TouchableOpacity
+                      style={styles.backBtn}
+                      onPress={() => {
+                        setForgotStep('otp');
+                        setErrorMsg(null);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.backBtnText}>
+                        ← {language === 'vi' ? 'Quay lại nhập OTP' : 'Back to OTP step'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {/* Header Đặt lại mật khẩu mới */}
+                    <View style={styles.otpHeaderBox}>
+                      <View style={styles.otpIconBadge}>
+                        <Text style={styles.otpIconText}>🔒</Text>
+                      </View>
+                      <Text style={styles.otpTitle}>
+                        {language === 'vi' ? 'Thiết lập mật khẩu mới ✨' : 'Set New Password ✨'}
+                      </Text>
+                      <Text style={styles.otpSubTitle}>
+                        {language === 'vi'
+                          ? `Tạo mật khẩu mới cho tài khoản: ${forgotEmail.trim()}`
+                          : `Create new password for: ${forgotEmail.trim()}`}
+                      </Text>
+                    </View>
+
+                    {/* Thông báo lỗi nếu có */}
+                    {errorMsg && (
+                      <View style={styles.errorBox}>
+                        <Text style={styles.errorIcon}>⚠️</Text>
+                        <Text style={styles.errorText}>{errorMsg}</Text>
+                      </View>
+                    )}
+
+                    {/* Thông báo thành công */}
+                    {forgotSuccessMsg && (
+                      <View style={styles.successBox}>
+                        <Text style={styles.successIcon}>✨</Text>
+                        <Text style={styles.successText}>{forgotSuccessMsg}</Text>
+                      </View>
+                    )}
+
+                    {/* Ô nhập Mật khẩu mới */}
+                    <View style={styles.inputsGroup}>
                       <View style={styles.fieldItem}>
                         <Text style={styles.fieldLabel}>
                           {language === 'vi' ? 'Mật khẩu mới' : 'New password'}
@@ -979,13 +1055,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                           <Text style={styles.inputLeadingIcon}>🔒</Text>
                           <TextInput
                             style={styles.textInput as any}
-                            placeholder={language === 'vi' ? 'Nhập mật khẩu mới' : 'Enter new password'}
+                            placeholder={language === 'vi' ? 'Tối thiểu 8 ký tự' : 'At least 8 characters'}
                             placeholderTextColor="#94A3B8"
                             secureTextEntry={!showNewPassword}
                             value={newPassword}
                             onChangeText={setNewPassword}
                             onFocus={() => setFocusedField('newPassword')}
                             onBlur={() => setFocusedField(null)}
+                            autoFocus={true}
                           />
                           <TouchableOpacity
                             style={styles.eyeBtn}
@@ -1049,11 +1126,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                       <TouchableOpacity
                         style={[
                           styles.submitBtn,
-                          (loading || forgotOtp.trim().length !== 6 || !newPassword.trim() || !confirmPassword.trim()) &&
+                          (loading || !newPassword.trim() || !confirmPassword.trim()) &&
                             styles.submitBtnDisabled,
                         ]}
                         onPress={handleResetPassword}
-                        disabled={loading || forgotOtp.trim().length !== 6 || !newPassword.trim() || !confirmPassword.trim()}
+                        disabled={loading || !newPassword.trim() || !confirmPassword.trim()}
                         activeOpacity={0.88}
                       >
                         {loading ? (
@@ -1061,7 +1138,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                         ) : (
                           <View style={styles.btnContentRow}>
                             <Text style={styles.submitBtnText}>
-                              {language === 'vi' ? 'Cập nhật mật khẩu & Đăng nhập' : 'Update & Log In'}
+                              {language === 'vi' ? 'Đặt lại mật khẩu & Đăng nhập' : 'Reset Password & Log In'}
                             </Text>
                             <Text style={styles.arrowIcon}>➔</Text>
                           </View>
@@ -2084,7 +2161,6 @@ const styles = StyleSheet.create({
     outlineStyle: 'none',
     outlineWidth: 0,
     outlineColor: 'transparent',
-    outline: 'none',
   } as any,
   eyeBtn: {
     padding: 6,
@@ -2168,6 +2244,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#047857',
   },
+  otpHelperText: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    marginTop: 8,
+    lineHeight: 16,
+  },
   otpInputWrapper: {
     height: 56,
     borderWidth: 1.5,
@@ -2190,7 +2273,6 @@ const styles = StyleSheet.create({
     outlineStyle: 'none',
     outlineWidth: 0,
     outlineColor: 'transparent',
-    outline: 'none',
   } as any,
   resendOtpRow: {
     flexDirection: 'row',

@@ -1,19 +1,25 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Image, Platform, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ResponsiveLayout, TabKey } from './src/layouts/ResponsiveLayout';
-import { HomeScreen } from './src/screens/HomeScreen';
-import { ProfileScreen } from './src/screens/ProfileScreen';
-import { AuthScreen } from './src/screens/AuthScreen';
-import { LandingScreen } from './src/screens/LandingScreen';
+import { HomeScreen } from './src/screens/web/HomeScreen';
+import { ProfileScreen } from './src/screens/web/ProfileScreen';
+import { AuthScreen } from './src/screens/web/AuthScreen';
+import { LandingScreen } from './src/screens/web/LandingScreen';
+import { MobileAuthScreen } from './src/screens/mobile/MobileAuthScreen';
+import { MobileHomeScreen } from './src/screens/mobile/MobileHomeScreen';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 
 function MainApp() {
   const { user, isLoading } = useAuth();
   const { language } = useLanguage();
+  const { width } = useWindowDimensions();
+  const isMobileScreen = Platform.OS !== 'web' || width < 768;
   const [activeTab, setActiveTab] = useState<TabKey>('home');
-  const [publicScreen, setPublicScreen] = useState<'landing' | 'auth'>('landing');
+  const [publicScreen, setPublicScreen] = useState<'landing' | 'auth'>(
+    Platform.OS === 'web' ? 'landing' : 'auth'
+  );
   const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register'>('login');
 
   const handleNavigateToAuth = (mode: 'login' | 'register') => {
@@ -47,8 +53,17 @@ function MainApp() {
     );
   }
 
-  // Khi người dùng chưa đăng nhập: Mặc định hiển thị Landing Page giới thiệu
+  // Khi người dùng chưa đăng nhập:
   if (!user) {
+    if (isMobileScreen) {
+      return (
+        <MobileAuthScreen
+          initialMode={authInitialMode}
+          onSuccess={() => {}}
+        />
+      );
+    }
+
     if (publicScreen === 'landing') {
       return <LandingScreen onNavigateToAuth={handleNavigateToAuth} />;
     }
@@ -58,6 +73,11 @@ function MainApp() {
         onBackToHome={handleBackToLanding}
       />
     );
+  }
+
+  // Khi người dùng ĐÃ đăng nhập trên thiết bị Mobile (Điện thoại hoặc màn hình nhỏ):
+  if (isMobileScreen) {
+    return <MobileHomeScreen />;
   }
 
   const renderContent = () => {

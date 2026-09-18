@@ -43,8 +43,15 @@ export interface LoginDto {
   password: string;
 }
 
+export interface VerifyOtpDto {
+  email: string;
+  otp: string;
+}
+
 export interface GoogleAuthDto {
   idToken?: string;
+  code?: string;
+  redirectUri?: string;
   email?: string;
   fullName?: string;
   avatarUrl?: string;

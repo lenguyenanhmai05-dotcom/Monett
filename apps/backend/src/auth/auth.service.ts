@@ -34,7 +34,7 @@ export class AuthService {
     this.googleClient = new OAuth2Client(clientId);
   }
 
-  async sendOtp(email: string): Promise<{ success: boolean; message: string; simulatedOtp?: string }> {
+  async sendOtp(email: string): Promise<{ success: boolean; message: string }> {
     const normalizedEmail = email.toLowerCase().trim();
 
     // 1. Kiểm tra email đã có tài khoản chưa
@@ -54,23 +54,89 @@ export class AuthService {
       { upsert: true, new: true },
     );
 
-    // 4. Gửi email thông báo
+    // 4. Gửi email thông báo thật qua Gmail SMTP
     await this.mailService.sendOtpEmail(normalizedEmail, otpCode);
 
     return {
       success: true,
-      message: `Mã xác thực OTP đã được gửi tới ${normalizedEmail} (Hiệu lực 5 phút)`,
-      simulatedOtp: process.env.NODE_ENV !== 'production' ? otpCode : undefined,
+      message: `Mã xác thực OTP đã được gửi tới ${normalizedEmail}. Vui lòng kiểm tra hộp thư đến (hoặc thư mục Spam/Rác)!`,
+    };
+  }
+
+  async verifyOtp(email: string, otp: string): Promise<{ success: boolean; message: string }> {
+    const normalizedEmail = email.toLowerCase().trim();
+    const validOtp = await this.otpModel.findOne({
+      email: normalizedEmail,
+      otp: otp.trim(),
+    });
+
+    if (!validOtp) {
+      throw new BadRequestException('Mã xác thực OTP không chính xác!');
+    }
+
+    if (new Date() > validOtp.expiresAt) {
+      throw new BadRequestException('Mã xác thực OTP đã hết hạn (chỉ có hiệu lực trong 5 phút)! Vui lòng yêu cầu gửi lại mã mới.');
+    }
+
+    return {
+      success: true,
+      message: 'Mã xác thực OTP hợp lệ.',
     };
   }
 
   async googleLogin(dto: GoogleAuthDto): Promise<AuthResponse> {
+    console.log('[Backend] googleLogin received:', {
+      hasCode: !!dto.code,
+      redirectUri: dto.redirectUri,
+      email: dto.email,
+    });
     let email = dto.email;
     let fullName = dto.fullName;
     let avatarUrl = dto.avatarUrl;
     let googleId = dto.googleId;
 
-    if (dto.idToken) {
+    // 1. Nếu nhận mã authorization code từ Google OAuth (Native Mobile hoặc Web redirect)
+    if (dto.code) {
+      try {
+        const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
+        const clientSecret = this.configService.get<string>('GOOGLE_CLIENT_SECRET');
+        const oauth2Client = new OAuth2Client(clientId, clientSecret, dto.redirectUri);
+        const { tokens } = await oauth2Client.getToken(dto.code);
+
+        if (tokens.id_token) {
+          const ticket = await this.googleClient.verifyIdToken({
+            idToken: tokens.id_token,
+            audience: clientId,
+          });
+          const payload = ticket.getPayload();
+          if (payload) {
+            googleId = payload.sub;
+            email = payload.email;
+            fullName = payload.name;
+            avatarUrl = payload.picture;
+          }
+        } else if (tokens.access_token) {
+          const userInfoRes = await fetch(
+            'https://www.googleapis.com/oauth2/v3/userinfo',
+            {
+              headers: { Authorization: `Bearer ${tokens.access_token}` },
+            },
+          );
+          if (userInfoRes.ok) {
+            const userInfo = await userInfoRes.json();
+            googleId = userInfo.sub;
+            email = userInfo.email;
+            fullName = userInfo.name;
+            avatarUrl = userInfo.picture;
+          }
+        }
+      } catch (tokenErr: any) {
+        console.warn('Google code exchange notice:', tokenErr.message);
+        if (!email) {
+          throw new UnauthorizedException('Xác thực mã Google OAuth không thành công: ' + tokenErr.message);
+        }
+      }
+    } else if (dto.idToken) {
       try {
         const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
         const ticket = await this.googleClient.verifyIdToken({
@@ -183,7 +249,7 @@ export class AuthService {
     };
   }
 
-  async forgotPassword(email: string): Promise<{ success: boolean; message: string; simulatedOtp?: string }> {
+  async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
     const normalizedEmail = email.toLowerCase().trim();
 
     // 1. Kiểm tra tài khoản có tồn tại không
@@ -208,8 +274,7 @@ export class AuthService {
 
     return {
       success: true,
-      message: `Mã xác thực đặt lại mật khẩu đã được gửi tới ${normalizedEmail} (Hiệu lực 5 phút)`,
-      simulatedOtp: process.env.NODE_ENV !== 'production' ? otpCode : undefined,
+      message: `Mã xác thực đặt lại mật khẩu đã được gửi tới ${normalizedEmail}. Vui lòng kiểm tra hộp thư đến (hoặc thư mục Spam/Rác)!`,
     };
   }
 

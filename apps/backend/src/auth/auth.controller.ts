@@ -13,6 +13,7 @@ import { GoogleAuthDto } from './dto/google-auth.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ApiResponse, AuthResponse, IUser } from '@monett/shared';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
@@ -23,12 +24,25 @@ export class AuthController {
   @Post('send-otp')
   async sendOtp(
     @Body() sendOtpDto: SendOtpDto,
-  ): Promise<ApiResponse<{ message: string; simulatedOtp?: string }>> {
+  ): Promise<ApiResponse<{ message: string }>> {
     const data = await this.authService.sendOtp(sendOtpDto.email);
     return {
       success: true,
       message: data.message,
-      data: { message: data.message, simulatedOtp: data.simulatedOtp },
+      data: { message: data.message },
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  @Post('verify-otp')
+  async verifyOtp(
+    @Body() verifyDto: VerifyOtpDto,
+  ): Promise<ApiResponse<{ message: string }>> {
+    const data = await this.authService.verifyOtp(verifyDto.email, verifyDto.otp);
+    return {
+      success: true,
+      message: data.message,
+      data: { message: data.message },
       timestamp: new Date().toISOString(),
     };
   }
@@ -36,12 +50,12 @@ export class AuthController {
   @Post('forgot-password')
   async forgotPassword(
     @Body() forgotDto: ForgotPasswordDto,
-  ): Promise<ApiResponse<{ message: string; simulatedOtp?: string }>> {
+  ): Promise<ApiResponse<{ message: string }>> {
     const data = await this.authService.forgotPassword(forgotDto.email);
     return {
       success: true,
       message: data.message,
-      data: { message: data.message, simulatedOtp: data.simulatedOtp },
+      data: { message: data.message },
       timestamp: new Date().toISOString(),
     };
   }

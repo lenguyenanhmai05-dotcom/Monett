@@ -8,6 +8,14 @@ export class GoogleAuthDto implements IGoogleAuthDto {
 
   @IsOptional()
   @IsString()
+  code?: string;
+
+  @IsOptional()
+  @IsString()
+  redirectUri?: string;
+
+  @IsOptional()
+  @IsString()
   email?: string;
 
   @IsOptional()

@@ -8,8 +8,8 @@ import {
   Image,
   useWindowDimensions,
 } from 'react-native';
-import { useAuth } from '../contexts/AuthContext';
-import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 export const HomeScreen: React.FC = () => {
   const { width } = useWindowDimensions();
@@ -235,7 +235,7 @@ export const HomeScreen: React.FC = () => {
             <View style={styles.streakTitleBlock}>
               <View style={styles.streakFlameTeardrop}>
                 <Image
-                  source={require('../../assets/frog-explorer.png')}
+                  source={require('../../../assets/frog-explorer.png')}
                   style={styles.streakFlameFrogImg}
                   resizeMode="contain"
                 />
@@ -373,7 +373,7 @@ export const HomeScreen: React.FC = () => {
         <View style={[styles.card, isDesktop ? styles.cardRow2Right : styles.flex1, styles.chibiCard]}>
           <View style={styles.chibiHeaderRow}>
             <Image
-              source={require('../../assets/frog-explorer.png')}
+              source={require('../../../assets/frog-explorer.png')}
               style={styles.chibiFrogMascot}
               resizeMode="contain"
             />

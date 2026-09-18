@@ -11,12 +11,12 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import { useLanguage } from '../contexts/LanguageContext';
-import { LanguageToggle } from '../components/LanguageToggle';
+import { useLanguage } from '../../contexts/LanguageContext';
+import { LanguageToggle } from '../../components/LanguageToggle';
 import {
   APPLE_LOGO_WHITE_URI,
   GOOGLE_PLAY_LOGO_URI,
-} from '../components/SocialLogos';
+} from '../../components/SocialLogos';
 
 // Crisp App Store vector icon
 const AppStoreIcon = () => {
@@ -120,7 +120,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
             }}
           >
             <Image
-              source={require('../../assets/monett-brand-logo.png')}
+              source={require('../../../assets/monett-brand-logo.png')}
               style={styles.navLogo}
               resizeMode="contain"
             />
@@ -302,7 +302,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
 
                 {/* Central Frog Mascot with Conical Hat & "M" Coin */}
                 <Image
-                  source={require('../../assets/frogs/frog-mascot-m.png')}
+                  source={require('../../../assets/frogs/frog-mascot-m.png')}
                   style={styles.heroMascotImage}
                   resizeMode="contain"
                 />
@@ -393,7 +393,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
 
               <View style={styles.photoboothImageFrame}>
                 <Image
-                  source={require('../../assets/frogs/frog-photobooth-strip.png')}
+                  source={require('../../../assets/frogs/frog-photobooth-strip.png')}
                   style={styles.photoboothStripImg}
                   resizeMode="contain"
                 />
@@ -434,7 +434,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
                 <View style={styles.bigPhoneCol}>
                   <View style={styles.bigPhoneFrame}>
                     <Image
-                      source={require('../../assets/monett-phone-mockup.png')}
+                      source={require('../../../assets/monett-phone-mockup.png')}
                       style={styles.bigPhoneImg}
                       resizeMode="contain"
                     />
@@ -495,7 +495,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
                       ]}
                     >
                       <Image
-                        source={require('../../assets/frogs/frog-snap.png')}
+                        source={require('../../../assets/frogs/frog-snap.png')}
                         style={styles.runnerFrogSprite}
                         resizeMode="contain"
                       />
@@ -618,7 +618,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
               </Text>
               <View style={styles.bentoFrogArtBox}>
                 <Image
-                  source={require('../../assets/frogs/frog-selfie.png')}
+                  source={require('../../../assets/frogs/frog-selfie.png')}
                   style={styles.bentoFrogImg}
                   resizeMode="contain"
                 />
@@ -647,7 +647,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
               </Text>
               <View style={styles.bentoFrogArtBox}>
                 <Image
-                  source={require('../../assets/frogs/frog-shopping.png')}
+                  source={require('../../../assets/frogs/frog-shopping.png')}
                   style={styles.bentoFrogImg}
                   resizeMode="contain"
                 />
@@ -676,7 +676,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
               </Text>
               <View style={styles.bentoFrogArtBox}>
                 <Image
-                  source={require('../../assets/frogs/frog-tracking.png')}
+                  source={require('../../../assets/frogs/frog-tracking.png')}
                   style={styles.bentoFrogImg}
                   resizeMode="contain"
                 />
@@ -705,7 +705,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
               </Text>
               <View style={styles.bentoFrogArtBox}>
                 <Image
-                  source={require('../../assets/frogs/frog-payday.png')}
+                  source={require('../../../assets/frogs/frog-payday.png')}
                   style={styles.bentoFrogImg}
                   resizeMode="contain"
                 />
@@ -958,7 +958,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
             <View style={styles.footerBrandCol}>
               <View style={styles.footerLogoBadge}>
                 <Image
-                  source={require('../../assets/monett-brand-logo.png')}
+                  source={require('../../../assets/monett-brand-logo.png')}
                   style={styles.footerLogo}
                   resizeMode="contain"
                 />
