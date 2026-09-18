@@ -55,6 +55,8 @@ interface LandingScreenProps {
 export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 960;
+  const isLarge = width >= 1536;
+  const containerMaxWidth = isLarge ? 1380 : 1200;
   const { language, setLanguage } = useLanguage();
 
   const isVi = language === 'vi';
@@ -106,7 +108,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
       {/* 1. STICKY TOP NAVBAR (GLASSMORPHISM) */}
       {/* ============================================================ */}
       <View style={styles.navbarWrapper}>
-        <View style={[styles.navbarInner, isDesktop ? styles.desktopNavInner : styles.mobileNavInner]}>
+        <View style={[styles.navbarInner, isDesktop ? styles.desktopNavInner : styles.mobileNavInner, { maxWidth: containerMaxWidth }]}>
           {/* Brand Logo */}
           <TouchableOpacity
             style={styles.logoBtn}
@@ -207,7 +209,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
       >
         {/* HERO SECTION */}
         <View style={styles.heroSection}>
-          <View style={[styles.heroContainer, isDesktop ? styles.heroDesktopRow : styles.heroMobileCol]}>
+          <View style={[styles.heroContainer, isDesktop ? styles.heroDesktopRow : styles.heroMobileCol, { maxWidth: containerMaxWidth }, isLarge && { gap: 48 }]}>
             {/* Left Hero Text */}
             <View style={[styles.heroLeft, isDesktop ? { flex: 1.1 } : { width: '100%' }]}>
               <View style={styles.pillBadge}>
@@ -379,7 +381,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
             </Text>
           </View>
 
-          <View style={[styles.photoboothRow, isDesktop ? styles.photoboothDesktop : styles.photoboothMobile]}>
+          <View style={[styles.photoboothRow, isDesktop ? styles.photoboothDesktop : styles.photoboothMobile, { maxWidth: containerMaxWidth }]}>
             {/* Left: The Photobooth Strip (Authentic 4-cut photostrip with pin badge & tilt) */}
             <View style={styles.photoboothStripCard}>
               <View style={styles.photoboothPinBadge}>
@@ -593,7 +595,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
           </View>
 
           {/* 4 Feature Bento Cards */}
-          <View style={styles.bentoGrid}>
+          <View style={[styles.bentoGrid, { maxWidth: containerMaxWidth }]}>
             {/* Card 1: Frog Selfie (Visual Diary) */}
             <View style={[styles.bentoCard, isDesktop ? styles.bentoCardHalf : styles.bentoCardFull]}>
               <View style={styles.bentoCardHeader}>
@@ -721,7 +723,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
           id="download-section"
           style={styles.downloadSection}
         >
-          <View style={[styles.downloadInnerCard, isDesktop ? styles.downloadDesktop : styles.downloadMobile]}>
+          <View style={[styles.downloadInnerCard, isDesktop ? styles.downloadDesktop : styles.downloadMobile, { maxWidth: containerMaxWidth }]}>
             {/* Left Info & Badges */}
             <View style={[styles.downloadLeft, isDesktop ? { flex: 1.2 } : { width: '100%' }]}>
               <View style={styles.downloadTagPill}>
@@ -842,7 +844,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
             </Text>
           </View>
 
-          <View style={[styles.reviewRow, isDesktop ? styles.reviewRowDesktop : styles.reviewRowMobile]}>
+          <View style={[styles.reviewRow, isDesktop ? styles.reviewRowDesktop : styles.reviewRowMobile, { maxWidth: containerMaxWidth }]}>
             {/* Review 1 */}
             <View style={styles.reviewCard}>
               <Text style={styles.reviewStars}>⭐️⭐️⭐️⭐️⭐️</Text>
@@ -912,7 +914,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
         {/* 7. BOTTOM CTA BANNER */}
         {/* ============================================================ */}
         <View style={styles.bottomCtaSection}>
-          <View style={styles.bottomCtaCard}>
+          <View style={[styles.bottomCtaCard, isLarge && { maxWidth: 1100 }]}>
             <View style={styles.bottomCtaFrogBadge}>
               <Text style={{ fontSize: 36 }}>🐸</Text>
             </View>
@@ -951,7 +953,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
         {/* 8. FOOTER */}
         {/* ============================================================ */}
         <View style={styles.footerContainer}>
-          <View style={[styles.footerInner, isDesktop ? styles.footerDesktopRow : styles.footerMobileCol]}>
+          <View style={[styles.footerInner, isDesktop ? styles.footerDesktopRow : styles.footerMobileCol, { maxWidth: containerMaxWidth }]}>
             {/* Left Brand Col */}
             <View style={styles.footerBrandCol}>
               <View style={styles.footerLogoBadge}>

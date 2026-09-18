@@ -30,6 +30,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 980;
+  const isCompact = width >= 980 && width < 1280;
+  const isLarge = width >= 1536;
 
   const { login, register, googleLogin } = useAuth();
   const { language, t } = useLanguage();
@@ -492,6 +494,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         style={[
           styles.mainLayout,
           isDesktop ? styles.desktopLayout : styles.mobileLayout,
+          isLarge && styles.largeMainLayout,
+          isCompact && styles.compactMainLayout,
         ]}
       >
         {/* ===================== KHU VỰC BÊN TRÁI: SHOWCASE TINH GỌN, HOVER XEM CHI TIẾT ===================== */}
@@ -499,6 +503,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           style={[
             styles.leftShowcase,
             isDesktop ? styles.desktopLeft : styles.mobileLeft,
+            isLarge && styles.largeLeft,
+            isCompact && styles.compactLeft,
           ]}
         >
           {/* CỤM PHÍA TRÊN: LOGO & 2 CÂU GIỚI THIỆU THEO YÊU CẦU */}
@@ -520,11 +526,25 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
             {/* 2 CÂU TIÊU ĐỀ & GIỚI THIỆU CHUẨN XÁC THEO HÌNH ẢNH */}
             <View style={styles.headlineBox}>
-              <Text style={styles.headlineTitle}>
+              <Text
+                style={[
+                  styles.headlineTitle,
+                  isLarge && styles.largeHeadlineTitle,
+                  isCompact && styles.compactHeadlineTitle,
+                ]}
+              >
                 {t.heroTitle1}{' '}
                 <Text style={styles.headlineHighlight}>{t.heroTitleHighlight}</Text>
               </Text>
-              <Text style={styles.headlineDesc}>{t.heroSubtitle}</Text>
+              <Text
+                style={[
+                  styles.headlineDesc,
+                  isLarge && styles.largeHeadlineDesc,
+                  isCompact && styles.compactHeadlineDesc,
+                ]}
+              >
+                {t.heroSubtitle}
+              </Text>
             </View>
           </View>
 
@@ -653,6 +673,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <Animated.View
               style={[
                 styles.bigFrogMascotBox,
+                isLarge && styles.largeFrogBox,
+                isCompact && styles.compactFrogBox,
                 {
                   transform: [
                     { translateY: frogFloatY },
@@ -672,6 +694,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <Animated.View
               style={[
                 styles.frogGroundShadow,
+                isLarge && styles.largeFrogShadow,
+                isCompact && styles.compactFrogShadow,
                 {
                   transform: [{ scaleX: shadowScale }, { scaleY: shadowScale }],
                 },
@@ -695,10 +719,18 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           style={[
             styles.rightSection,
             isDesktop ? styles.desktopRightSection : styles.mobileRightSection,
+            isLarge && styles.largeRightSection,
+            isCompact && styles.compactRightSection,
           ]}
         >
           {/* Bảng Đăng Ký / Đăng Nhập Màu Xanh Rừng Ngọc Lục Bảo (Deep Emerald) Sang Trọng */}
-          <View style={styles.authCard}>
+          <View
+            style={[
+              styles.authCard,
+              isLarge && styles.largeAuthCard,
+              isCompact && styles.compactAuthCard,
+            ]}
+          >
             {/* Top Bar Right: Nút quay lại trang chủ & Bộ chuyển đổi ngôn ngữ */}
             <View style={styles.rightTopBar}>
               {onBackToHome ? (
@@ -1505,9 +1537,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'stretch',
     justifyContent: 'center',
-    gap: 48,
+    gap: 40,
     minHeight: '88vh' as any,
     paddingTop: 24,
+  },
+  largeMainLayout: {
+    maxWidth: 1440,
+    paddingHorizontal: 40,
+    paddingVertical: 36,
+    gap: 60,
+  },
+  compactMainLayout: {
+    maxWidth: 1160,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    gap: 20,
   },
   mobileLayout: {
     flexDirection: 'column',
@@ -1521,7 +1565,16 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   desktopLeft: {
-    width: 610,
+    flex: 1.15,
+    maxWidth: 620,
+  },
+  largeLeft: {
+    flex: 1.25,
+    maxWidth: 740,
+  },
+  compactLeft: {
+    flex: 1,
+    maxWidth: 480,
   },
   mobileLeft: {
     width: '100%',
@@ -1582,6 +1635,16 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     letterSpacing: -0.3,
   },
+  largeHeadlineTitle: {
+    fontSize: 32,
+    lineHeight: 42,
+    marginBottom: 8,
+  },
+  compactHeadlineTitle: {
+    fontSize: 23,
+    lineHeight: 31,
+    marginBottom: 4,
+  },
   headlineHighlight: {
     color: '#059669',
   },
@@ -1590,6 +1653,14 @@ const styles = StyleSheet.create({
     color: '#475569',
     lineHeight: 21,
     width: '100%',
+  },
+  largeHeadlineDesc: {
+    fontSize: 15,
+    lineHeight: 23,
+  },
+  compactHeadlineDesc: {
+    fontSize: 12.5,
+    lineHeight: 18,
   },
 
   // Sân khấu tương tác của Bé Ếch to (Kéo lên lấp đầy khoảng trống)
@@ -1695,27 +1766,43 @@ const styles = StyleSheet.create({
     lineHeight: 13,
   },
 
-  // Bé Ếch to nón lá (Phóng to 470px cực kỳ hoành tráng & lấp đầy không gian)
+  // Bé Ếch to nón lá (Phóng to hoành tráng & lấp đầy không gian)
   bigFrogMascotBox: {
-    width: 470,
-    height: 470,
+    width: 450,
+    height: 450,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
     // @ts-ignore
     transition: 'transform 0.25s ease',
   },
+  largeFrogBox: {
+    width: 520,
+    height: 520,
+  },
+  compactFrogBox: {
+    width: 360,
+    height: 360,
+  },
   bigFrogMascotImage: {
     width: '100%',
     height: '100%',
   },
   frogGroundShadow: {
-    width: 290,
+    width: 280,
     height: 20,
     borderRadius: 10,
     backgroundColor: 'rgba(5, 150, 105, 0.16)',
-    marginTop: -94, // Kéo bóng sát rạt chân chú ếch 470px
+    marginTop: -90, // Kéo bóng sát chân chú ếch
     zIndex: 5,
+  },
+  largeFrogShadow: {
+    width: 330,
+    marginTop: -105,
+  },
+  compactFrogShadow: {
+    width: 220,
+    marginTop: -72,
   },
 
   // Huy hiệu Chuỗi Kỷ Luật Tinh Tế Dưới Chân Bé Ếch (Chỉ giữ chuỗi 18 ngày, bỏ 180 coins)
@@ -1753,7 +1840,13 @@ const styles = StyleSheet.create({
   },
   desktopRightSection: {
     width: 440,
-    marginLeft: 28,
+  },
+  largeRightSection: {
+    width: 490,
+    maxWidth: 500,
+  },
+  compactRightSection: {
+    width: 390,
   },
   mobileRightSection: {
     width: '100%',
@@ -1772,6 +1865,14 @@ const styles = StyleSheet.create({
     elevation: 8,
     borderWidth: 2,
     borderColor: '#10B981', // Viền xanh lá emerald nổi bật, sắc nét
+  },
+  largeAuthCard: {
+    padding: 36,
+    borderRadius: 28,
+  },
+  compactAuthCard: {
+    padding: 22,
+    borderRadius: 20,
   },
   rightTopBar: {
     flexDirection: 'row',
