@@ -89,7 +89,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
             {/* Left: Brand Logo */}
             <View style={styles.navLeft}>
               <Image
-                source={require('../../assets/monett-logo.png')}
+                source={require('../../assets/monett-brand-logo.png')}
                 style={styles.navLogo}
                 resizeMode="contain"
               />
@@ -186,7 +186,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
           /* Mobile Header */
           <View style={styles.mobileHeader}>
             <Image
-              source={require('../../assets/monett-logo.png')}
+              source={require('../../assets/monett-brand-logo.png')}
               style={styles.mobileNavLogo}
               resizeMode="contain"
             />

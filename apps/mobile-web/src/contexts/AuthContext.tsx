@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { IUser, LoginDto, RegisterDto } from '@monett/shared';
+import { IUser, LoginDto, RegisterDto, GoogleAuthDto } from '@monett/shared';
 import {
   getAuthToken,
   setAuthToken,
   loginApi,
   registerApi,
+  googleAuthApi,
   getMeApi,
 } from '../services/api';
 
@@ -14,6 +15,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (dto: LoginDto) => Promise<void>;
   register: (dto: RegisterDto) => Promise<void>;
+  googleLogin: (dto: GoogleAuthDto) => Promise<void>;
   logout: () => void;
 }
 
@@ -23,6 +25,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   login: async () => {},
   register: async () => {},
+  googleLogin: async () => {},
   logout: () => {},
 });
 
@@ -67,6 +70,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setUser(res.user);
   };
 
+  const googleLogin = async (dto: GoogleAuthDto) => {
+    const res = await googleAuthApi(dto);
+    setTokenState(res.accessToken);
+    setUser(res.user);
+  };
+
   const logout = () => {
     setAuthToken(null);
     setTokenState(null);
@@ -81,6 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         isLoading,
         login,
         register,
+        googleLogin,
         logout,
       }}
     >

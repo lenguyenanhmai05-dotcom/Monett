@@ -10,6 +10,8 @@ export interface IUser {
   avatarUrl?: string;
   currency?: string;
   role: UserRole;
+  googleId?: string;
+  authProvider?: 'local' | 'google';
   createdAt?: string | Date;
   updatedAt?: string | Date;
 }
@@ -19,6 +21,21 @@ export interface RegisterDto {
   password: string;
   fullName: string;
   currency?: string;
+  otp?: string;
+}
+
+export interface SendOtpDto {
+  email: string;
+}
+
+export interface ForgotPasswordDto {
+  email: string;
+}
+
+export interface ResetPasswordDto {
+  email: string;
+  otp: string;
+  newPassword: string;
 }
 
 export interface LoginDto {
@@ -26,7 +43,16 @@ export interface LoginDto {
   password: string;
 }
 
+export interface GoogleAuthDto {
+  idToken?: string;
+  email?: string;
+  fullName?: string;
+  avatarUrl?: string;
+  googleId?: string;
+}
+
 export interface AuthResponse {
   user: IUser;
   accessToken: string;
 }
+

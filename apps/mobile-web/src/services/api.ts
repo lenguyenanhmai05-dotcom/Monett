@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { ApiResponse, AuthResponse, IUser, LoginDto, RegisterDto } from '@monett/shared';
+import { ApiResponse, AuthResponse, GoogleAuthDto, IUser, LoginDto, RegisterDto } from '@monett/shared';
 
 // Xác định địa chỉ Backend phù hợp với thiết bị
 export const getBaseUrl = (): string => {
@@ -91,3 +91,54 @@ export const getMeApi = async (): Promise<IUser> => {
   });
   return res.data!;
 };
+
+export const googleAuthApi = async (dto: GoogleAuthDto): Promise<AuthResponse> => {
+  const res = await request<AuthResponse>('/api/auth/google', {
+    method: 'POST',
+    body: JSON.stringify(dto),
+  });
+  if (res.data?.accessToken) {
+    setAuthToken(res.data.accessToken);
+  }
+  return res.data!;
+};
+
+export const sendOtpApi = async (
+  email: string,
+): Promise<{ message: string; simulatedOtp?: string }> => {
+  const res = await request<{ message: string; simulatedOtp?: string }>(
+    '/api/auth/send-otp',
+    {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    },
+  );
+  return res.data!;
+};
+
+export const forgotPasswordApi = async (
+  email: string,
+): Promise<{ message: string; simulatedOtp?: string }> => {
+  const res = await request<{ message: string; simulatedOtp?: string }>(
+    '/api/auth/forgot-password',
+    {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    },
+  );
+  return res.data!;
+};
+
+export const resetPasswordApi = async (
+  dto: { email: string; otp: string; newPassword: string },
+): Promise<{ message: string }> => {
+  const res = await request<{ message: string }>(
+    '/api/auth/reset-password',
+    {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    },
+  );
+  return res.data!;
+};
+

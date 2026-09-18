@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Image, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ResponsiveLayout, TabKey } from './src/layouts/ResponsiveLayout';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
+import { LandingScreen } from './src/screens/LandingScreen';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 
@@ -12,12 +13,29 @@ function MainApp() {
   const { user, isLoading } = useAuth();
   const { language } = useLanguage();
   const [activeTab, setActiveTab] = useState<TabKey>('home');
+  const [publicScreen, setPublicScreen] = useState<'landing' | 'auth'>('landing');
+  const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register'>('login');
+
+  const handleNavigateToAuth = (mode: 'login' | 'register') => {
+    setAuthInitialMode(mode);
+    setPublicScreen('auth');
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleBackToLanding = () => {
+    setPublicScreen('landing');
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <Image
-          source={require('./assets/monett-logo.png')}
+          source={require('./assets/monett-brand-logo.png')}
           style={styles.loadingLogo}
           resizeMode="contain"
         />
@@ -29,9 +47,17 @@ function MainApp() {
     );
   }
 
-  // Nếu chưa đăng nhập, hiển thị màn hình AuthScreen thiết kế chuẩn
+  // Khi người dùng chưa đăng nhập: Mặc định hiển thị Landing Page giới thiệu
   if (!user) {
-    return <AuthScreen />;
+    if (publicScreen === 'landing') {
+      return <LandingScreen onNavigateToAuth={handleNavigateToAuth} />;
+    }
+    return (
+      <AuthScreen
+        initialMode={authInitialMode}
+        onBackToHome={handleBackToLanding}
+      />
+    );
   }
 
   const renderContent = () => {
