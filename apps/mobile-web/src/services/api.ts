@@ -3,6 +3,11 @@ import { ApiResponse, AuthResponse, GoogleAuthDto, IUser, LoginDto, RegisterDto 
 
 // Xác định địa chỉ Backend phù hợp với thiết bị (Web, Điện thoại qua Expo Go hoặc Mobile Browser)
 export const getBaseUrl = (): string => {
+  const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envApiUrl && (!envApiUrl.includes('localhost') || Platform.OS === 'web')) {
+    return envApiUrl.replace(/\/$/, '');
+  }
+
   // 1. Nếu chạy trên Web browser (PC hoặc Mobile Browser)
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     const hostname = window.location.hostname;
@@ -25,7 +30,7 @@ export const getBaseUrl = (): string => {
       '';
     if (hostUri) {
       if (hostUri.includes('ngrok')) {
-        return `https://${hostUri}`;
+        return `https://${hostUri.split(':')[0]}`;
       }
       const hostIp = hostUri.split(':')[0];
       const isIp = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostIp);
@@ -37,8 +42,8 @@ export const getBaseUrl = (): string => {
     console.warn('Resolve host IP notice:', e);
   }
 
-  // 3. Fallback: Địa chỉ IP Wi-Fi của máy chủ phát triển
-  return 'http://192.168.1.4:3000';
+  // 3. Mặc định
+  return 'http://localhost:3000';
 };
 
 const TOKEN_KEY = 'monett_auth_token';

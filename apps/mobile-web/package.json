@@ -15,6 +15,7 @@
     "expo": "~57.0.21",
     "expo-auth-session": "~57.0.12",
     "expo-camera": "~57.0.5",
+    "expo-constants": "~57.0.19",
     "expo-image-picker": "~57.0.19",
     "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
