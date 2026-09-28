@@ -4,6 +4,7 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
+    "start:tunnel": "expo start --tunnel",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web"
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
+    "@expo/ngrok": "^4.1.0",
     "@types/react": "~19.2.4",
     "typescript": "~6.0.3"
   },

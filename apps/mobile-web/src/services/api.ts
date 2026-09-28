@@ -29,8 +29,8 @@ export const getBaseUrl = (): string => {
       Constants.manifest?.debuggerHost ||
       '';
     if (hostUri) {
-      if (hostUri.includes('ngrok')) {
-        return `https://${hostUri.split(':')[0]}`;
+      if (hostUri.includes('exp.direct') || hostUri.includes('ngrok') || hostUri.includes('trycloudflare') || hostUri.includes('loca.lt')) {
+        return 'https://ultimate-alert-blues-vary.trycloudflare.com';
       }
       const hostIp = hostUri.split(':')[0];
       const isIp = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostIp);
@@ -42,8 +42,8 @@ export const getBaseUrl = (): string => {
     console.warn('Resolve host IP notice:', e);
   }
 
-  // 3. Mặc định
-  return 'http://localhost:3000';
+  // 3. Mặc định: nếu là mobile thì ưu tiên tunnel backend, ngược lại localhost
+  return Platform.OS === 'web' ? 'http://localhost:3000' : 'https://ultimate-alert-blues-vary.trycloudflare.com';
 };
 
 const TOKEN_KEY = 'monett_auth_token';
@@ -77,6 +77,7 @@ const request = async <T>(
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'ngrok-skip-browser-warning': 'true',
+    'Bypass-Tunnel-Reminder': 'true',
     ...(options.headers as Record<string, string>),
   };
 

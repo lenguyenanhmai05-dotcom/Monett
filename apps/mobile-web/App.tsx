@@ -7,7 +7,8 @@ import { ProfileScreen } from './src/screens/web/ProfileScreen';
 import { AuthScreen } from './src/screens/web/AuthScreen';
 import { LandingScreen } from './src/screens/web/LandingScreen';
 import { MobileAuthScreen } from './src/screens/mobile/MobileAuthScreen';
-import { MobileHomeScreen } from './src/screens/mobile/MobileHomeScreen';
+import { MobileNavigator } from './src/screens/mobile/MobileNavigator';
+import { TransactionProvider } from './src/contexts/TransactionContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 
@@ -77,7 +78,11 @@ function MainApp() {
 
   // Khi người dùng ĐÃ đăng nhập trên thiết bị Mobile (Điện thoại hoặc màn hình nhỏ):
   if (isMobileScreen) {
-    return <MobileHomeScreen />;
+    return (
+      <TransactionProvider>
+        <MobileNavigator />
+      </TransactionProvider>
+    );
   }
 
   const renderContent = () => {

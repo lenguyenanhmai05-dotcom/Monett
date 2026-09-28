@@ -8,6 +8,7 @@ import {
   ScrollView,
   SafeAreaView,
 } from 'react-native';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface ProfileScreenProps {
   onBack?: () => void;
@@ -15,6 +16,17 @@ interface ProfileScreenProps {
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }) => {
+  const { user: authUser, logout } = useAuth();
+  const displayName = authUser?.fullName || 'Người dùng Monett';
+  const displayEmail = authUser?.email || 'monett.user@monett.app';
+  const avatarUri =
+    authUser?.avatarUrl ||
+    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80';
+
+  const handleLogout = () => {
+    if (onLogout) onLogout();
+    logout();
+  };
   const badges = [
     { id: 'b1', name: 'Nhiếp ảnh gia ví tiền', icon: '📸', desc: 'Chụp 50+ ảnh chi tiêu', unlocked: true },
     { id: 'b2', name: 'Chuỗi rực rỡ', icon: '🔥', desc: 'Giữ chuỗi 18 ngày', unlocked: true },
@@ -49,7 +61,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
         <View style={styles.profileHeroCard}>
           <View style={styles.avatarContainer}>
             <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&auto=format&fit=crop&q=80' }}
+              source={{ uri: avatarUri }}
               style={styles.avatarImg}
             />
             <View style={styles.levelBadge}>
@@ -57,8 +69,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
             </View>
           </View>
 
-          <Text style={styles.userName}>Bảo Lương</Text>
-          <Text style={styles.userEmail}>bao.luong@monett.app</Text>
+          <Text style={styles.userName}>{displayName}</Text>
+          <Text style={styles.userEmail}>{displayEmail}</Text>
 
           {/* Linh vật ếch Monett & XP Bar */}
           <View style={styles.frogBanner}>
@@ -122,7 +134,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
         </View>
 
         {/* 6. Nút Đăng Xuất */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={onLogout} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
           <Text style={styles.logoutText}>Đăng xuất khỏi tài khoản</Text>
         </TouchableOpacity>
       </ScrollView>
