@@ -9,8 +9,8 @@ export class User {
   @Prop({ required: true, unique: true, lowercase: true, trim: true })
   email: string;
 
-  @Prop({ required: true })
-  password: string;
+  @Prop({ required: false })
+  password?: string;
 
   @Prop({ required: true, trim: true })
   fullName: string;
@@ -23,6 +23,12 @@ export class User {
 
   @Prop({ type: String, enum: UserRole, default: UserRole.USER })
   role: UserRole;
+
+  @Prop({ default: null, sparse: true })
+  googleId?: string;
+
+  @Prop({ default: 'local' })
+  authProvider: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

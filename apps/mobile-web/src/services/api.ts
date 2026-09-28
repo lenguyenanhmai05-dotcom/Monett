@@ -1,16 +1,49 @@
 import { Platform } from 'react-native';
-import { ApiResponse, AuthResponse, IUser, LoginDto, RegisterDto } from '@monett/shared';
+import { ApiResponse, AuthResponse, GoogleAuthDto, IUser, LoginDto, RegisterDto } from '@monett/shared';
 
-// Xác định địa chỉ Backend phù hợp với thiết bị
+// Xác định địa chỉ Backend phù hợp với thiết bị (Web, Điện thoại qua Expo Go hoặc Mobile Browser)
 export const getBaseUrl = (): string => {
-  if (Platform.OS === 'web') {
-    return 'http://localhost:3000';
+  const envApiUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envApiUrl && (!envApiUrl.includes('localhost') || Platform.OS === 'web')) {
+    return envApiUrl.replace(/\/$/, '');
   }
-  if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:3000';
+
+  // 1. Nếu chạy trên Web browser (PC hoặc Mobile Browser)
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:3000';
+    }
+    if (hostname.includes('ngrok')) {
+      return `${window.location.protocol}//${hostname}`;
+    }
+    return `http://${hostname}:3000`;
   }
-  // iOS Simulator hoặc máy thật cùng mạng Wifi
-  return 'http://localhost:3000';
+
+  // 2. Nếu chạy Native Mobile App (iOS / Android trong Expo Go)
+  try {
+    const Constants = require('expo-constants').default;
+    const hostUri =
+      Constants.expoConfig?.hostUri ||
+      Constants.manifest2?.extra?.expoClient?.hostUri ||
+      Constants.manifest?.debuggerHost ||
+      '';
+    if (hostUri) {
+      if (hostUri.includes('exp.direct') || hostUri.includes('ngrok') || hostUri.includes('trycloudflare') || hostUri.includes('loca.lt')) {
+        return 'https://ultimate-alert-blues-vary.trycloudflare.com';
+      }
+      const hostIp = hostUri.split(':')[0];
+      const isIp = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostIp);
+      if (isIp && hostIp !== 'localhost' && hostIp !== '127.0.0.1') {
+        return `http://${hostIp}:3000`;
+      }
+    }
+  } catch (e) {
+    console.warn('Resolve host IP notice:', e);
+  }
+
+  // 3. Mặc định: nếu là mobile thì ưu tiên tunnel backend, ngược lại localhost
+  return Platform.OS === 'web' ? 'http://localhost:3000' : 'https://ultimate-alert-blues-vary.trycloudflare.com';
 };
 
 const TOKEN_KEY = 'monett_auth_token';
@@ -43,6 +76,8 @@ const request = async <T>(
   const token = getAuthToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
+    'Bypass-Tunnel-Reminder': 'true',
     ...(options.headers as Record<string, string>),
   };
 
@@ -51,6 +86,7 @@ const request = async <T>(
   }
 
   const url = `${getBaseUrl()}${endpoint}`;
+  console.log('[API] Sending request to:', url);
   const response = await fetch(url, {
     ...options,
     headers,
@@ -91,3 +127,68 @@ export const getMeApi = async (): Promise<IUser> => {
   });
   return res.data!;
 };
+
+export const googleAuthApi = async (dto: GoogleAuthDto): Promise<AuthResponse> => {
+  const res = await request<AuthResponse>('/api/auth/google', {
+    method: 'POST',
+    body: JSON.stringify(dto),
+  });
+  if (res.data?.accessToken) {
+    setAuthToken(res.data.accessToken);
+  }
+  return res.data!;
+};
+
+export const sendOtpApi = async (
+  email: string,
+): Promise<{ message: string }> => {
+  const res = await request<{ message: string }>(
+    '/api/auth/send-otp',
+    {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    },
+  );
+  return res.data!;
+};
+
+export const verifyOtpApi = async (
+  email: string,
+  otp: string,
+): Promise<{ message: string }> => {
+  const res = await request<{ message: string }>(
+    '/api/auth/verify-otp',
+    {
+      method: 'POST',
+      body: JSON.stringify({ email, otp }),
+    },
+  );
+  return res.data!;
+};
+
+export const forgotPasswordApi = async (
+  email: string,
+): Promise<{ message: string }> => {
+  const res = await request<{ message: string }>(
+    '/api/auth/forgot-password',
+    {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    },
+  );
+  return res.data!;
+};
+
+export const resetPasswordApi = async (
+  dto: { email: string; otp: string; newPassword: string },
+): Promise<{ message: string }> => {
+  const res = await request<{ message: string }>(
+    '/api/auth/reset-password',
+    {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    },
+  );
+  return res.data!;
+};
+

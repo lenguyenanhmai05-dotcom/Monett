@@ -8,6 +8,7 @@ import {
   Image,
   SafeAreaView,
 } from 'react-native';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface HomeScreenProps {
   onNavigateToCamera?: () => void;
@@ -24,6 +25,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToDetail,
   onNavigateToAnalytics,
 }) => {
+  const { user: authUser } = useAuth();
+  const avatarUri =
+    authUser?.avatarUrl ||
+    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80';
   // Dữ liệu tuần mẫu (bám sát thiết kế Stitch)
   const weekDays = [
     { day: 'T2', date: '9/9', amount: '85k', image: 'https://images.unsplash.com/photo-1552611052-33e04de081de?w=120&auto=format&fit=crop&q=80', active: false },
@@ -85,7 +90,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </TouchableOpacity>
 
           <Image
-            source={{ uri: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80' }}
+            source={{ uri: avatarUri }}
             style={styles.avatar}
           />
         </View>

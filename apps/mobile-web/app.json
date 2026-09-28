@@ -2,18 +2,29 @@
   "expo": {
     "name": "Monett App",
     "slug": "monett-app",
+    "scheme": "monett-app",
+    "owner": "lenguyenanhmai123",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Monett cần quyền sử dụng camera để chụp ảnh hóa đơn và lưu lại khoảnh khắc chi tiêu của bạn.",
+        "NSPhotoLibraryUsageDescription": "Monett cần quyền truy cập thư viện ảnh để bạn chọn ảnh hóa đơn chi tiêu."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -28,7 +39,9 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-web-browser",
+      "expo-camera"
     ]
   }
 }
