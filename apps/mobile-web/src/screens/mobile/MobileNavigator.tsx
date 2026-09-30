@@ -17,8 +17,10 @@ import { AnalyticsScreen } from './AnalyticsScreen';
 import { WalletsScreen } from './WalletsScreen';
 import { CategoriesScreen } from './CategoriesScreen';
 import { ProfileScreen } from './ProfileScreen';
+import { FriendsFeedScreen } from './FriendsFeedScreen';
+import { useLanguage } from '../../contexts/LanguageContext';
 
-export type MobileTab = 'home' | 'analytics' | 'wallets' | 'categories' | 'profile';
+export type MobileTab = 'home' | 'analytics' | 'feed' | 'wallets' | 'categories' | 'profile';
 export type ActiveModal = 'none' | 'camera' | 'add_expense' | 'quick_save' | 'detail';
 
 export const MobileNavigator: React.FC = () => {
@@ -49,8 +51,8 @@ export const MobileNavigator: React.FC = () => {
         );
       case 'analytics':
         return <AnalyticsScreen />;
-      case 'wallets':
-        return <WalletsScreen onAddWallet={() => {}} />;
+      case 'feed':
+        return <FriendsFeedScreen />;
       case 'categories':
         return <CategoriesScreen />;
       case 'profile':
@@ -117,22 +119,22 @@ export const MobileNavigator: React.FC = () => {
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => setCurrentTab('wallets')}
+          onPress={() => setCurrentTab('feed')}
           activeOpacity={0.7}
         >
           <Ionicons
-            name={currentTab === 'wallets' ? 'wallet' : 'wallet-outline'}
+            name={currentTab === 'feed' ? 'people' : 'people-outline'}
             size={22}
             color="#FFFFFF"
-            style={{ opacity: currentTab === 'wallets' ? 1 : 0.65 }}
+            style={{ opacity: currentTab === 'feed' ? 1 : 0.65 }}
           />
           <Text
             style={[
               styles.navLabel,
-              currentTab === 'wallets' && styles.navLabelActive,
+              currentTab === 'feed' && styles.navLabelActive,
             ]}
           >
-            Ví
+            Bạn bè
           </Text>
         </TouchableOpacity>
 
