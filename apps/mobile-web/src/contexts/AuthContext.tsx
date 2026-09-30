@@ -17,6 +17,7 @@ interface AuthContextType {
   register: (dto: RegisterDto) => Promise<void>;
   googleLogin: (dto: GoogleAuthDto) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -27,6 +28,7 @@ const AuthContext = createContext<AuthContextType>({
   register: async () => {},
   googleLogin: async () => {},
   logout: () => {},
+  refreshUser: async () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -82,6 +84,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    try {
+      const profile = await getMeApi();
+      setUser(profile);
+    } catch (error) {
+      console.warn('Lỗi refresh user:', error);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -92,6 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         register,
         googleLogin,
         logout,
+        refreshUser,
       }}
     >
       {children}
