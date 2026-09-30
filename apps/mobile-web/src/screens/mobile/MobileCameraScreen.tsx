@@ -182,7 +182,17 @@ export const MobileCameraScreen: React.FC<MobileCameraScreenProps> = ({
             onPress={() =>
               Alert.alert(
                 'Mời bạn bè tham gia Monett 💌',
-                'Chia sẻ liên kết Monett để bạn bè và người thương cùng theo dõi khoảnh khắc chi tiêu thông thái!'
+                'Chia sẻ mã QR hoặc ID của bạn để kết nối bạn bè cùng theo dõi khoảnh khắc chi tiêu!',
+                [
+                  {
+                    text: 'Mở QR Kết Bạn 🤝',
+                    onPress: () => onOpenProfile?.(),
+                  },
+                  {
+                    text: 'Đóng',
+                    style: 'cancel',
+                  },
+                ]
               )
             }
           >
