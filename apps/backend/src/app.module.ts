@@ -8,9 +8,13 @@ import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { SeedModule } from './seed/seed.module';
 import { SeedService } from './seed/seed.service';
+import { FriendsModule } from './friends/friends.module';
+import { MomentsModule } from './moments/moments.module';
 
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+
+import { ServeStaticModule } from '@nestjs/serve-static';
 
 // Đảm bảo cấu hình trong file .env của dự án được ưu tiên
 dotenv.config({ path: path.resolve(process.cwd(), 'apps/backend/.env'), override: true });
@@ -18,6 +22,10 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
 
 @Module({
   imports: [
+    ServeStaticModule.forRoot({
+      rootPath: path.join(process.cwd(), 'uploads'),
+      serveRoot: '/uploads/',
+    }),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env', 'apps/backend/.env', '../apps/backend/.env'],
@@ -51,6 +59,8 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
     UsersModule,
     AuthModule,
     SeedModule,
+    FriendsModule,
+    MomentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
