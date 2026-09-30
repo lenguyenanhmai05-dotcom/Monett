@@ -29,6 +29,21 @@ export class User {
 
   @Prop({ default: 'local' })
   authProvider: string;
+
+  @Prop({ default: 'light' })
+  theme: string;
+
+  @Prop({ default: 1 })
+  streak: number;
+
+  @Prop({ default: () => new Date().toISOString().split('T')[0] })
+  lastActiveDate: string;
+
+  @Prop({ default: null })
+  reminderTime?: string;
+
+  @Prop({ default: false })
+  isPro: boolean;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
