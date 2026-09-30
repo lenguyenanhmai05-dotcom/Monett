@@ -88,8 +88,9 @@ function MainApp() {
   const renderContent = () => {
     switch (activeTab) {
       case 'home':
-      case 'profile':
         return <HomeScreen />;
+      case 'profile':
+        return <ProfileScreen />;
       case 'moments':
         return (
           <View style={styles.centerContainer}>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -35,6 +35,27 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   const isDesktop = width >= 860;
   const { user, logout } = useAuth();
   const { language } = useLanguage();
+  const [imageError, setImageError] = useState(false);
+
+  const getAvatarColor = (name: string) => {
+    const colors = [
+      { bg: '#FEE2E2', text: '#B91C1C' }, // Red
+      { bg: '#FEF3C7', text: '#B45309' }, // Amber
+      { bg: '#DCFCE7', text: '#047857' }, // Green
+      { bg: '#E0F2FE', text: '#0369A1' }, // Blue
+      { bg: '#EDE9FE', text: '#6D28D9' }, // Purple
+      { bg: '#FCE7F3', text: '#BE185D' }, // Pink
+      { bg: '#F3F4F6', text: '#374151' }, // Gray
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  const displayName = user?.fullName || user?.email?.split('@')[0] || 'Nguyễn Mai Linh';
+  const avatarColor = getAvatarColor(user?.fullName || user?.email || 'U');
 
   const tabs: {
     key: TabKey;
@@ -69,16 +90,14 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
     },
     {
       key: 'profile',
-      labelVi: 'Trang cá\nnhân & Slogan',
-      labelEn: 'Profile\n& Slogan',
+      labelVi: 'Cá nhân',
+      labelEn: 'Profile',
       icon: '👤',
     },
   ];
 
   const currentDateFormatted =
     language === 'vi' ? '📅 24 Tháng 10, 2024' : '📅 Oct 24, 2024';
-
-  const displayName = user?.fullName || 'Nguyễn Mai Linh';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -154,14 +173,19 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
                 onPress={() => onSelectTab('profile')}
                 activeOpacity={0.8}
               >
-                <Image
-                  source={{
-                    uri:
-                      user?.avatarUrl ||
-                      'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=150&auto=format&fit=crop',
-                  }}
-                  style={styles.userChipAvatar}
-                />
+                {user?.avatarUrl && !imageError ? (
+                  <Image
+                    source={{ uri: user.avatarUrl }}
+                    style={styles.userChipAvatar}
+                    onError={() => setImageError(true)}
+                  />
+                ) : (
+                  <View style={[styles.userChipAvatar, { backgroundColor: avatarColor.bg, justifyContent: 'center', alignItems: 'center' }]}>
+                    <Text style={{ color: avatarColor.text, fontWeight: '800', fontSize: 16 }}>
+                      {displayName.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.userChipTextCol}>
                   <Text style={styles.userChipName} numberOfLines={1}>
                     {displayName}

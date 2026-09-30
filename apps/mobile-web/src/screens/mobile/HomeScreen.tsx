@@ -26,9 +26,30 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToAnalytics,
 }) => {
   const { user: authUser } = useAuth();
-  const avatarUri =
-    authUser?.avatarUrl ||
-    'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80';
+  const avatarUri = authUser?.avatarUrl;
+
+  const displayName = authUser?.fullName || (authUser?.email ? authUser.email.split('@')[0] : 'Min');
+
+  const getAvatarColor = (name: string) => {
+    const colors = [
+      { bg: '#FEE2E2', text: '#B91C1C' }, // Red
+      { bg: '#FEF3C7', text: '#D97706' }, // Yellow
+      { bg: '#D1FAE5', text: '#059669' }, // Green
+      { bg: '#DBEAFE', text: '#2563EB' }, // Blue
+      { bg: '#E0E7FF', text: '#4F46E5' }, // Indigo
+      { bg: '#FCE7F3', text: '#DB2777' }, // Pink
+      { bg: '#F3E8FF', text: '#7E22CE' }, // Purple
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % colors.length;
+    return colors[index];
+  };
+
+  const avatarColor = getAvatarColor(displayName);
+  const [imageError, setImageError] = React.useState(false);
   // Dữ liệu tuần mẫu (bám sát thiết kế Stitch)
   const weekDays = [
     { day: 'T2', date: '9/9', amount: '85k', image: 'https://images.unsplash.com/photo-1552611052-33e04de081de?w=120&auto=format&fit=crop&q=80', active: false },
@@ -89,10 +110,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <View style={styles.notificationDot} />
           </TouchableOpacity>
 
-          <Image
-            source={{ uri: avatarUri }}
-            style={styles.avatar}
-          />
+          {avatarUri && !imageError ? (
+            <Image
+              source={{ uri: avatarUri }}
+              style={styles.avatar}
+              onError={() => setImageError(true)}
+            />
+          ) : (
+            <View style={[styles.avatar, { backgroundColor: avatarColor.bg, justifyContent: 'center', alignItems: 'center' }]}>
+              <Text style={{ color: avatarColor.text, fontWeight: '800', fontSize: 16 }}>
+                {displayName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -100,7 +130,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         {/* 2. Lời chào */}
         <View style={styles.greetingSection}>
           <Text style={styles.greetingSub}>Chào buổi sáng,</Text>
-          <Text style={styles.greetingName}>Bảo 👋</Text>
+          <Text style={styles.greetingName}>{displayName} 👋</Text>
         </View>
 
         {/* 3. Daily Expense Card (Tone xanh Lục bảo Monett) */}
