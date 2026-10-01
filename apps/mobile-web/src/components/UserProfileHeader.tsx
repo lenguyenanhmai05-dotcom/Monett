@@ -31,7 +31,7 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ onEditProf
   const avatarColor = getAvatarColor(displayName);
   const userIdStr = (user as any)?._id || (user as any)?.id || 'MNT-8942';
   const streakCount = user?.streak || 0;
-  const isPro = Boolean(user?.isPro || (user as any)?.role === 'ADMIN' || streakCount >= 7);
+  const isPro = Boolean(user?.isPro || (user as any)?.role === 'ADMIN' || streakCount >= 3);
 
   return (
     <View style={styles.profileHeader}>
@@ -71,8 +71,8 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ onEditProf
           {isPro 
             ? (language === 'vi' ? '👑 Thành viên Tinh Hoa Monett' : '👑 Elite Monett PRO Member')
             : (language === 'vi' 
-                ? `🌱 Thành viên Monett • Chuỗi ${streakCount}/7 ngày mở PRO` 
-                : `🌱 Monett Member • Streak ${streakCount}/7 days to PRO`)}
+                ? `🌱 Thành viên Monett • Chuỗi ${streakCount}/3 ngày mở PRO` 
+                : `🌱 Monett Member • Streak ${streakCount}/3 days to PRO`)}
         </Text>
         <View style={styles.metaRow}>
           <Text style={styles.userIdText}>

@@ -7,6 +7,7 @@ import {
   registerApi,
   googleAuthApi,
   getMeApi,
+  checkInStreakApi,
 } from '../services/api';
 
 export const MOCK_ADMIN_USER: IUser = {
@@ -64,6 +65,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         try {
           const profile = await getMeApi();
           setUser(profile);
+          // Auto check-in streak khi mở app (ngày mới sẽ tự tăng, cùng ngày thì giữ nguyên)
+          try {
+            await checkInStreakApi();
+            // Refresh lại user để lấy streak mới nhất
+            const updated = await getMeApi();
+            setUser(updated);
+          } catch (_) {}
         } catch (error) {
           console.warn('Phiên đăng nhập hết hạn:', error);
           setAuthToken(null);

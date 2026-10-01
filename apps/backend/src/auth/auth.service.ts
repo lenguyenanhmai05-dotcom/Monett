@@ -172,8 +172,13 @@ export class AuthService {
     const userJson = user.toJSON() as unknown as IUser;
     const token = this.generateToken(userJson.id, userJson.email);
 
+    // Auto check-in streak khi đăng nhập Google
+    try { await this.usersService.checkInStreak(userJson.id); } catch (_) {}
+
+    // Trả về user mới nhất sau khi streak đã được cập nhật
+    const updatedUser = await this.usersService.findById(userJson.id);
     return {
-      user: userJson,
+      user: (updatedUser?.toJSON() as unknown as IUser) || userJson,
       accessToken: token,
     };
   }
@@ -243,8 +248,13 @@ export class AuthService {
     const userJson = user.toJSON() as unknown as IUser;
     const token = this.generateToken(userJson.id, userJson.email);
 
+    // Auto check-in streak khi đăng nhập email/password
+    try { await this.usersService.checkInStreak(userJson.id); } catch (_) {}
+
+    // Trả về user mới nhất sau khi streak đã được cập nhật
+    const updatedUser = await this.usersService.findById(userJson.id);
     return {
-      user: userJson,
+      user: (updatedUser?.toJSON() as unknown as IUser) || userJson,
       accessToken: token,
     };
   }

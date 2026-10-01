@@ -342,8 +342,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   brandLogo: {
-    width: 115,
-    height: 34,
+    width: 105,
+    height: 40,
   },
   headerActions: {
     flexDirection: 'row',

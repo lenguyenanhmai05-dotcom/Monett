@@ -69,7 +69,7 @@ export class MomentsController {
   @Post()
   async createMoment(
     @Req() req,
-    @Body() body: { photo: string; caption?: string; amount?: number; category?: string },
+    @Body() body: { photo: string; caption?: string; amount?: number; category?: string; currency?: string },
   ) {
     return this.momentsService.createMoment(this.getUserId(req), body);
   }
@@ -78,7 +78,7 @@ export class MomentsController {
   async updateMoment(
     @Req() req,
     @Param('id') momentId: string,
-    @Body() body: { caption?: string; amount?: number; category?: string; photo?: string },
+    @Body() body: { caption?: string; amount?: number; category?: string; photo?: string; currency?: string },
   ) {
     return this.momentsService.updateMoment(momentId, this.getUserId(req), body);
   }
@@ -95,5 +95,14 @@ export class MomentsController {
     @Body('emoji') emoji: string,
   ) {
     return this.momentsService.reactMoment(momentId, this.getUserId(req), emoji);
+  }
+
+  @Post(':id/comments')
+  async addComment(
+    @Req() req,
+    @Param('id') momentId: string,
+    @Body('text') text: string,
+  ) {
+    return this.momentsService.addComment(momentId, this.getUserId(req), text);
   }
 }

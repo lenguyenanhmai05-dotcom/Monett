@@ -5,6 +5,7 @@ import { MomentsController } from './moments.controller';
 import { MomentsService } from './moments.service';
 import { Moment, MomentSchema } from './schemas/moment.schema';
 import { Friendship, FriendshipSchema } from '../friends/schemas/friendship.schema';
+import { User, UserSchema } from '../users/schemas/user.schema';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { Friendship, FriendshipSchema } from '../friends/schemas/friendship.sche
     MongooseModule.forFeature([
       { name: Moment.name, schema: MomentSchema },
       { name: Friendship.name, schema: FriendshipSchema },
+      { name: User.name, schema: UserSchema },
     ]),
   ],
   controllers: [MomentsController],
