@@ -441,7 +441,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
     {
       icon: '💱',
       title: isVi ? 'Đơn vị tiền tệ' : 'Currency',
-      subtitle: currentCurrency === 'USD' ? 'US Dollar (USD $)' : (currentCurrency === 'EUR' ? 'Euro (EUR €)' : (currentCurrency === 'JPY' ? 'Japanese Yen (JPY ¥)' : 'Việt Nam Đồng (VND ₫)')),
+      subtitle: currentCurrency === 'USD' ? 'US Dollar (USD $)' : 'Việt Nam Đồng (VND ₫)',
       onPress: () => setShowCurrencyModal(true),
     },
     {
@@ -1017,8 +1017,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                 {[
                   { code: 'VND', label: 'Việt Nam Đồng (₫)', flag: '🇻🇳' },
                   { code: 'USD', label: 'US Dollar ($)', flag: '🇺🇸' },
-                  { code: 'EUR', label: 'Euro (€)', flag: '🇪🇺' },
-                  { code: 'JPY', label: 'Japanese Yen (¥)', flag: '🇯🇵' },
                 ].map((c) => {
                   const isSelected = currentCurrency === c.code;
                   return (

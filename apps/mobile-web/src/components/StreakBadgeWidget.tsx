@@ -1,47 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { getStreakApi, checkInStreakApi } from '../services/api';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { getStreakApi } from '../services/api';
 import { useLanguage } from '../contexts/LanguageContext';
 
 export const StreakBadgeWidget: React.FC = () => {
   const { language } = useLanguage();
-  const [streak, setStreak] = useState<number>(1);
+  const [streak, setStreak] = useState<number>(0);
   const [activeToday, setActiveToday] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [msg, setMsg] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     let mounted = true;
     getStreakApi()
       .then((data: any) => {
         if (mounted && data) {
-          setStreak(data.streak || 1);
+          setStreak(data.streak ?? 0);
           setActiveToday(Boolean(data.activeToday));
         }
       })
-      .catch(() => {});
-    return () => {
-      mounted = false;
-    };
+      .catch(() => {})
+      .finally(() => { if (mounted) setLoading(false); });
+    return () => { mounted = false; };
   }, []);
-
-  const handleCheckIn = async () => {
-    if (loading || activeToday) return;
-    try {
-      setLoading(true);
-      const res: any = await checkInStreakApi();
-      if (res && res.streak) {
-        setStreak(res.streak);
-        setActiveToday(true);
-        setMsg(res.message || 'Duy trì chuỗi thành công!');
-        setTimeout(() => setMsg(''), 4000);
-      }
-    } catch (e: any) {
-      setMsg(e.message || 'Lỗi khi điểm danh');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <View style={styles.container}>
@@ -51,7 +31,11 @@ export const StreakBadgeWidget: React.FC = () => {
         </View>
         <View style={{ marginLeft: 12 }}>
           <View style={styles.streakRow}>
-            <Text style={styles.streakCount}>{streak}</Text>
+            {loading ? (
+              <ActivityIndicator size="small" color="#B45309" />
+            ) : (
+              <Text style={styles.streakCount}>{streak}</Text>
+            )}
             <Text style={styles.streakLabel}>
               {language === 'vi' ? 'NGÀY LIÊN TỤC' : 'DAY STREAK'}
             </Text>
@@ -61,26 +45,17 @@ export const StreakBadgeWidget: React.FC = () => {
               ? (language === 'vi' ? '✅ Đã ghi nhận hôm nay' : '✅ Active today')
               : (language === 'vi' ? '⚡ Chưa ghi chép hôm nay' : '⚡ Pending today')}
           </Text>
-          {msg ? <Text style={styles.msgText}>{msg}</Text> : null}
         </View>
       </View>
 
-      <TouchableOpacity
-        style={[styles.btn, activeToday && styles.btnDone]}
-        onPress={handleCheckIn}
-        disabled={activeToday || loading}
-        activeOpacity={0.8}
-      >
-        {loading ? (
-          <ActivityIndicator size="small" color="#fff" />
-        ) : (
-          <Text style={[styles.btnText, activeToday && styles.btnTextDone]}>
-            {activeToday
-              ? (language === 'vi' ? 'Đã giữ chuỗi 🔥' : 'Maintained 🔥')
-              : (language === 'vi' ? 'Duy trì chuỗi ⚡' : 'Check-in ⚡')}
-          </Text>
-        )}
-      </TouchableOpacity>
+      {/* Badge trạng thái */}
+      <View style={[styles.statusBadge, activeToday ? styles.statusBadgeDone : styles.statusBadgePending]}>
+        <Text style={[styles.statusText, activeToday ? styles.statusTextDone : styles.statusTextPending]}>
+          {activeToday
+            ? (language === 'vi' ? 'Đã giữ chuỗi 🔥' : 'Maintained 🔥')
+            : (language === 'vi' ? 'Hôm nay chưa đăng nhập ⚡' : 'Login to check-in ⚡')}
+        </Text>
+      </View>
     </View>
   );
 };
@@ -142,29 +117,29 @@ const styles = StyleSheet.create({
     color: '#78350F',
     marginTop: 2,
   },
-  msgText: {
-    fontSize: 11,
-    color: '#059669',
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  btn: {
-    backgroundColor: '#D97706',
+  statusBadge: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 14,
   },
-  btnDone: {
+  statusBadgeDone: {
     backgroundColor: '#DCFCE7',
     borderWidth: 1,
     borderColor: '#86EFAC',
   },
-  btnText: {
-    color: '#FFFFFF',
+  statusBadgePending: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+  },
+  statusText: {
     fontWeight: '800',
     fontSize: 12,
   },
-  btnTextDone: {
+  statusTextDone: {
     color: '#059669',
+  },
+  statusTextPending: {
+    color: '#B45309',
   },
 });

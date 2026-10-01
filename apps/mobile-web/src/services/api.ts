@@ -388,6 +388,7 @@ export const createMomentApi = async (data: {
   caption?: string;
   amount?: number;
   category?: string;
+  currency?: string;
 }) => {
   const res = await request<any>('/api/moments', {
     method: 'POST',
@@ -403,6 +404,7 @@ export const updateMomentApi = async (
     caption?: string;
     amount?: number;
     category?: string;
+    currency?: string;
   }
 ) => {
   const res = await request<any>(`/api/moments/${momentId}`, {
@@ -423,6 +425,14 @@ export const reactMomentApi = async (momentId: string, emoji: string) => {
   const res = await request<any>(`/api/moments/${momentId}/react`, {
     method: 'POST',
     body: JSON.stringify({ emoji }),
+  });
+  return res;
+};
+
+export const addMomentCommentApi = async (momentId: string, text: string): Promise<any> => {
+  const res = await request<any>(`/api/moments/${momentId}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ text }),
   });
   return res;
 };

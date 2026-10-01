@@ -33,10 +33,10 @@ export class User {
   @Prop({ default: 'light' })
   theme: string;
 
-  @Prop({ default: 1 })
+  @Prop({ default: 0 })
   streak: number;
 
-  @Prop({ default: () => new Date().toISOString().split('T')[0] })
+  @Prop({ default: '' })
   lastActiveDate: string;
 
   @Prop({ default: null })

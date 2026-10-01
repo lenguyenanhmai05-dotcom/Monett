@@ -16,10 +16,12 @@ import {
   RefreshControl,
   Modal,
   Alert,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
 import QRCode from 'react-qr-code';
 import {
@@ -34,22 +36,34 @@ import {
   getFriendRequestsApi,
   respondFriendRequestApi,
   normalizeAvatarUrl,
+  addMomentCommentApi,
 } from '../../services/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const EMOJIS = ['❤️', '🔥', '👏', '😂', '💸'];
 
+export type MomentCommentItem = {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string | null;
+  text: string;
+  time: string;
+  createdAt?: string;
+};
+
 export type MomentItem = {
   id: string;
   user: { name: string; avatar: string | null; id: string };
   photo: string;
   caption: string;
-  amount: number;
+  amount?: number;
   category: string;
   time: string;
   reactions: Record<string, number>;
   myReaction: string | null;
+  comments?: MomentCommentItem[];
 };
 
 // ─── Avatar Component ────────────────────────────────────────────────────────
@@ -86,12 +100,14 @@ const MomentCard = ({
   onReact,
   onEdit,
   onDelete,
+  onOpenChat,
 }: {
   item: MomentItem;
   currentUserId: string;
   onReact: (id: string, emoji: string) => void;
   onEdit: (item: MomentItem) => void;
   onDelete: (id: string) => void;
+  onOpenChat: (item: MomentItem) => void;
 }) => {
   const [showEmojis, setShowEmojis] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -112,18 +128,13 @@ const MomentCard = ({
 
   return (
     <View style={cardStyles.card}>
-      {/* Header */}
+      {/* Header - Không hiển thị giá tiền, chỉ hiển thị thông tin bạn bè */}
       <View style={cardStyles.header}>
         <Avatar uri={item.user?.avatar} name={item.user?.name || 'Bạn'} size={40} />
         <View style={{ flex: 1, marginLeft: 10 }}>
           <Text style={cardStyles.userName}>{item.user?.name || 'Bạn bè'}</Text>
-          <Text style={cardStyles.meta}>{item.category || 'Chi tiêu'} · {item.time}</Text>
+          <Text style={cardStyles.meta}>{item.category || 'Khoảnh khắc'} · {item.time}</Text>
         </View>
-        {item.amount !== 0 && (
-          <Text style={[cardStyles.amount, { color: item.amount < 0 ? '#EF4444' : '#059669' }]}>
-            {item.amount < 0 ? '-' : '+'}{Math.abs(item.amount).toLocaleString('vi-VN')}đ
-          </Text>
-        )}
         {/* 3-dot menu for own posts */}
         {isOwner && (
           <TouchableOpacity onPress={() => setShowMenu(true)} style={cardStyles.menuBtn}>
@@ -142,7 +153,7 @@ const MomentCard = ({
         ) : null}
       </TouchableOpacity>
 
-      {/* Reaction Bar */}
+      {/* Reaction & Chat Bar */}
       <View style={cardStyles.reactionBar}>
         {/* Summary */}
         <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
@@ -159,14 +170,47 @@ const MomentCard = ({
           )}
         </View>
 
-        {/* React Button */}
-        <TouchableOpacity style={[cardStyles.reactBtn, item.myReaction && cardStyles.reactBtnActive]} onPress={toggleEmojis}>
-          <Text style={{ fontSize: 16 }}>{item.myReaction || '😊'}</Text>
-          <Text style={[cardStyles.reactBtnText, item.myReaction && cardStyles.reactBtnTextActive]}>
-            {item.myReaction ? 'Đã thả' : 'Thả cảm xúc'}
-          </Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {/* React Button */}
+          <TouchableOpacity style={[cardStyles.reactBtn, item.myReaction && cardStyles.reactBtnActive]} onPress={toggleEmojis}>
+            <Text style={{ fontSize: 16 }}>{item.myReaction || '😊'}</Text>
+            <Text style={[cardStyles.reactBtnText, item.myReaction && cardStyles.reactBtnTextActive]}>
+              {item.myReaction ? 'Đã thả' : 'Thả cảm xúc'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Chat Button */}
+          <TouchableOpacity style={cardStyles.chatBtn} onPress={() => onOpenChat(item)} activeOpacity={0.75}>
+            <Ionicons name="chatbubble-ellipses" size={16} color="#059669" />
+            <Text style={cardStyles.chatBtnText}>
+              {item.comments && item.comments.length > 0 ? `Chat (${item.comments.length})` : 'Chat'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* Recent Comment Preview */}
+      {item.comments && item.comments.length > 0 && (
+        <TouchableOpacity
+          style={cardStyles.commentsPreviewBox}
+          onPress={() => onOpenChat(item)}
+          activeOpacity={0.8}
+        >
+          <View style={cardStyles.recentCommentRow}>
+            <Text style={cardStyles.recentCommentUser}>
+              {item.comments[item.comments.length - 1].userName}:
+            </Text>
+            <Text style={cardStyles.recentCommentText} numberOfLines={1}>
+              {item.comments[item.comments.length - 1].text}
+            </Text>
+          </View>
+          {item.comments.length > 1 && (
+            <Text style={cardStyles.viewAllCommentsText}>
+              Xem tất cả {item.comments.length} tin nhắn trò chuyện...
+            </Text>
+          )}
+        </TouchableOpacity>
+      )}
 
       {/* Emoji Picker */}
       {showEmojis && (
@@ -338,6 +382,50 @@ const cardStyles = StyleSheet.create({
     color: '#059669',
     fontWeight: '700',
   },
+  chatBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+  },
+  chatBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  commentsPreviewBox: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#F8FAFC',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  recentCommentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  recentCommentUser: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  recentCommentText: {
+    fontSize: 13,
+    color: '#475569',
+    flex: 1,
+  },
+  viewAllCommentsText: {
+    fontSize: 11,
+    color: '#059669',
+    fontWeight: '600',
+    marginTop: 4,
+  },
   emojiPicker: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -402,10 +490,84 @@ const cardStyles = StyleSheet.create({
   },
 });
 
-// ─── CATEGORIES ───────────────────────────────────────────────────────────────
+// ─── DANH MỤC KHOẢNH KHẮC VUI VẺ CHO BẠN BÈ ─────────────────────────────────
 const CATEGORIES = [
-  '🍜 Ăn uống', '☕ Cà phê', '🚗 Di chuyển', '🛒 Mua sắm',
-  '🎮 Giải trí', '💪 Thể thao', '📚 Học tập', '💊 Sức khỏe', '🏠 Nhà ở',
+  '☕ Cà phê chill',
+  '🍜 Ăn ngon cùng bạn',
+  '🏖️ Du lịch & Phượt',
+  '🥳 Tụ tập & Tiệc tùng',
+  '📸 Check-in sống ảo',
+  '🎮 Giải trí & Game',
+  '💪 Thể thao & Gym',
+  '🐶 Thú cưng đáng yêu',
+  '✨ Đời thường vui vẻ',
+];
+
+// ─── ĐOẠN VĂN MẪU GỢI Ý ĐĂNG TIN VUI CHO BẠN BÈ ─────────────────────────────
+const SAMPLE_CAPTIONS: Record<string, string[]> = {
+  '☕ Cà phê chill': [
+    'Hẹn hò cà phê chill cuối tuần nè mọi người ơi ☕🌿',
+    'Trà sữa full topping nạp năng lượng ngày mới 🧋✨',
+    'Góc quán quen, ngắm phố phường thảnh thơi ☕🌤️',
+    'Ai làm kèo trà chiều đàm đạo không nào 🍵🍪',
+  ],
+  '🍜 Ăn ngon cùng bạn': [
+    'Lẩu nướng tụ tập cùng bạn bè cuối tuần 🍲🥩',
+    'Tự thưởng bữa tối thơm ngon ngập tràn đồ ăn 🍕🤤',
+    'Ăn vặt xế chiều cùng hội anh chị em 🥐🧋',
+    'Quán ngon mới khám phá, chấm 10/10 nha mọi người 🍜😋',
+  ],
+  '🏖️ Du lịch & Phượt': [
+    'Chuyến đi chữa lành cuối tuần cùng đồng bọn 🏖️🌊',
+    'Vi vu khám phá vùng đất mới, cảnh đẹp mê ly 🌄🚗',
+    'Check-in view biển ngắm hoàng hôn siêu đỉnh 🌅🌴',
+    'Lên đồ đi trốn deadline cùng hội bạn thân ✈️🏕️',
+  ],
+  '🥳 Tụ tập & Tiệc tùng': [
+    'Cuối tuần tụ tập quẩy hết mình cùng hội bạn 🥳🍻',
+    'Họp mặt sau bao ngày xa cách, vui nổ trời 🎉🥂',
+    'Sinh nhật đáng nhớ bên những người tuyệt vời 🎂🎁',
+    'Lên đồ tụ họp xả stress cuối tuần thôi nào 💃🕺',
+  ],
+  '📸 Check-in sống ảo': [
+    'Góc sống ảo mới phát hiện siêu đẹp 📸🌿',
+    'Bắt trọn khoảnh khắc hoàng hôn rực rỡ 🌅✨',
+    'Một ngày ngập tràn ánh nắng và nụ cười 🌻☀️',
+    'Outfit hôm nay của mình thế nào cả nhà ơi 👗🕶️',
+  ],
+  '🎮 Giải trí & Game': [
+    'Cuối tuần xem phim bom tấn rạp cùng bạn thân 🎬🍿',
+    'Ai rảnh vào game leo rank cùng anh em nè 🎮👾',
+    'Cà phê board game cuối tuần cười thả ga 🎲🧩',
+    'Quẩy concert âm nhạc bùng cháy hết mình 🎵🎤',
+  ],
+  '💪 Thể thao & Gym': [
+    'Tập gym nâng cao sức khỏe, giữ dáng đẹp 💪🏋️',
+    'Kèo cầu lông mướt mồ hôi cùng hội bạn 🏸⚡',
+    'Chạy bộ sáng sớm hít thở không khí trong lành 🏃‍♂️🌳',
+    'Bơi lội giải nhiệt ngày hè cực đã 🏊🌊',
+  ],
+  '🐶 Thú cưng đáng yêu': [
+    'Boss nhà tôi hôm nay ngoan đột xuất nè mọi người 🐶❤️',
+    'Một chiếc mèo lười phơi nắng sáng sớm 🐱☀️',
+    'Dắt boss đi dạo công viên cuối tuần 🐕🦮',
+    'Nhìn chiếc mặt đáng yêu này có ai tan chảy không 🐾🥰',
+  ],
+  '✨ Đời thường vui vẻ': [
+    'Hôm nay trời đẹp, tâm trạng vui vẻ lạ thường ✨🌻',
+    'Một ngày làm việc hiệu quả và tràn đầy năng lượng 💼🔥',
+    'Những khoảnh khắc giản dị mà bình yên vô cùng ☕🏡',
+    'Chúc mọi người một ngày thật nhiều niềm vui nhé 🌈😊',
+  ],
+};
+
+const DEFAULT_SAMPLE_CAPTIONS = [
+  'Hẹn hò cà phê chill cuối tuần nè mọi người ơi ☕🌿',
+  'Ai làm kèo lẩu nướng tối nay không cả nhà ơi 🍲🥩',
+  'Cuối tuần tụ tập quẩy hết mình cùng hội bạn 🥳🎉',
+  'Góc sống ảo mới phát hiện siêu đẹp 📸✨',
+  'Một ngày thật nhiều niềm vui và năng lượng 🌈🌻',
+  'Ai rảnh vào game leo rank cùng anh em nè 🎮👾',
 ];
 
 // ─── Modal Tạo / Chỉnh Sửa Khoảnh Khắc ──────────────────────────────────────
@@ -422,7 +584,6 @@ const MomentFormModal = ({
 }) => {
   const isEdit = !!editingItem;
   const [caption, setCaption] = useState(editingItem?.caption || '');
-  const [amount, setAmount] = useState(editingItem?.amount ? Math.abs(editingItem.amount).toString() : '');
   const [category, setCategory] = useState(editingItem?.category || CATEGORIES[0]);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -432,7 +593,6 @@ const MomentFormModal = ({
   useEffect(() => {
     if (visible) {
       setCaption(editingItem?.caption || '');
-      setAmount(editingItem?.amount ? Math.abs(editingItem.amount).toString() : '');
       setCategory(editingItem?.category || CATEGORIES[0]);
       setSelectedPhoto(editingItem?.photo || samplePhotos[0]);
     }
@@ -446,6 +606,9 @@ const MomentFormModal = ({
     'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop',
     'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=600&auto=format&fit=crop',
   ];
+
+  // Danh sách đoạn văn mẫu gợi ý theo danh mục đang chọn
+  const suggestedCaptions = SAMPLE_CAPTIONS[category] || DEFAULT_SAMPLE_CAPTIONS;
 
   const handlePickPhoto = async () => {
     try {
@@ -477,14 +640,13 @@ const MomentFormModal = ({
     if (submitting || uploadingPhoto) return;
     try {
       setSubmitting(true);
-      const parsedAmount = amount ? -Math.abs(parseInt(amount.replace(/\D/g, '') || '0', 10)) : -50000;
       const photo = selectedPhoto || samplePhotos[0];
 
       if (isEdit && editingItem) {
         const res = await updateMomentApi(editingItem.id, {
           photo,
-          caption: caption.trim() || 'Khoảnh khắc chi tiêu hôm nay ✨',
-          amount: parsedAmount,
+          caption: caption.trim() || 'Khoảnh khắc vui vẻ hôm nay ✨',
+          amount: 0,
           category,
         });
         onDone(res);
@@ -492,8 +654,8 @@ const MomentFormModal = ({
       } else {
         const res = await createMomentApi({
           photo,
-          caption: caption.trim() || 'Khoảnh khắc chi tiêu hôm nay ✨',
-          amount: parsedAmount,
+          caption: caption.trim() || 'Khoảnh khắc vui vẻ hôm nay ✨',
+          amount: 0,
           category,
         });
         onDone(res);
@@ -512,7 +674,7 @@ const MomentFormModal = ({
         <View style={createStyles.sheet}>
           <View style={createStyles.header}>
             <Text style={createStyles.title}>
-              {isEdit ? '✏️ Chỉnh sửa bài đăng' : '📸 Chia sẻ khoảnh khắc'}
+              {isEdit ? '✏️ Chỉnh sửa bài đăng' : '📸 Chia sẻ khoảnh khắc vui'}
             </Text>
             <TouchableOpacity onPress={onClose}>
               <Ionicons name="close" size={24} color="#64748B" />
@@ -561,8 +723,8 @@ const MomentFormModal = ({
               </View>
             </ScrollView>
 
-            {/* Chọn danh mục */}
-            <Text style={createStyles.label}>Danh mục:</Text>
+            {/* Chọn chủ đề */}
+            <Text style={createStyles.label}>Chủ đề:</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {CATEGORIES.map((cat) => (
@@ -579,26 +741,48 @@ const MomentFormModal = ({
               </View>
             </ScrollView>
 
-            {/* Nhập chú thích */}
-            <Text style={createStyles.label}>Lời nhắn / Chú thích:</Text>
+            {/* Nhập chú thích / Đoạn văn mẫu */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, marginBottom: 6 }}>
+              <Text style={createStyles.labelNoMargin}>Lời nhắn / Chú thích:</Text>
+              <Text style={createStyles.labelHint}>Chọn mẫu bên dưới hoặc tự ghi ✍️</Text>
+            </View>
+
+            {/* Danh sách đoạn văn mẫu chọn nhanh */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+              <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 2 }}>
+                {suggestedCaptions.map((text, idx) => {
+                  const isSelected = caption === text;
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      onPress={() => setCaption(isSelected ? '' : text)}
+                      style={[
+                        createStyles.sampleCaptionChip,
+                        isSelected && createStyles.sampleCaptionChipActive,
+                      ]}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          createStyles.sampleCaptionText,
+                          isSelected && createStyles.sampleCaptionTextActive,
+                        ]}
+                      >
+                        {text}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
             <TextInput
               style={createStyles.input}
-              placeholder="VD: Cà phê sáng cùng bạn thân ☕..."
+              placeholder="VD: Cà phê sáng cùng bạn thân ☕... (hoặc tự nhập nội dung)"
               value={caption}
               onChangeText={setCaption}
               placeholderTextColor="#94A3B8"
               multiline
-            />
-
-            {/* Nhập số tiền */}
-            <Text style={createStyles.label}>Số tiền chi tiêu (VNĐ):</Text>
-            <TextInput
-              style={createStyles.input}
-              placeholder="VD: 45000"
-              keyboardType="numeric"
-              value={amount}
-              onChangeText={setAmount}
-              placeholderTextColor="#94A3B8"
             />
 
             {/* Nút Đăng */}
@@ -752,6 +936,412 @@ const createStyles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
+  labelNoMargin: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  labelHint: {
+    fontSize: 11,
+    color: '#059669',
+    fontWeight: '600',
+  },
+  sampleCaptionChip: {
+    backgroundColor: '#F1F5F9',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  sampleCaptionChipActive: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#059669',
+  },
+  sampleCaptionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  sampleCaptionTextActive: {
+    color: '#059669',
+    fontWeight: '800',
+  },
+});
+
+// ─── Modal Trò chuyện / Chat về Khoảnh khắc ──────────────────────────────────
+const MomentChatModal = ({
+  visible,
+  onClose,
+  moment,
+  currentUserId,
+  onCommentAdded,
+  onRefresh,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  moment: MomentItem | null;
+  currentUserId: string;
+  onCommentAdded: (momentId: string, comment: MomentCommentItem) => void;
+  onRefresh?: () => void;
+}) => {
+  const [text, setText] = useState('');
+  const [sending, setSending] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  if (!moment) return null;
+
+  const comments = moment.comments || [];
+
+  const handleSend = async () => {
+    const trimmed = text.trim();
+    if (!trimmed || sending) return;
+
+    try {
+      setSending(true);
+      const res: any = await addMomentCommentApi(moment.id, trimmed);
+      if (res?.comment) {
+        onCommentAdded(moment.id, res.comment);
+      }
+      setText('');
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    } catch (e: any) {
+      Alert.alert('Lỗi', e.message || 'Không thể gửi tin nhắn');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={chatStyles.overlay}
+      >
+        <View style={chatStyles.sheet}>
+          {/* Header */}
+          <View style={chatStyles.header}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+              <Avatar uri={moment.user?.avatar} name={moment.user?.name || 'Bạn'} size={36} />
+              <View style={{ flex: 1 }}>
+                <Text style={chatStyles.headerTitle} numberOfLines={1}>
+                  Trò chuyện với {moment.user?.name || 'bạn bè'}
+                </Text>
+                <Text style={chatStyles.headerSub} numberOfLines={1}>
+                  {moment.caption || moment.category || 'Khoảnh khắc vui vẻ 📸'}
+                </Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              {onRefresh && (
+                <TouchableOpacity onPress={onRefresh} style={chatStyles.closeBtn}>
+                  <Ionicons name="reload-outline" size={18} color="#059669" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={onClose} style={chatStyles.closeBtn}>
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Mini photo preview bar */}
+          <View style={chatStyles.postPreviewBar}>
+            <Image
+              source={{ uri: normalizeAvatarUrl(moment.photo) || moment.photo }}
+              style={chatStyles.postThumb}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={chatStyles.postPreviewCaption} numberOfLines={2}>
+                "{moment.caption || 'Khoảnh khắc vui vẻ cùng bạn bè'}"
+              </Text>
+              <Text style={chatStyles.postPreviewMeta}>
+                {moment.category} · {moment.time}
+              </Text>
+            </View>
+          </View>
+
+          {/* Messages list */}
+          <ScrollView
+            ref={scrollViewRef}
+            style={chatStyles.messagesList}
+            contentContainerStyle={chatStyles.messagesContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {comments.length === 0 ? (
+              <View style={chatStyles.emptyChat}>
+                <Text style={{ fontSize: 36, marginBottom: 8 }}>💬</Text>
+                <Text style={chatStyles.emptyChatTitle}>Chưa có tin nhắn nào</Text>
+                <Text style={chatStyles.emptyChatSub}>Hãy là người đầu tiên nhắn tin chia sẻ cùng bạn bè!</Text>
+              </View>
+            ) : (
+              comments.map((c) => {
+                const isMe = c.userId === currentUserId;
+                return (
+                  <View
+                    key={c.id}
+                    style={[chatStyles.msgRow, isMe ? chatStyles.msgRowMe : chatStyles.msgRowOther]}
+                  >
+                    {!isMe && (
+                      <Avatar uri={c.userAvatar} name={c.userName} size={28} />
+                    )}
+                    <View style={[chatStyles.bubble, isMe ? chatStyles.bubbleMe : chatStyles.bubbleOther]}>
+                      {!isMe && (
+                        <Text style={chatStyles.bubbleSender}>{c.userName}</Text>
+                      )}
+                      <Text style={[chatStyles.bubbleText, isMe && chatStyles.bubbleTextMe]}>
+                        {c.text}
+                      </Text>
+                      <Text style={[chatStyles.bubbleTime, isMe && chatStyles.bubbleTimeMe]}>
+                        {c.time}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </ScrollView>
+
+          {/* Quick reply chips */}
+          <View style={chatStyles.quickChipsContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={chatStyles.quickChipsScroll}
+            >
+              {['Haha 😂', 'Quá đã 🥳', 'Đẹp thế ✨', 'Đi đâu đấy? 👀', 'Xịn xò 🔥', 'Cho đi ké với 🛵', 'Bữa nào làm kèo 🍻'].map((chip) => (
+                <TouchableOpacity
+                  key={chip}
+                  style={chatStyles.quickChip}
+                  onPress={() => setText((prev) => (prev ? `${prev} ${chip}` : chip))}
+                  activeOpacity={0.7}
+                >
+                  <Text style={chatStyles.quickChipText}>{chip}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Chat input footer */}
+          <View style={chatStyles.inputBar}>
+            <TextInput
+              style={chatStyles.chatInput}
+              placeholder="Nhắn tin cho bạn bè về khoảnh khắc này..."
+              placeholderTextColor="#94A3B8"
+              value={text}
+              onChangeText={setText}
+              onSubmitEditing={handleSend}
+              returnKeyType="send"
+            />
+            <TouchableOpacity
+              style={[chatStyles.sendBtn, (!text.trim() || sending) && chatStyles.sendBtnDisabled]}
+              onPress={handleSend}
+              disabled={!text.trim() || sending}
+            >
+              {sending ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Ionicons name="send" size={16} color="#fff" />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+};
+
+const chatStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    height: '80%',
+    paddingTop: 16,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 12,
+  },
+  quickChipsContainer: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F8FAFC',
+  },
+  quickChipsScroll: {
+    gap: 6,
+    paddingHorizontal: 2,
+  },
+  quickChip: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  quickChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  headerSub: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  closeBtn: {
+    padding: 6,
+  },
+  postPreviewBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    gap: 12,
+  },
+  postThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+  },
+  postPreviewCaption: {
+    fontSize: 12,
+    color: '#334155',
+    fontStyle: 'italic',
+  },
+  postPreviewMeta: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  messagesList: {
+    flex: 1,
+  },
+  messagesContent: {
+    padding: 16,
+    gap: 12,
+  },
+  emptyChat: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 50,
+  },
+  emptyChatTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  emptyChatSub: {
+    fontSize: 13,
+    color: '#94A3B8',
+    marginTop: 4,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  msgRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+    marginBottom: 6,
+  },
+  msgRowMe: {
+    justifyContent: 'flex-end',
+  },
+  msgRowOther: {
+    justifyContent: 'flex-start',
+  },
+  bubble: {
+    maxWidth: '78%',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  bubbleMe: {
+    backgroundColor: '#059669',
+    borderBottomRightRadius: 4,
+  },
+  bubbleOther: {
+    backgroundColor: '#F1F5F9',
+    borderBottomLeftRadius: 4,
+  },
+  bubbleSender: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
+    marginBottom: 2,
+  },
+  bubbleText: {
+    fontSize: 14,
+    color: '#0F172A',
+    lineHeight: 19,
+  },
+  bubbleTextMe: {
+    color: '#FFFFFF',
+  },
+  bubbleTime: {
+    fontSize: 10,
+    color: '#94A3B8',
+    alignSelf: 'flex-end',
+    marginTop: 4,
+  },
+  bubbleTimeMe: {
+    color: '#A7F3D0',
+  },
+  inputBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+  },
+  chatInput: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#0F172A',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  sendBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#059669',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendBtnDisabled: {
+    backgroundColor: '#CBD5E1',
+  },
 });
 
 // ─── Invite Modal ─────────────────────────────────────────────────────────────
@@ -810,7 +1400,7 @@ const InviteModal = ({
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `${isVi ? 'Kết bạn với mình trên Monett để cùng theo dõi chi tiêu nhé! 🐸' : 'Connect with me on Monett! 🐸'}\n${link}`,
+        message: `${isVi ? 'Kết bạn với mình trên Monett để cùng chia sẻ khoảnh khắc vui vẻ & trò chuyện nhé! 📸💬' : 'Connect with me on Monett to share fun moments & chat! 📸💬'}\n${link}`,
         title: isVi ? 'Mời kết bạn Monett' : 'Invite Monett Friend',
       });
     } catch (e) {}
@@ -1048,7 +1638,9 @@ const inviteStyles = StyleSheet.create({
 export const FriendsFeedScreen: React.FC = () => {
   const { user } = useAuth();
   const { language } = useLanguage();
+  const { isDark, colors } = useTheme();
   const isVi = language === 'vi';
+  const styles = getStyles(isDark, colors);
 
   const [moments, setMoments] = useState<MomentItem[]>([]);
   const [friends, setFriends] = useState<any[]>([]);
@@ -1058,6 +1650,7 @@ export const FriendsFeedScreen: React.FC = () => {
   const [showInvite, setShowInvite] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [editingMoment, setEditingMoment] = useState<MomentItem | null>(null);
+  const [chatMoment, setChatMoment] = useState<MomentItem | null>(null);
   const [activeTab, setActiveTab] = useState<'feed' | 'friends'>('feed');
 
   const myId = (user as any)?._id || (user as any)?.id || '';
@@ -1102,6 +1695,22 @@ export const FriendsFeedScreen: React.FC = () => {
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
+  };
+
+  // Cập nhật bình luận / chat trong bảng tin
+  const handleCommentAdded = (momentId: string, newComment: MomentCommentItem) => {
+    setMoments((prev) =>
+      prev.map((m) => {
+        if (m.id !== momentId) return m;
+        const currentComments = m.comments || [];
+        return { ...m, comments: [...currentComments, newComment] };
+      })
+    );
+    setChatMoment((prev) => {
+      if (!prev || prev.id !== momentId) return prev;
+      const currentComments = prev.comments || [];
+      return { ...prev, comments: [...currentComments, newComment] };
+    });
   };
 
   // Đồng ý hoặc từ chối kết bạn
@@ -1169,13 +1778,13 @@ export const FriendsFeedScreen: React.FC = () => {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>{isVi ? 'Bảng tin Locket 📸' : 'Locket Feed 📸'}</Text>
-          <Text style={styles.headerSub}>{isVi ? 'Khoảnh khắc chi tiêu của bạn bè' : 'Friends expense moments'}</Text>
+          <Text style={styles.headerTitle}>{isVi ? 'Bảng tin Monett 📸' : 'Monett Feed 📸'}</Text>
+          <Text style={styles.headerSub}>{isVi ? 'Khoảnh khắc vui vẻ & trò chuyện cùng bạn bè' : 'Fun moments & chat with friends'}</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TouchableOpacity style={styles.createBtn} onPress={() => { setEditingMoment(null); setShowCreate(true); }}>
             <Ionicons name="camera" size={16} color="#fff" />
-            <Text style={styles.createBtnText}>{isVi ? 'Chia sẻ' : 'Share'}</Text>
+            <Text style={styles.createBtnText}>{isVi ? 'Đăng tin' : 'Post'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.inviteBtn} onPress={() => setShowInvite(true)}>
             <Ionicons name="person-add-outline" size={16} color="#059669" />
@@ -1220,11 +1829,11 @@ export const FriendsFeedScreen: React.FC = () => {
               <Text style={styles.emptyTitle}>{isVi ? 'Chưa có khoảnh khắc nào' : 'No moments yet'}</Text>
               <Text style={styles.emptySub}>
                 {isVi
-                  ? 'Hãy là người đầu tiên chia sẻ ảnh chi tiêu hoặc mời thêm bạn bè nhé!'
-                  : 'Be the first to share your expense moment or invite your friends!'}
+                  ? 'Hãy là người đầu tiên đăng tin vui để cùng bạn bè trò chuyện nhé!'
+                  : 'Be the first to share a fun moment and chat with your friends!'}
               </Text>
               <TouchableOpacity style={styles.emptyBtn} onPress={() => { setEditingMoment(null); setShowCreate(true); }}>
-                <Text style={styles.emptyBtnText}>{isVi ? '+ Đăng khoảnh khắc đầu tiên' : '+ Post First Moment'}</Text>
+                <Text style={styles.emptyBtnText}>{isVi ? '+ Đăng tin vui đầu tiên' : '+ Post First Moment'}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -1236,6 +1845,7 @@ export const FriendsFeedScreen: React.FC = () => {
                 onReact={handleReact}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                onOpenChat={(item) => setChatMoment(item)}
               />
             ))
           )}
@@ -1284,8 +1894,8 @@ export const FriendsFeedScreen: React.FC = () => {
               <Text style={styles.emptyTitle}>{isVi ? 'Chưa có bạn bè nào' : 'No friends yet'}</Text>
               <Text style={styles.emptySub}>
                 {isVi
-                  ? 'Kết bạn để cùng chia sẻ khoảnh khắc chi tiêu và thi đua chuỗi Streak!'
-                  : 'Connect with friends to share expense moments and compete in streaks!'}
+                  ? 'Kết bạn để cùng chia sẻ khoảnh khắc vui vẻ và trò chuyện mỗi ngày!'
+                  : 'Connect with friends to share fun moments and chat everyday!'}
               </Text>
               <TouchableOpacity style={styles.emptyBtn} onPress={() => setShowInvite(true)}>
                 <Text style={styles.emptyBtnText}>{isVi ? 'Mời bạn bè ngay' : 'Add Friends Now'}</Text>
@@ -1329,14 +1939,31 @@ export const FriendsFeedScreen: React.FC = () => {
         onDone={handleFormDone}
         editingItem={editingMoment}
       />
+
+      {/* Modal Trò chuyện / Chat về Khoảnh khắc */}
+      <MomentChatModal
+        visible={!!chatMoment}
+        onClose={() => setChatMoment(null)}
+        moment={chatMoment}
+        currentUserId={myId}
+        onCommentAdded={handleCommentAdded}
+        onRefresh={async () => {
+          await loadData();
+          if (chatMoment) {
+            const feedData: any = await getMomentsFeedApi().catch(() => []);
+            const updated = (feedData || []).find((m: any) => m.id === chatMoment.id);
+            if (updated) setChatMoment(updated);
+          }
+        }}
+      />
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.bg,
   },
   header: {
     flexDirection: 'row',
@@ -1345,18 +1972,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 14,
     paddingBottom: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.header,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: colors.borderLight,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#0F172A',
+    color: colors.textPrimary,
   },
   headerSub: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: colors.textMuted,
     marginTop: 2,
   },
   createBtn: {
@@ -1374,9 +2001,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   inviteBtn: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: isDark ? '#064E3B' : '#F0FDF4',
     borderWidth: 1.5,
-    borderColor: '#BBF7D0',
+    borderColor: isDark ? '#065F46' : '#BBF7D0',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
@@ -1385,10 +2012,10 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.header,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: colors.borderLight,
   },
   tab: {
     flex: 1,
@@ -1403,7 +2030,7 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: colors.textMuted,
   },
   tabTextActive: {
     color: '#059669',
@@ -1418,7 +2045,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: '#64748B',
+    color: colors.textMuted,
   },
   emptyState: {
     alignItems: 'center',
@@ -1428,12 +2055,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#0F172A',
+    color: colors.textPrimary,
     marginBottom: 8,
   },
   emptySub: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: colors.textMuted,
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: 24,
@@ -1452,22 +2079,22 @@ const styles = StyleSheet.create({
   friendRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOpacity: isDark ? 0 : 0.05,
     shadowRadius: 6,
     elevation: 2,
   },
   friendName: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0F172A',
+    color: colors.textPrimary,
   },
   friendStreak: {
     fontSize: 13,
@@ -1479,7 +2106,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: isDark ? '#064E3B' : '#F0FDF4',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1488,9 +2115,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#F0FDF4',
+    backgroundColor: isDark ? '#064E3B' : '#F0FDF4',
     borderWidth: 1.5,
-    borderColor: '#BBF7D0',
+    borderColor: isDark ? '#065F46' : '#BBF7D0',
     borderStyle: 'dashed',
     borderRadius: 16,
     paddingVertical: 16,
@@ -1502,28 +2129,28 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   requestsBox: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: isDark ? '#1E293B' : '#EFF6FF',
     borderRadius: 16,
     padding: 14,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: isDark ? '#334155' : '#BFDBFE',
   },
   requestsTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#1E40AF',
+    color: isDark ? '#93C5FD' : '#1E40AF',
     marginBottom: 12,
   },
   requestRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#DBEAFE',
+    borderColor: isDark ? '#334155' : '#DBEAFE',
   },
   btnAccept: {
     backgroundColor: '#059669',
@@ -1537,15 +2164,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   btnDecline: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: isDark ? '#334155' : '#F1F5F9',
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: isDark ? '#475569' : '#CBD5E1',
   },
   btnDeclineText: {
-    color: '#64748B',
+    color: colors.textMuted,
     fontWeight: '700',
     fontSize: 13,
   },

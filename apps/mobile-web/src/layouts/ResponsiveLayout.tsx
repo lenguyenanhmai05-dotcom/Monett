@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { LanguageToggle } from '../components/LanguageToggle';
 
 export type TabKey =
@@ -35,7 +36,9 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   const isDesktop = width >= 860;
   const { user, logout } = useAuth();
   const { language } = useLanguage();
+  const { isDark, colors } = useTheme();
   const [imageError, setImageError] = useState(false);
+  const styles = getStyles(isDark, colors);
 
   const getAvatarColor = (name: string) => {
     const colors = [
@@ -275,29 +278,29 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
   },
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFD',
+    backgroundColor: isDark ? '#0F172A' : '#F8FAFD',
   },
 
   // ==================== TOP NAVBAR DESKTOP ====================
   topNavbar: {
     height: 82,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.header,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
+    shadowOpacity: isDark ? 0.15 : 0.03,
     shadowRadius: 8,
     elevation: 2,
     zIndex: 10,
@@ -339,7 +342,7 @@ const styles = StyleSheet.create({
   navTabIcon: {
     fontSize: 18,
     marginBottom: 3,
-    color: '#475569',
+    color: colors.textMuted,
   },
   navTabIconActive: {
     color: '#FFFFFF',
@@ -347,7 +350,7 @@ const styles = StyleSheet.create({
   navTabText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#475569',
+    color: colors.textMuted,
     textAlign: 'center',
     lineHeight: 14,
   },
@@ -361,17 +364,17 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   dateChip: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: isDark ? '#334155' : '#F1F5F9',
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
   dateChipText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#334155',
+    color: colors.textSecondary,
   },
   quickCaptureBtn: {
     flexDirection: 'row',
@@ -400,9 +403,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: isDark ? '#334155' : '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -429,9 +432,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: isDark ? '#334155' : '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
   userChipAvatar: {
     width: 34,
@@ -444,19 +447,19 @@ const styles = StyleSheet.create({
   userChipName: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#0F172A',
+    color: colors.textPrimary,
     maxWidth: 110,
   },
   userChipRole: {
     fontSize: 10,
-    color: '#64748B',
+    color: colors.textMuted,
   },
   logoutIconButton: {
     padding: 6,
     borderRadius: 8,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: isDark ? '#2D0A0A' : '#FEF2F2',
     borderWidth: 1,
-    borderColor: '#FEE2E2',
+    borderColor: isDark ? '#7F1D1D' : '#FEE2E2',
   },
   logoutIconText: {
     fontSize: 14,
@@ -465,13 +468,13 @@ const styles = StyleSheet.create({
   // ==================== MOBILE HEADER ====================
   mobileHeader: {
     height: 60,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.header,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: colors.border,
   },
   mobileNavLogo: {
     width: 105,
@@ -480,13 +483,13 @@ const styles = StyleSheet.create({
   mobileLogoutBtn: {
     padding: 6,
     borderRadius: 8,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: isDark ? '#2D0A0A' : '#FEF2F2',
   },
 
   // ==================== MAIN CONTENT ====================
   mainArea: {
     flex: 1,
-    backgroundColor: '#F8FAFD',
+    backgroundColor: isDark ? '#0F172A' : '#F8FAFD',
   },
   contentWrapper: {
     flex: 1,
@@ -495,10 +498,10 @@ const styles = StyleSheet.create({
   // ==================== BOTTOM BAR ====================
   bottomBar: {
     height: 64,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.header,
     flexDirection: 'row',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: colors.border,
     paddingBottom: 6,
   },
   bottomBarItem: {
@@ -512,7 +515,7 @@ const styles = StyleSheet.create({
   },
   bottomBarText: {
     fontSize: 10,
-    color: '#64748B',
+    color: colors.textMuted,
     fontWeight: '500',
   },
   bottomBarTextActive: {

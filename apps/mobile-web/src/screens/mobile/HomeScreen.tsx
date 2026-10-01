@@ -94,10 +94,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       {/* 1. Header Bar */}
       <View style={styles.header}>
         <View style={styles.brandContainer}>
-          <View style={styles.logoBadge}>
-            <Text style={styles.logoIcon}>🐸</Text>
-          </View>
-          <Text style={styles.brandTitle}>Monett</Text>
+          <Image
+            source={require('../../../assets/monett-brand-logo.png')}
+            style={styles.brandLogo}
+            resizeMode="contain"
+          />
         </View>
 
         <View style={styles.headerActions}>
@@ -257,24 +258,10 @@ const styles = StyleSheet.create({
   brandContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
-  logoBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#ECFDF5',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoIcon: {
-    fontSize: 20,
-  },
-  brandTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#064E3B',
-    letterSpacing: -0.3,
+  brandLogo: {
+    width: 105,
+    height: 40,
   },
   headerActions: {
     flexDirection: 'row',

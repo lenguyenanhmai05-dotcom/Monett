@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { MobileCameraScreen } from './MobileCameraScreen';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -102,7 +103,9 @@ const WEEK_DAYS = [
 export const MobileHomeScreen: React.FC = () => {
   const { user, logout } = useAuth();
   const { language, setLanguage } = useLanguage();
+  const { isDark, colors } = useTheme();
   const isVi = language === 'vi';
+  const styles = getStyles(isDark, colors);
 
   // Giao diện chính mở trực tiếp Camera theo đúng yêu cầu người dùng
   const [activeTab, setActiveTab] = useState<MobileTab>('camera');
@@ -237,7 +240,7 @@ export const MobileHomeScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.header} />
 
       {/* ============================================================ */}
       {/* 1. TOP HEADER BAR                                             */}
@@ -686,10 +689,10 @@ export const MobileHomeScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.bg,
   },
 
   // 1. TOP HEADER
@@ -700,9 +703,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 8 : 14,
     paddingBottom: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.header,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: colors.borderLight,
   },
   headerLeft: {
     flexDirection: 'row',
@@ -719,13 +722,13 @@ const styles = StyleSheet.create({
   brandTitle: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#064E3B',
+    color: isDark ? '#34D399' : '#064E3B',
     letterSpacing: -0.3,
   },
   brandSubtitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#64748B',
+    color: colors.textMuted,
   },
   headerRight: {
     flexDirection: 'row',
@@ -735,12 +738,12 @@ const styles = StyleSheet.create({
   streakBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: isDark ? '#2D2006' : '#FEF3C7',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: isDark ? '#78350F' : '#FDE68A',
   },
   streakFlame: {
     fontSize: 14,
@@ -799,7 +802,7 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     backgroundColor: '#10B981',
     borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderColor: colors.header,
   },
   greetingTextCol: {
     flex: 1,
@@ -807,11 +810,11 @@ const styles = StyleSheet.create({
   greetingTitle: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#0F172A',
+    color: colors.textPrimary,
   },
   greetingSubtitle: {
     fontSize: 13,
-    color: '#64748B',
+    color: colors.textMuted,
     marginTop: 2,
   },
   openCameraPill: {
@@ -918,9 +921,9 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 8,
     borderRadius: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     minWidth: (SCREEN_WIDTH - 40 - 36) / 7,
   },
   calendarDayCardActive: {
@@ -930,7 +933,7 @@ const styles = StyleSheet.create({
   calendarDayLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#64748B',
+    color: colors.textMuted,
     marginBottom: 4,
   },
   calendarDayLabelActive: {
@@ -939,7 +942,7 @@ const styles = StyleSheet.create({
   calendarDayNumber: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0F172A',
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   calendarDayNumberActive: {
@@ -954,9 +957,9 @@ const styles = StyleSheet.create({
   monettNoteCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
+    backgroundColor: isDark ? '#064E3B' : '#ECFDF5',
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: isDark ? '#065F46' : '#A7F3D0',
     borderRadius: 16,
     padding: 14,
     marginBottom: 20,
@@ -974,12 +977,12 @@ const styles = StyleSheet.create({
   monettNoteTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#065F46',
+    color: isDark ? '#A7F3D0' : '#065F46',
     marginBottom: 3,
   },
   monettNoteContent: {
     fontSize: 12,
-    color: '#047857',
+    color: isDark ? '#6EE7B7' : '#047857',
     lineHeight: 17,
   },
 
@@ -1001,10 +1004,10 @@ const styles = StyleSheet.create({
   txMainTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0F172A',
+    color: colors.textPrimary,
   },
   txSummaryBadge: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: isDark ? '#334155' : '#F1F5F9',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -1012,7 +1015,7 @@ const styles = StyleSheet.create({
   txSummaryText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#475569',
+    color: colors.textSecondary,
   },
   txListContainer: {
     gap: 10,
@@ -1020,17 +1023,17 @@ const styles = StyleSheet.create({
   txCardItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     padding: 12,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
   txCategoryCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: isDark ? '#334155' : '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -1061,7 +1064,7 @@ const styles = StyleSheet.create({
   txItemTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0F172A',
+    color: colors.textPrimary,
     marginBottom: 3,
   },
   txItemMetaRow: {
@@ -1071,16 +1074,16 @@ const styles = StyleSheet.create({
   txItemCategory: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#64748B',
+    color: colors.textMuted,
   },
   txMetaDot: {
     fontSize: 10,
-    color: '#CBD5E1',
+    color: isDark ? '#475569' : '#CBD5E1',
     marginHorizontal: 4,
   },
   txItemTime: {
     fontSize: 11,
-    color: '#94A3B8',
+    color: colors.textMuted,
   },
   txItemNote: {
     fontSize: 11,
@@ -1145,10 +1148,10 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   momentCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     overflow: 'hidden',
   },
   momentPhotoWrap: {
@@ -1177,7 +1180,7 @@ const styles = StyleSheet.create({
   },
   momentNoPhotoWrap: {
     height: 100,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: isDark ? '#334155' : '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1202,7 +1205,7 @@ const styles = StyleSheet.create({
   momentCardTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#0F172A',
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   momentMetaRow: {
@@ -1217,11 +1220,11 @@ const styles = StyleSheet.create({
   },
   momentMetaTime: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: colors.textMuted,
   },
   momentCardNote: {
     fontSize: 12,
-    color: '#475569',
+    color: colors.textSecondary,
     fontStyle: 'italic',
   },
 
@@ -1230,12 +1233,12 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   profileHeaderCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 24,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
   profileLargeAvatar: {
     width: 80,
@@ -1248,21 +1251,21 @@ const styles = StyleSheet.create({
   profileNameText: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#0F172A',
+    color: colors.textPrimary,
     marginBottom: 4,
   },
   profileEmailText: {
     fontSize: 13,
-    color: '#64748B',
+    color: colors.textMuted,
     marginBottom: 12,
   },
   profilePill: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: isDark ? '#2D2006' : '#FEF3C7',
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: isDark ? '#78350F' : '#FDE68A',
   },
   profilePillText: {
     fontSize: 12,
@@ -1270,16 +1273,16 @@ const styles = StyleSheet.create({
     color: '#B45309',
   },
   profileActionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 18,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
   profileActionLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#334155',
+    color: colors.textSecondary,
     marginBottom: 12,
   },
   langToggleRow: {
@@ -1290,10 +1293,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: isDark ? '#334155' : '#F1F5F9',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
   langBtnActive: {
     backgroundColor: '#047857',
@@ -1302,7 +1305,7 @@ const styles = StyleSheet.create({
   langBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0F172A',
+    color: colors.textPrimary,
   },
   profileActionBtn: {
     backgroundColor: '#047857',
@@ -1316,12 +1319,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   logoutBtn: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: isDark ? '#2D0A0A' : '#FEE2E2',
     paddingVertical: 14,
     borderRadius: 16,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: isDark ? '#7F1D1D' : '#FECACA',
   },
   logoutBtnText: {
     color: '#DC2626',

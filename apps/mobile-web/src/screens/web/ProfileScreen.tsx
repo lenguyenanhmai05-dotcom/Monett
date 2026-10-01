@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { FROGS } from '../../../assets/frogIndex';
 import QRCode from 'react-qr-code';
 import { updateProfileApi, changePasswordApi, uploadAvatarApi, sendFriendRequestApi, getFriendRequestsApi, getFriendsApi, respondFriendRequestApi, exportDataApi, submitFeedbackApi, submitRatingApi } from '../../services/api';
@@ -17,7 +18,7 @@ export const ProfileScreen: React.FC = () => {
   const isDesktop = width >= 960;
   const { user, logout, refreshUser } = useAuth();
   const { language, setLanguage } = useLanguage();
-  const isDark = (user as any)?.theme === 'dark';
+  const { isDark } = useTheme();
   const styles = getStyles(isDark);
 
   const [fullName, setFullName] = useState(user?.fullName || '');
@@ -97,9 +98,6 @@ export const ProfileScreen: React.FC = () => {
   const CURRENCIES = [
     { code: 'VND', nameVi: 'Việt Nam Đồng (đ)', nameEn: 'Vietnamese Dong (đ)', symbol: '₫', flag: '🇻🇳' },
     { code: 'USD', nameVi: 'Đô la Mỹ ($)', nameEn: 'US Dollar ($)', symbol: '$', flag: '🇺🇸' },
-    { code: 'EUR', nameVi: 'Đồng Euro (€)', nameEn: 'Euro (€)', symbol: '€', flag: '🇪🇺' },
-    { code: 'JPY', nameVi: 'Yên Nhật (¥)', nameEn: 'Japanese Yen (¥)', symbol: '¥', flag: '🇯🇵' },
-    { code: 'GBP', nameVi: 'Bảng Anh (£)', nameEn: 'British Pound (£)', symbol: '£', flag: '🇬🇧' },
   ];
 
   const REMINDER_OPTIONS = [
@@ -115,9 +113,6 @@ export const ProfileScreen: React.FC = () => {
   const getCurrencySubtitle = () => {
     switch (currentCurrency) {
       case 'USD': return language === 'vi' ? 'Đô la Mỹ ($)' : 'US Dollar ($)';
-      case 'EUR': return language === 'vi' ? 'Đồng Euro (€)' : 'Euro (€)';
-      case 'JPY': return language === 'vi' ? 'Yên Nhật (¥)' : 'Japanese Yen (¥)';
-      case 'GBP': return language === 'vi' ? 'Bảng Anh (£)' : 'British Pound (£)';
       default: return language === 'vi' ? 'Việt Nam Đồng (đ)' : 'Vietnamese Dong (đ)';
     }
   };
@@ -351,8 +346,8 @@ export const ProfileScreen: React.FC = () => {
               <Text style={styles.eliteBadgeText}>✨ PRO • {language === 'vi' ? 'Thành viên Tinh Hoa' : 'Elite Member'}</Text>
             </View>
           ) : (
-            <TouchableOpacity style={styles.standardBadge} onPress={() => window.alert(language === 'vi' ? `Giữ chuỗi streak ${user?.streak ?? 0}/7 ngày để mở khóa PRO miễn phí!` : `Keep a ${user?.streak ?? 0}/7 day streak to unlock PRO for free!`)}>
-              <Text style={styles.standardBadgeText}>🌱 {language === 'vi' ? `Bản Tiêu chuẩn • Streak ${user?.streak ?? 0}/7` : `Standard • Streak ${user?.streak ?? 0}/7`}</Text>
+            <TouchableOpacity style={styles.standardBadge} onPress={() => window.alert(language === 'vi' ? `Giữ chuỗi streak ${user?.streak ?? 0}/3 ngày để mở khóa PRO miễn phí!` : `Keep a ${user?.streak ?? 0}/3 day streak to unlock PRO for free!`)}>
+              <Text style={styles.standardBadgeText}>🌱 {language === 'vi' ? `Bản Tiêu chuẩn • Streak ${user?.streak ?? 0}/3` : `Standard • Streak ${user?.streak ?? 0}/3`}</Text>
             </TouchableOpacity>
           )}
         </View>

@@ -20,9 +20,33 @@ export class Moment {
   @Prop({ default: 'Chi tiêu' })
   category: string;
 
+  @Prop({ default: 'VND' })
+  currency: string;
+
   // reactions: Map userId -> emoji string ('❤️', '🔥', '👏', '😂', '💸')
   @Prop({ type: Map, of: String, default: {} })
   reactions: Map<string, string>;
+
+  @Prop({
+    type: [
+      {
+        userId: { type: Types.ObjectId, ref: 'User' },
+        userName: { type: String, default: '' },
+        userAvatar: { type: String, default: '' },
+        text: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+    default: [],
+  })
+  comments: Array<{
+    _id?: Types.ObjectId;
+    userId: Types.ObjectId;
+    userName: string;
+    userAvatar: string;
+    text: string;
+    createdAt: Date;
+  }>;
 }
 
 export const MomentSchema = SchemaFactory.createForClass(Moment);

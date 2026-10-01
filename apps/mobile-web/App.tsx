@@ -11,6 +11,7 @@ import { MobileNavigator } from './src/screens/mobile/MobileNavigator';
 import { TransactionProvider } from './src/contexts/TransactionContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
+import { ThemeProvider } from './src/contexts/ThemeContext';
 
 function MainApp() {
   const { user, isLoading } = useAuth();
@@ -163,8 +164,10 @@ export default function App() {
   return (
     <LanguageProvider>
       <AuthProvider>
-        <StatusBar style="dark" />
-        <MainApp />
+        <ThemeProvider>
+          <StatusBar style="dark" />
+          <MainApp />
+        </ThemeProvider>
       </AuthProvider>
     </LanguageProvider>
   );

@@ -3,12 +3,14 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Moment, MomentDocument } from './schemas/moment.schema';
 import { Friendship } from '../friends/schemas/friendship.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 
 @Injectable()
 export class MomentsService {
   constructor(
     @InjectModel(Moment.name) private momentModel: Model<MomentDocument>,
     @InjectModel(Friendship.name) private friendshipModel: Model<Friendship>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
   ) {}
 
   /**
@@ -83,11 +85,24 @@ export class MomentsService {
         photo: m.photo,
         caption: m.caption,
         amount: m.amount,
+        currency: m.currency || 'VND',
         category: m.category,
         time: timeStr,
         createdAt: m.createdAt,
         reactions: reactionsCount,
         myReaction,
+        comments: (m.comments || []).map((c: any) => {
+          const cDate = c.createdAt ? new Date(c.createdAt) : new Date();
+          return {
+            id: c._id ? c._id.toString() : c.id,
+            userId: c.userId ? c.userId.toString() : '',
+            userName: c.userName || 'Bạn bè',
+            userAvatar: c.userAvatar || null,
+            text: c.text,
+            createdAt: c.createdAt,
+            time: `${cDate.getHours().toString().padStart(2, '0')}:${cDate.getMinutes().toString().padStart(2, '0')}`,
+          };
+        }),
       };
     });
   }
@@ -95,7 +110,7 @@ export class MomentsService {
   /**
    * Tạo một khoảnh khắc mới
    */
-  async createMoment(userId: string, data: { photo: string; caption?: string; amount?: number; category?: string }) {
+  async createMoment(userId: string, data: { photo: string; caption?: string; amount?: number; category?: string; currency?: string }) {
     if (!data.photo) {
       throw new BadRequestException('Vui lòng cung cấp link hình ảnh khoảnh khắc');
     }
@@ -105,6 +120,7 @@ export class MomentsService {
       photo: data.photo,
       caption: data.caption || '',
       amount: data.amount || 0,
+      currency: data.currency || 'VND',
       category: data.category || 'Chi tiêu',
       reactions: new Map(),
     });
@@ -172,7 +188,7 @@ export class MomentsService {
   async updateMoment(
     momentId: string,
     userId: string,
-    updateData: { caption?: string; amount?: number; category?: string; photo?: string },
+    updateData: { caption?: string; amount?: number; category?: string; photo?: string; currency?: string },
   ) {
     let objId: Types.ObjectId;
     try {
@@ -194,6 +210,7 @@ export class MomentsService {
     if (updateData.amount !== undefined) moment.amount = updateData.amount;
     if (updateData.category !== undefined) moment.category = updateData.category;
     if (updateData.photo !== undefined) moment.photo = updateData.photo;
+    if (updateData.currency !== undefined) (moment as any).currency = updateData.currency;
 
     await moment.save();
     return moment;
@@ -221,6 +238,57 @@ export class MomentsService {
 
     await this.momentModel.findByIdAndDelete(objId);
     return { success: true, message: 'Đã xóa bài đăng thành công' };
+  }
+
+  /**
+   * Thêm bình luận / gửi tin nhắn vào khoảnh khắc
+   */
+  async addComment(momentId: string, userId: string, text: string) {
+    if (!text || !text.trim()) {
+      throw new BadRequestException('Nội dung tin nhắn không được để trống');
+    }
+
+    let objId: Types.ObjectId;
+    try {
+      objId = new Types.ObjectId(momentId);
+    } catch {
+      throw new BadRequestException('ID khoảnh khắc không hợp lệ');
+    }
+
+    const moment = await this.momentModel.findById(objId);
+    if (!moment) {
+      throw new NotFoundException('Không tìm thấy khoảnh khắc');
+    }
+
+    const user = await this.userModel.findById(userId);
+    const commentObj = {
+      userId: new Types.ObjectId(userId),
+      userName: user?.fullName || 'Người dùng Monett',
+      userAvatar: user?.avatarUrl || '',
+      text: text.trim(),
+      createdAt: new Date(),
+    };
+
+    if (!moment.comments) {
+      moment.comments = [];
+    }
+    moment.comments.push(commentObj as any);
+    await moment.save();
+
+    const cDate = commentObj.createdAt;
+    return {
+      message: 'Đã gửi tin nhắn thành công',
+      comment: {
+        id: (commentObj as any)._id ? (commentObj as any)._id.toString() : new Date().getTime().toString(),
+        userId,
+        userName: commentObj.userName,
+        userAvatar: commentObj.userAvatar,
+        text: commentObj.text,
+        createdAt: commentObj.createdAt,
+        time: `${cDate.getHours().toString().padStart(2, '0')}:${cDate.getMinutes().toString().padStart(2, '0')}`,
+      },
+      commentsCount: moment.comments.length,
+    };
   }
 
   /**

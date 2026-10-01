@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { FROGS } from '../../../assets/frogIndex';
 import { UserProfileHeader } from '../../components/UserProfileHeader';
 import { StreakBadgeWidget } from '../../components/StreakBadgeWidget';
@@ -19,6 +20,8 @@ export const HomeScreen: React.FC = () => {
   const isDesktop = width >= 960;
   const { user } = useAuth();
   const { language } = useLanguage();
+  const { isDark, colors } = useTheme();
+  const styles = getStyles(isDark, colors);
 
   // Dữ liệu hiển thị (có thể tùy chỉnh)
   const [slogan, setSlogan] = useState(
@@ -544,10 +547,10 @@ export const HomeScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFD',
+    backgroundColor: isDark ? '#0F172A' : '#F8FAFD',
   },
   contentContainer: {
     paddingHorizontal: 28,
@@ -582,14 +585,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.card,
     borderRadius: 20,
     padding: 24,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
+    borderColor: colors.border,
+    shadowColor: isDark ? '#000000' : '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
+    shadowOpacity: isDark ? 0.2 : 0.04,
     shadowRadius: 14,
     elevation: 3,
   },
@@ -643,7 +646,7 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#0F172A',
+    color: colors.textPrimary,
   },
   pioneerBadge: {
     backgroundColor: '#ECFDF5',
@@ -660,7 +663,7 @@ const styles = StyleSheet.create({
   },
   userSubText: {
     fontSize: 13,
-    color: '#64748B',
+    color: colors.textMuted,
   },
   metaRow: {
     flexDirection: 'row',
@@ -671,7 +674,7 @@ const styles = StyleSheet.create({
   userIdText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#334155',
+    color: colors.textSecondary,
   },
   activeDotBadge: {
     flexDirection: 'row',
@@ -694,11 +697,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 10,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: isDark ? '#334155' : '#F8FAFC',
   },
   uploadPhotoIcon: {
     fontSize: 14,
@@ -713,9 +716,9 @@ const styles = StyleSheet.create({
 
   // Slogan box
   sloganBox: {
-    backgroundColor: '#F8FAF9',
+    backgroundColor: isDark ? '#1E293B' : '#F8FAF9',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     borderRadius: 16,
     padding: 18,
     gap: 12,
@@ -740,7 +743,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     fontStyle: 'italic',
-    color: '#0F172A',
+    color: colors.textPrimary,
     lineHeight: 24,
   },
   sloganChipsRow: {
@@ -751,33 +754,33 @@ const styles = StyleSheet.create({
   },
   sloganChipLabel: {
     fontSize: 12,
-    color: '#64748B',
+    color: colors.textMuted,
     fontWeight: '500',
   },
   chipItem: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: isDark ? '#334155' : '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     borderRadius: 14,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
   chipText: {
     fontSize: 11,
-    color: '#334155',
+    color: colors.textSecondary,
   },
   sloganFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: colors.border,
     paddingTop: 10,
     marginTop: 4,
   },
   sloganFooterText: {
     fontSize: 11,
-    color: '#94A3B8',
+    color: colors.textMuted,
     flex: 1,
   },
   sloganHistoryLink: {
@@ -812,11 +815,11 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#0F172A',
+    color: colors.textPrimary,
   },
   cardSubtitle: {
     fontSize: 12,
-    color: '#64748B',
+    color: colors.textMuted,
     marginTop: 2,
   },
   settingsBtn: {
@@ -826,7 +829,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   salaryBox: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: isDark ? '#334155' : '#F8FAFC',
     borderRadius: 16,
     padding: 18,
     flexDirection: 'row',
@@ -834,7 +837,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
   salaryLabel: {
     fontSize: 13,
@@ -933,7 +936,7 @@ const styles = StyleSheet.create({
   },
   boldText: {
     fontWeight: '800',
-    color: '#0F172A',
+    color: colors.textPrimary,
   },
   progressBarTrack: {
     height: 10,
@@ -1003,7 +1006,7 @@ const styles = StyleSheet.create({
   streakMainTitle: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#0F172A',
+    color: colors.textPrimary,
   },
   streakHighlightNum: {
     color: '#D97706',
@@ -1046,11 +1049,11 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   streakJourneyBox: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: isDark ? '#334155' : '#F8FAFC',
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     gap: 12,
   },
   journeyHeader: {
@@ -1063,7 +1066,7 @@ const styles = StyleSheet.create({
   journeyTitle: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#0F172A',
+    color: colors.textPrimary,
   },
   legendRow: {
     flexDirection: 'row',
@@ -1093,10 +1096,10 @@ const styles = StyleSheet.create({
   dayCell: {
     width: '9%',
     aspectRatio: 0.9,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: isDark ? '#334155' : '#FFFFFF',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 2,
@@ -1120,7 +1123,7 @@ const styles = StyleSheet.create({
   dayNumText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#64748B',
+    color: colors.textMuted,
   },
   dayNumTextCompleted: {
     color: '#065F46',
@@ -1296,11 +1299,11 @@ const styles = StyleSheet.create({
   levelTitle: {
     fontSize: 22,
     fontWeight: '900',
-    color: '#0F172A',
+    color: colors.textPrimary,
   },
   levelSubNotice: {
     fontSize: 13,
-    color: '#64748B',
+    color: colors.textMuted,
     marginBottom: 20,
   },
   xpProgressBlock: {
@@ -1337,9 +1340,9 @@ const styles = StyleSheet.create({
   badgeCard: {
     flex: 1,
     minWidth: 240,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: isDark ? '#334155' : '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     borderRadius: 14,
     padding: 14,
     flexDirection: 'row',
@@ -1377,11 +1380,11 @@ const styles = StyleSheet.create({
   badgeName: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#0F172A',
+    color: colors.textPrimary,
   },
   badgeDesc: {
     fontSize: 11,
-    color: '#64748B',
+    color: colors.textMuted,
     lineHeight: 15,
   },
   badgeAchieved: {
