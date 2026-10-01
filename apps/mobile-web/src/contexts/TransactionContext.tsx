@@ -180,7 +180,7 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // Cập nhật spent vào budget khi transactions thay đổi
   useEffect(() => {
-    setBudget((prev) =>
+    setBudget((prev: IBudget | null) =>
       prev ? { ...prev, spent: totalSpent } : prev
     );
   }, [totalSpent]);

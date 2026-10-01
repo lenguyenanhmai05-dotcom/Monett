@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,9 @@ import {
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { FROGS } from '../../../assets/frogIndex';
+import { UserProfileHeader } from '../../components/UserProfileHeader';
+import { StreakBadgeWidget } from '../../components/StreakBadgeWidget';
 
 export const HomeScreen: React.FC = () => {
   const { width } = useWindowDimensions();
@@ -27,6 +30,28 @@ export const HomeScreen: React.FC = () => {
   const [showStreakShield, setShowStreakShield] = useState(true);
 
   const displayName = user?.fullName || 'Nguyễn Mai Linh';
+  const [imageError, setImageError] = useState(false);
+
+  const [frogSeed] = useState(() => Math.floor(Math.random() * FROGS.length));
+
+  const getAvatarColor = (name: string) => {
+    const colors = [
+      { bg: '#FEE2E2', text: '#B91C1C' }, // Red
+      { bg: '#FEF3C7', text: '#B45309' }, // Amber
+      { bg: '#DCFCE7', text: '#047857' }, // Green
+      { bg: '#E0F2FE', text: '#0369A1' }, // Blue
+      { bg: '#EDE9FE', text: '#6D28D9' }, // Purple
+      { bg: '#FCE7F3', text: '#BE185D' }, // Pink
+      { bg: '#F3F4F6', text: '#374151' }, // Gray
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  const avatarColor = getAvatarColor(user?.fullName || user?.email || 'U');
 
   return (
     <ScrollView
@@ -38,50 +63,9 @@ export const HomeScreen: React.FC = () => {
       <View style={[styles.gridRow, isDesktop ? styles.rowDesktop : styles.rowMobile]}>
         {/* CARD 1: THÔNG TIN CÁ NHÂN & SLOGAN TÀI CHÍNH */}
         <View style={[styles.card, isDesktop ? styles.cardRow1Left : styles.flex1]}>
-          {/* Header Card: Avatar + Tên + Badge */}
-          <View style={styles.profileHeader}>
-            <View style={styles.avatarWrapper}>
-              <Image
-                source={{
-                  uri:
-                    user?.avatarUrl ||
-                    'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=300&auto=format&fit=crop',
-                }}
-                style={styles.avatarImg}
-              />
-              <View style={styles.avatarEditBadge}>
-                <Text style={styles.cameraIcon}>📷</Text>
-              </View>
-            </View>
-
-            <View style={styles.profileInfo}>
-              <View style={styles.nameRow}>
-                <Text style={styles.userName}>{displayName}</Text>
-                <View style={styles.pioneerBadge}>
-                  <Text style={styles.pioneerBadgeText}>🛡️ Monett Pioneer</Text>
-                </View>
-              </View>
-              <Text style={styles.userSubText}>
-                📅 {language === 'vi' ? 'Thành viên Tinh Hoa từ tháng 01/2024' : 'Elite Member since Jan 2024'}
-              </Text>
-              <View style={styles.metaRow}>
-                <Text style={styles.userIdText}>ID: #{user?.id ? user.id.slice(-6).toUpperCase() : 'MNT-8942'}</Text>
-                <View style={styles.activeDotBadge}>
-                  <View style={styles.activeDot} />
-                  <Text style={styles.activeText}>
-                    {language === 'vi' ? 'Đang hoạt động' : 'Active'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <TouchableOpacity style={styles.uploadPhotoBtn} activeOpacity={0.7}>
-              <Text style={styles.uploadPhotoIcon}>⇪</Text>
-              <Text style={styles.uploadPhotoText}>
-                {language === 'vi' ? 'Tải ảnh mới' : 'Change Avatar'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {/* Header Card & Streak Widget */}
+          <UserProfileHeader />
+          <StreakBadgeWidget />
 
           {/* Slogan Tài Chính Cá Nhân */}
           <View style={styles.sloganBox}>
@@ -233,10 +217,10 @@ export const HomeScreen: React.FC = () => {
         <View style={[styles.card, isDesktop ? styles.cardRow2Left : styles.flex1]}>
           <View style={styles.streakCardHeader}>
             <View style={styles.streakTitleBlock}>
-              <View style={styles.streakFlameTeardrop}>
+              <View style={[styles.streakFlameTeardrop, { overflow: 'visible', justifyContent: 'center', alignItems: 'center' }]}>
                 <Image
-                  source={require('../../../assets/frog-explorer.png')}
-                  style={styles.streakFlameFrogImg}
+                  source={FROGS[frogSeed]}
+                  style={[{ width: 44, height: 44 }, styles.shadow3D]}
                   resizeMode="contain"
                 />
               </View>
@@ -373,8 +357,8 @@ export const HomeScreen: React.FC = () => {
         <View style={[styles.card, isDesktop ? styles.cardRow2Right : styles.flex1, styles.chibiCard]}>
           <View style={styles.chibiHeaderRow}>
             <Image
-              source={require('../../../assets/frog-explorer.png')}
-              style={styles.chibiFrogMascot}
+              source={FROGS[frogSeed]}
+              style={[styles.chibiFrogMascot, styles.shadow3D]}
               resizeMode="contain"
             />
             <View style={{ flex: 1 }}>
@@ -1417,5 +1401,12 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#3B82F6',
     borderRadius: 3,
+  },
+  shadow3D: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 10,
   },
 });

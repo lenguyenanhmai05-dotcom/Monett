@@ -40,3 +40,7 @@ lerna-debug.log*
 # OS Files
 .DS_Store
 Thumbs.db
+
+# User uploaded files (local server storage)
+uploads/
+**/uploads/

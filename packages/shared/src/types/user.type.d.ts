@@ -9,6 +9,10 @@ export interface IUser {
     avatarUrl?: string;
     currency?: string;
     role: UserRole;
+    theme?: string;
+    reminderTime?: string;
+    isPro?: boolean;
+    streak?: number;
     createdAt?: string | Date;
     updatedAt?: string | Date;
 }
