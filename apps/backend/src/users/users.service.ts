@@ -79,11 +79,12 @@ export class UsersService {
     ).exec();
   }
 
+
   async getStreak(userId: string): Promise<{ streak: number; lastActiveDate: string; activeToday: boolean }> {
     const user = await this.userModel.findById(userId).exec();
     const today = new Date().toISOString().split('T')[0];
-    const streak = user?.streak || 1;
-    const lastActiveDate = user?.lastActiveDate || today;
+    const streak = user?.streak ?? 0;
+    const lastActiveDate = user?.lastActiveDate || '';
     return {
       streak,
       lastActiveDate,
@@ -114,12 +115,12 @@ export class UsersService {
 
     user.streak = currentStreak;
     user.lastActiveDate = todayStr;
-    if (currentStreak >= 7) {
+    if (currentStreak >= 3) {
       user.isPro = true;
     }
     await user.save();
 
-    const proBonusMsg = currentStreak === 7 ? ' 👑 Chúc mừng bạn đã mở khóa danh hiệu PRO Thành Viên Tinh Hoa!' : '';
+    const proBonusMsg = currentStreak === 3 ? ' 👑 Chúc mừng bạn đã mở khóa danh hiệu PRO Thành Viên Tinh Hoa!' : '';
     return { 
       streak: currentStreak, 
       message: `Tuyệt vời! Chuỗi của bạn đã tăng lên ${currentStreak} ngày! 🔥${proBonusMsg}` 
