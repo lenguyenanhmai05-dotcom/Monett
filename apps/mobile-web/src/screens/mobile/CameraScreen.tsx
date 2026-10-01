@@ -5,9 +5,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 interface CameraScreenProps {
   onClose?: () => void;
@@ -43,7 +44,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
       {/* 1. Header Bar trên kính ngắm */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.topBtn} onPress={onClose} activeOpacity={0.7}>
-          <Text style={styles.topBtnIcon}>✕</Text>
+          <Ionicons name="close" size={22} color="#FFFFFF" />
         </TouchableOpacity>
 
         {/* Chuyển đổi chế độ: Món ăn / Hóa đơn / Tự động */}
@@ -75,7 +76,11 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
           onPress={() => setFlash(!flash)}
           activeOpacity={0.7}
         >
-          <Text style={[styles.topBtnIcon, flash && { color: '#FBBF24' }]}>⚡</Text>
+          <Ionicons
+            name={flash ? 'flash' : 'flash-off-outline'}
+            size={20}
+            color={flash ? '#FBBF24' : '#FFFFFF'}
+          />
         </TouchableOpacity>
       </View>
 
@@ -141,7 +146,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
         {/* Nút lật camera trước/sau */}
         <TouchableOpacity style={styles.subBtn} activeOpacity={0.8}>
           <View style={styles.flipBtn}>
-            <Text style={styles.flipIcon}>🔄</Text>
+            <Ionicons name="camera-reverse-outline" size={24} color="#FFFFFF" />
           </View>
           <Text style={styles.subBtnLabel}>Đổi chiều</Text>
         </TouchableOpacity>
@@ -168,13 +173,10 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  topBtnIcon: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
   },
   modeTabs: {
     flexDirection: 'row',
@@ -307,11 +309,10 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  flipIcon: {
-    fontSize: 20,
   },
   subBtnLabel: {
     color: '#D1D5DB',

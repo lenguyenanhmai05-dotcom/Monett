@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Image, Platform, useWindowDimensions } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { ResponsiveLayout, TabKey } from './src/layouts/ResponsiveLayout';
 import { HomeScreen } from './src/screens/web/HomeScreen';
@@ -88,8 +89,9 @@ function MainApp() {
   const renderContent = () => {
     switch (activeTab) {
       case 'home':
-      case 'profile':
         return <HomeScreen />;
+      case 'profile':
+        return <ProfileScreen />;
       case 'moments':
         return (
           <View style={styles.centerContainer}>
@@ -160,12 +162,14 @@ function MainApp() {
 
 export default function App() {
   return (
-    <LanguageProvider>
-      <AuthProvider>
-        <StatusBar style="dark" />
-        <MainApp />
-      </AuthProvider>
-    </LanguageProvider>
+    <SafeAreaProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <StatusBar style="dark" />
+          <MainApp />
+        </AuthProvider>
+      </LanguageProvider>
+    </SafeAreaProvider>
   );
 }
 

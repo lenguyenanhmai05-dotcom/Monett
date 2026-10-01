@@ -7,6 +7,7 @@ import {
   Modal,
   ScrollView,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface QuickSaveModalProps {
   visible: boolean;
@@ -50,8 +51,8 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
               <Text style={styles.sheetTitle}>Bạn vừa chi?</Text>
               <Text style={styles.sheetSubtitle}>Ghi chép nhanh 1 chạm chỉ trong 3 giây</Text>
             </View>
-            <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
-              <Text style={styles.closeBtnText}>✕</Text>
+            <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close" size={20} color="#64748B" />
             </TouchableOpacity>
           </View>
 

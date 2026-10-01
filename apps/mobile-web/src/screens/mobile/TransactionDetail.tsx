@@ -5,9 +5,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  SafeAreaView,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 interface TransactionDetailProps {
   transactionId?: string;
@@ -44,11 +45,11 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
       {/* 1. Header Bar */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerBtn} onPress={onBack} activeOpacity={0.7}>
-          <Text style={styles.headerBtnIcon}>‹</Text>
+          <Ionicons name="chevron-back" size={22} color="#1E293B" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Chi Tiết Giao Dịch</Text>
         <TouchableOpacity style={styles.headerBtn} onPress={onEdit} activeOpacity={0.7}>
-          <Text style={{ fontSize: 16 }}>✏️</Text>
+          <Ionicons name="pencil-outline" size={18} color="#1E293B" />
         </TouchableOpacity>
       </View>
 
@@ -57,7 +58,8 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
         <View style={styles.imageContainer}>
           <Image source={{ uri: detail.imageUrl }} style={styles.heroImage} />
           <View style={styles.imageBadge}>
-            <Text style={styles.imageBadgeText}>📷 Khoảnh khắc chi tiêu</Text>
+            <Ionicons name="camera-outline" size={14} color="#FFFFFF" style={{ marginRight: 5 }} />
+            <Text style={styles.imageBadgeText}>Khoảnh khắc chi tiêu</Text>
           </View>
         </View>
 
@@ -71,7 +73,9 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
 
           {/* Gamification reward pill */}
           <View style={styles.gamifyPill}>
-            <Text style={styles.gamifyIcon}>🐸</Text>
+            <View style={styles.gamifyIconBadge}>
+              <Ionicons name="sparkles" size={12} color="#FFFFFF" />
+            </View>
             <Text style={styles.gamifyText}>
               Đã ghi nhận khoảnh khắc • Nhận <Text style={{ fontWeight: '800' }}>{detail.xpReward}</Text>
             </Text>
@@ -82,7 +86,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
         <View style={styles.detailSection}>
           <View style={styles.detailRow}>
             <View style={styles.rowLabelContainer}>
-              <Text style={styles.rowIcon}>🏷️</Text>
+              <Ionicons name="pricetag-outline" size={16} color="#047857" style={{ marginRight: 8 }} />
               <Text style={styles.rowLabel}>Danh mục</Text>
             </View>
             <View style={styles.categoryBadge}>
@@ -93,7 +97,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
 
           <View style={styles.detailRow}>
             <View style={styles.rowLabelContainer}>
-              <Text style={styles.rowIcon}>💳</Text>
+              <Ionicons name="wallet-outline" size={16} color="#047857" style={{ marginRight: 8 }} />
               <Text style={styles.rowLabel}>Nguồn tiền</Text>
             </View>
             <View style={styles.walletBadge}>
@@ -104,7 +108,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
 
           <View style={styles.detailRow}>
             <View style={styles.rowLabelContainer}>
-              <Text style={styles.rowIcon}>📍</Text>
+              <Ionicons name="location-outline" size={16} color="#047857" style={{ marginRight: 8 }} />
               <Text style={styles.rowLabel}>Địa điểm</Text>
             </View>
             <Text style={styles.rowValue}>{detail.location}</Text>
@@ -112,7 +116,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
 
           <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
             <View style={styles.rowLabelContainer}>
-              <Text style={styles.rowIcon}>📝</Text>
+              <Ionicons name="document-text-outline" size={16} color="#047857" style={{ marginRight: 8 }} />
               <Text style={styles.rowLabel}>Ghi chú</Text>
             </View>
             <Text style={styles.rowValue}>{detail.note}</Text>
@@ -121,7 +125,8 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
 
         {/* 5. Nút xóa giao dịch */}
         <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} activeOpacity={0.8}>
-          <Text style={styles.deleteBtnText}>🗑️ Xóa giao dịch này</Text>
+          <Ionicons name="trash-outline" size={16} color="#DC2626" style={{ marginRight: 6 }} />
+          <Text style={styles.deleteBtnText}>Xóa giao dịch này</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -147,14 +152,16 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  headerBtnIcon: {
-    fontSize: 24,
-    color: '#374151',
-    marginTop: -2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   headerTitle: {
     fontSize: 17,
@@ -187,6 +194,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   imageBadgeText: {
     color: '#ECFDF5',
@@ -237,8 +248,21 @@ const styles = StyleSheet.create({
     marginTop: 12,
     gap: 6,
   },
-  gamifyIcon: {
-    fontSize: 16,
+  gamifyIconBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#047857',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    marginRight: 2,
+    shadowColor: '#047857',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   gamifyText: {
     fontSize: 12,
@@ -315,6 +339,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   deleteBtn: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     backgroundColor: '#FEE2E2',
     paddingVertical: 14,
     borderRadius: 16,

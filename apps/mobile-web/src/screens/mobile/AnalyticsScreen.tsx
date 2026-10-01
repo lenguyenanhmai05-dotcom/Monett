@@ -5,9 +5,10 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 interface AnalyticsScreenProps {
   onBack?: () => void;
@@ -57,7 +58,7 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack }) => {
       <View style={styles.header}>
         {onBack && (
           <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-            <Text style={styles.backBtnIcon}>‹</Text>
+            <Ionicons name="chevron-back" size={22} color="#1E293B" />
           </TouchableOpacity>
         )}
         <Text style={styles.headerTitle}>Báo Cáo Thống Kê</Text>
@@ -205,14 +206,16 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  backBtnIcon: {
-    fontSize: 24,
-    color: '#374151',
-    marginTop: -2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   headerTitle: {
     fontSize: 17,

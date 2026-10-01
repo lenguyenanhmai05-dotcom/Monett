@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,13 @@ import {
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { FROGS } from '../../../assets/frogIndex';
+import { UserProfileHeader } from '../../components/UserProfileHeader';
+import { StreakBadgeWidget } from '../../components/StreakBadgeWidget';
+import { BudgetCardWidget } from '../../components/BudgetCardWidget';
+import { RecentTransactionsWidget } from '../../components/RecentTransactionsWidget';
+import { TransactionTableWidget } from '../../components/TransactionTableWidget';
+import { getBudgetApi, BudgetData } from '../../services/api';
 
 export const HomeScreen: React.FC = () => {
   const { width } = useWindowDimensions();
@@ -27,6 +34,56 @@ export const HomeScreen: React.FC = () => {
   const [showStreakShield, setShowStreakShield] = useState(true);
 
   const displayName = user?.fullName || 'Nguyễn Mai Linh';
+  const [imageError, setImageError] = useState(false);
+
+  const [frogSeed] = useState(() => Math.floor(Math.random() * FROGS.length));
+
+  const [budget, setBudget] = useState<BudgetData>({
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear(),
+    limit: 22000000,
+    spent: 6180000,
+    remaining: 15820000,
+    spentPercent: 28.1,
+    remainingPercent: 71.9,
+    status: 'safe',
+    payday: 5,
+    daysUntilPayday: 12,
+    currency: 'VND',
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    getBudgetApi()
+      .then((data) => {
+        if (isMounted && data && data.limit) {
+          setBudget(data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const getAvatarColor = (name: string) => {
+    const colors = [
+      { bg: '#FEE2E2', text: '#B91C1C' }, // Red
+      { bg: '#FEF3C7', text: '#B45309' }, // Amber
+      { bg: '#DCFCE7', text: '#047857' }, // Green
+      { bg: '#E0F2FE', text: '#0369A1' }, // Blue
+      { bg: '#EDE9FE', text: '#6D28D9' }, // Purple
+      { bg: '#FCE7F3', text: '#BE185D' }, // Pink
+      { bg: '#F3F4F6', text: '#374151' }, // Gray
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  const avatarColor = getAvatarColor(user?.fullName || user?.email || 'U');
 
   return (
     <ScrollView
@@ -38,50 +95,9 @@ export const HomeScreen: React.FC = () => {
       <View style={[styles.gridRow, isDesktop ? styles.rowDesktop : styles.rowMobile]}>
         {/* CARD 1: THÔNG TIN CÁ NHÂN & SLOGAN TÀI CHÍNH */}
         <View style={[styles.card, isDesktop ? styles.cardRow1Left : styles.flex1]}>
-          {/* Header Card: Avatar + Tên + Badge */}
-          <View style={styles.profileHeader}>
-            <View style={styles.avatarWrapper}>
-              <Image
-                source={{
-                  uri:
-                    user?.avatarUrl ||
-                    'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=300&auto=format&fit=crop',
-                }}
-                style={styles.avatarImg}
-              />
-              <View style={styles.avatarEditBadge}>
-                <Text style={styles.cameraIcon}>📷</Text>
-              </View>
-            </View>
-
-            <View style={styles.profileInfo}>
-              <View style={styles.nameRow}>
-                <Text style={styles.userName}>{displayName}</Text>
-                <View style={styles.pioneerBadge}>
-                  <Text style={styles.pioneerBadgeText}>🛡️ Monett Pioneer</Text>
-                </View>
-              </View>
-              <Text style={styles.userSubText}>
-                📅 {language === 'vi' ? 'Thành viên Tinh Hoa từ tháng 01/2024' : 'Elite Member since Jan 2024'}
-              </Text>
-              <View style={styles.metaRow}>
-                <Text style={styles.userIdText}>ID: #{user?.id ? user.id.slice(-6).toUpperCase() : 'MNT-8942'}</Text>
-                <View style={styles.activeDotBadge}>
-                  <View style={styles.activeDot} />
-                  <Text style={styles.activeText}>
-                    {language === 'vi' ? 'Đang hoạt động' : 'Active'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <TouchableOpacity style={styles.uploadPhotoBtn} activeOpacity={0.7}>
-              <Text style={styles.uploadPhotoIcon}>⇪</Text>
-              <Text style={styles.uploadPhotoText}>
-                {language === 'vi' ? 'Tải ảnh mới' : 'Change Avatar'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {/* Header Card & Streak Widget */}
+          <UserProfileHeader />
+          <StreakBadgeWidget />
 
           {/* Slogan Tài Chính Cá Nhân */}
           <View style={styles.sloganBox}>
@@ -147,83 +163,13 @@ export const HomeScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* CARD 2: THIẾT LẬP DÒNG TIỀN & THU NHẬP */}
-        <View style={[styles.card, isDesktop ? styles.cardRow1Right : styles.flex1]}>
-          <View style={styles.cashflowHeader}>
-            <View style={styles.cashflowTitleBox}>
-              <View style={styles.bankIconWrapper}>
-                <Text style={styles.bankIcon}>🏛️</Text>
-              </View>
-              <View>
-                <Text style={styles.cardTitle}>
-                  {language === 'vi' ? 'Thiết Lập Dòng Tiền' : 'Cashflow Blueprint'}
-                </Text>
-                <Text style={styles.cardSubtitle}>
-                  {language === 'vi'
-                    ? 'Kế hoạch thu nhập & ngày quyết toán'
-                    : 'Income planning & settlement schedule'}
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity style={styles.settingsBtn}>
-              <Text style={styles.settingsIcon}>⚙️</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Hộp Lương Cố Định */}
-          <View style={styles.salaryBox}>
-            <View>
-              <Text style={styles.salaryLabel}>
-                {language === 'vi' ? 'Lương Cố Định Hàng Tháng' : 'Fixed Monthly Income'}
-              </Text>
-              <Text style={styles.salaryAmount}>
-                22.000.000 <Text style={styles.currencySymbol}>đ</Text>
-              </Text>
-            </View>
-            <TouchableOpacity style={styles.updateSalaryBtn} activeOpacity={0.8}>
-              <Text style={styles.updateSalaryIcon}>🎛️</Text>
-              <Text style={styles.updateSalaryText}>
-                {language === 'vi' ? 'Cập nhật' : 'Update'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Hộp Ngày Trả Lương */}
-          <View style={styles.paydayCard}>
-            <View style={styles.paydayNumberBox}>
-              <Text style={styles.paydayNumber}>05</Text>
-            </View>
-            <View style={styles.paydayInfo}>
-              <Text style={styles.paydayTitle}>
-                {language === 'vi' ? 'Ngày trả lương định kỳ' : 'Payday Schedule'}
-              </Text>
-              <Text style={styles.paydayCycle}>
-                {language === 'vi'
-                  ? 'Chu kỳ tính: Ngày 05 hàng tháng'
-                  : 'Cycle: 5th of every month'}
-              </Text>
-            </View>
-            <View style={styles.daysRemainingBadge}>
-              <Text style={styles.daysRemainingText}>
-                {language === 'vi' ? 'Còn 12 ngày' : '12 days left'}
-              </Text>
-            </View>
-          </View>
-
-          {/* Thanh Tiến Độ Ngân Sách An Toàn */}
-          <View style={styles.safeBudgetSection}>
-            <View style={styles.safeBudgetHeader}>
-              <Text style={styles.safeBudgetTitle}>
-                {language === 'vi'
-                  ? 'Hạn mức chi tiêu an toàn tháng 10:'
-                  : 'Safe spending limit (Oct):'}{' '}
-                <Text style={styles.boldText}>13.200.000 / 22.000.000 đ (60%)</Text>
-              </Text>
-            </View>
-            <View style={styles.progressBarTrack}>
-              <View style={[styles.progressBarFill, { width: '60%' }]} />
-            </View>
-          </View>
+        {/* CARD 2: THIẾT LẬP DÒNG TIỀN & NGÂN SÁCH THÁNG (BUDGET CARD WIDGET) */}
+        <View style={[isDesktop ? styles.cardRow1Right : styles.flex1]}>
+          <BudgetCardWidget
+            budget={budget}
+            onBudgetUpdated={setBudget}
+            language={language as any}
+          />
         </View>
       </View>
 
@@ -233,10 +179,10 @@ export const HomeScreen: React.FC = () => {
         <View style={[styles.card, isDesktop ? styles.cardRow2Left : styles.flex1]}>
           <View style={styles.streakCardHeader}>
             <View style={styles.streakTitleBlock}>
-              <View style={styles.streakFlameTeardrop}>
+              <View style={[styles.streakFlameTeardrop, { overflow: 'visible', justifyContent: 'center', alignItems: 'center' }]}>
                 <Image
-                  source={require('../../../assets/frog-explorer.png')}
-                  style={styles.streakFlameFrogImg}
+                  source={FROGS[frogSeed]}
+                  style={[{ width: 44, height: 44 }, styles.shadow3D]}
                   resizeMode="contain"
                 />
               </View>
@@ -373,8 +319,8 @@ export const HomeScreen: React.FC = () => {
         <View style={[styles.card, isDesktop ? styles.cardRow2Right : styles.flex1, styles.chibiCard]}>
           <View style={styles.chibiHeaderRow}>
             <Image
-              source={require('../../../assets/frog-explorer.png')}
-              style={styles.chibiFrogMascot}
+              source={FROGS[frogSeed]}
+              style={[styles.chibiFrogMascot, styles.shadow3D]}
               resizeMode="contain"
             />
             <View style={{ flex: 1 }}>
@@ -556,6 +502,12 @@ export const HomeScreen: React.FC = () => {
           </View>
         </View>
       </View>
+
+      {/* ===================== ROW 4: GIAO DỊCH GẦN ĐÂY ===================== */}
+      <RecentTransactionsWidget language={language as any} />
+
+      {/* ===================== ROW 5: BẢNG GIAO DỊCH CHI TIẾT (TRANSACTION TABLE) ===================== */}
+      <TransactionTableWidget language={language as any} />
     </ScrollView>
   );
 };
@@ -1417,5 +1369,12 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#3B82F6',
     borderRadius: 3,
+  },
+  shadow3D: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 10,
   },
 });

@@ -7,12 +7,13 @@ import {
   StyleSheet,
   ActivityIndicator,
   Image,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { sendOtpApi, verifyOtpApi, forgotPasswordApi, resetPasswordApi } from '../../services/api';
@@ -97,8 +98,22 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
     clearMessages();
     const cleanEmail = email.trim();
 
+    // Bypass đăng nhập nhanh cho developer: tài khoản admin và mật khẩu admin
+    if (cleanEmail.toLowerCase() === 'admin' && password === 'admin') {
+      setLoading(true);
+      try {
+        await login({ email: 'admin', password: 'admin' });
+        onSuccess?.();
+      } catch (err: any) {
+        setErrorMessage(err.message || 'Lỗi đăng nhập nhanh admin');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     if (!cleanEmail) {
-      setErrorMessage(isVi ? 'Vui lòng nhập địa chỉ email.' : 'Please enter your email.');
+      setErrorMessage(isVi ? 'Vui lòng nhập địa chỉ email (hoặc admin).' : 'Please enter your email (or admin).');
       return;
     }
 
@@ -384,7 +399,7 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                 activeOpacity={0.7}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Text style={styles.helpIcon}>?</Text>
+                <Ionicons name="help-circle-outline" size={20} color="#475569" />
               </TouchableOpacity>
             </View>
           </View>
@@ -470,13 +485,39 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
           {/* ============================================================ */}
           {mode === 'login' && (
             <View style={styles.formSection}>
+              {/* NÚT ĐĂNG NHẬP NHANH DEV MODE */}
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#ECFDF5',
+                  borderColor: '#A7F3D0',
+                  borderWidth: 1,
+                  borderRadius: 10,
+                  paddingVertical: 9,
+                  paddingHorizontal: 12,
+                  marginBottom: 16,
+                  alignItems: 'center',
+                  flexDirection: 'row',
+                  justifyContent: 'center',
+                }}
+                onPress={() => {
+                  setEmail('admin');
+                  setPassword('admin');
+                  clearMessages();
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 13, color: '#047857', fontWeight: '700' }}>
+                  ⚡ {isVi ? 'Điền nhanh Dev: admin / admin' : 'Quick Fill Dev: admin / admin'}
+                </Text>
+              </TouchableOpacity>
+
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>{isVi ? 'Email' : 'Email'}</Text>
+                <Text style={styles.inputLabel}>{isVi ? 'Email hoặc Tài khoản' : 'Email or Username'}</Text>
                 <View style={styles.inputBox}>
-                  <Text style={styles.fieldIcon}>✉️</Text>
+                  <Ionicons name="mail-outline" size={18} color="#64748B" style={styles.fieldIcon} />
                   <TextInput
                     style={styles.textInput}
-                    placeholder="mai.linh@example.com"
+                    placeholder={isVi ? "mai.linh@example.com hoặc admin" : "mai.linh@example.com or admin"}
                     placeholderTextColor="#94A3B8"
                     value={email}
                     onChangeText={setEmail}
@@ -490,10 +531,10 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>{isVi ? 'Mật khẩu' : 'Password'}</Text>
                 <View style={styles.inputBox}>
-                  <Text style={styles.fieldIcon}>🔒</Text>
+                  <Ionicons name="lock-closed-outline" size={18} color="#64748B" style={styles.fieldIcon} />
                   <TextInput
                     style={styles.textInput}
-                    placeholder="••••••••••••"
+                    placeholder={isVi ? "•••••••••••• (hoặc admin)" : "•••••••••••• (or admin)"}
                     placeholderTextColor="#94A3B8"
                     value={password}
                     onChangeText={setPassword}
@@ -504,7 +545,9 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                     onPress={() => setShowPassword(!showPassword)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Text style={styles.eyeToggle}>{showPassword ? '🐵' : '👁️'}</Text>
+                    <View style={styles.eyeToggle}>
+                      <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="#64748B" />
+                    </View>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -563,7 +606,7 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>{isVi ? 'Họ và tên' : 'Full name'}</Text>
                 <View style={styles.inputBox}>
-                  <Text style={styles.fieldIcon}>👤</Text>
+                  <Ionicons name="person-outline" size={18} color="#64748B" style={styles.fieldIcon} />
                   <TextInput
                     style={styles.textInput}
                     placeholder={isVi ? 'Mai Linh' : 'John Doe'}
@@ -578,7 +621,7 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>{isVi ? 'Email' : 'Email'}</Text>
                 <View style={styles.inputBox}>
-                  <Text style={styles.fieldIcon}>✉️</Text>
+                  <Ionicons name="mail-outline" size={18} color="#64748B" style={styles.fieldIcon} />
                   <TextInput
                     style={styles.textInput}
                     placeholder="mai.linh@example.com"
@@ -595,7 +638,7 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>{isVi ? 'Mật khẩu' : 'Password'}</Text>
                 <View style={styles.inputBox}>
-                  <Text style={styles.fieldIcon}>🔒</Text>
+                  <Ionicons name="lock-closed-outline" size={18} color="#64748B" style={styles.fieldIcon} />
                   <TextInput
                     style={styles.textInput}
                     placeholder={isVi ? 'Tối thiểu 8 ký tự (chữ, số, ký tự đặc biệt)' : 'At least 8 chars (letters, numbers, special)'}
@@ -609,7 +652,9 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                     onPress={() => setShowPassword(!showPassword)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Text style={styles.eyeToggle}>{showPassword ? '🐵' : '👁️'}</Text>
+                    <View style={styles.eyeToggle}>
+                      <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="#64748B" />
+                    </View>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -715,7 +760,7 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                   {isVi ? 'Email tài khoản cần khôi phục' : 'Account Email to reset'}
                 </Text>
                 <View style={styles.inputBox}>
-                  <Text style={styles.fieldIcon}>✉️</Text>
+                  <Ionicons name="mail-outline" size={18} color="#64748B" style={styles.fieldIcon} />
                   <TextInput
                     style={styles.textInput}
                     placeholder="mai.linh@example.com"
@@ -772,7 +817,7 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                     : `Code sent to: ${forgotEmail}. Please check your inbox or spam folder.`}
                 </Text>
                 <View style={styles.inputBox}>
-                  <Text style={styles.fieldIcon}>🔑</Text>
+                  <Ionicons name="key-outline" size={18} color="#64748B" style={styles.fieldIcon} />
                   <TextInput
                     style={[styles.textInput, styles.otpInput]}
                     placeholder="000000"
@@ -843,7 +888,7 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                   {isVi ? 'Mật khẩu mới' : 'New password'}
                 </Text>
                 <View style={styles.inputBox}>
-                  <Text style={styles.fieldIcon}>🔒</Text>
+                  <Ionicons name="lock-closed-outline" size={18} color="#64748B" style={styles.fieldIcon} />
                   <TextInput
                     style={styles.textInput}
                     placeholder={isVi ? 'Tối thiểu 8 ký tự (chữ, số, ký tự đặc biệt)' : 'At least 8 chars (letters, numbers, special)'}
@@ -857,7 +902,9 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                     onPress={() => setShowNewPassword(!showNewPassword)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    <Text style={styles.eyeToggle}>{showNewPassword ? '🐵' : '👁️'}</Text>
+                    <View style={styles.eyeToggle}>
+                      <Ionicons name={showNewPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="#64748B" />
+                    </View>
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.fieldHintSmall}>
@@ -872,7 +919,7 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                   {isVi ? 'Xác nhận mật khẩu mới' : 'Confirm new password'}
                 </Text>
                 <View style={styles.inputBox}>
-                  <Text style={styles.fieldIcon}>🔒</Text>
+                  <Ionicons name="lock-closed-outline" size={18} color="#64748B" style={styles.fieldIcon} />
                   <TextInput
                     style={styles.textInput}
                     placeholder={isVi ? 'Nhập lại mật khẩu mới' : 'Re-enter new password'}
@@ -1033,16 +1080,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  helpIcon: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#475569',
   },
 
   // 2. BRAND & HERO
@@ -1173,7 +1215,6 @@ const styles = StyleSheet.create({
     height: 44,
   },
   fieldIcon: {
-    fontSize: 14,
     marginRight: 8,
   },
   textInput: {
@@ -1189,8 +1230,9 @@ const styles = StyleSheet.create({
     letterSpacing: 8,
   },
   eyeToggle: {
-    fontSize: 16,
     padding: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   // REMEMBER & FORGOT

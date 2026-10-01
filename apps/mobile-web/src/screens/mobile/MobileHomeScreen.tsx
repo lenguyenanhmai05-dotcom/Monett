@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  SafeAreaView,
   StatusBar,
   Modal,
   TextInput,
@@ -14,6 +13,8 @@ import {
   Platform,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { MobileCameraScreen } from './MobileCameraScreen';
@@ -121,9 +122,28 @@ export const MobileHomeScreen: React.FC = () => {
 
   // Tên hiển thị người dùng
   const displayName = user?.fullName || (user?.email ? user.email.split('@')[0] : 'Mai Linh');
-  const userAvatarUri =
-    user?.avatarUrl ||
-    'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&auto=format&fit=crop';
+  const userAvatarUri = user?.avatarUrl;
+
+  const getAvatarColor = (name: string) => {
+    const colors = [
+      { bg: '#FEE2E2', text: '#B91C1C' }, // Red
+      { bg: '#FEF3C7', text: '#D97706' }, // Yellow
+      { bg: '#D1FAE5', text: '#059669' }, // Green
+      { bg: '#DBEAFE', text: '#2563EB' }, // Blue
+      { bg: '#E0E7FF', text: '#4F46E5' }, // Indigo
+      { bg: '#FCE7F3', text: '#DB2777' }, // Pink
+      { bg: '#F3E8FF', text: '#7E22CE' }, // Purple
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % colors.length;
+    return colors[index];
+  };
+
+  const avatarColor = getAvatarColor(displayName);
+  const [imageError, setImageError] = useState(false);
 
   const formatVND = (val: number) => {
     return Math.abs(val).toLocaleString('vi-VN') + 'đ';
@@ -255,7 +275,15 @@ export const MobileHomeScreen: React.FC = () => {
             onPress={() => setActiveTab('profile')}
             activeOpacity={0.8}
           >
-            <Image source={{ uri: userAvatarUri }} style={styles.avatarMini} />
+            {userAvatarUri && !imageError ? (
+              <Image source={{ uri: userAvatarUri }} style={styles.avatarMini} onError={() => setImageError(true)} />
+            ) : (
+              <View style={[styles.avatarMini, { backgroundColor: avatarColor.bg, justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={{ color: avatarColor.text, fontWeight: '800', fontSize: 16 }}>
+                  {displayName.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -276,7 +304,15 @@ export const MobileHomeScreen: React.FC = () => {
             {/* GREETING ROW */}
             <View style={styles.greetingSection}>
               <View style={styles.avatarBigWrapper}>
-                <Image source={{ uri: userAvatarUri }} style={styles.avatarBig} />
+                {userAvatarUri && !imageError ? (
+                  <Image source={{ uri: userAvatarUri }} style={styles.avatarBig} onError={() => setImageError(true)} />
+                ) : (
+                  <View style={[styles.avatarBig, { backgroundColor: avatarColor.bg, justifyContent: 'center', alignItems: 'center' }]}>
+                    <Text style={{ color: avatarColor.text, fontWeight: '800', fontSize: 24 }}>
+                      {displayName.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.onlineDot} />
               </View>
 
@@ -533,12 +569,17 @@ export const MobileHomeScreen: React.FC = () => {
         {activeTab === 'profile' && (
           <View style={styles.profileContainer}>
             <View style={styles.profileHeaderCard}>
-              <Image source={{ uri: userAvatarUri }} style={styles.profileLargeAvatar} />
+              {userAvatarUri && !imageError ? (
+                <Image source={{ uri: userAvatarUri }} style={styles.profileLargeAvatar} onError={() => setImageError(true)} />
+              ) : (
+                <View style={[styles.profileLargeAvatar, { backgroundColor: avatarColor.bg, justifyContent: 'center', alignItems: 'center' }]}>
+                  <Text style={{ color: avatarColor.text, fontWeight: '800', fontSize: 32 }}>
+                    {displayName.charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
               <Text style={styles.profileNameText}>{displayName}</Text>
               <Text style={styles.profileEmailText}>{user?.email || 'lenguyenanhmai05@gmail.com'}</Text>
-              <View style={styles.profilePill}>
-                <Text style={styles.profilePillText}>🌟 Monett Pioneer</Text>
-              </View>
             </View>
 
             {/* Language Switch */}
@@ -635,7 +676,8 @@ export const MobileHomeScreen: React.FC = () => {
             style={styles.photoViewCloseBtn}
             onPress={() => setViewingPhoto(null)}
           >
-            <Text style={styles.photoViewCloseText}>✕ Đóng</Text>
+            <Ionicons name="close" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
+            <Text style={styles.photoViewCloseText}>{isVi ? 'Đóng' : 'Close'}</Text>
           </TouchableOpacity>
           {viewingPhoto && (
             <Image source={{ uri: viewingPhoto }} style={styles.photoViewFullImg} resizeMode="contain" />
@@ -1350,9 +1392,13 @@ const styles = StyleSheet.create({
     top: 50,
     right: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     zIndex: 10,
   },
   photoViewCloseText: {

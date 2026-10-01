@@ -5,10 +5,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  SafeAreaView,
   ScrollView,
   TextInput,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 interface AddExpenseScreenProps {
   initialPhotoUrl?: string;
@@ -64,7 +65,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
       {/* 1. Header Bar */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
-          <Text style={styles.backBtnIcon}>‹</Text>
+          <Ionicons name="chevron-back" size={22} color="#1E293B" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Thêm Chi Tiêu</Text>
         <TouchableOpacity
@@ -91,7 +92,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                 style={styles.removePhotoBadge}
                 onPress={() => setPhotoUrl(undefined)}
               >
-                <Text style={styles.removePhotoText}>✕</Text>
+                <Ionicons name="close" size={13} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
           ) : (
@@ -103,7 +104,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                 )
               }
             >
-              <Text style={styles.addPhotoIcon}>📷</Text>
+              <Ionicons name="camera-outline" size={24} color="#6B7280" />
               <Text style={styles.addPhotoText}>Thêm ảnh</Text>
             </TouchableOpacity>
           )}
@@ -113,7 +114,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>Tên khoản chi</Text>
           <View style={styles.inputWrapper}>
-            <Text style={styles.inputIcon}>✏️</Text>
+            <Ionicons name="pencil-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
             <TextInput
               value={title}
               onChangeText={setTitle}
@@ -194,14 +195,18 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                   onPress={() => handleNumPress(key)}
                   activeOpacity={0.6}
                 >
-                  <Text
-                    style={[
-                      styles.numKeyText,
-                      key === 'DEL' && styles.delKeyText,
-                    ]}
-                  >
-                    {key === 'DEL' ? '⌫' : key}
-                  </Text>
+                  {key === 'DEL' ? (
+                    <Ionicons name="backspace-outline" size={22} color="#EF4444" />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.numKeyText,
+                        key === 'DEL' && styles.delKeyText,
+                      ]}
+                    >
+                      {key}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
@@ -240,14 +245,16 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  backBtnIcon: {
-    fontSize: 24,
-    color: '#374151',
-    marginTop: -2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   headerTitle: {
     fontSize: 17,
@@ -318,16 +325,18 @@ const styles = StyleSheet.create({
     top: -6,
     right: -6,
     backgroundColor: '#EF4444',
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  removePhotoText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
   },
   addPhotoPlaceholder: {
     width: 72,

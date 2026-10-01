@@ -9,8 +9,8 @@ config.server = {
   ...config.server,
   enhanceMiddleware: (metroMiddleware, server) => {
     return (req, res, next) => {
-      // Forward all backend API requests to NestJS on port 3000
-      if (req.url && req.url.startsWith('/api')) {
+      // Forward all backend API and uploaded static files to NestJS on port 3000
+      if (req.url && (req.url.startsWith('/api') || req.url.startsWith('/uploads'))) {
         const options = {
           hostname: '127.0.0.1',
           port: 3000,

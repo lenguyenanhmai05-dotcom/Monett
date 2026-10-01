@@ -12,6 +12,10 @@ export interface IUser {
   role: UserRole;
   googleId?: string;
   authProvider?: 'local' | 'google';
+  theme?: 'light' | 'dark';
+  reminderTime?: string;
+  isPro?: boolean;
+  streak?: number;
   createdAt?: string | Date;
   updatedAt?: string | Date;
 }
