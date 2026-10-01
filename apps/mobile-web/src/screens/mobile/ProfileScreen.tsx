@@ -26,6 +26,7 @@ import {
   normalizeAvatarUrl,
   getStreakApi,
   checkInStreakApi,
+  submitFeedbackApi,
 } from '../../services/api';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTransactions } from '../../contexts/TransactionContext';
@@ -102,6 +103,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
   const [streakLoading, setStreakLoading] = useState<boolean>(false);
   const [showStreakModal, setShowStreakModal] = useState<boolean>(false);
   const [showFrogModal, setShowFrogModal] = useState<boolean>(false);
+
+  // Feedback State
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackCategory, setFeedbackCategory] = useState('general');
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
 
   const loadStreakData = async () => {
     try {
@@ -293,6 +301,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
   const handleUpdateProfile = async () => {
@@ -318,8 +327,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
   };
 
   const handleChangePassword = async () => {
-    if (!currentPassword || !newPassword) {
+    if (!currentPassword || !newPassword || !confirmPassword) {
       Alert.alert(isVi ? 'Lỗi' : 'Error', isVi ? 'Vui lòng nhập đầy đủ mật khẩu' : 'Please fill in all fields');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert(isVi ? 'Lỗi' : 'Error', isVi ? 'Mật khẩu xác nhận không khớp' : 'Passwords do not match');
       return;
     }
     if (newPassword.length < 6) {
@@ -332,6 +345,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
       Alert.alert('✅ ' + (isVi ? 'Thành công' : 'Success'), isVi ? 'Đã cập nhật mật khẩu!' : 'Password changed successfully!');
       setCurrentPassword('');
       setNewPassword('');
+      setConfirmPassword('');
       setShowPasswordModal(false);
     } catch (error: any) {
       Alert.alert(isVi ? 'Lỗi' : 'Error', error.message || (isVi ? 'Lỗi đổi mật khẩu' : 'Failed to change password'));
@@ -398,12 +412,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
     if (onLogout) onLogout();
     logout();
   };
-  const badges = [
-    { id: 'b1', name: isVi ? 'Nhiếp ảnh gia ví tiền' : 'Wallet Photographer', icon: '📸', desc: isVi ? 'Chụp 50+ ảnh chi tiêu' : 'Snap 50+ expense photos', unlocked: true },
-    { id: 'b2', name: isVi ? 'Chuỗi rực rỡ' : 'Blazing Streak', icon: '🔥', desc: isVi ? 'Giữ chuỗi 18 ngày' : 'Maintain 18-day streak', unlocked: true },
-    { id: 'b3', name: isVi ? 'Tiết kiệm vàng' : 'Golden Saver', icon: '💰', desc: isVi ? 'Dưới ngân sách tuần' : 'Under weekly budget', unlocked: true },
-    { id: 'b4', name: isVi ? 'Bậc thầy tài chính' : 'Finance Master', icon: '👑', desc: isVi ? 'Đạt Level 15' : 'Reach Level 15', unlocked: false },
-  ];
+
 
   const menuItems: {
     iconName: keyof typeof Ionicons.glyphMap;
@@ -471,20 +480,17 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
       onPress: () => setShowExportModal(true),
     },
     { 
-      iconName: 'shield-checkmark-outline',
-      iconBg: '#FEF2F2',
-      iconColor: '#DC2626',
-      title: isVi ? 'Bảo mật & Mã PIN' : 'Security & PIN Code', 
-      subtitle: isVi ? 'Bảo vệ dữ liệu tài chính' : 'Protect financial data', 
-      onPress: undefined 
-    },
-    { 
       iconName: 'help-circle-outline',
       iconBg: '#F1F5F9',
       iconColor: '#475569',
       title: isVi ? 'Trợ giúp & Góp ý' : 'Help & Feedback', 
       subtitle: isVi ? 'Cộng đồng người dùng Monett' : 'Monett user community', 
-      onPress: undefined 
+      onPress: () => {
+        setFeedbackSubmitted(false);
+        setFeedbackMessage('');
+        setFeedbackCategory('general');
+        setShowFeedbackModal(true);
+      }
     },
   ];
 
@@ -541,39 +547,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
           </TouchableOpacity>
           <Text style={styles.userEmail}>{displayEmail}</Text>
 
-          {/* Linh vật ếch Monett & XP Bar (Interactive) */}
-          <TouchableOpacity
-            style={styles.frogBanner}
-            activeOpacity={0.85}
-            onPress={() => setShowFrogModal(true)}
-          >
-            <View style={styles.frogHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Image
-                  source={FROGS[currentStage.imgIndex] || FROGS[2]}
-                  style={{ width: 26, height: 26, marginRight: 6 }}
-                  resizeMode="contain"
-                />
-                <Text style={styles.frogTitle}>
-                  {isVi ? currentStage.nameVi : currentStage.nameEn}
-                </Text>
-              </View>
-              <Text style={styles.xpText}>{xpInLevel} / {targetXP} XP</Text>
-            </View>
-            <View style={styles.xpTrack}>
-              <View style={[styles.xpFill, { width: `${xpPercent}%` }]} />
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 }}>
-              <Text style={styles.frogSub}>
-                {isVi
-                  ? `Còn ${xpRemaining} XP nữa để tiến hóa lên Cấp độ ${nextLevel}!`
-                  : `${xpRemaining} XP left to evolve to Level ${nextLevel}!`}
-              </Text>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#059669' }}>
-                {isVi ? 'Lộ trình ›' : 'Roadmap ›'}
-              </Text>
-            </View>
-          </TouchableOpacity>
+
         </View>
 
         {/* 3. Streak Card (Interactive) */}
@@ -616,20 +590,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
           </View>
         </TouchableOpacity>
 
-        {/* 4. Bộ sưu tập huy hiệu */}
-        <Text style={styles.sectionTitle}>{isVi ? 'HUY HIỆU THÀNH TỰU (3/4)' : 'ACHIEVEMENTS (3/4)'}</Text>
-        <View style={styles.badgesGrid}>
-          {badges.map((b) => (
-            <View
-              key={b.id}
-              style={[styles.badgeCard, !b.unlocked && styles.badgeLocked]}
-            >
-              <Text style={styles.badgeIcon}>{b.icon}</Text>
-              <Text style={styles.badgeName}>{b.name}</Text>
-              <Text style={styles.badgeDesc}>{b.desc}</Text>
-            </View>
-          ))}
-        </View>
 
         {/* 5. Cài đặt Menu */}
         <Text style={[styles.sectionTitle, { marginTop: 20 }]}>{isVi ? 'CÀI ĐẶT ỨNG DỤNG' : 'APP SETTINGS'}</Text>
@@ -654,20 +614,22 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </TouchableOpacity>
           ))}
-          <TouchableOpacity
-            style={[styles.menuRow, { borderBottomWidth: 0 }]}
-            activeOpacity={0.7}
-            onPress={() => setShowPasswordModal(true)}
-          >
-            <View style={[styles.menuIconWrap, { backgroundColor: '#FEF3C7' }]}>
-              <Ionicons name="key-outline" size={18} color="#D97706" />
-            </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.menuTitle}>{isVi ? 'Đổi mật khẩu' : 'Change Password'}</Text>
-              <Text style={styles.menuSubtitle}>{isVi ? 'Cập nhật mật khẩu tài khoản' : 'Update account password'}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
-          </TouchableOpacity>
+          {!(authUser as any)?.googleId && (
+            <TouchableOpacity
+              style={[styles.menuRow, { borderBottomWidth: 0 }]}
+              activeOpacity={0.7}
+              onPress={() => setShowPasswordModal(true)}
+            >
+              <View style={[styles.menuIconWrap, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="key-outline" size={18} color="#D97706" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.menuTitle}>{isVi ? 'Đổi mật khẩu' : 'Change Password'}</Text>
+                <Text style={styles.menuSubtitle}>{isVi ? 'Cập nhật mật khẩu tài khoản' : 'Update account password'}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* 6. Nút Đăng Xuất */}
@@ -993,10 +955,21 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
               placeholderTextColor="#94A3B8"
               autoCapitalize="none"
             />
+            <Text style={styles.inputLabel}>{isVi ? 'Xác nhận mật khẩu' : 'Confirm Password'}</Text>
+            <TextInput
+              style={styles.textInput}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+              placeholder={isVi ? 'Nhập lại mật khẩu mới...' : 'Confirm new password...'}
+              placeholderTextColor="#94A3B8"
+              autoCapitalize="none"
+            />
             <View style={styles.modalButtons}>
               <TouchableOpacity style={styles.btnCancel} onPress={() => {
                 setCurrentPassword('');
                 setNewPassword('');
+                setConfirmPassword('');
                 setShowPasswordModal(false);
               }}>
                 <Text style={styles.btnCancelText}>{isVi ? 'Hủy' : 'Cancel'}</Text>
@@ -1525,6 +1498,113 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
           </View>
         </View>
       </Modal>
+
+      {/* 💬 FEEDBACK MODAL */}
+      <Modal visible={showFeedbackModal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={styles.modalTitle}>{isVi ? 'Góp ý cho Monett' : 'Send Feedback'}</Text>
+              <TouchableOpacity onPress={() => setShowFeedbackModal(false)}>
+                <Ionicons name="close" size={24} color="#1E293B" />
+              </TouchableOpacity>
+            </View>
+
+            {feedbackSubmitted ? (
+              <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                <Text style={{ fontSize: 56, marginBottom: 12 }}>💌</Text>
+                <Text style={{ fontSize: 20, fontWeight: '800', color: '#1E293B', marginBottom: 8 }}>
+                  {isVi ? 'Đã nhận góp ý!' : 'Feedback Received!'}
+                </Text>
+                <Text style={{ fontSize: 14, color: '#64748B', textAlign: 'center' }}>
+                  {isVi ? 'Cảm ơn bạn! Đội ngũ Monett sẽ đọc và cải thiện ứng dụng dựa trên ý kiến của bạn.' : 'Thank you! The Monett team will read your feedback and improve the app.'}
+                </Text>
+                <TouchableOpacity style={[styles.btnSave, { marginTop: 24, width: '100%' }]} onPress={() => setShowFeedbackModal(false)}>
+                  <Text style={styles.btnSaveText}>{isVi ? 'Đóng' : 'Close'}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 16 }}>
+                  {isVi ? 'Ý kiến của bạn giúp chúng tôi phát triển Monett tốt hơn mỗi ngày.' : 'Your feedback helps us improve Monett every day.'}
+                </Text>
+
+                {/* Category Chips */}
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#64748B', marginBottom: 10 }}>
+                  {isVi ? 'Chủ đề góp ý:' : 'Feedback category:'}
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
+                  {[
+                    { key: 'general', labelVi: '💬 Chung', labelEn: '💬 General' },
+                    { key: 'bug', labelVi: '🐛 Báo lỗi', labelEn: '🐛 Bug Report' },
+                    { key: 'feature', labelVi: '✨ Tính năng mới', labelEn: '✨ Feature Request' },
+                    { key: 'ui', labelVi: '🎨 Giao diện', labelEn: '🎨 UI/UX' },
+                    { key: 'performance', labelVi: '⚡ Hiệu suất', labelEn: '⚡ Performance' },
+                    { key: 'other', labelVi: '📝 Khác', labelEn: '📝 Other' },
+                  ].map((cat) => {
+                    const isSelected = feedbackCategory === cat.key;
+                    return (
+                      <TouchableOpacity
+                        key={cat.key}
+                        onPress={() => setFeedbackCategory(cat.key)}
+                        style={{
+                          paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20,
+                          backgroundColor: isSelected ? '#059669' : '#F1F5F9',
+                          borderWidth: 1.5,
+                          borderColor: isSelected ? '#059669' : '#E2E8F0',
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: isSelected ? '#FFFFFF' : '#475569' }}>
+                          {isVi ? cat.labelVi : cat.labelEn}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Message Input */}
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#64748B', marginBottom: 8 }}>
+                  {isVi ? 'Nội dung góp ý:' : 'Your message:'}
+                </Text>
+                <TextInput
+                  style={[styles.textInput, { minHeight: 120, textAlignVertical: 'top', paddingTop: 12, borderWidth: 1, borderColor: '#E2E8F0' }]}
+                  placeholder={isVi ? 'Mô tả chi tiết ý kiến của bạn... (tối thiểu 5 ký tự)' : 'Describe your feedback in detail... (min 5 characters)'}
+                  placeholderTextColor="#94A3B8"
+                  value={feedbackMessage}
+                  onChangeText={setFeedbackMessage}
+                  multiline
+                  numberOfLines={5}
+                />
+                <Text style={{ fontSize: 11, color: '#94A3B8', marginTop: 4, marginBottom: 20 }}>
+                  {feedbackMessage.length}/500 {isVi ? 'ký tự' : 'characters'}
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.btnSave, { opacity: (feedbackMessage.trim().length < 5 || isSubmittingFeedback) ? 0.5 : 1 }]}
+                  disabled={feedbackMessage.trim().length < 5 || isSubmittingFeedback}
+                  onPress={async () => {
+                    try {
+                      setIsSubmittingFeedback(true);
+                      await submitFeedbackApi(feedbackCategory, feedbackMessage.trim());
+                      setFeedbackSubmitted(true);
+                    } catch (e: any) {
+                      Alert.alert(isVi ? 'Lỗi' : 'Error', e.message || (isVi ? 'Lỗi gửi góp ý' : 'Failed to send feedback'));
+                    } finally {
+                      setIsSubmittingFeedback(false);
+                    }
+                  }}
+                >
+                  <Text style={styles.btnSaveText}>
+                    {isSubmittingFeedback ? '⏳ Đang gửi...' : (isVi ? '📨 Gửi góp ý' : '📨 Send Feedback')}
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 };

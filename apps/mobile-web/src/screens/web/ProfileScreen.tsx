@@ -28,8 +28,10 @@ export const ProfileScreen: React.FC = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [imageError, setImageError] = useState(false);
   
+  const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoadingPassword, setIsLoadingPassword] = useState(false);
 
   const [isRemindFrog, setIsRemindFrog] = useState(true);
@@ -194,6 +196,34 @@ export const ProfileScreen: React.FC = () => {
     }
   };
 
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      window.alert(language === 'vi' ? 'Vui lòng nhập đầy đủ mật khẩu' : 'Please fill in all fields');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      window.alert(language === 'vi' ? 'Mật khẩu xác nhận không khớp' : 'Passwords do not match');
+      return;
+    }
+    if (newPassword.length < 6) {
+      window.alert(language === 'vi' ? 'Mật khẩu mới phải ít nhất 6 ký tự' : 'New password must be at least 6 characters');
+      return;
+    }
+    try {
+      setIsLoadingPassword(true);
+      await changePasswordApi({ currentPassword, newPassword });
+      window.alert(language === 'vi' ? 'Đã cập nhật mật khẩu thành công!' : 'Password changed successfully!');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setIsPasswordModalVisible(false);
+    } catch (error: any) {
+      window.alert(error.message || (language === 'vi' ? 'Lỗi đổi mật khẩu' : 'Failed to change password'));
+    } finally {
+      setIsLoadingPassword(false);
+    }
+  };
+
   const handlePickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -214,19 +244,7 @@ export const ProfileScreen: React.FC = () => {
     }
   };
 
-  const handleChangePassword = async () => {
-    if (!currentPassword || !newPassword) return window.alert('Vui lòng nhập đầy đủ');
-    try {
-      setIsLoadingPassword(true);
-      await changePasswordApi({ currentPassword, newPassword });
-      window.alert('Đã cập nhật mật khẩu!');
-      setCurrentPassword(''); setNewPassword('');
-    } catch (error: any) {
-      window.alert(error.message);
-    } finally {
-      setIsLoadingPassword(false);
-    }
-  };
+
 
   const handleCopyId = () => {
     if (user?.id) navigator.clipboard.writeText(user.id).then(() => window.alert('Đã sao chép ID!'));
@@ -489,6 +507,16 @@ export const ProfileScreen: React.FC = () => {
               />
               <SettingRow icon={<Ionicons name="layers-outline" size={24} color="#8B5CF6" />} title={language === 'vi' ? 'Hạng Mục Chi Tiêu' : 'Categories'} subtitle={language === 'vi' ? 'Tùy chỉnh danh mục thu chi' : 'Manage expense categories'} color="#8B5CF6" isPro onPress={() => window.alert('Tính năng PRO đang phát triển!')} />
 
+              {!(user as any)?.googleId && (
+                <SettingRow 
+                  icon={<Ionicons name="key-outline" size={24} color="#D97706" />} 
+                  title={language === 'vi' ? 'Đổi mật khẩu' : 'Change Password'} 
+                  subtitle={language === 'vi' ? 'Cập nhật mật khẩu tài khoản' : 'Update account password'} 
+                  color="#D97706" 
+                  onPress={() => setIsPasswordModalVisible(true)} 
+                />
+              )}
+
               {user?.authProvider !== 'google' && (
                 <SettingRow icon={<Ionicons name="shield-checkmark-outline" size={24} color="#14B8A6" />} title={language === 'vi' ? 'Xác thực 2 bước' : 'Two-Factor Auth'} subtitle={language === 'vi' ? 'Bảo vệ tài khoản bằng mã OTP' : 'Protect with OTP code'} color="#14B8A6" isPro isSwitch switchValue={isFaceId} onSwitchChange={setIsFaceId} />
               )}
@@ -538,6 +566,81 @@ export const ProfileScreen: React.FC = () => {
 
         </View>
       </View>
+
+      {/* 🌟 PASSWORD MODAL */}
+      <Modal visible={isPasswordModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{language === 'vi' ? '🔑 Đổi mật khẩu' : '🔑 Change Password'}</Text>
+              <TouchableOpacity onPress={() => setIsPasswordModalVisible(false)}>
+                <Ionicons name="close" size={24} color={isDark ? '#F1F5F9' : '#1E293B'} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={{ marginBottom: 16 }}>
+              <Text style={styles.inputLabel}>{language === 'vi' ? 'Mật khẩu hiện tại' : 'Current Password'}</Text>
+              <TextInput
+                style={styles.textInput}
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                secureTextEntry
+                placeholder={language === 'vi' ? 'Nhập mật khẩu cũ...' : 'Enter current password...'}
+                placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={{ marginBottom: 16 }}>
+              <Text style={styles.inputLabel}>{language === 'vi' ? 'Mật khẩu mới' : 'New Password'}</Text>
+              <TextInput
+                style={styles.textInput}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                placeholder={language === 'vi' ? 'Tối thiểu 6 ký tự...' : 'Min 6 chars...'}
+                placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={{ marginBottom: 24 }}>
+              <Text style={styles.inputLabel}>{language === 'vi' ? 'Xác nhận mật khẩu' : 'Confirm Password'}</Text>
+              <TextInput
+                style={styles.textInput}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+                placeholder={language === 'vi' ? 'Nhập lại mật khẩu mới...' : 'Confirm new password...'}
+                placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity style={[styles.outlineBtn, { flex: 1 }]} onPress={() => {
+                setCurrentPassword('');
+                setNewPassword('');
+                setConfirmPassword('');
+                setIsPasswordModalVisible(false);
+              }}>
+                <Text style={styles.outlineBtnText}>{language === 'vi' ? 'Hủy' : 'Cancel'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.primaryBtn, { flex: 1, paddingVertical: 14, opacity: isLoadingPassword ? 0.6 : 1 }]} 
+                onPress={handleChangePassword} 
+                disabled={isLoadingPassword}
+              >
+                {isLoadingPassword ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.primaryBtnText}>{language === 'vi' ? 'Đổi MK' : 'Change'}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* 🌟 FRIENDS MODAL */}
       <Modal visible={isFriendsModalVisible} transparent animationType="fade">

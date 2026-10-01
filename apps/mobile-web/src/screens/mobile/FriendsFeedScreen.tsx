@@ -1103,14 +1103,19 @@ const MomentChatModal = ({
             )}
           </ScrollView>
 
-          {/* Quick reply chips */}
+          {/* Quick reply / Sample Comments */}
           <View style={chatStyles.quickChipsContainer}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={chatStyles.quickChipsScroll}
-            >
-              {['Haha 😂', 'Quá đã 🥳', 'Đẹp thế ✨', 'Đi đâu đấy? 👀', 'Xịn xò 🔥', 'Cho đi ké với 🛵', 'Bữa nào làm kèo 🍻'].map((chip) => (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 4 }}>
+              {[
+                'Haha 😂', 
+                'Tuyệt vời quá! ❤️',
+                'Đẹp xuất sắc luôn ✨', 
+                'Nhìn ngon quá 🤤', 
+                'Đi đâu chơi vui thế? 👀', 
+                'Bữa nào làm kèo cà phê nha ☕', 
+                'Cho đi ké với nha 🛵',
+                'Quá đã 🥳'
+              ].map((chip) => (
                 <TouchableOpacity
                   key={chip}
                   style={chatStyles.quickChip}
@@ -1120,7 +1125,7 @@ const MomentChatModal = ({
                   <Text style={chatStyles.quickChipText}>{chip}</Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+            </View>
           </View>
 
           {/* Chat input footer */}
