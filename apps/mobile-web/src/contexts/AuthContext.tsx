@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { IUser, LoginDto, RegisterDto, GoogleAuthDto } from '@monett/shared';
+import { IUser, UserRole, LoginDto, RegisterDto, GoogleAuthDto } from '@monett/shared';
 import {
   getAuthToken,
   setAuthToken,
@@ -8,6 +8,18 @@ import {
   googleAuthApi,
   getMeApi,
 } from '../services/api';
+
+export const MOCK_ADMIN_USER: IUser = {
+  id: 'mock_admin_id',
+  email: 'admin@monett.vn',
+  fullName: 'Quản trị viên (Dev)',
+  role: UserRole.ADMIN,
+  currency: 'VND',
+  isPro: true,
+  streak: 30,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
 
 interface AuthContextType {
   user: IUser | null;
@@ -44,6 +56,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       const savedToken = getAuthToken();
       if (savedToken) {
         setTokenState(savedToken);
+        if (savedToken === 'mock_admin_token') {
+          setUser(MOCK_ADMIN_USER);
+          setIsLoading(false);
+          return;
+        }
         try {
           const profile = await getMeApi();
           setUser(profile);
@@ -61,6 +78,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   const login = async (dto: LoginDto) => {
+    const cleanEmail = dto.email?.trim().toLowerCase();
+    // Bypass nhanh cho dev: tài khoản admin và mật khẩu admin
+    if ((cleanEmail === 'admin' || cleanEmail === 'admin@monett.vn') && dto.password === 'admin') {
+      setAuthToken('mock_admin_token');
+      setTokenState('mock_admin_token');
+      setUser(MOCK_ADMIN_USER);
+      return;
+    }
+
     const res = await loginApi(dto);
     setTokenState(res.accessToken);
     setUser(res.user);
@@ -85,6 +111,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const refreshUser = async () => {
+    if (token === 'mock_admin_token') {
+      setUser(MOCK_ADMIN_USER);
+      return;
+    }
     try {
       const profile = await getMeApi();
       setUser(profile);

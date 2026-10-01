@@ -5,9 +5,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   useWindowDimensions,
-  SafeAreaView,
   Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LanguageToggle } from '../components/LanguageToggle';

@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  SafeAreaView,
   StatusBar,
   Modal,
   TextInput,
@@ -14,6 +13,8 @@ import {
   Platform,
   Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { MobileCameraScreen } from './MobileCameraScreen';
@@ -675,7 +676,8 @@ export const MobileHomeScreen: React.FC = () => {
             style={styles.photoViewCloseBtn}
             onPress={() => setViewingPhoto(null)}
           >
-            <Text style={styles.photoViewCloseText}>✕ Đóng</Text>
+            <Ionicons name="close" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
+            <Text style={styles.photoViewCloseText}>{isVi ? 'Đóng' : 'Close'}</Text>
           </TouchableOpacity>
           {viewingPhoto && (
             <Image source={{ uri: viewingPhoto }} style={styles.photoViewFullImg} resizeMode="contain" />
@@ -1390,9 +1392,13 @@ const styles = StyleSheet.create({
     top: 50,
     right: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     zIndex: 10,
   },
   photoViewCloseText: {

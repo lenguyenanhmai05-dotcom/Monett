@@ -498,3 +498,103 @@ export const submitRatingApi = async (stars: number, comment?: string): Promise<
   return data;
 };
 
+// ============================================================
+// TRANSACTION APIS
+// ============================================================
+
+export interface GetTransactionsQuery {
+  page?: number;
+  limit?: number;
+  category?: string;
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+  sort?: string;
+}
+
+export const getTransactionsApi = async (query: GetTransactionsQuery = {}) => {
+  const params = new URLSearchParams();
+  if (query.page) params.append('page', String(query.page));
+  if (query.limit) params.append('limit', String(query.limit));
+  if (query.category) params.append('category', query.category);
+  if (query.search) params.append('search', query.search);
+  if (query.startDate) params.append('startDate', query.startDate);
+  if (query.endDate) params.append('endDate', query.endDate);
+  if (query.sort) params.append('sort', query.sort);
+
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  const res = await request<any>(`/api/transactions${qs}`);
+  return res;
+};
+
+export const createTransactionApi = async (data: {
+  title: string;
+  amount: number;
+  type?: 'expense' | 'income';
+  category: string;
+  categoryIcon?: string;
+  note?: string;
+  photoUri?: string;
+  walletId?: string;
+  date?: string;
+}) => {
+  const res = await request<any>('/api/transactions', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return res;
+};
+
+export const updateTransactionApi = async (id: string, data: any) => {
+  const res = await request<any>(`/api/transactions/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  return res;
+};
+
+export const deleteTransactionApi = async (id: string) => {
+  const res = await request<any>(`/api/transactions/${id}`, {
+    method: 'DELETE',
+  });
+  return res;
+};
+
+// ============================================================
+// BUDGET APIS
+// ============================================================
+
+export interface BudgetData {
+  month: number;
+  year: number;
+  limit: number;
+  spent: number;
+  remaining: number;
+  spentPercent: number;
+  remainingPercent: number;
+  status: 'safe' | 'warning' | 'danger';
+  payday: number;
+  daysUntilPayday: number;
+  currency: string;
+}
+
+export const getBudgetApi = async (): Promise<BudgetData> => {
+  const res = await request<BudgetData>('/api/budgets/current');
+  return (res as any).data || res;
+};
+
+export const setBudgetApi = async (data: {
+  limit: number;
+  payday?: number;
+  month?: number;
+  year?: number;
+  currency?: string;
+}): Promise<BudgetData> => {
+  const res = await request<BudgetData>('/api/budgets', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return (res as any).data || res;
+};
+
+

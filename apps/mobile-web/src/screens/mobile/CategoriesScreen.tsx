@@ -5,8 +5,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 interface CategoriesScreenProps {
   onBack?: () => void;
@@ -41,8 +42,8 @@ export const CategoriesScreen: React.FC<CategoriesScreenProps> = ({
       {/* 1. Header Bar */}
       <View style={styles.header}>
         {onBack && (
-          <TouchableOpacity style={styles.headerBtn} onPress={onBack}>
-            <Text style={styles.headerBtnIcon}>‹</Text>
+          <TouchableOpacity style={styles.headerBtn} onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="chevron-back" size={24} color="#1E293B" />
           </TouchableOpacity>
         )}
         <Text style={styles.headerTitle}>Quản Lý Danh Mục</Text>

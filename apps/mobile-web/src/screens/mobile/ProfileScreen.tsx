@@ -6,12 +6,13 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
-  SafeAreaView,
   Alert,
   ActivityIndicator,
   Modal,
   TextInput,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   uploadAvatarApi,
@@ -404,9 +405,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
     { id: 'b4', name: isVi ? 'Bậc thầy tài chính' : 'Finance Master', icon: '👑', desc: isVi ? 'Đạt Level 15' : 'Reach Level 15', unlocked: false },
   ];
 
-  const menuItems = [
+  const menuItems: {
+    iconName: keyof typeof Ionicons.glyphMap;
+    iconBg: string;
+    iconColor: string;
+    title: string;
+    subtitle: string;
+    onPress?: () => void;
+  }[] = [
     {
-      icon: '👥',
+      iconName: 'people-outline',
+      iconBg: '#ECFDF5',
+      iconColor: '#059669',
       title: isVi ? 'Bạn bè' : 'Friends',
       subtitle: isVi ? 'Quản lý mạng lưới bạn bè' : 'Manage your network',
       onPress: () => {
@@ -416,7 +426,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
       },
     },
     {
-      icon: '🤝',
+      iconName: 'qr-code-outline',
+      iconBg: '#EFF6FF',
+      iconColor: '#2563EB',
       title: isVi ? 'Kết bạn & QR Code' : 'Add Friends & QR Code',
       subtitle: isVi ? 'Chia sẻ mã & kết bạn' : 'Share QR code & add friends',
       onPress: () => {
@@ -425,7 +437,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
       },
     },
     { 
-      icon: '⏰', 
+      iconName: 'alarm-outline', 
+      iconBg: '#FEF3C7',
+      iconColor: '#D97706',
       title: isVi ? 'Nhắc nhở giữ chuỗi Streak' : 'Daily Streak Reminder', 
       subtitle: (authUser as any)?.reminderTime
         ? (isVi ? `Hằng ngày lúc ${(authUser as any).reminderTime}` : `Daily at ${(authUser as any).reminderTime}`)
@@ -433,25 +447,45 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
       onPress: () => setShowReminderModal(true) 
     },
     {
-      icon: '🌐',
+      iconName: 'globe-outline',
+      iconBg: '#F3E8FF',
+      iconColor: '#7C3AED',
       title: isVi ? 'Ngôn ngữ hiển thị' : 'Display Language',
       subtitle: isVi ? 'Tiếng Việt (VI 🇻🇳)' : 'English (EN 🇺🇸)',
       onPress: () => setShowLanguageModal(true),
     },
     {
-      icon: '💱',
+      iconName: 'cash-outline',
+      iconBg: '#ECFDF5',
+      iconColor: '#059669',
       title: isVi ? 'Đơn vị tiền tệ' : 'Currency',
       subtitle: currentCurrency === 'USD' ? 'US Dollar (USD $)' : (currentCurrency === 'EUR' ? 'Euro (EUR €)' : (currentCurrency === 'JPY' ? 'Japanese Yen (JPY ¥)' : 'Việt Nam Đồng (VND ₫)')),
       onPress: () => setShowCurrencyModal(true),
     },
     {
-      icon: '📊',
+      iconName: 'document-text-outline',
+      iconBg: '#EFF6FF',
+      iconColor: '#2563EB',
       title: isVi ? 'Xuất dữ liệu thu chi' : 'Export Financial Data',
       subtitle: isVi ? 'Tải báo cáo Excel (CSV) hoặc file JSON' : 'Download Excel (CSV) or JSON report',
       onPress: () => setShowExportModal(true),
     },
-    { icon: '🔒', title: isVi ? 'Bảo mật & Mã PIN' : 'Security & PIN Code', subtitle: isVi ? 'Bảo vệ dữ liệu tài chính' : 'Protect financial data', onPress: undefined },
-    { icon: '❓', title: isVi ? 'Trợ giúp & Góp ý' : 'Help & Feedback', subtitle: isVi ? 'Cộng đồng người dùng Monett' : 'Monett user community', onPress: undefined },
+    { 
+      iconName: 'shield-checkmark-outline',
+      iconBg: '#FEF2F2',
+      iconColor: '#DC2626',
+      title: isVi ? 'Bảo mật & Mã PIN' : 'Security & PIN Code', 
+      subtitle: isVi ? 'Bảo vệ dữ liệu tài chính' : 'Protect financial data', 
+      onPress: undefined 
+    },
+    { 
+      iconName: 'help-circle-outline',
+      iconBg: '#F1F5F9',
+      iconColor: '#475569',
+      title: isVi ? 'Trợ giúp & Góp ý' : 'Help & Feedback', 
+      subtitle: isVi ? 'Cộng đồng người dùng Monett' : 'Monett user community', 
+      onPress: undefined 
+    },
   ];
 
   return (
@@ -459,13 +493,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
       {/* 1. Header Bar */}
       <View style={styles.header}>
         {onBack && (
-          <TouchableOpacity style={styles.headerBtn} onPress={onBack}>
-            <Text style={styles.headerBtnIcon}>‹</Text>
+          <TouchableOpacity style={styles.headerBtn} onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Ionicons name="chevron-back" size={24} color="#1E293B" />
           </TouchableOpacity>
         )}
         <Text style={styles.headerTitle}>{isVi ? 'Hồ Sơ Cá Nhân' : 'My Profile'}</Text>
-        <TouchableOpacity style={styles.headerBtn}>
-          <Text style={{ fontSize: 16 }}>⚙️</Text>
+        <TouchableOpacity style={styles.headerBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="settings-outline" size={20} color="#1E293B" />
         </TouchableOpacity>
       </View>
 
@@ -492,14 +526,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
               </View>
             )}
             {/* Camera badge - luôn hiện để cho user biết có thể nhấn đổi ảnh */}
-            <View style={[styles.levelBadge, { backgroundColor: '#059669' }]}>
-              <Text style={styles.levelBadgeText}>{isUploading ? '⏳' : '📷'}</Text>
+            <View style={[styles.levelBadge, { backgroundColor: '#059669', borderWidth: 2, borderColor: '#FFFFFF' }]}>
+              {isUploading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="camera" size={13} color="#FFFFFF" />
+              )}
             </View>
           </TouchableOpacity>
 
           <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => { setNewFullName(displayName); setShowProfileModal(true); }}>
             <Text style={styles.userName}>{displayName}</Text>
-            <Text style={{ marginLeft: 8, fontSize: 16 }}>✏️</Text>
+            <Ionicons name="pencil" size={14} color="#059669" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
           <Text style={styles.userEmail}>{displayEmail}</Text>
 
@@ -517,7 +555,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                   resizeMode="contain"
                 />
                 <Text style={styles.frogTitle}>
-                  {isVi ? `🐸 ${currentStage.nameVi}` : `🐸 ${currentStage.nameEn}`}
+                  {isVi ? currentStage.nameVi : currentStage.nameEn}
                 </Text>
               </View>
               <Text style={styles.xpText}>{xpInLevel} / {targetXP} XP</Text>
@@ -606,12 +644,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
               activeOpacity={0.7}
               onPress={item.onPress}
             >
-              <Text style={styles.menuIcon}>{item.icon}</Text>
+              <View style={[styles.menuIconWrap, { backgroundColor: item.iconBg }]}>
+                <Ionicons name={item.iconName} size={18} color={item.iconColor} />
+              </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={styles.menuTitle}>{item.title}</Text>
                 <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
               </View>
-              <Text style={styles.menuArrow}>›</Text>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </TouchableOpacity>
           ))}
           <TouchableOpacity
@@ -619,17 +659,20 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
             activeOpacity={0.7}
             onPress={() => setShowPasswordModal(true)}
           >
-            <Text style={styles.menuIcon}>🔑</Text>
+            <View style={[styles.menuIconWrap, { backgroundColor: '#FEF3C7' }]}>
+              <Ionicons name="key-outline" size={18} color="#D97706" />
+            </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
               <Text style={styles.menuTitle}>{isVi ? 'Đổi mật khẩu' : 'Change Password'}</Text>
               <Text style={styles.menuSubtitle}>{isVi ? 'Cập nhật mật khẩu tài khoản' : 'Update account password'}</Text>
             </View>
-            <Text style={styles.menuArrow}>›</Text>
+            <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
           </TouchableOpacity>
         </View>
 
         {/* 6. Nút Đăng Xuất */}
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
+          <Ionicons name="log-out-outline" size={18} color="#DC2626" style={{ marginRight: 6 }} />
           <Text style={styles.logoutText}>{isVi ? 'Đăng xuất khỏi tài khoản' : 'Log out of account'}</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -643,7 +686,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
               <Text style={styles.modalTitle}>{isVi ? '👥 Bạn bè' : '👥 Friends'}</Text>
               <TouchableOpacity onPress={() => setShowFriendsModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <View style={{ width: 28, height: 28, borderRadius: 8, borderWidth: 1.5, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 16, color: '#64748B', lineHeight: 20 }}>✕</Text>
+                  <Ionicons name="close" size={18} color="#64748B" />
                 </View>
               </TouchableOpacity>
             </View>
@@ -1178,14 +1221,19 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
             {/* Header */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}>
               <View>
-                <Text style={styles.modalTitle}>{isVi ? '🐸 Cấp Độ & Tiến Hóa Ếch' : '🐸 Mascot Level & Evolution'}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#059669', borderWidth: 1.5, borderColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', marginRight: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.15, shadowRadius: 2, elevation: 2 }}>
+                    <Ionicons name="sparkles" size={13} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.modalTitle}>{isVi ? 'Cấp Độ & Tiến Hóa Linh Vật' : 'Mascot Level & Evolution'}</Text>
+                </View>
                 <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
-                  {isVi ? 'Cùng Ếch Monett đồng hành trên đường đua tài chính' : 'Grow your Monett companion through mindful habits'}
+                  {isVi ? 'Cùng Linh Vật Monett đồng hành trên đường đua tài chính' : 'Grow your Monett companion through mindful habits'}
                 </Text>
               </View>
               <TouchableOpacity onPress={() => setShowFrogModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <View style={{ width: 28, height: 28, borderRadius: 8, borderWidth: 1.5, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 16, color: '#64748B', lineHeight: 20 }}>✕</Text>
+                  <Ionicons name="close" size={18} color="#64748B" />
                 </View>
               </TouchableOpacity>
             </View>
@@ -1332,7 +1380,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
               </View>
               <TouchableOpacity onPress={() => setShowStreakModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
                 <View style={{ width: 28, height: 28, borderRadius: 8, borderWidth: 1.5, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 16, color: '#64748B', lineHeight: 20 }}>✕</Text>
+                  <Ionicons name="close" size={18} color="#64748B" />
                 </View>
               </TouchableOpacity>
             </View>
@@ -1687,8 +1735,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
-  menuIcon: {
-    fontSize: 18,
+  menuIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
   },
   menuTitle: {
     fontSize: 13,

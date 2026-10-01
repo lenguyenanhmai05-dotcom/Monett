@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  SafeAreaView,
   TextInput,
   Animated,
   Dimensions,
@@ -17,6 +16,7 @@ import {
   Modal,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -1216,7 +1216,24 @@ export const FriendsFeedScreen: React.FC = () => {
         >
           {moments.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={{ fontSize: 52, marginBottom: 16 }}>🐸</Text>
+              <View style={{
+                width: 72,
+                height: 72,
+                borderRadius: 36,
+                backgroundColor: '#ECFDF5',
+                justifyContent: 'center',
+                alignItems: 'center',
+                borderWidth: 2,
+                borderColor: '#A7F3D0',
+                marginBottom: 16,
+                shadowColor: '#047857',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 2,
+              }}>
+                <Ionicons name="images-outline" size={34} color="#059669" />
+              </View>
               <Text style={styles.emptyTitle}>{isVi ? 'Chưa có khoảnh khắc nào' : 'No moments yet'}</Text>
               <Text style={styles.emptySub}>
                 {isVi

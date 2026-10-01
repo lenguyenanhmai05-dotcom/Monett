@@ -4,8 +4,8 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { HomeScreen } from './HomeScreen';
@@ -19,6 +19,7 @@ import { CategoriesScreen } from './CategoriesScreen';
 import { ProfileScreen } from './ProfileScreen';
 import { FriendsFeedScreen } from './FriendsFeedScreen';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { createTransactionApi } from '../../services/api';
 
 export type MobileTab = 'home' | 'analytics' | 'feed' | 'wallets' | 'categories' | 'profile';
 export type ActiveModal = 'none' | 'camera' | 'add_expense' | 'quick_save' | 'detail';
@@ -41,7 +42,7 @@ export const MobileNavigator: React.FC = () => {
           <HomeScreen
             onNavigateToCamera={() => setActiveModal('camera')}
             onNavigateToAddExpense={() => setActiveModal('add_expense')}
-            onNavigateToQuickSave={() => setActiveModal('camera')}
+            onNavigateToQuickSave={() => setActiveModal('quick_save')}
             onNavigateToDetail={(id) => {
               setSelectedTxId(id);
               setActiveModal('detail');
@@ -200,8 +201,17 @@ export const MobileNavigator: React.FC = () => {
       <QuickSaveModal
         visible={activeModal === 'quick_save'}
         onClose={() => setActiveModal('none')}
-        onSaveQuick={(amount, category) => {
-          console.log('Saved quick expense:', amount, category);
+        onSaveQuick={async (amount, category) => {
+          try {
+            await createTransactionApi({
+              title: category,
+              amount: -Math.abs(amount),
+              category,
+              type: 'expense',
+            });
+          } catch (e) {
+            console.log('Saved quick expense (offline/local fallback):', amount, category);
+          }
           setActiveModal('none');
         }}
         onOpenFullCamera={() => setActiveModal('camera')}

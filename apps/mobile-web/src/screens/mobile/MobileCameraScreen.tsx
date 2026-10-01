@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  SafeAreaView,
   StatusBar,
   Modal,
   TextInput,
@@ -14,7 +13,9 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, CameraType, FlashMode, useCameraPermissions } from 'expo-camera';
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -417,7 +418,7 @@ export const MobileCameraScreen: React.FC<MobileCameraScreenProps> = ({
                 onPress={() => setCapturedPhoto(null)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Text style={styles.photoModalClose}>✕</Text>
+                <Ionicons name="close" size={20} color="#64748B" />
               </TouchableOpacity>
             </View>
 

@@ -13,6 +13,10 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { FROGS } from '../../../assets/frogIndex';
 import { UserProfileHeader } from '../../components/UserProfileHeader';
 import { StreakBadgeWidget } from '../../components/StreakBadgeWidget';
+import { BudgetCardWidget } from '../../components/BudgetCardWidget';
+import { RecentTransactionsWidget } from '../../components/RecentTransactionsWidget';
+import { TransactionTableWidget } from '../../components/TransactionTableWidget';
+import { getBudgetApi, BudgetData } from '../../services/api';
 
 export const HomeScreen: React.FC = () => {
   const { width } = useWindowDimensions();
@@ -33,6 +37,34 @@ export const HomeScreen: React.FC = () => {
   const [imageError, setImageError] = useState(false);
 
   const [frogSeed] = useState(() => Math.floor(Math.random() * FROGS.length));
+
+  const [budget, setBudget] = useState<BudgetData>({
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear(),
+    limit: 22000000,
+    spent: 6180000,
+    remaining: 15820000,
+    spentPercent: 28.1,
+    remainingPercent: 71.9,
+    status: 'safe',
+    payday: 5,
+    daysUntilPayday: 12,
+    currency: 'VND',
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    getBudgetApi()
+      .then((data) => {
+        if (isMounted && data && data.limit) {
+          setBudget(data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const getAvatarColor = (name: string) => {
     const colors = [
@@ -131,83 +163,13 @@ export const HomeScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* CARD 2: THIẾT LẬP DÒNG TIỀN & THU NHẬP */}
-        <View style={[styles.card, isDesktop ? styles.cardRow1Right : styles.flex1]}>
-          <View style={styles.cashflowHeader}>
-            <View style={styles.cashflowTitleBox}>
-              <View style={styles.bankIconWrapper}>
-                <Text style={styles.bankIcon}>🏛️</Text>
-              </View>
-              <View>
-                <Text style={styles.cardTitle}>
-                  {language === 'vi' ? 'Thiết Lập Dòng Tiền' : 'Cashflow Blueprint'}
-                </Text>
-                <Text style={styles.cardSubtitle}>
-                  {language === 'vi'
-                    ? 'Kế hoạch thu nhập & ngày quyết toán'
-                    : 'Income planning & settlement schedule'}
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity style={styles.settingsBtn}>
-              <Text style={styles.settingsIcon}>⚙️</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Hộp Lương Cố Định */}
-          <View style={styles.salaryBox}>
-            <View>
-              <Text style={styles.salaryLabel}>
-                {language === 'vi' ? 'Lương Cố Định Hàng Tháng' : 'Fixed Monthly Income'}
-              </Text>
-              <Text style={styles.salaryAmount}>
-                22.000.000 <Text style={styles.currencySymbol}>đ</Text>
-              </Text>
-            </View>
-            <TouchableOpacity style={styles.updateSalaryBtn} activeOpacity={0.8}>
-              <Text style={styles.updateSalaryIcon}>🎛️</Text>
-              <Text style={styles.updateSalaryText}>
-                {language === 'vi' ? 'Cập nhật' : 'Update'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Hộp Ngày Trả Lương */}
-          <View style={styles.paydayCard}>
-            <View style={styles.paydayNumberBox}>
-              <Text style={styles.paydayNumber}>05</Text>
-            </View>
-            <View style={styles.paydayInfo}>
-              <Text style={styles.paydayTitle}>
-                {language === 'vi' ? 'Ngày trả lương định kỳ' : 'Payday Schedule'}
-              </Text>
-              <Text style={styles.paydayCycle}>
-                {language === 'vi'
-                  ? 'Chu kỳ tính: Ngày 05 hàng tháng'
-                  : 'Cycle: 5th of every month'}
-              </Text>
-            </View>
-            <View style={styles.daysRemainingBadge}>
-              <Text style={styles.daysRemainingText}>
-                {language === 'vi' ? 'Còn 12 ngày' : '12 days left'}
-              </Text>
-            </View>
-          </View>
-
-          {/* Thanh Tiến Độ Ngân Sách An Toàn */}
-          <View style={styles.safeBudgetSection}>
-            <View style={styles.safeBudgetHeader}>
-              <Text style={styles.safeBudgetTitle}>
-                {language === 'vi'
-                  ? 'Hạn mức chi tiêu an toàn tháng 10:'
-                  : 'Safe spending limit (Oct):'}{' '}
-                <Text style={styles.boldText}>13.200.000 / 22.000.000 đ (60%)</Text>
-              </Text>
-            </View>
-            <View style={styles.progressBarTrack}>
-              <View style={[styles.progressBarFill, { width: '60%' }]} />
-            </View>
-          </View>
+        {/* CARD 2: THIẾT LẬP DÒNG TIỀN & NGÂN SÁCH THÁNG (BUDGET CARD WIDGET) */}
+        <View style={[isDesktop ? styles.cardRow1Right : styles.flex1]}>
+          <BudgetCardWidget
+            budget={budget}
+            onBudgetUpdated={setBudget}
+            language={language as any}
+          />
         </View>
       </View>
 
@@ -540,6 +502,12 @@ export const HomeScreen: React.FC = () => {
           </View>
         </View>
       </View>
+
+      {/* ===================== ROW 4: GIAO DỊCH GẦN ĐÂY ===================== */}
+      <RecentTransactionsWidget language={language as any} />
+
+      {/* ===================== ROW 5: BẢNG GIAO DỊCH CHI TIẾT (TRANSACTION TABLE) ===================== */}
+      <TransactionTableWidget language={language as any} />
     </ScrollView>
   );
 };
