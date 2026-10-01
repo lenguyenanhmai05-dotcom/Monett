@@ -6,9 +6,11 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { getBudgetApi, BudgetData } from '../../services/api';
 
 interface HomeScreenProps {
   onNavigateToCamera?: () => void;
@@ -50,6 +52,34 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   const avatarColor = getAvatarColor(displayName);
   const [imageError, setImageError] = React.useState(false);
+
+  const [budget, setBudget] = React.useState<BudgetData>({
+    month: new Date().getMonth() + 1,
+    year: new Date().getFullYear(),
+    limit: 22000000,
+    spent: 6180000,
+    remaining: 15820000,
+    spentPercent: 28.1,
+    remainingPercent: 71.9,
+    status: 'safe',
+    payday: 5,
+    daysUntilPayday: 12,
+    currency: 'VND',
+  });
+
+  React.useEffect(() => {
+    let isMounted = true;
+    getBudgetApi()
+      .then((data) => {
+        if (isMounted && data && data.limit) {
+          setBudget(data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
   // Dữ liệu tuần mẫu (bám sát thiết kế Stitch)
   const weekDays = [
     { day: 'T2', date: '9/9', amount: '85k', image: 'https://images.unsplash.com/photo-1552611052-33e04de081de?w=120&auto=format&fit=crop&q=80', active: false },
@@ -103,11 +133,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.quickSaveBtn} onPress={onNavigateToQuickSave} activeOpacity={0.8}>
-            <Text style={styles.quickSaveBtnText}>⚡ Lưu nhanh</Text>
+            <Ionicons name="flash" size={13} color="#047857" style={{ marginRight: 3 }} />
+            <Text style={styles.quickSaveBtnText}>Lưu nhanh</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.iconButton}>
-            <Text style={styles.bellIcon}>🔔</Text>
+            <Ionicons name="notifications-outline" size={21} color="#1E293B" />
             <View style={styles.notificationDot} />
           </TouchableOpacity>
 
@@ -134,7 +165,53 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <Text style={styles.greetingName}>{displayName} 👋</Text>
         </View>
 
-        {/* 3. Daily Expense Card (Tone xanh Lục bảo Monett) */}
+        {/* 3. THE SIGNATURE EMERALD BUDGET CARD */}
+        <TouchableOpacity
+          style={styles.budgetCard}
+          activeOpacity={0.9}
+          onPress={onNavigateToAnalytics}
+        >
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.cardHeaderLeft}>
+              <Ionicons name="card-outline" size={15} color="#A7F3D0" style={{ marginRight: 6 }} />
+              <Text style={styles.cardHeaderTag}>
+                {`HẠN MỨC THÁNG ${budget.month}`}
+              </Text>
+            </View>
+            <Text style={styles.cardTotalLimit}>{budget.limit.toLocaleString('vi-VN')} đ</Text>
+          </View>
+
+          <Text style={styles.cardSubLabel}>Số dư khả dụng tháng</Text>
+          <Text style={styles.cardMainBalance}>{budget.remaining.toLocaleString('vi-VN')} đ</Text>
+
+          {/* Thanh Tiến Độ Ngân Sách */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBarBg}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  {
+                    width: `${Math.min(100, Math.max(0, budget.remainingPercent))}%`,
+                    backgroundColor:
+                      budget.status === 'danger'
+                        ? '#EF4444'
+                        : budget.status === 'warning'
+                        ? '#F59E0B'
+                        : '#34D399',
+                  },
+                ]}
+              />
+            </View>
+            <View style={styles.progressTextRow}>
+              <Text style={styles.progressTextLeft}>
+                Đã chi: {budget.spent.toLocaleString('vi-VN')} đ ({budget.spentPercent}%)
+              </Text>
+              <Text style={styles.progressTextRight}>{budget.remainingPercent}% còn lại</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        {/* 4. Daily Expense Card (Tone xanh Lục bảo Monett) */}
         <TouchableOpacity
           style={styles.dailyCard}
           activeOpacity={0.9}
@@ -142,7 +219,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         >
           <View style={styles.dailyCardInfo}>
             <View style={styles.dateTag}>
-              <Text style={styles.dateTagText}>📅 Hôm nay, 15/09</Text>
+              <Ionicons name="calendar-outline" size={13} color="#A7F3D0" style={{ marginRight: 4 }} />
+              <Text style={styles.dateTagText}>Hôm nay, 15/09</Text>
             </View>
             <Text style={styles.dailyLabel}>Bạn đã chi</Text>
             <Text style={styles.dailyAmount}>185.000 đ</Text>
@@ -227,12 +305,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           activeOpacity={0.85}
           onPress={onNavigateToCamera}
         >
-          <Text style={styles.cameraBannerIcon}>📷</Text>
+          <View style={styles.cameraBannerIconWrap}>
+            <Ionicons name="camera" size={20} color="#FFFFFF" />
+          </View>
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={styles.cameraBannerTitle}>Chụp ảnh món ăn & Hóa đơn</Text>
             <Text style={styles.cameraBannerDesc}>Lưu giữ khoảnh khắc chi tiêu trong 1 chạm</Text>
           </View>
-          <Text style={styles.cameraBannerArrow}>➔</Text>
+          <View style={styles.cameraBannerArrowWrap}>
+            <Ionicons name="arrow-forward" size={16} color="#047857" />
+          </View>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -269,6 +351,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   quickSaveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#ECFDF5',
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -532,12 +616,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#ECFDF5',
     borderWidth: 1.5,
     borderColor: '#A7F3D0',
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: 20,
+    padding: 12,
     marginTop: 20,
   },
-  cameraBannerIcon: {
-    fontSize: 28,
+  cameraBannerIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#047857',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
   },
   cameraBannerTitle: {
     fontSize: 14,
@@ -549,9 +645,88 @@ const styles = StyleSheet.create({
     color: '#047857',
     marginTop: 2,
   },
-  cameraBannerArrow: {
-    fontSize: 16,
+  cameraBannerArrowWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  // EMERALD BUDGET CARD
+  budgetCard: {
+    backgroundColor: '#064E3B',
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 16,
+    shadowColor: '#064E3B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  cardHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardHeaderTag: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#A7F3D0',
+    letterSpacing: 0.5,
+  },
+  cardTotalLimit: {
+    fontSize: 13,
     fontWeight: '700',
-    color: '#047857',
+    color: '#D1FAE5',
+  },
+  cardSubLabel: {
+    fontSize: 12,
+    color: '#A7F3D0',
+    fontWeight: '600',
+  },
+  cardMainBalance: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginTop: 4,
+    marginBottom: 14,
+    letterSpacing: -0.5,
+  },
+  progressContainer: {
+    marginTop: 2,
+  },
+  progressBarBg: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  progressTextRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  progressTextLeft: {
+    fontSize: 11,
+    color: '#D1FAE5',
+    fontWeight: '600',
+  },
+  progressTextRight: {
+    fontSize: 11,
+    color: '#6EE7B7',
+    fontWeight: '800',
   },
 });

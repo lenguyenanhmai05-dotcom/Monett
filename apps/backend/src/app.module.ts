@@ -10,6 +10,8 @@ import { SeedModule } from './seed/seed.module';
 import { SeedService } from './seed/seed.service';
 import { FriendsModule } from './friends/friends.module';
 import { MomentsModule } from './moments/moments.module';
+import { TransactionsModule } from './transactions/transactions.module';
+import { BudgetsModule } from './budgets/budgets.module';
 
 import * as dotenv from 'dotenv';
 import * as path from 'path';
@@ -61,6 +63,8 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
     SeedModule,
     FriendsModule,
     MomentsModule,
+    TransactionsModule,
+    BudgetsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
