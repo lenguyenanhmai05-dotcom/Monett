@@ -1,5 +1,20 @@
 import { Platform } from 'react-native';
-import { ApiResponse, AuthResponse, GoogleAuthDto, IUser, LoginDto, RegisterDto } from '@monett/shared';
+import {
+  ApiResponse,
+  AuthResponse,
+  GoogleAuthDto,
+  IUser,
+  LoginDto,
+  RegisterDto,
+  IAnalyticsOverview,
+  IFullAnalyticsReport,
+  AnalyticsPeriod,
+  IDailySpendingTrend,
+  ICategoryBreakdown,
+  IMonthlyComparison,
+  IEmoMindfulness,
+  IFeaturedMoment,
+} from '@monett/shared';
 
 // Xác định địa chỉ Backend phù hợp với thiết bị (Web, Điện thoại qua Expo Go hoặc Mobile Browser)
 export const getBaseUrl = (): string => {
@@ -54,7 +69,7 @@ export const getBaseUrl = (): string => {
   }
 
   // 5. Fallback mặc định
-  return 'http://localhost:3000';
+  return 'http://10.12.0.216:3000';
 };
 
 
@@ -596,5 +611,111 @@ export const setBudgetApi = async (data: {
   });
   return (res as any).data || res;
 };
+
+// ============================================================
+// ANALYTICS & FINANCIAL REPORT APIS
+// ============================================================
+
+export const getAnalyticsOverviewApi = async (
+  period: AnalyticsPeriod = 'month',
+  month?: number,
+  year?: number,
+): Promise<IAnalyticsOverview> => {
+  const params = new URLSearchParams();
+  if (period) params.append('period', period);
+  if (month) params.append('month', String(month));
+  if (year) params.append('year', String(year));
+
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  const res = await request<IAnalyticsOverview>(`/api/analytics/overview${qs}`);
+  return (res as any).data || res;
+};
+
+export const getAnalyticsDailyTrendApi = async (
+  month?: number,
+  year?: number,
+): Promise<IDailySpendingTrend[]> => {
+  const params = new URLSearchParams();
+  if (month) params.append('month', String(month));
+  if (year) params.append('year', String(year));
+
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  const res = await request<IDailySpendingTrend[]>(`/api/analytics/daily-trend${qs}`);
+  return (res as any).data || res;
+};
+
+export const getTransactionsByDateApi = async (date: string) => {
+  const res = await request<any>(`/api/transactions/by-date?date=${encodeURIComponent(date)}`);
+  return res;
+};
+
+export const getCategoryBreakdownApi = async (
+  period: AnalyticsPeriod = 'month',
+  month?: number,
+  year?: number,
+): Promise<ICategoryBreakdown[]> => {
+  const params = new URLSearchParams();
+  if (period) params.append('period', period);
+  if (month) params.append('month', String(month));
+  if (year) params.append('year', String(year));
+
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  const res = await request<ICategoryBreakdown[]>(`/api/analytics/category-breakdown${qs}`);
+  return (res as any).data || res;
+};
+
+export const getAnalyticsCategoriesApi = async (
+  month?: number,
+  year?: number,
+): Promise<ICategoryBreakdown[]> => {
+  return getCategoryBreakdownApi('month', month, year);
+};
+
+export const getAnalyticsComparisonApi = async (
+  month?: number,
+  year?: number,
+): Promise<IMonthlyComparison> => {
+  const params = new URLSearchParams();
+  if (month) params.append('month', String(month));
+  if (year) params.append('year', String(year));
+
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  const res = await request<IMonthlyComparison>(`/api/analytics/comparison${qs}`);
+  return (res as any).data || res;
+};
+
+export const getAnalyticsEmotionsApi = async (
+  month?: number,
+  year?: number,
+): Promise<IEmoMindfulness> => {
+  const params = new URLSearchParams();
+  if (month) params.append('month', String(month));
+  if (year) params.append('year', String(year));
+
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  const res = await request<IEmoMindfulness>(`/api/analytics/emotions${qs}`);
+  return (res as any).data || res;
+};
+
+export const getAnalyticsMomentsApi = async (): Promise<IFeaturedMoment[]> => {
+  const res = await request<IFeaturedMoment[]>('/api/analytics/moments');
+  return (res as any).data || res;
+};
+
+export const getAnalyticsFullReportApi = async (
+  period: AnalyticsPeriod = 'month',
+  month?: number,
+  year?: number,
+): Promise<IFullAnalyticsReport> => {
+  const params = new URLSearchParams();
+  if (period) params.append('period', period);
+  if (month) params.append('month', String(month));
+  if (year) params.append('year', String(year));
+
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  const res = await request<IFullAnalyticsReport>(`/api/analytics/full-report${qs}`);
+  return (res as any).data || res;
+};
+
 
 

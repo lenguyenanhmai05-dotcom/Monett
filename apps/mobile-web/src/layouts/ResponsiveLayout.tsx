@@ -68,7 +68,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
       key: 'moments',
       labelVi: 'Lịch ảnh\nchi tiêu',
       labelEn: 'Moments\nJournal',
-      icon: '📅',
+      icon: '🖼️',
     },
     {
       key: 'analytics',
@@ -80,7 +80,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
       key: 'transactions',
       labelVi: 'Quản lý\nChi tiêu',
       labelEn: 'Expense\nManager',
-      icon: '📝',
+      icon: '🧾',
     },
     {
       key: 'budget',
@@ -90,14 +90,14 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
     },
     {
       key: 'profile',
-      labelVi: 'Cá nhân',
-      labelEn: 'Profile',
+      labelVi: 'Trang cá nhân\n& Slogan',
+      labelEn: 'Profile\n& Motto',
       icon: '👤',
     },
   ];
 
   const currentDateFormatted =
-    language === 'vi' ? '📅 24 Tháng 10, 2024' : '📅 Oct 24, 2024';
+    language === 'vi' ? 'Hôm nay, 24 Tháng 10, 2024 ▾' : 'Today, Oct 24, 2024 ▾';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -154,7 +154,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
               <TouchableOpacity style={styles.quickCaptureBtn} activeOpacity={0.85}>
                 <Text style={styles.quickCaptureIcon}>📷</Text>
                 <Text style={styles.quickCaptureText}>
-                  {language === 'vi' ? 'Ghi chép nhanh' : 'Quick Capture'}
+                  {language === 'vi' ? '+ Ghi chép nhanh' : '+ Quick Capture'}
                 </Text>
               </TouchableOpacity>
 

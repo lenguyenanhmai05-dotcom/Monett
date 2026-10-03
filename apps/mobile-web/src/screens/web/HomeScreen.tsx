@@ -16,9 +16,10 @@ import { StreakBadgeWidget } from '../../components/StreakBadgeWidget';
 import { BudgetCardWidget } from '../../components/BudgetCardWidget';
 import { RecentTransactionsWidget } from '../../components/RecentTransactionsWidget';
 import { TransactionTableWidget } from '../../components/TransactionTableWidget';
+import { MiniAnalyticsWidget } from '../../components/MiniAnalyticsWidget';
 import { getBudgetApi, BudgetData } from '../../services/api';
 
-export const HomeScreen: React.FC = () => {
+export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({ onNavigateToTab }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 960;
   const { user } = useAuth();
@@ -502,6 +503,12 @@ export const HomeScreen: React.FC = () => {
           </View>
         </View>
       </View>
+
+      {/* ===================== MINI ANALYTICS WIDGET ===================== */}
+      <MiniAnalyticsWidget
+        language={language as any}
+        onViewFullReport={() => onNavigateToTab && onNavigateToTab('analytics')}
+      />
 
       {/* ===================== ROW 4: GIAO DỊCH GẦN ĐÂY ===================== */}
       <RecentTransactionsWidget language={language as any} />
