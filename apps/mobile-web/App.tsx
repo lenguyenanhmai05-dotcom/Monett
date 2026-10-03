@@ -8,6 +8,7 @@ import { ProfileScreen } from './src/screens/web/ProfileScreen';
 import { AuthScreen } from './src/screens/web/AuthScreen';
 import { LandingScreen } from './src/screens/web/LandingScreen';
 import { FinancialReportScreen } from './src/screens/web/FinancialReportScreen';
+import { CalendarScreen } from './src/screens/mobile/CalendarScreen';
 import { MobileAuthScreen } from './src/screens/mobile/MobileAuthScreen';
 import { MobileNavigator } from './src/screens/mobile/MobileNavigator';
 import { TransactionProvider } from './src/contexts/TransactionContext';
@@ -95,16 +96,8 @@ function MainApp() {
         return <ProfileScreen />;
       case 'moments':
         return (
-          <View style={styles.centerContainer}>
-            <Text style={styles.placeholderIcon}>📸</Text>
-            <Text style={styles.placeholderTitle}>
-              {language === 'vi' ? 'Lịch Ảnh Chi Tiêu (Money Moments)' : 'Moments Journal'}
-            </Text>
-            <Text style={styles.placeholderDesc}>
-              {language === 'vi'
-                ? 'Thư viện ảnh chi tiêu trực quan của bạn sẽ hiển thị tại đây!'
-                : 'Your visual expense diary and photo grid will appear here!'}
-            </Text>
+          <View style={{ flex: 1, maxWidth: 520, width: '100%', alignSelf: 'center', backgroundColor: '#FFFFFF' }}>
+            <CalendarScreen />
           </View>
         );
       case 'analytics':

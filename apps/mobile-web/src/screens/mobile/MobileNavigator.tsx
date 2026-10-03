@@ -17,11 +17,12 @@ import { AnalyticsScreen } from './AnalyticsScreen';
 import { WalletsScreen } from './WalletsScreen';
 import { CategoriesScreen } from './CategoriesScreen';
 import { ProfileScreen } from './ProfileScreen';
+import { CalendarScreen } from './CalendarScreen';
 import { FriendsFeedScreen } from './FriendsFeedScreen';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { createTransactionApi } from '../../services/api';
 
-export type MobileTab = 'home' | 'analytics' | 'feed' | 'wallets' | 'categories' | 'profile';
+export type MobileTab = 'home' | 'calendar' | 'analytics' | 'feed' | 'wallets' | 'categories' | 'profile';
 export type ActiveModal = 'none' | 'camera' | 'add_expense' | 'quick_save' | 'detail';
 
 export const MobileNavigator: React.FC = () => {
@@ -48,6 +49,17 @@ export const MobileNavigator: React.FC = () => {
               setActiveModal('detail');
             }}
             onNavigateToAnalytics={() => setCurrentTab('analytics')}
+            onNavigateToCalendar={() => setCurrentTab('calendar')}
+          />
+        );
+      case 'calendar':
+        return (
+          <CalendarScreen
+            onNavigateToCamera={() => setActiveModal('camera')}
+            onNavigateToDetail={(id) => {
+              setSelectedTxId(id);
+              setActiveModal('detail');
+            }}
           />
         );
       case 'analytics':
@@ -88,22 +100,22 @@ export const MobileNavigator: React.FC = () => {
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => setCurrentTab('analytics')}
+          onPress={() => setCurrentTab('calendar')}
           activeOpacity={0.7}
         >
           <Ionicons
-            name={currentTab === 'analytics' ? 'bar-chart' : 'bar-chart-outline'}
+            name={currentTab === 'calendar' ? 'calendar' : 'calendar-outline'}
             size={22}
             color="#FFFFFF"
-            style={{ opacity: currentTab === 'analytics' ? 1 : 0.65 }}
+            style={{ opacity: currentTab === 'calendar' ? 1 : 0.65 }}
           />
           <Text
             style={[
               styles.navLabel,
-              currentTab === 'analytics' && styles.navLabelActive,
+              currentTab === 'calendar' && styles.navLabelActive,
             ]}
           >
-            Thống kê
+            Lịch
           </Text>
         </TouchableOpacity>
 
@@ -120,22 +132,22 @@ export const MobileNavigator: React.FC = () => {
 
         <TouchableOpacity
           style={styles.navItem}
-          onPress={() => setCurrentTab('feed')}
+          onPress={() => setCurrentTab('analytics')}
           activeOpacity={0.7}
         >
           <Ionicons
-            name={currentTab === 'feed' ? 'people' : 'people-outline'}
+            name={currentTab === 'analytics' ? 'bar-chart' : 'bar-chart-outline'}
             size={22}
             color="#FFFFFF"
-            style={{ opacity: currentTab === 'feed' ? 1 : 0.65 }}
+            style={{ opacity: currentTab === 'analytics' ? 1 : 0.65 }}
           />
           <Text
             style={[
               styles.navLabel,
-              currentTab === 'feed' && styles.navLabelActive,
+              currentTab === 'analytics' && styles.navLabelActive,
             ]}
           >
-            Bạn bè
+            Thống kê
           </Text>
         </TouchableOpacity>
 

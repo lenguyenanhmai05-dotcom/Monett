@@ -644,9 +644,28 @@ export const getAnalyticsDailyTrendApi = async (
   return (res as any).data || res;
 };
 
-export const getTransactionsByDateApi = async (date: string) => {
-  const res = await request<any>(`/api/transactions/by-date?date=${encodeURIComponent(date)}`);
-  return res;
+export interface TransactionsByDateResponse {
+  date: string;
+  totalItems: number;
+  totalExpense: number;
+  totalIncome: number;
+  net: number;
+  items: any[];
+  photos: {
+    id: string;
+    photoUri: string;
+    title: string;
+    amount: number;
+    type: string;
+    category: string;
+    date: string;
+  }[];
+}
+
+export const getTransactionsByDateApi = async (date?: string): Promise<TransactionsByDateResponse> => {
+  const qs = date ? `?date=${encodeURIComponent(date)}` : '';
+  const res = await request<TransactionsByDateResponse>(`/api/transactions/by-date${qs}`);
+  return (res as any).data || res;
 };
 
 export const getCategoryBreakdownApi = async (
@@ -716,6 +735,3 @@ export const getAnalyticsFullReportApi = async (
   const res = await request<IFullAnalyticsReport>(`/api/analytics/full-report${qs}`);
   return (res as any).data || res;
 };
-
-
-
