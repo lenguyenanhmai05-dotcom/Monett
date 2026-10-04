@@ -9,6 +9,7 @@ import { AuthScreen } from './src/screens/web/AuthScreen';
 import { LandingScreen } from './src/screens/web/LandingScreen';
 import { FinancialReportScreen } from './src/screens/web/FinancialReportScreen';
 import { CalendarScreen } from './src/screens/mobile/CalendarScreen';
+import { WebCalendarScreen } from './src/screens/web/CalendarScreen';
 import { MobileAuthScreen } from './src/screens/mobile/MobileAuthScreen';
 import { MobileNavigator } from './src/screens/mobile/MobileNavigator';
 import { TransactionProvider } from './src/contexts/TransactionContext';
@@ -95,11 +96,7 @@ function MainApp() {
       case 'profile':
         return <ProfileScreen />;
       case 'moments':
-        return (
-          <View style={{ flex: 1, maxWidth: 520, width: '100%', alignSelf: 'center', backgroundColor: '#FFFFFF' }}>
-            <CalendarScreen />
-          </View>
-        );
+        return <WebCalendarScreen />;
       case 'analytics':
         return <FinancialReportScreen onNavigateToTab={setActiveTab} />;
       case 'transactions':
