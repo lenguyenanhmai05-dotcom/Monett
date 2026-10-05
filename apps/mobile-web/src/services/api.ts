@@ -69,7 +69,7 @@ export const getBaseUrl = (): string => {
   }
 
   // 5. Fallback mặc định
-  return 'http://10.12.0.216:3000';
+  return 'http://192.168.1.32:3000';
 };
 
 

@@ -26,3 +26,4 @@ async function bootstrap() {
   console.log(`🩺 Health check endpoint: http://localhost:${port}/api/health`);
 }
 bootstrap();
+// Trigger restart

@@ -7,7 +7,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 export const GOOGLE_CLIENT_ID =
   process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ||
-  '650655150096-kjmebk9efbp75ft6lvvpidsfsgl2prg2.apps.googleusercontent.com';
+  '445629432994-fvcmcfc2o2ik4ngi9r4vie44hrojkf3v.apps.googleusercontent.com';
 
 declare global {
   interface Window {
@@ -116,9 +116,7 @@ export const requestGoogleLogin = async (): Promise<GoogleAuthDto> => {
 
   // 2. NỀN TẢNG NATIVE MOBILE (iOS / Android trong Expo Go)
   try {
-    const proxyRedirectUri =
-      process.env.EXPO_PUBLIC_PROXY_REDIRECT_URI ||
-      'https://auth.expo.io/@dangkhoa0107/monett-app';
+    const proxyRedirectUri = process.env.EXPO_PUBLIC_PROXY_REDIRECT_URI || 'https://auth.expo.io/@lenguyenanhmai123/monett-app';
     const returnUrl = AuthSession.getDefaultReturnUrl();
 
     // Google OAuth URL với redirect_uri trỏ về Expo Auth Proxy đã đăng ký
