@@ -6,11 +6,12 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { getBudgetApi, BudgetData, getTransactionsByDateApi } from '../../services/api';
+import { getBudgetApi, BudgetData, getTransactionsByDateApi, deleteTransactionApi } from '../../services/api';
 import { WeeklyCalendarWidget } from '../../components/WeeklyCalendarWidget';
 
 interface HomeScreenProps {
@@ -261,6 +262,30 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               style={styles.expenseCard}
               activeOpacity={0.8}
               onPress={() => onNavigateToDetail && onNavigateToDetail(exp.id)}
+              onLongPress={() => {
+                Alert.alert(
+                  'Xóa giao dịch',
+                  `Bạn có chắc muốn xóa "${exp.title}" (${exp.amount}) không?`,
+                  [
+                    { text: 'Hủy', style: 'cancel' },
+                    {
+                      text: 'Xóa',
+                      style: 'destructive',
+                      onPress: async () => {
+                        if (exp.id && !exp.id.startsWith('tx_')) {
+                          try {
+                            await deleteTransactionApi(exp.id);
+                          } catch (e) {
+                            console.log('Error deleting transaction:', e);
+                          }
+                        }
+                        setTodayExpenses((prev) => prev.filter((item) => item.id !== exp.id));
+                        setTodayTotal((prev) => Math.max(0, prev - exp.rawAmount));
+                      },
+                    },
+                  ]
+                );
+              }}
             >
               <Image source={{ uri: exp.image }} style={styles.expenseThumb} />
               <Text style={styles.expenseTitle} numberOfLines={1}>{exp.title}</Text>

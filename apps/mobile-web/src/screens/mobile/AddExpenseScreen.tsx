@@ -19,31 +19,52 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { createTransactionApi } from '../../services/api';
+import { createTransactionApi, updateTransactionApi } from '../../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface AddExpenseScreenProps {
   initialPhotoUrl?: string;
+  editingTransactionId?: string;
+  initialData?: {
+    title?: string;
+    amount?: number;
+    category?: string;
+    categoryIcon?: string;
+    photoUri?: string;
+    note?: string;
+    type?: 'expense' | 'income';
+  };
   onBack?: () => void;
   onSaveSuccess?: () => void;
 }
 
 export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   initialPhotoUrl,
+  editingTransactionId,
+  initialData,
   onBack,
   onSaveSuccess,
 }) => {
   const [photoUrl, setPhotoUrl] = useState<string>(
-    initialPhotoUrl ||
+    initialData?.photoUri ||
+      initialPhotoUrl ||
       'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=800&auto=format&fit=crop&q=80'
   );
 
-  const [transactionType, setTransactionType] = useState<'expense' | 'income'>('expense');
-  const [amountStr, setAmountStr] = useState('0');
-  const [title, setTitle] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('Ăn uống');
-  const [selectedCategoryIcon, setSelectedCategoryIcon] = useState<string>('🍜');
+  const [transactionType, setTransactionType] = useState<'expense' | 'income'>(
+    initialData?.type || 'expense'
+  );
+  const [amountStr, setAmountStr] = useState(
+    initialData?.amount ? String(Math.abs(initialData.amount)) : '0'
+  );
+  const [title, setTitle] = useState(initialData?.title || '');
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    initialData?.category || 'Ăn uống'
+  );
+  const [selectedCategoryIcon, setSelectedCategoryIcon] = useState<string>(
+    initialData?.categoryIcon || '🍜'
+  );
   const [selectedWallet, setSelectedWallet] = useState<string>('Tiền mặt');
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -89,7 +110,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
 
     setIsSaving(true);
     try {
-      await createTransactionApi({
+      const payload = {
         title: title.trim() || `${selectedCategory} ${selectedCategoryIcon}`,
         amount: transactionType === 'expense' ? -Math.abs(parsedAmount) : Math.abs(parsedAmount),
         type: transactionType,
@@ -97,7 +118,13 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
         categoryIcon: selectedCategoryIcon,
         photoUri: photoUrl,
         date: new Date().toISOString(),
-      });
+      };
+
+      if (editingTransactionId && !editingTransactionId.startsWith('tx_')) {
+        await updateTransactionApi(editingTransactionId, payload);
+      } else {
+        await createTransactionApi(payload);
+      }
 
       if (onSaveSuccess) {
         onSaveSuccess();
@@ -146,9 +173,9 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
               <Ionicons name="close" size={20} color="#FFFFFF" />
             </TouchableOpacity>
 
-            {/* Tiêu đề "Thêm giao dịch" */}
+            {/* Tiêu đề "Thêm giao dịch" / "Sửa giao dịch" */}
             <View style={styles.heroTitleContainer}>
-              <Text style={styles.heroTitleText}>Thêm giao</Text>
+              <Text style={styles.heroTitleText}>{editingTransactionId ? 'Sửa giao' : 'Thêm giao'}</Text>
               <Text style={styles.heroTitleText}>dịch</Text>
             </View>
 
@@ -336,7 +363,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
             ) : (
               <View style={styles.saveBtnContent}>
                 <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-                <Text style={styles.saveBtnText}>Lưu</Text>
+                <Text style={styles.saveBtnText}>{editingTransactionId ? 'Lưu thay đổi' : 'Lưu'}</Text>
               </View>
             )}
           </TouchableOpacity>

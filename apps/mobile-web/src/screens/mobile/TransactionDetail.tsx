@@ -16,7 +16,7 @@ import { getTransactionDetailApi, deleteTransactionApi } from '../../services/ap
 interface TransactionDetailProps {
   transactionId?: string;
   onBack?: () => void;
-  onEdit?: () => void;
+  onEdit?: (txData?: any) => void;
   onDelete?: () => void;
 }
 
@@ -30,6 +30,8 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
   const [detail, setDetail] = useState({
     title: 'Bún bò Huế Cô Lan',
     amount: '-85.000 đ',
+    rawAmount: 85000,
+    rawType: 'expense' as 'expense' | 'income',
     time: '12:30',
     date: 'Chủ Nhật, 15/09/2026',
     category: 'Ăn uống',
@@ -56,6 +58,8 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
           setDetail({
             title: tx.title || 'Khoản chi tiêu',
             amount: `${sign}${Math.abs(tx.amount || 0).toLocaleString('vi-VN')} đ`,
+            rawAmount: Math.abs(tx.amount || 0),
+            rawType: isExpense ? 'expense' : 'income',
             time: d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
             date: d.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }),
             category: tx.category || 'Ăn uống',
@@ -111,7 +115,24 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
           <Ionicons name="chevron-back" size={22} color="#1E293B" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Chi Tiết Giao Dịch</Text>
-        <TouchableOpacity style={styles.headerBtn} onPress={onEdit} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.headerBtn}
+          onPress={() => {
+            if (onEdit) {
+              onEdit({
+                id: transactionId,
+                title: detail.title,
+                amount: detail.rawAmount,
+                type: detail.rawType,
+                category: detail.category,
+                categoryIcon: detail.categoryIcon,
+                photoUri: detail.imageUrl,
+                note: detail.note,
+              });
+            }
+          }}
+          activeOpacity={0.7}
+        >
           <Ionicons name="pencil-outline" size={18} color="#1E293B" />
         </TouchableOpacity>
       </View>

@@ -30,6 +30,7 @@ export const MobileNavigator: React.FC = () => {
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [capturedPhoto, setCapturedPhoto] = useState<string | undefined>();
   const [selectedTxId, setSelectedTxId] = useState<string | undefined>();
+  const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
   const triggerRefresh = () => {
@@ -48,7 +49,10 @@ export const MobileNavigator: React.FC = () => {
           <HomeScreen
             refreshTrigger={refreshKey}
             onNavigateToCamera={() => setActiveModal('camera')}
-            onNavigateToAddExpense={() => setActiveModal('add_expense')}
+            onNavigateToAddExpense={() => {
+              setEditingTransaction(null);
+              setActiveModal('add_expense');
+            }}
             onNavigateToQuickSave={() => setActiveModal('quick_save')}
             onNavigateToDetail={(id) => {
               setSelectedTxId(id);
@@ -206,13 +210,19 @@ export const MobileNavigator: React.FC = () => {
         </View>
       )}
 
-      {/* 4. Màn hình Thêm Chi Tiêu */}
+      {/* 4. Màn hình Thêm / Sửa Chi Tiêu */}
       {activeModal === 'add_expense' && (
         <View style={StyleSheet.absoluteFill}>
           <AddExpenseScreen
             initialPhotoUrl={capturedPhoto}
-            onBack={() => setActiveModal('none')}
+            editingTransactionId={editingTransaction?.id}
+            initialData={editingTransaction}
+            onBack={() => {
+              setEditingTransaction(null);
+              setActiveModal('none');
+            }}
             onSaveSuccess={() => {
+              setEditingTransaction(null);
               setActiveModal('none');
               setCapturedPhoto(undefined);
               triggerRefresh();
@@ -226,9 +236,16 @@ export const MobileNavigator: React.FC = () => {
         <View style={StyleSheet.absoluteFill}>
           <TransactionDetail
             transactionId={selectedTxId}
-            onBack={() => setActiveModal('none')}
-            onEdit={() => setActiveModal('add_expense')}
+            onBack={() => {
+              setSelectedTxId(undefined);
+              setActiveModal('none');
+            }}
+            onEdit={(txData) => {
+              setEditingTransaction(txData);
+              setActiveModal('add_expense');
+            }}
             onDelete={() => {
+              setSelectedTxId(undefined);
               setActiveModal('none');
               triggerRefresh();
             }}
