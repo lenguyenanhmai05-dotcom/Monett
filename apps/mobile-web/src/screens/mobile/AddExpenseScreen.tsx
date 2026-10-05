@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -68,6 +68,8 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   const [selectedWallet, setSelectedWallet] = useState<string>('Tiền mặt');
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const amountInputRef = useRef<TextInput>(null);
+  const [isInputFocused, setIsInputFocused] = useState(false);
 
   const categories = [
     { id: '1', name: 'Ăn uống', icon: '🍜' },
@@ -306,34 +308,52 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
 
           {/* Row 3: Big Amount & Description Card (Nhập trực tiếp bằng bàn phím máy) */}
           <View style={styles.amountCard}>
-            {/* Nhập số tiền trực tiếp với bàn phím của máy */}
-            <View style={styles.amountRow}>
-              <View style={styles.amountInputWrapper}>
-                <TextInput
-                  style={styles.amountInput}
-                  value={amountStr === '0' || !amountStr ? '' : Number(amountStr).toLocaleString('vi-VN')}
-                  placeholder="0"
-                  placeholderTextColor="#64748B"
-                  keyboardType="number-pad"
-                  onChangeText={handleAmountChange}
-                  cursorColor="#FF3366"
-                  selectionColor="rgba(255, 51, 102, 0.4)"
-                  returnKeyType="done"
-                  selectTextOnFocus
-                />
-                <Text style={styles.amountCurrency}>đ</Text>
-              </View>
+            {/* Nút Clear X tròn đặt góc phải absolute để không làm lệch tâm số tiền */}
+            {amountStr !== '0' && amountStr !== '' && (
+              <TouchableOpacity
+                style={styles.amountClearBtnAbsolute}
+                onPress={handleClearAmount}
+                activeOpacity={0.7}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close" size={14} color="#FFFFFF" />
+              </TouchableOpacity>
+            )}
 
-              {amountStr !== '0' && amountStr !== '' && (
-                <TouchableOpacity
-                  style={styles.amountClearBtn}
-                  onPress={handleClearAmount}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="close" size={14} color="#FFFFFF" />
-                </TouchableOpacity>
-              )}
-            </View>
+            {/* Vùng nhập và hiển thị số tiền chuẩn Fintech: Raw Input ẩn + Visual Display có định dạng */}
+            <TouchableOpacity
+              style={styles.amountDisplayArea}
+              onPress={() => amountInputRef.current?.focus()}
+              activeOpacity={1}
+            >
+              {/* Thẻ TextInput ẩn: CHỈ NHẬN VÀ LƯU SỐ NGUYÊN THUẦN TÚY (RAW DIGITS)
+                  Tuyệt đối KHÔNG chứa dấu chấm để tránh xung đột buffer Unikey / Browser caret */}
+              <TextInput
+                ref={amountInputRef}
+                style={styles.hiddenRawInput}
+                value={amountStr === '0' || !amountStr ? '' : amountStr}
+                placeholder="0"
+                placeholderTextColor="transparent"
+                keyboardType="number-pad"
+                onChangeText={handleAmountChange}
+                cursorColor="#FF3366"
+                selectionColor="rgba(255, 51, 102, 0.4)"
+                returnKeyType="done"
+                maxLength={11}
+                onFocus={() => setIsInputFocused(true)}
+                onBlur={() => setIsInputFocused(false)}
+              />
+
+              {/* Lớp hiển thị số tiền có dấu chấm phân cách + ký hiệu đ (Visual Text) */}
+              <View style={styles.amountVisualRow} pointerEvents="none">
+                <Text style={styles.amountDisplayText}>
+                  {amountStr === '0' || !amountStr ? '0' : Number(amountStr).toLocaleString('vi-VN')}
+                </Text>
+                <Text style={styles.amountCurrency}>đ</Text>
+                {/* Con trỏ nhấp nháy tinh tế khi đang focus */}
+                {isInputFocused && <View style={styles.blinkingCaret} />}
+              </View>
+            </TouchableOpacity>
 
             {/* Dòng đọc số tiền bằng chữ trợ giúp tránh gõ nhầm số 0 */}
             {amountStr !== '0' && amountStr !== '' && (
@@ -347,7 +367,10 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
 
             {/* Nhập mô tả */}
             <TextInput
-              style={styles.descriptionInput}
+              style={[
+                styles.descriptionInput,
+                Platform.select({ web: { outlineStyle: 'none' } as any }),
+              ]}
               value={title}
               onChangeText={setTitle}
               placeholder="Nhập mô tả"
@@ -620,44 +643,65 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.06)',
     marginBottom: 14,
+    position: 'relative',
+    width: '100%',
   },
-  amountRow: {
-    flexDirection: 'row',
+  amountClearBtnAbsolute: {
+    position: 'absolute',
+    right: 16,
+    top: 22,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  amountDisplayArea: {
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
-    minWidth: 140,
+    paddingVertical: 6,
+    minHeight: 52,
+    width: '100%',
   },
-  amountInputWrapper: {
+  hiddenRawInput: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0,
+    zIndex: 2,
+    fontSize: 28,
+    ...Platform.select({ web: { outlineStyle: 'none' } as any }),
+  },
+  amountVisualRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'center',
   },
-  amountInput: {
+  amountDisplayText: {
     fontSize: 38,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.5,
-    padding: 0,
-    margin: 0,
-    minWidth: 40,
     textAlign: 'center',
   },
   amountCurrency: {
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: '700',
     color: '#FFFFFF',
     textDecorationLine: 'underline',
     marginLeft: 4,
   },
-  amountClearBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 12,
+  blinkingCaret: {
+    width: 2.5,
+    height: 32,
+    backgroundColor: '#FF3366',
+    marginLeft: 4,
+    borderRadius: 1.5,
   },
   amountHelperRow: {
     flexDirection: 'row',

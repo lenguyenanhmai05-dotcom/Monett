@@ -478,7 +478,7 @@ export const MobileCameraScreen: React.FC<MobileCameraScreenProps> = ({
                 placeholder="Ví dụ: 45.000"
                 placeholderTextColor="#94A3B8"
                 keyboardType="number-pad"
-                value={expenseAmount && expenseAmount !== '0' ? parseInt(expenseAmount, 10).toLocaleString('vi-VN') : ''}
+                value={expenseAmount || ''}
                 onChangeText={handleExpenseAmountChange}
               />
             </View>
