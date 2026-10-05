@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Platform } from 'react-native';
 import { useLanguage } from '../contexts/LanguageContext';
 
 // Base64 encoded SVGs for 100% reliable rendering on React Native Web and all platforms
@@ -71,11 +71,18 @@ const styles = StyleSheet.create({
   },
   toggleBtnActive: {
     backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 2px 4px rgba(0,0,0,0.15)',
+      } as any,
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 3,
+      },
+    }),
   },
   langText: {
     fontSize: 12,

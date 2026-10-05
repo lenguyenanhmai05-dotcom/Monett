@@ -9,9 +9,11 @@ import {
   Dimensions,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { CameraView, CameraType, FlashMode, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -33,11 +35,15 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
   onNavigateToWallets,
   onNavigateToAnalytics,
 }) => {
-  const [flash, setFlash] = useState(true);
-  const [zoomLevel, setZoomLevel] = useState<'1x' | '2x'>('2x');
-  const [cameraFacing, setCameraFacing] = useState<'back' | 'front'>('back');
+  // Camera Hardware Permissions & State
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef<any>(null);
+  const [cameraFacing, setCameraFacing] = useState<CameraType>('back');
+  const [flash, setFlash] = useState<FlashMode>('off');
+  const [zoomLevel, setZoomLevel] = useState<'1x' | '2x'>('1x');
+  const [isCapturing, setIsCapturing] = useState<boolean>(false);
 
-  // Danh sách ảnh mẫu phở bò và món ăn chân thực chuẩn theo mockup
+  // Danh sách ảnh mẫu phở bò và món ăn chân thực chuẩn theo mockup (Fallback)
   const samplePhoPhotos = [
     'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=800&auto=format&fit=crop&q=80',
     'https://images.unsplash.com/photo-1576577445504-6af96477db52?w=800&auto=format&fit=crop&q=80',
@@ -46,10 +52,40 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
 
   const [activePreviewImage, setActivePreviewImage] = useState<string>(samplePhoPhotos[0]);
 
-  // Xử lý chụp ảnh
-  const handleCapture = () => {
-    if (onPhotoCaptured) {
-      onPhotoCaptured(activePreviewImage);
+  // Xử lý chụp ảnh từ Camera phần cứng thật (hoặc fallback nếu chưa cấp quyền)
+  const handleCapture = async () => {
+    if (isCapturing) return;
+
+    try {
+      setIsCapturing(true);
+
+      // 1. Nếu có quyền camera thật và cameraRef đã sẵn sàng: Chụp ảnh thật
+      if (cameraRef.current && permission?.granted) {
+        const photo = await cameraRef.current.takePictureAsync({
+          quality: 0.85,
+          skipProcessing: false,
+        });
+
+        if (photo?.uri) {
+          if (onPhotoCaptured) {
+            onPhotoCaptured(photo.uri);
+          }
+          return;
+        }
+      }
+
+      // 2. Fallback: Nếu không có camera hoặc đang chạy web không có quyền
+      if (onPhotoCaptured) {
+        onPhotoCaptured(activePreviewImage);
+      }
+    } catch (e) {
+      console.warn('Lỗi khi chụp camera:', e);
+      // Fallback khi chụp lỗi
+      if (onPhotoCaptured) {
+        onPhotoCaptured(activePreviewImage);
+      }
+    } finally {
+      setIsCapturing(false);
     }
   };
 
@@ -64,9 +100,10 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
       });
 
       if (!result.canceled && result.assets && result.assets[0]?.uri) {
-        setActivePreviewImage(result.assets[0].uri);
+        const pickedUri = result.assets[0].uri;
+        setActivePreviewImage(pickedUri);
         if (onPhotoCaptured) {
-          onPhotoCaptured(result.assets[0].uri);
+          onPhotoCaptured(pickedUri);
         }
       }
     } catch (e) {
@@ -83,12 +120,12 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
     setZoomLevel((prev) => (prev === '1x' ? '2x' : '1x'));
   };
 
-  // Toggle Flash
+  // Toggle Flash (off -> on -> auto -> off)
   const handleToggleFlash = () => {
-    setFlash((prev) => !prev);
+    setFlash((prev) => (prev === 'off' ? 'on' : 'off'));
   };
 
-  // Lật camera
+  // Lật camera trước / sau
   const handleToggleFacing = () => {
     setCameraFacing((prev) => (prev === 'back' ? 'front' : 'back'));
   };
@@ -106,11 +143,22 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
           activeOpacity={0.75}
         >
           <Ionicons
-            name={flash ? 'flash' : 'flash-off-outline'}
+            name={flash === 'on' ? 'flash' : 'flash-off-outline'}
             size={20}
-            color={flash ? '#FACC15' : '#94A3B8'}
+            color={flash === 'on' ? '#FACC15' : '#94A3B8'}
           />
         </TouchableOpacity>
+
+        {/* Nút Đóng / Quay lại */}
+        {onClose && (
+          <TouchableOpacity
+            style={styles.topCircleBtn}
+            onPress={onClose}
+            activeOpacity={0.75}
+          >
+            <Ionicons name="close" size={22} color="#D1D5DB" />
+          </TouchableOpacity>
+        )}
 
         {/* Nút Cài đặt góc phải */}
         <TouchableOpacity
@@ -118,7 +166,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
           onPress={() => {
             Alert.alert(
               'Cài đặt Camera Monett ⚙️',
-              'Độ phân giải: HD 1080p\nTự động nhận diện hóa đơn: Bật\nLưu bản sao vào thư viện: Bật'
+              `Quyền Camera: ${permission?.granted ? 'Đã cấp ✅' : 'Chưa cấp ⚠️'}\nĐộ phân giải: Full HD\nTự động lưu ảnh: Bật\nChế độ đèn: ${flash.toUpperCase()}`
             );
           }}
           activeOpacity={0.75}
@@ -127,25 +175,59 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
         </TouchableOpacity>
       </View>
 
-      {/* 2. CAMERA VIEWFINDER (Kính ngắm bo góc lớn theo Mockup 1) */}
+      {/* 2. CAMERA VIEWFINDER (Kính ngắm bo góc lớn theo Mockup) */}
       <View style={styles.viewfinderContainer}>
         <View style={styles.viewfinderFrame}>
-          {/* Ảnh nền xem trước phở bò */}
-          <Image
-            source={{ uri: activePreviewImage }}
-            style={[
-              styles.cameraImage,
-              zoomLevel === '2x' && { transform: [{ scale: 1.15 }] },
-              cameraFacing === 'front' && { transform: [{ scaleX: -1 }] },
-            ]}
-            resizeMode="cover"
-          />
+          {/* Trạng thái 1: Đã cấp quyền Camera -> Live CameraView từ cảm biến thật */}
+          {permission?.granted ? (
+            <CameraView
+              ref={cameraRef}
+              style={StyleSheet.absoluteFill}
+              facing={cameraFacing}
+              flash={flash}
+              zoom={zoomLevel === '2x' ? 0.25 : 0}
+            />
+          ) : (
+            /* Trạng thái 2: Chưa cấp quyền hoặc đang chạy web giả lập */
+            <View style={StyleSheet.absoluteFill}>
+              <Image
+                source={{ uri: activePreviewImage }}
+                style={[
+                  styles.cameraImage,
+                  zoomLevel === '2x' && { transform: [{ scale: 1.15 }] },
+                  cameraFacing === 'front' && { transform: [{ scaleX: -1 }] },
+                ]}
+                resizeMode="cover"
+              />
+
+              {/* Banner xin quyền nếu permission chưa được cấp */}
+              {permission && !permission.granted && (
+                <View style={styles.permissionOverlay}>
+                  <View style={styles.permissionBadge}>
+                    <Ionicons name="camera" size={32} color="#A855F7" />
+                  </View>
+                  <Text style={styles.permissionTitle}>Mở Camera Chụp Ảnh</Text>
+                  <Text style={styles.permissionSub}>
+                    Cấp quyền camera để quét hóa đơn và lưu lại khoảnh khắc bữa ăn, chi tiêu mỗi ngày.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.permissionBtn}
+                    onPress={requestPermission}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="shield-checkmark-outline" size={18} color="#FFFFFF" />
+                    <Text style={styles.permissionBtnText}>Cấp Quyền Camera</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
 
           {/* Cụm điều khiển dọc bên phải kính ngắm */}
           <View style={styles.rightFloatingControls}>
-            {/* Nút 2x */}
+            {/* Nút 1x / 2x */}
             <TouchableOpacity
-              style={styles.rightCirclePill}
+              style={[styles.rightCirclePill, zoomLevel === '2x' && styles.rightCirclePillActive]}
               onPress={handleToggleZoom}
               activeOpacity={0.75}
             >
@@ -154,18 +236,18 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
 
             {/* Nút Flash */}
             <TouchableOpacity
-              style={styles.rightCirclePill}
+              style={[styles.rightCirclePill, flash === 'on' && styles.rightCirclePillActive]}
               onPress={handleToggleFlash}
               activeOpacity={0.75}
             >
               <Ionicons
-                name={flash ? 'flash' : 'flash-off'}
+                name={flash === 'on' ? 'flash' : 'flash-off'}
                 size={16}
-                color={flash ? '#FACC15' : '#FFFFFF'}
+                color={flash === 'on' ? '#FACC15' : '#FFFFFF'}
               />
             </TouchableOpacity>
 
-            {/* Nút lật camera */}
+            {/* Nút lật camera trước / sau */}
             <TouchableOpacity
               style={styles.rightCirclePill}
               onPress={handleToggleFacing}
@@ -180,8 +262,13 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
             style={styles.magentaPlusBtn}
             onPress={handleCapture}
             activeOpacity={0.85}
+            disabled={isCapturing}
           >
-            <Ionicons name="add" size={28} color="#FFFFFF" />
+            {isCapturing ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Ionicons name="add" size={28} color="#FFFFFF" />
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -202,8 +289,13 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
           style={styles.shutterOuterRing}
           onPress={handleCapture}
           activeOpacity={0.85}
+          disabled={isCapturing}
         >
-          <View style={styles.shutterInnerCircle} />
+          {isCapturing ? (
+            <ActivityIndicator color="#C026D3" size="small" />
+          ) : (
+            <View style={styles.shutterInnerCircle} />
+          )}
         </TouchableOpacity>
 
         {/* Nút Giọng nói / Micro */}
@@ -298,14 +390,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 4 : 10,
-    paddingBottom: 8,
+    paddingTop: 10,
+    paddingBottom: 6,
   },
   topCircleBtn: {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: '#161922',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
     justifyContent: 'center',
@@ -336,11 +428,63 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
 
+  // Permission Overlay
+  permissionOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(5, 5, 8, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    borderRadius: 36,
+  },
+  permissionBadge: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(168, 85, 247, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  permissionTitle: {
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  permissionSub: {
+    color: '#94A3B8',
+    fontSize: 12.5,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 10,
+  },
+  permissionBtn: {
+    backgroundColor: '#9333EA',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  permissionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+
   // Cụm nút bên phải kính ngắm
   rightFloatingControls: {
     position: 'absolute',
     right: 14,
-    top: '32%',
+    top: '30%',
     gap: 12,
     alignItems: 'center',
   },
@@ -353,6 +497,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  rightCirclePillActive: {
+    backgroundColor: 'rgba(147, 51, 234, 0.7)',
+    borderColor: '#C084FC',
   },
   zoomText: {
     color: '#FFFFFF',
@@ -370,11 +518,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#C026D3',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#C026D3',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 6,
+    ...Platform.select({
+      web: {
+        boxShadow: '0px 4px 8px rgba(192, 38, 211, 0.5)',
+      } as any,
+      default: {
+        shadowColor: '#C026D3',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.5,
+        shadowRadius: 8,
+        elevation: 6,
+      },
+    }),
   },
 
   // 3. SHUTTER ROW

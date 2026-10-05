@@ -126,19 +126,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
     try {
       const dailyRes = await getTransactionsByDateApi();
-      if (dailyRes && dailyRes.items && dailyRes.items.length > 0) {
-        const formatted: ExpenseCardItem[] = dailyRes.items.map((it: any) => ({
-          id: it._id || it.id,
-          title: it.title,
-          amount: `-${Math.abs(it.amount).toLocaleString('vi-VN')} đ`,
-          rawAmount: Math.abs(it.amount),
-          time: it.date ? new Date(it.date).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'Hôm nay',
-          category: it.category || 'Ăn uống',
-          image: it.photoUri || 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&auto=format&fit=crop&q=80',
-        }));
-        setTodayExpenses(formatted);
-        const total = formatted.reduce((acc, curr) => acc + curr.rawAmount, 0);
-        setTodayTotal(total);
+      if (dailyRes && Array.isArray(dailyRes.items)) {
+        if (dailyRes.items.length > 0) {
+          const formatted: ExpenseCardItem[] = dailyRes.items.map((it: any) => ({
+            id: it._id || it.id,
+            title: it.title,
+            amount: `${it.type === 'income' || it.amount > 0 ? '+' : '-'}${Math.abs(it.amount).toLocaleString('vi-VN')} đ`,
+            rawAmount: Math.abs(it.amount),
+            time: it.date ? new Date(it.date).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'Hôm nay',
+            category: it.category || 'Ăn uống',
+            image: it.photoUri || 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&auto=format&fit=crop&q=80',
+          }));
+          setTodayExpenses(formatted);
+          const total = formatted.reduce((acc, curr) => acc + curr.rawAmount, 0);
+          setTodayTotal(total);
+        } else {
+          setTodayExpenses([]);
+          setTodayTotal(0);
+        }
       }
     } catch (e) {}
   }, []);

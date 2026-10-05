@@ -89,11 +89,29 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   // Xử lý khi người dùng gõ số tiền bằng bàn phím máy
   const handleAmountChange = (text: string) => {
     const rawNumber = text.replace(/[^0-9]/g, '');
+    if (rawNumber.length > 11) return; // Chống tràn số (tối đa 99 tỷ)
     if (!rawNumber) {
       setAmountStr('0');
     } else {
       setAmountStr(String(parseInt(rawNumber, 10)));
     }
+  };
+
+  const getAmountWordHelper = (num: number): string => {
+    if (num <= 0) return '';
+    if (num >= 1000000000) {
+      const b = (num / 1000000000).toFixed(1).replace('.0', '');
+      return `~ ${b} tỷ VNĐ`;
+    }
+    if (num >= 1000000) {
+      const m = (num / 1000000).toFixed(1).replace('.0', '');
+      return `~ ${m} triệu VNĐ`;
+    }
+    if (num >= 1000) {
+      const k = (num / 1000).toFixed(0);
+      return `~ ${k} nghìn VNĐ`;
+    }
+    return `${num.toLocaleString('vi-VN')} VNĐ`;
   };
 
   const handleClearAmount = () => {
@@ -295,8 +313,8 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                   style={styles.amountInput}
                   value={amountStr === '0' || !amountStr ? '' : Number(amountStr).toLocaleString('vi-VN')}
                   placeholder="0"
-                  placeholderTextColor="#FFFFFF"
-                  keyboardType="numeric"
+                  placeholderTextColor="#64748B"
+                  keyboardType="number-pad"
                   onChangeText={handleAmountChange}
                   cursorColor="#FF3366"
                   selectionColor="rgba(255, 51, 102, 0.4)"
@@ -316,6 +334,16 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                 </TouchableOpacity>
               )}
             </View>
+
+            {/* Dòng đọc số tiền bằng chữ trợ giúp tránh gõ nhầm số 0 */}
+            {amountStr !== '0' && amountStr !== '' && (
+              <View style={styles.amountHelperRow}>
+                <Ionicons name="sparkles" size={12} color="#10B981" style={{ marginRight: 4 }} />
+                <Text style={styles.amountHelperText}>
+                  {getAmountWordHelper(parseInt(amountStr, 10))}
+                </Text>
+              </View>
+            )}
 
             {/* Nhập mô tả */}
             <TextInput
@@ -630,6 +658,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 12,
+  },
+  amountHelperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  amountHelperText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#34D399',
   },
   descriptionInput: {
     fontSize: 15,
