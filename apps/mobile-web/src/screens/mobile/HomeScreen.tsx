@@ -214,32 +214,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </View>
         </TouchableOpacity>
 
-        {/* 4. Daily Expense Card (Tone xanh Lục bảo Monett) */}
-        <TouchableOpacity
-          style={styles.dailyCard}
-          activeOpacity={0.9}
-          onPress={onNavigateToAnalytics}
-        >
-          <View style={styles.dailyCardInfo}>
-            <View style={styles.dateTag}>
-              <Ionicons name="calendar-outline" size={13} color="#A7F3D0" style={{ marginRight: 4 }} />
-              <Text style={styles.dateTagText}>Hôm nay, 15/09</Text>
-            </View>
-            <Text style={styles.dailyLabel}>Bạn đã chi</Text>
-            <Text style={styles.dailyAmount}>185.000 đ</Text>
-            <View style={styles.trendBadge}>
-              <Text style={styles.trendText}>↓ 12% so với hôm qua</Text>
-            </View>
-          </View>
-
-          <View style={styles.dailyImageWrapper}>
-            <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&auto=format&fit=crop&q=80' }}
-              style={styles.dailyImage}
-            />
-          </View>
-        </TouchableOpacity>
-
         {/* 4. Tổng quan tuần (Weekly Overview 7 ngày) */}
         <WeeklyCalendarWidget
           selectedDay={24}
@@ -384,69 +358,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#111827',
     marginTop: 2,
-  },
-  dailyCard: {
-    backgroundColor: '#0D3B37',
-    borderRadius: 20,
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: '#047857',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 4,
-    marginBottom: 20,
-  },
-  dailyCardInfo: {
-    flex: 1,
-  },
-  dateTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  dateTagText: {
-    fontSize: 12,
-    color: '#A7F3D0',
-    fontWeight: '500',
-  },
-  dailyLabel: {
-    fontSize: 13,
-    color: '#D1D5DB',
-  },
-  dailyAmount: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 2,
-    letterSpacing: -0.5,
-  },
-  trendBadge: {
-    backgroundColor: '#15564F',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    marginTop: 6,
-  },
-  trendText: {
-    fontSize: 11,
-    color: '#6EE7B7',
-    fontWeight: '600',
-  },
-  dailyImageWrapper: {
-    width: 80,
-    height: 80,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  dailyImage: {
-    width: '100%',
-    height: '100%',
   },
   sectionHeader: {
     flexDirection: 'row',
