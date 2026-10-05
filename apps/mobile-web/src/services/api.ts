@@ -578,6 +578,11 @@ export const updateTransactionApi = async (id: string, data: any) => {
   return res;
 };
 
+export const getTransactionDetailApi = async (id: string) => {
+  const res = await request<any>(`/api/transactions/${id}`);
+  return (res as any).data || res;
+};
+
 export const deleteTransactionApi = async (id: string) => {
   const res = await request<any>(`/api/transactions/${id}`, {
     method: 'DELETE',

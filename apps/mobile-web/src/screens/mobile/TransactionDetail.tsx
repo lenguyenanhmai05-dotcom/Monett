@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,12 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { getTransactionDetailApi, deleteTransactionApi } from '../../services/api';
 
 interface TransactionDetailProps {
   transactionId?: string;
@@ -23,8 +26,8 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
   onEdit,
   onDelete,
 }) => {
-  // Dữ liệu chi tiết mẫu
-  const detail = {
+  const [loading, setLoading] = useState(false);
+  const [detail, setDetail] = useState({
     title: 'Bún bò Huế Cô Lan',
     amount: '-85.000 đ',
     time: '12:30',
@@ -38,6 +41,66 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
     xpReward: '+15 XP',
     imageUrl:
       'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=800&auto=format&fit=crop&q=80',
+  });
+
+  useEffect(() => {
+    if (!transactionId || transactionId.startsWith('tx_')) return;
+    let isMounted = true;
+    setLoading(true);
+    getTransactionDetailApi(transactionId)
+      .then((tx) => {
+        if (isMounted && tx) {
+          const isExpense = tx.type === 'expense' || (tx.amount && tx.amount < 0);
+          const sign = isExpense ? '-' : '+';
+          const d = tx.date ? new Date(tx.date) : new Date();
+          setDetail({
+            title: tx.title || 'Khoản chi tiêu',
+            amount: `${sign}${Math.abs(tx.amount || 0).toLocaleString('vi-VN')} đ`,
+            time: d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+            date: d.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }),
+            category: tx.category || 'Ăn uống',
+            categoryIcon: tx.categoryIcon || '🍜',
+            wallet: tx.walletName || 'Tiền mặt',
+            walletIcon: tx.walletIcon || '💵',
+            note: tx.note || 'Khoảnh khắc chi tiêu đã được ghi nhận',
+            location: tx.location || 'Hà Nội, Việt Nam',
+            xpReward: '+15 XP',
+            imageUrl: tx.photoUri || 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=800&auto=format&fit=crop&q=80',
+          });
+        }
+      })
+      .catch((e) => console.log('Fetch tx detail error:', e))
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [transactionId]);
+
+  const handleDelete = () => {
+    Alert.alert(
+      'Xác nhận xóa',
+      'Bạn có chắc chắn muốn xóa giao dịch này không?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: async () => {
+            if (transactionId && !transactionId.startsWith('tx_')) {
+              try {
+                await deleteTransactionApi(transactionId);
+              } catch (e) {
+                console.log('Error deleting transaction:', e);
+              }
+            }
+            if (onDelete) onDelete();
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -124,7 +187,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
         </View>
 
         {/* 5. Nút xóa giao dịch */}
-        <TouchableOpacity style={styles.deleteBtn} onPress={onDelete} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.8}>
           <Ionicons name="trash-outline" size={16} color="#DC2626" style={{ marginRight: 6 }} />
           <Text style={styles.deleteBtnText}>Xóa giao dịch này</Text>
         </TouchableOpacity>

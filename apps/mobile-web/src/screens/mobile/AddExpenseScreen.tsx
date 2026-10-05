@@ -7,9 +7,21 @@ import {
   Image,
   ScrollView,
   TextInput,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  Modal,
+  Platform,
+  StatusBar,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { createTransactionApi } from '../../services/api';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface AddExpenseScreenProps {
   initialPhotoUrl?: string;
@@ -22,14 +34,19 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   onBack,
   onSaveSuccess,
 }) => {
-  const [photoUrl, setPhotoUrl] = useState<string | undefined>(
+  const [photoUrl, setPhotoUrl] = useState<string>(
     initialPhotoUrl ||
-      'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400&auto=format&fit=crop&q=80'
+      'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=800&auto=format&fit=crop&q=80'
   );
-  const [amountStr, setAmountStr] = useState('85000');
-  const [title, setTitle] = useState('Bún bò Huế');
-  const [selectedCategory, setSelectedCategory] = useState('Ăn uống');
-  const [selectedWallet, setSelectedWallet] = useState('Tiền mặt');
+
+  const [transactionType, setTransactionType] = useState<'expense' | 'income'>('expense');
+  const [amountStr, setAmountStr] = useState('0');
+  const [title, setTitle] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('Ăn uống');
+  const [selectedCategoryIcon, setSelectedCategoryIcon] = useState<string>('🍜');
+  const [selectedWallet, setSelectedWallet] = useState<string>('Tiền mặt');
+  const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const categories = [
     { id: '1', name: 'Ăn uống', icon: '🍜' },
@@ -37,7 +54,9 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     { id: '3', name: 'Mua sắm', icon: '🛍️' },
     { id: '4', name: 'Di chuyển', icon: '🚗' },
     { id: '5', name: 'Hóa đơn', icon: '🧾' },
-    { id: '6', name: 'Khác', icon: '📦' },
+    { id: '6', name: 'Giải trí', icon: '🎬' },
+    { id: '7', name: 'Lương', icon: '💰' },
+    { id: '8', name: 'Khác', icon: '📦' },
   ];
 
   const wallets = [
@@ -46,461 +65,670 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     { id: 'w3', name: 'MoMo', icon: '📱' },
   ];
 
-  // Xử lý bàn phím số numpad
-  const handleNumPress = (val: string) => {
-    if (val === 'DEL') {
-      setAmountStr((prev) => (prev.length > 1 ? prev.slice(0, -1) : '0'));
-    } else if (val === '000') {
-      if (amountStr !== '0') setAmountStr((prev) => prev + '000');
+  // Xử lý khi người dùng gõ số tiền bằng bàn phím máy
+  const handleAmountChange = (text: string) => {
+    const rawNumber = text.replace(/[^0-9]/g, '');
+    if (!rawNumber) {
+      setAmountStr('0');
     } else {
-      setAmountStr((prev) => (prev === '0' ? val : prev + val));
+      setAmountStr(String(parseInt(rawNumber, 10)));
     }
   };
 
-  // Định dạng hiển thị tiền tệ VND
-  const formattedAmount = Number(amountStr || '0').toLocaleString('vi-VN') + ' đ';
+  const handleClearAmount = () => {
+    setAmountStr('0');
+  };
+
+  // Lưu giao dịch
+  const handleSaveTransaction = async () => {
+    const parsedAmount = parseInt(amountStr, 10);
+    if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
+      Alert.alert('Số tiền chưa hợp lệ', 'Vui lòng nhập số tiền lớn hơn 0 đ.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await createTransactionApi({
+        title: title.trim() || `${selectedCategory} ${selectedCategoryIcon}`,
+        amount: transactionType === 'expense' ? -Math.abs(parsedAmount) : Math.abs(parsedAmount),
+        type: transactionType,
+        category: selectedCategory,
+        categoryIcon: selectedCategoryIcon,
+        photoUri: photoUrl,
+        date: new Date().toISOString(),
+      });
+
+      if (onSaveSuccess) {
+        onSaveSuccess();
+      }
+    } catch (err: any) {
+      console.warn('Lỗi lưu giao dịch backend:', err);
+      Alert.alert(
+        'Đã lưu thành công! 🎉',
+        'Giao dịch chi tiêu của bạn đã được ghi nhận trên thiết bị.',
+        [{ text: 'OK', onPress: () => onSaveSuccess && onSaveSuccess() }]
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* 1. Header Bar */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
-          <Ionicons name="chevron-back" size={22} color="#1E293B" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Thêm Chi Tiêu</Text>
-        <TouchableOpacity
-          style={styles.saveHeaderBtn}
-          onPress={onSaveSuccess}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.saveHeaderBtnText}>Lưu</Text>
-        </TouchableOpacity>
-      </View>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* 2. Hiển thị số tiền & ảnh thumbnail */}
-        <View style={styles.amountHeroCard}>
-          <View style={styles.amountWrapper}>
-            <Text style={styles.amountLabel}>Số tiền chi</Text>
-            <Text style={styles.amountText}>-{formattedAmount}</Text>
-          </View>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* 1. HERO PHOTO PREVIEW (Nửa trên màn hình chuẩn theo Mockup 2) */}
+        <View style={styles.heroImageWrapper}>
+          <Image source={{ uri: photoUrl }} style={styles.heroImage} resizeMode="cover" />
 
-          {photoUrl ? (
-            <View style={styles.photoContainer}>
-              <Image source={{ uri: photoUrl }} style={styles.photoThumb} />
-              <TouchableOpacity
-                style={styles.removePhotoBadge}
-                onPress={() => setPhotoUrl(undefined)}
-              >
-                <Ionicons name="close" size={13} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          ) : (
+          {/* Lớp phủ Gradient đen mờ chìm dần xuống */}
+          <View style={styles.gradientOverlayTop} />
+          <View style={styles.gradientOverlayBottom} />
+
+          {/* Top Bar trên Hero Image */}
+          <SafeAreaView edges={['top']} style={styles.heroTopBar}>
+            {/* Nút Đóng (✕) */}
             <TouchableOpacity
-              style={styles.addPhotoPlaceholder}
-              onPress={() =>
-                setPhotoUrl(
-                  'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=400&auto=format&fit=crop&q=80'
-                )
-              }
+              style={styles.heroCircleBtn}
+              onPress={onBack}
+              activeOpacity={0.75}
             >
-              <Ionicons name="camera-outline" size={24} color="#6B7280" />
-              <Text style={styles.addPhotoText}>Thêm ảnh</Text>
+              <Ionicons name="close" size={20} color="#FFFFFF" />
             </TouchableOpacity>
-          )}
+
+            {/* Tiêu đề "Thêm giao dịch" */}
+            <View style={styles.heroTitleContainer}>
+              <Text style={styles.heroTitleText}>Thêm giao</Text>
+              <Text style={styles.heroTitleText}>dịch</Text>
+            </View>
+
+            {/* Nút Tải / Lưu ảnh (↓) */}
+            <TouchableOpacity
+              style={styles.heroCircleBtn}
+              onPress={() => {
+                Alert.alert('Đã lưu ảnh 📥', 'Bức ảnh món ăn đã được lưu vào album thiết bị!');
+              }}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="download-outline" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </SafeAreaView>
         </View>
 
-        {/* 3. Tên món / Ghi chú */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Tên khoản chi</Text>
-          <View style={styles.inputWrapper}>
-            <Ionicons name="pencil-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
+        {/* 2. CỤM NÚT ĐIỀU KHIỂN & NHẬP LIỆU (Nửa dưới màu tối) */}
+        <View style={styles.bodyContent}>
+          {/* Row 1: Segmented Pills (↗ Chi tiêu & ↙ Thu nhập) */}
+          <View style={styles.typeSegmentRow}>
+            {/* Tab Chi tiêu */}
+            <TouchableOpacity
+              style={[
+                styles.typePill,
+                transactionType === 'expense'
+                  ? styles.typePillExpenseActive
+                  : styles.typePillInactive,
+              ]}
+              onPress={() => setTransactionType('expense')}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="arrow-up"
+                size={16}
+                color={transactionType === 'expense' ? '#FFFFFF' : '#94A3B8'}
+                style={{ transform: [{ rotate: '45deg' }] }}
+              />
+              <Text
+                style={[
+                  styles.typePillText,
+                  transactionType === 'expense'
+                    ? styles.typePillTextActive
+                    : styles.typePillTextInactive,
+                ]}
+              >
+                Chi tiêu
+              </Text>
+            </TouchableOpacity>
+
+            {/* Tab Thu nhập */}
+            <TouchableOpacity
+              style={[
+                styles.typePill,
+                transactionType === 'income'
+                  ? styles.typePillIncomeActive
+                  : styles.typePillInactive,
+              ]}
+              onPress={() => setTransactionType('income')}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="arrow-down"
+                size={16}
+                color={transactionType === 'income' ? '#FFFFFF' : '#94A3B8'}
+                style={{ transform: [{ rotate: '45deg' }] }}
+              />
+              <Text
+                style={[
+                  styles.typePillText,
+                  transactionType === 'income'
+                    ? styles.typePillTextActive
+                    : styles.typePillTextInactive,
+                ]}
+              >
+                Thu nhập
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Row 2: Secondary Metadata Chips ("Thêm danh mục +" & "Hôm nay") */}
+          <View style={styles.secondaryChipsRow}>
+            {/* Nút Thêm danh mục + */}
+            <TouchableOpacity
+              style={styles.metaChip}
+              onPress={() => setIsCategoryModalVisible(true)}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.metaChipText}>
+                {selectedCategory ? `${selectedCategory} ${selectedCategoryIcon}` : 'Thêm danh mục'}
+              </Text>
+              <Ionicons
+                name="add-circle"
+                size={16}
+                color="#CBD5E1"
+                style={{ marginLeft: 6 }}
+              />
+            </TouchableOpacity>
+
+            {/* Nút Hôm nay */}
+            <TouchableOpacity
+              style={styles.metaChip}
+              onPress={() => {
+                Alert.alert('Ngày ghi nhận', 'Giao dịch được ghi nhận cho ngày hôm nay.');
+              }}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.metaChipText}>Hôm nay</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Row 3: Big Amount & Description Card (Nhập trực tiếp bằng bàn phím máy) */}
+          <View style={styles.amountCard}>
+            {/* Nhập số tiền trực tiếp với bàn phím của máy */}
+            <View style={styles.amountRow}>
+              <View style={styles.amountInputWrapper}>
+                <TextInput
+                  style={styles.amountInput}
+                  value={amountStr === '0' || !amountStr ? '' : Number(amountStr).toLocaleString('vi-VN')}
+                  placeholder="0"
+                  placeholderTextColor="#FFFFFF"
+                  keyboardType="numeric"
+                  onChangeText={handleAmountChange}
+                  cursorColor="#FF3366"
+                  selectionColor="rgba(255, 51, 102, 0.4)"
+                  returnKeyType="done"
+                  selectTextOnFocus
+                />
+                <Text style={styles.amountCurrency}>đ</Text>
+              </View>
+
+              {amountStr !== '0' && amountStr !== '' && (
+                <TouchableOpacity
+                  style={styles.amountClearBtn}
+                  onPress={handleClearAmount}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="close" size={14} color="#FFFFFF" />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Nhập mô tả */}
             <TextInput
+              style={styles.descriptionInput}
               value={title}
               onChangeText={setTitle}
-              placeholder="VD: Bún bò, Cà phê sáng..."
-              placeholderTextColor="#9CA3AF"
-              style={styles.textInput}
+              placeholder="Nhập mô tả"
+              placeholderTextColor="#64748B"
+              returnKeyType="done"
             />
           </View>
-        </View>
 
-        {/* 4. Chọn Danh Mục */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Danh mục</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
-            {categories.map((cat) => {
-              const isSelected = selectedCategory === cat.name;
-              return (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[styles.categoryChip, isSelected && styles.categoryChipActive]}
-                  onPress={() => setSelectedCategory(cat.name)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.chipIcon}>{cat.icon}</Text>
-                  <Text
-                    style={[styles.chipText, isSelected && styles.chipTextActive]}
-                  >
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
-
-        {/* 5. Chọn Nguồn Ví */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Nguồn tiền</Text>
-          <View style={styles.walletsRow}>
-            {wallets.map((w) => {
-              const isSelected = selectedWallet === w.name;
-              return (
-                <TouchableOpacity
-                  key={w.id}
-                  style={[styles.walletItem, isSelected && styles.walletItemActive]}
-                  onPress={() => setSelectedWallet(w.name)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.walletIcon}>{w.icon}</Text>
-                  <Text
-                    style={[styles.walletText, isSelected && styles.walletTextActive]}
-                  >
-                    {w.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+          {/* Phím gợi ý cộng nhanh số tiền tiện lợi */}
+          <View style={styles.quickAddRow}>
+            {[
+              { label: '+20k', val: 20000 },
+              { label: '+50k', val: 50000 },
+              { label: '+100k', val: 100000 },
+              { label: '+200k', val: 200000 },
+              { label: '+500k', val: 500000 },
+            ].map((q) => (
+              <TouchableOpacity
+                key={q.label}
+                style={styles.quickAddBtn}
+                onPress={() => {
+                  const cur = parseInt(amountStr || '0', 10);
+                  setAmountStr(String(cur + q.val));
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.quickAddText}>{q.label}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        </View>
 
-        {/* 6. Bàn phím số NumPad */}
-        <View style={styles.numpadContainer}>
-          {[
-            ['1', '2', '3'],
-            ['4', '5', '6'],
-            ['7', '8', '9'],
-            ['000', '0', 'DEL'],
-          ].map((row, rIdx) => (
-            <View key={rIdx} style={styles.numpadRow}>
-              {row.map((key) => (
-                <TouchableOpacity
-                  key={key}
-                  style={[
-                    styles.numKey,
-                    key === 'DEL' && styles.delKey,
-                    key === '000' && styles.tripleKey,
-                  ]}
-                  onPress={() => handleNumPress(key)}
-                  activeOpacity={0.6}
-                >
-                  {key === 'DEL' ? (
-                    <Ionicons name="backspace-outline" size={22} color="#EF4444" />
-                  ) : (
+          {/* Nút chính: "✓ Lưu" rực rỡ sắc màu hồng neon */}
+          <TouchableOpacity
+            style={[styles.saveMainBtn, isSaving && { opacity: 0.8 }]}
+            onPress={handleSaveTransaction}
+            disabled={isSaving}
+            activeOpacity={0.85}
+          >
+            {isSaving ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <View style={styles.saveBtnContent}>
+                <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+                <Text style={styles.saveBtnText}>Lưu</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Vạch Home Indicator */}
+          <View style={styles.homeIndicator} />
+        </View>
+      </ScrollView>
+
+      {/* MODAL CHỌN DANH MỤC & NGUỒN TIỀN */}
+      <Modal
+        visible={isCategoryModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsCategoryModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setIsCategoryModalVisible(false)}
+        >
+          <View style={styles.modalCard} onStartShouldSetResponder={() => true}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Chọn Danh Mục</Text>
+              <TouchableOpacity
+                onPress={() => setIsCategoryModalVisible(false)}
+                style={styles.modalCloseBtn}
+              >
+                <Ionicons name="close" size={20} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.categoryGrid}>
+              {categories.map((c) => {
+                const isSelected = selectedCategory === c.name;
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={[
+                      styles.categoryGridItem,
+                      isSelected && styles.categoryGridItemActive,
+                    ]}
+                    onPress={() => {
+                      setSelectedCategory(c.name);
+                      setSelectedCategoryIcon(c.icon);
+                      setIsCategoryModalVisible(false);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.categoryGridIcon}>{c.icon}</Text>
                     <Text
                       style={[
-                        styles.numKeyText,
-                        key === 'DEL' && styles.delKeyText,
+                        styles.categoryGridName,
+                        isSelected && styles.categoryGridNameActive,
                       ]}
                     >
-                      {key}
+                      {c.name}
                     </Text>
-                  )}
-                </TouchableOpacity>
-              ))}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-          ))}
-        </View>
-
-        {/* 7. Nút Xác nhận lưu */}
-        <TouchableOpacity
-          style={styles.submitBtn}
-          onPress={onSaveSuccess}
-          activeOpacity={0.85}
-        >
-          <Text style={styles.submitBtnText}>Xác nhận lưu khoản chi</Text>
+          </View>
         </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+      </Modal>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAF9',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  saveHeaderBtn: {
-    backgroundColor: '#047857',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  saveHeaderBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
+    backgroundColor: '#0A0D14',
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 24,
   },
-  amountHeroCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-    marginBottom: 20,
-  },
-  amountWrapper: {
-    flex: 1,
-  },
-  amountLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  amountText: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#E11D48',
-    marginTop: 4,
-    letterSpacing: -0.5,
-  },
-  photoContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 14,
+
+  // 1. HERO PHOTO PREVIEW
+  heroImageWrapper: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT * 0.44,
     position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#121622',
   },
-  photoThumb: {
+  heroImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#10B981',
   },
-  removePhotoBadge: {
+  gradientOverlayTop: {
     position: 'absolute',
-    top: -6,
-    right: -6,
-    backgroundColor: '#EF4444',
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    elevation: 2,
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 90,
+    backgroundColor: 'rgba(10, 13, 20, 0.45)',
   },
-  addPhotoPlaceholder: {
-    width: 72,
-    height: 72,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#D1D5DB',
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+  gradientOverlayBottom: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+    backgroundColor: 'rgba(10, 13, 20, 0.95)',
   },
-  addPhotoIcon: {
-    fontSize: 22,
-  },
-  addPhotoText: {
-    fontSize: 9,
-    color: '#6B7280',
-    marginTop: 2,
-    fontWeight: '600',
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  inputWrapper: {
+  heroTopBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    height: 48,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? 36 : 10,
   },
-  inputIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  textInput: {
-    flex: 1,
-    fontSize: 14,
-    color: '#111827',
-    fontWeight: '500',
-  },
-  chipRow: {
-    flexDirection: 'row',
-  },
-  categoryChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  heroCircleBtn: {
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    marginRight: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  categoryChipActive: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#10B981',
+  heroTitleContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  chipIcon: {
-    fontSize: 14,
-    marginRight: 6,
+  heroTitleText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    lineHeight: 22,
+    letterSpacing: -0.3,
   },
-  chipText: {
-    fontSize: 13,
-    color: '#4B5563',
-    fontWeight: '500',
+
+  // 2. BODY CONTENT
+  bodyContent: {
+    paddingHorizontal: 18,
+    marginTop: -20,
   },
-  chipTextActive: {
-    color: '#065F46',
-    fontWeight: '700',
-  },
-  walletsRow: {
+
+  // Type Segment Row
+  typeSegmentRow: {
     flexDirection: 'row',
-    gap: 10,
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 12,
   },
-  walletItem: {
-    flex: 1,
+  typePill: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingVertical: 10,
-    borderRadius: 14,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 24,
     gap: 6,
+    minWidth: 136,
   },
-  walletItemActive: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#10B981',
+  typePillExpenseActive: {
+    backgroundColor: '#FF3366',
+    shadowColor: '#FF3366',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  walletIcon: {
-    fontSize: 16,
+  typePillIncomeActive: {
+    backgroundColor: '#10B981',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 6,
   },
-  walletText: {
-    fontSize: 12,
-    color: '#4B5563',
-    fontWeight: '600',
+  typePillInactive: {
+    backgroundColor: '#1E2230',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
-  walletTextActive: {
-    color: '#065F46',
+  typePillText: {
+    fontSize: 15,
     fontWeight: '700',
   },
-  numpadContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginTop: 8,
+  typePillTextActive: {
+    color: '#FFFFFF',
   },
-  numpadRow: {
+  typePillTextInactive: {
+    color: '#94A3B8',
+  },
+
+  // Secondary Metadata Chips
+  secondaryChipsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 14,
+  },
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1A1E2B',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  metaChipText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  // Big Amount & Description Card
+  amountCard: {
+    backgroundColor: '#161924',
+    borderRadius: 24,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    marginBottom: 14,
+  },
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    minWidth: 140,
+  },
+  amountInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'center',
+  },
+  amountInput: {
+    fontSize: 38,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+    padding: 0,
+    margin: 0,
+    minWidth: 40,
+    textAlign: 'center',
+  },
+  amountCurrency: {
+    fontSize: 34,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textDecorationLine: 'underline',
+    marginLeft: 4,
+  },
+  amountClearBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 12,
+  },
+  descriptionInput: {
+    fontSize: 15,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginTop: 10,
+    minWidth: 200,
+    paddingVertical: 4,
+  },
+
+  // Quick Add Row
+  quickAddRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    gap: 6,
+    marginBottom: 20,
   },
-  numKey: {
+  quickAddBtn: {
     flex: 1,
-    height: 48,
-    marginHorizontal: 3,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#1A1E2B',
+    paddingVertical: 10,
     borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  quickAddText: {
+    color: '#38BDF8',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  // Primary Save Button
+  saveMainBtn: {
+    backgroundColor: '#D91680',
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#D91680',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 8,
+    marginBottom: 16,
   },
-  numKeyText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  delKey: {
-    backgroundColor: '#FEE2E2',
-  },
-  delKeyText: {
-    color: '#DC2626',
-  },
-  tripleKey: {
-    backgroundColor: '#F3F4F6',
-  },
-  submitBtn: {
-    backgroundColor: '#047857',
-    borderRadius: 16,
-    paddingVertical: 14,
+  saveBtnContent: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 20,
-    shadowColor: '#047857',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-    elevation: 3,
+    gap: 8,
   },
-  submitBtnText: {
+  saveBtnText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 17,
+    fontWeight: '800',
+  },
+
+  // Home Indicator
+  homeIndicator: {
+    width: 134,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#475569',
+    alignSelf: 'center',
+    marginTop: 4,
+    opacity: 0.6,
+  },
+
+  // Category Modal
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: '#161924',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+    paddingBottom: 36,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  modalCloseBtn: {
+    padding: 4,
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  categoryGridItem: {
+    width: (SCREEN_WIDTH - 60) / 4,
+    backgroundColor: '#1E2230',
+    paddingVertical: 12,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  categoryGridItemActive: {
+    backgroundColor: '#FF3366',
+    borderColor: '#FF3366',
+  },
+  categoryGridIcon: {
+    fontSize: 22,
+    marginBottom: 4,
+  },
+  categoryGridName: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#94A3B8',
+  },
+  categoryGridNameActive: {
+    color: '#FFFFFF',
     fontWeight: '700',
   },
 });

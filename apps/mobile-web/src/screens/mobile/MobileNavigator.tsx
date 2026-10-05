@@ -30,6 +30,11 @@ export const MobileNavigator: React.FC = () => {
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [capturedPhoto, setCapturedPhoto] = useState<string | undefined>();
   const [selectedTxId, setSelectedTxId] = useState<string | undefined>();
+  const [refreshKey, setRefreshKey] = useState<number>(0);
+
+  const triggerRefresh = () => {
+    setRefreshKey((prev) => prev + 1);
+  };
 
   const handlePhotoCaptured = (photoUrl: string) => {
     setCapturedPhoto(photoUrl);
@@ -41,6 +46,7 @@ export const MobileNavigator: React.FC = () => {
       case 'home':
         return (
           <HomeScreen
+            refreshTrigger={refreshKey}
             onNavigateToCamera={() => setActiveModal('camera')}
             onNavigateToAddExpense={() => setActiveModal('add_expense')}
             onNavigateToQuickSave={() => setActiveModal('quick_save')}
@@ -55,6 +61,7 @@ export const MobileNavigator: React.FC = () => {
       case 'calendar':
         return (
           <CalendarScreen
+            refreshTrigger={refreshKey}
             onNavigateToCamera={() => setActiveModal('camera')}
             onNavigateToDetail={(id) => {
               setSelectedTxId(id);
@@ -63,7 +70,7 @@ export const MobileNavigator: React.FC = () => {
           />
         );
       case 'analytics':
-        return <AnalyticsScreen />;
+        return <AnalyticsScreen refreshTrigger={refreshKey} />;
       case 'feed':
         return <FriendsFeedScreen />;
       case 'categories':
@@ -71,7 +78,7 @@ export const MobileNavigator: React.FC = () => {
       case 'profile':
         return <ProfileScreen />;
       default:
-        return <HomeScreen />;
+        return <HomeScreen refreshTrigger={refreshKey} />;
     }
   };
 
@@ -179,6 +186,22 @@ export const MobileNavigator: React.FC = () => {
           <CameraScreen
             onClose={() => setActiveModal('none')}
             onPhotoCaptured={handlePhotoCaptured}
+            onNavigateToCalendar={() => {
+              setActiveModal('none');
+              setCurrentTab('calendar');
+            }}
+            onNavigateToHome={() => {
+              setActiveModal('none');
+              setCurrentTab('home');
+            }}
+            onNavigateToWallets={() => {
+              setActiveModal('none');
+              setCurrentTab('profile');
+            }}
+            onNavigateToAnalytics={() => {
+              setActiveModal('none');
+              setCurrentTab('analytics');
+            }}
           />
         </View>
       )}
@@ -192,6 +215,7 @@ export const MobileNavigator: React.FC = () => {
             onSaveSuccess={() => {
               setActiveModal('none');
               setCapturedPhoto(undefined);
+              triggerRefresh();
             }}
           />
         </View>
@@ -204,7 +228,10 @@ export const MobileNavigator: React.FC = () => {
             transactionId={selectedTxId}
             onBack={() => setActiveModal('none')}
             onEdit={() => setActiveModal('add_expense')}
-            onDelete={() => setActiveModal('none')}
+            onDelete={() => {
+              setActiveModal('none');
+              triggerRefresh();
+            }}
           />
         </View>
       )}
@@ -221,6 +248,7 @@ export const MobileNavigator: React.FC = () => {
               category,
               type: 'expense',
             });
+            triggerRefresh();
           } catch (e) {
             console.log('Saved quick expense (offline/local fallback):', amount, category);
           }
