@@ -44,6 +44,11 @@ export class TransactionsController {
     return this.transactionsService.getMonthStats(this.getUserId(req), m, y);
   }
 
+  @Get('by-date')
+  async findByDate(@Req() req, @Query('date') date?: string) {
+    return this.transactionsService.findByDate(this.getUserId(req), date);
+  }
+
   @Get(':id')
   async findOne(@Req() req, @Param('id') id: string) {
     return this.transactionsService.findOne(this.getUserId(req), id);

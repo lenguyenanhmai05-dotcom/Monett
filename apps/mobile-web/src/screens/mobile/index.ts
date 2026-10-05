@@ -7,4 +7,5 @@ export * from './AnalyticsScreen';
 export * from './WalletsScreen';
 export * from './CategoriesScreen';
 export * from './ProfileScreen';
+export * from './CalendarScreen';
 export * from './MobileNavigator';

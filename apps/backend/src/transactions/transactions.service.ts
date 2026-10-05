@@ -84,6 +84,62 @@ export class TransactionsService {
     };
   }
 
+  async findByDate(userId: string, dateStr?: string) {
+    let start: Date;
+    let end: Date;
+
+    if (!dateStr) {
+      const now = new Date();
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    } else {
+      const d = new Date(dateStr);
+      start = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+      end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+    }
+
+    const items = await this.transactionModel
+      .find({
+        user: new Types.ObjectId(userId),
+        date: { $gte: start, $lte: end },
+      })
+      .sort({ date: -1, createdAt: -1 })
+      .exec();
+
+    const photos = items
+      .filter((t) => t.photoUri && t.photoUri.trim().length > 0)
+      .map((t) => ({
+        id: (t as any)._id?.toString() || (t as any).id,
+        photoUri: t.photoUri,
+        title: t.title,
+        amount: t.amount,
+        type: t.type,
+        category: t.category,
+        date: t.date,
+      }));
+
+    let totalExpense = 0;
+    let totalIncome = 0;
+    for (const t of items) {
+      const val = Math.abs(t.amount);
+      if (t.type === 'expense' || t.amount < 0) {
+        totalExpense += val;
+      } else {
+        totalIncome += val;
+      }
+    }
+
+    return {
+      date: dateStr || new Date().toISOString().split('T')[0],
+      totalItems: items.length,
+      totalExpense,
+      totalIncome,
+      net: totalIncome - totalExpense,
+      items,
+      photos,
+    };
+  }
+
   async findOne(userId: string, id: string): Promise<Transaction> {
     const tx = await this.transactionModel.findOne({
       _id: new Types.ObjectId(id),
