@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { getBudgetApi, BudgetData } from '../../services/api';
+import { WeeklyCalendarWidget } from '../../components/WeeklyCalendarWidget';
 
 interface HomeScreenProps {
   onNavigateToCamera?: () => void;
@@ -18,6 +19,7 @@ interface HomeScreenProps {
   onNavigateToQuickSave?: () => void;
   onNavigateToDetail?: (transactionId: string) => void;
   onNavigateToAnalytics?: () => void;
+  onNavigateToCalendar?: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -26,6 +28,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToQuickSave,
   onNavigateToDetail,
   onNavigateToAnalytics,
+  onNavigateToCalendar,
 }) => {
   const { user: authUser } = useAuth();
   const avatarUri = authUser?.avatarUrl;
@@ -238,35 +241,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </TouchableOpacity>
 
         {/* 4. Tổng quan tuần (Weekly Overview 7 ngày) */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>TUẦN NÀY</Text>
-          <TouchableOpacity onPress={onNavigateToAnalytics}>
-            <Text style={styles.viewAllText}>Xem tất cả ›</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.weekGrid}>
-          {weekDays.map((item, index) => (
-            <View
-              key={index}
-              style={[
-                styles.dayColumn,
-                item.active && styles.dayColumnActive,
-              ]}
-            >
-              <Text style={[styles.dayName, item.active && styles.dayNameActive]}>{item.day}</Text>
-              <Text style={[styles.dayDate, item.active && styles.dayDateActive]}>{item.date}</Text>
-              
-              <View style={[styles.dayImageContainer, item.active && styles.dayImageContainerActive]}>
-                <Image source={{ uri: item.image }} style={styles.dayThumb} />
-              </View>
-
-              <Text style={[styles.dayAmount, item.active && styles.dayAmountActive]}>
-                {item.amount}
-              </Text>
-            </View>
-          ))}
-        </View>
+        <WeeklyCalendarWidget
+          selectedDay={24}
+          onSelectDay={() => onNavigateToCalendar && onNavigateToCalendar()}
+          onViewAll={onNavigateToCalendar}
+        />
 
         {/* 5. Giao dịch hôm nay (Today's Expenses) */}
         <View style={[styles.sectionHeader, { marginTop: 24 }]}>

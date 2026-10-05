@@ -71,7 +71,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
       key: 'moments',
       labelVi: 'Lịch ảnh\nchi tiêu',
       labelEn: 'Moments\nJournal',
-      icon: '📅',
+      icon: '🖼️',
     },
     {
       key: 'analytics',
@@ -83,7 +83,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
       key: 'transactions',
       labelVi: 'Quản lý\nChi tiêu',
       labelEn: 'Expense\nManager',
-      icon: '📝',
+      icon: '🧾',
     },
     {
       key: 'budget',
@@ -93,14 +93,14 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
     },
     {
       key: 'profile',
-      labelVi: 'Cá nhân',
-      labelEn: 'Profile',
+      labelVi: 'Trang cá nhân\n& Slogan',
+      labelEn: 'Profile\n& Motto',
       icon: '👤',
     },
   ];
 
   const currentDateFormatted =
-    language === 'vi' ? '📅 24 Tháng 10, 2024' : '📅 Oct 24, 2024';
+    language === 'vi' ? 'Hôm nay, 24 Tháng 10, 2024 ▾' : 'Today, Oct 24, 2024 ▾';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -108,13 +108,19 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
         {/* ==================== TOP NAVIGATION BAR CHO DESKTOP ==================== */}
         {isDesktop ? (
           <View style={styles.topNavbar}>
-            {/* Left: Brand Logo */}
+            {/* Left: Brand Logo & Search/Slogan Bar */}
             <View style={styles.navLeft}>
               <Image
                 source={require('../../assets/monett-brand-logo.png')}
                 style={styles.navLogo}
                 resizeMode="contain"
               />
+              <View style={styles.navSearchBox}>
+                <Text style={styles.navSearchIcon}>⚲</Text>
+                <Text style={styles.navSearchPlaceholder} numberOfLines={1}>
+                  "Ghi lại khoảnh khắc, giữ trọn an y..."
+                </Text>
+              </View>
             </View>
 
             {/* Center: Main Navigation Tabs */}
@@ -137,7 +143,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
                         styles.navTabText,
                         isActive && styles.navTabTextActive,
                       ]}
-                      numberOfLines={1}
+                      numberOfLines={2}
                     >
                       {label}
                     </Text>
@@ -150,7 +156,8 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
             <View style={styles.navRight}>
               {/* Date Chip */}
               <View style={styles.dateChip}>
-                <Text style={styles.dateChipText}>{currentDateFormatted}</Text>
+                <Text style={{ fontSize: 13, marginRight: 5 }}>📅</Text>
+                <Text style={styles.dateChipText}>24/10/2024</Text>
               </View>
 
               {/* Quick Action Button: Ghi chép nhanh */}
@@ -308,11 +315,32 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   navLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    minWidth: 150,
+    gap: 12,
   },
   navLogo: {
-    width: 148,
-    height: 58,
+    width: 140,
+    height: 52,
+  },
+  navSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    maxWidth: 240,
+  },
+  navSearchIcon: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  navSearchPlaceholder: {
+    fontSize: 11,
+    color: '#64748B',
+    fontStyle: 'italic',
   },
   navCenter: {
     flexDirection: 'row',

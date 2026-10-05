@@ -12,6 +12,7 @@ import { FriendsModule } from './friends/friends.module';
 import { MomentsModule } from './moments/moments.module';
 import { TransactionsModule } from './transactions/transactions.module';
 import { BudgetsModule } from './budgets/budgets.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 import * as dotenv from 'dotenv';
 import * as path from 'path';
@@ -65,6 +66,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
     MomentsModule,
     TransactionsModule,
     BudgetsModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

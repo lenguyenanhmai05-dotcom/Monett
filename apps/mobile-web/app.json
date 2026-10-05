@@ -3,6 +3,7 @@
     "name": "Monett App",
     "slug": "monett-app",
     "scheme": "monett-app",
+    "owner": "dangkhoa0107",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

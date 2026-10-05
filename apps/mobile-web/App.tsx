@@ -7,6 +7,9 @@ import { HomeScreen } from './src/screens/web/HomeScreen';
 import { ProfileScreen } from './src/screens/web/ProfileScreen';
 import { AuthScreen } from './src/screens/web/AuthScreen';
 import { LandingScreen } from './src/screens/web/LandingScreen';
+import { FinancialReportScreen } from './src/screens/web/FinancialReportScreen';
+import { CalendarScreen } from './src/screens/mobile/CalendarScreen';
+import { WebCalendarScreen } from './src/screens/web/CalendarScreen';
 import { MobileAuthScreen } from './src/screens/mobile/MobileAuthScreen';
 import { MobileNavigator } from './src/screens/mobile/MobileNavigator';
 import { TransactionProvider } from './src/contexts/TransactionContext';
@@ -90,37 +93,13 @@ function MainApp() {
   const renderContent = () => {
     switch (activeTab) {
       case 'home':
-        return <HomeScreen />;
+        return <HomeScreen onNavigateToTab={setActiveTab} />;
       case 'profile':
         return <ProfileScreen />;
       case 'moments':
-        return (
-          <View style={styles.centerContainer}>
-            <Text style={styles.placeholderIcon}>📸</Text>
-            <Text style={styles.placeholderTitle}>
-              {language === 'vi' ? 'Lịch Ảnh Chi Tiêu (Money Moments)' : 'Moments Journal'}
-            </Text>
-            <Text style={styles.placeholderDesc}>
-              {language === 'vi'
-                ? 'Thư viện ảnh chi tiêu trực quan của bạn sẽ hiển thị tại đây!'
-                : 'Your visual expense diary and photo grid will appear here!'}
-            </Text>
-          </View>
-        );
+        return <WebCalendarScreen />;
       case 'analytics':
-        return (
-          <View style={styles.centerContainer}>
-            <Text style={styles.placeholderIcon}>📈</Text>
-            <Text style={styles.placeholderTitle}>
-              {language === 'vi' ? 'Thống Kê & Phân Tích' : 'Analytics & Insights'}
-            </Text>
-            <Text style={styles.placeholderDesc}>
-              {language === 'vi'
-                ? 'Biểu đồ dòng tiền và cơ cấu chi tiêu sẽ hiển thị tại đây!'
-                : 'Cashflow charts and category analytics will appear here!'}
-            </Text>
-          </View>
-        );
+        return <FinancialReportScreen onNavigateToTab={setActiveTab} />;
       case 'transactions':
         return (
           <View style={styles.centerContainer}>
@@ -150,7 +129,7 @@ function MainApp() {
           </View>
         );
       default:
-        return <HomeScreen />;
+        return <HomeScreen onNavigateToTab={setActiveTab} />;
     }
   };
 
