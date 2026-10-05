@@ -268,18 +268,21 @@ const SAMPLE_DAYS_MAP: Record<number, CalendarDayData> = {
 };
 
 interface CalendarScreenProps {
+  refreshTrigger?: number;
   onNavigateToCamera?: () => void;
   onNavigateToDetail?: (txId: string) => void;
 }
 
 export const CalendarScreen: React.FC<CalendarScreenProps> = ({
+  refreshTrigger,
   onNavigateToCamera,
   onNavigateToDetail,
 }) => {
   const { user } = useAuth();
-  const [selectedMonth, setSelectedMonth] = useState(10);
-  const [selectedYear, setSelectedYear] = useState(2024);
-  const [selectedDay, setSelectedDay] = useState(24);
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const [selectedDay, setSelectedDay] = useState(now.getDate());
   const [isLoadingDate, setIsLoadingDate] = useState(false);
   const [apiData, setApiData] = useState<TransactionsByDateResponse | null>(null);
 
@@ -307,7 +310,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [selectedDay, selectedMonth, selectedYear]);
+  }, [selectedDay, selectedMonth, selectedYear, refreshTrigger]);
 
   // Current day details
   const fallbackDayData = SAMPLE_DAYS_MAP[selectedDay] || {

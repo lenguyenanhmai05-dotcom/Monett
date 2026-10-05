@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,48 +9,113 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import {
+  getAnalyticsOverviewApi,
+  getCategoryBreakdownApi,
+  getTransactionsApi,
+} from '../../services/api';
 
 interface AnalyticsScreenProps {
   onBack?: () => void;
+  refreshTrigger?: number;
 }
 
-export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack }) => {
+const DEFAULT_CHART_DATA = [
+  { day: 'T2', amount: 85, heightPercent: 28 },
+  { day: 'T3', amount: 45, heightPercent: 15 },
+  { day: 'T4', amount: 320, heightPercent: 100, highest: true },
+  { day: 'T5', amount: 150, heightPercent: 48 },
+  { day: 'T6', amount: 65, heightPercent: 22 },
+  { day: 'T7', amount: 120, heightPercent: 38 },
+  { day: 'CN', amount: 185, heightPercent: 60, current: true },
+];
+
+const DEFAULT_CATEGORIES = [
+  { name: 'Ăn uống', icon: '🍜', amount: '520.000 đ', percent: 50, color: '#10B981' },
+  { name: 'Mua sắm', icon: '🛍️', amount: '200.000 đ', percent: 19, color: '#3B82F6' },
+  { name: 'Di chuyển', icon: '🚗', amount: '180.000 đ', percent: 17, color: '#F59E0B' },
+  { name: 'Cà phê', icon: '☕', amount: '145.000 đ', percent: 14, color: '#EC4899' },
+];
+
+const DEFAULT_TOP_EXPENSES = [
+  {
+    title: 'Lẩu Haidilao (T4)',
+    amount: '320.000 đ',
+    image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=120&auto=format&fit=crop&q=80',
+  },
+  {
+    title: 'Bún bò & bữa tối (CN)',
+    amount: '185.000 đ',
+    image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=120&auto=format&fit=crop&q=80',
+  },
+  {
+    title: 'Đi siêu thị WinMart (T5)',
+    amount: '150.000 đ',
+    image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=120&auto=format&fit=crop&q=80',
+  },
+];
+
+export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refreshTrigger }) => {
   const [period, setPeriod] = useState<'week' | 'month'>('week');
+  const [totalSpent, setTotalSpent] = useState<number>(1045000);
+  const [dailyAvg, setDailyAvg] = useState<number>(149000);
+  const [categoryBreakdown, setCategoryBreakdown] = useState(DEFAULT_CATEGORIES);
+  const [topExpenses, setTopExpenses] = useState(DEFAULT_TOP_EXPENSES);
+  const [chartData, setChartData] = useState(DEFAULT_CHART_DATA);
 
-  const chartData = [
-    { day: 'T2', amount: 85, heightPercent: 28 },
-    { day: 'T3', amount: 45, heightPercent: 15 },
-    { day: 'T4', amount: 320, heightPercent: 100, highest: true },
-    { day: 'T5', amount: 150, heightPercent: 48 },
-    { day: 'T6', amount: 65, heightPercent: 22 },
-    { day: 'T7', amount: 120, heightPercent: 38 },
-    { day: 'CN', amount: 185, heightPercent: 60, current: true },
-  ];
+  const fetchAnalyticsData = useCallback(async () => {
+    try {
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
 
-  const categoryBreakdown = [
-    { name: 'Ăn uống', icon: '🍜', amount: '520.000 đ', percent: 50, color: '#10B981' },
-    { name: 'Mua sắm', icon: '🛍️', amount: '200.000 đ', percent: 19, color: '#3B82F6' },
-    { name: 'Di chuyển', icon: '🚗', amount: '180.000 đ', percent: 17, color: '#F59E0B' },
-    { name: 'Cà phê', icon: '☕', amount: '145.000 đ', percent: 14, color: '#EC4899' },
-  ];
+      const [overviewData, catData, txData] = await Promise.allSettled([
+        getAnalyticsOverviewApi(period, currentMonth, currentYear),
+        getCategoryBreakdownApi(period, currentMonth, currentYear),
+        getTransactionsApi({ limit: 3, sort: 'amount_asc' }),
+      ]);
 
-  const topExpenses = [
-    {
-      title: 'Lẩu Haidilao (T4)',
-      amount: '320.000 đ',
-      image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=120&auto=format&fit=crop&q=80',
-    },
-    {
-      title: 'Bún bò & bữa tối (CN)',
-      amount: '185.000 đ',
-      image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=120&auto=format&fit=crop&q=80',
-    },
-    {
-      title: 'Đi siêu thị WinMart (T5)',
-      amount: '150.000 đ',
-      image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=120&auto=format&fit=crop&q=80',
-    },
-  ];
+      if (overviewData.status === 'fulfilled' && overviewData.value) {
+        const ov = overviewData.value as any;
+        const spent = Math.abs(ov.totalExpense || ov.totalSpent || 0);
+        if (spent > 0) {
+          setTotalSpent(spent);
+          const divisor = period === 'week' ? 7 : (now.getDate() || 1);
+          setDailyAvg(Math.round(spent / divisor));
+        }
+      }
+
+      if (catData.status === 'fulfilled' && Array.isArray(catData.value) && catData.value.length > 0) {
+        const colors = ['#10B981', '#3B82F6', '#F59E0B', '#EC4899', '#8B5CF6'];
+        const cats = catData.value.map((c: any, index: number) => ({
+          name: c.name || c.category || 'Khác',
+          icon: c.icon || '🍜',
+          amount: `${Math.abs(c.amount || c.total || 0).toLocaleString('vi-VN')} đ`,
+          percent: c.percentage || Math.round(c.percent || 0),
+          color: colors[index % colors.length],
+        }));
+        setCategoryBreakdown(cats);
+      }
+
+      if (txData.status === 'fulfilled' && (txData.value as any)?.items?.length > 0) {
+        const items = (txData.value as any).items.filter((t: any) => t.amount < 0);
+        if (items.length > 0) {
+          const formatted = items.slice(0, 3).map((t: any) => ({
+            title: t.title,
+            amount: `${Math.abs(t.amount).toLocaleString('vi-VN')} đ`,
+            image: t.photoUri || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=120&auto=format&fit=crop&q=80',
+          }));
+          setTopExpenses(formatted);
+        }
+      }
+    } catch (e) {
+      console.log('Error fetching analytics:', e);
+    }
+  }, [period]);
+
+  useEffect(() => {
+    fetchAnalyticsData();
+  }, [fetchAnalyticsData, refreshTrigger]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -92,7 +157,7 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack }) => {
                 period === 'month' && styles.periodTabTextActive,
               ]}
             >
-              Tháng 9
+              Tháng {new Date().getMonth() + 1}
             </Text>
           </TouchableOpacity>
         </View>
@@ -101,12 +166,12 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack }) => {
         <View style={styles.summaryCard}>
           <View style={styles.summaryCol}>
             <Text style={styles.summaryLabel}>Tổng chi tiêu</Text>
-            <Text style={styles.summaryTotal}>1.045.000 đ</Text>
+            <Text style={styles.summaryTotal}>{totalSpent.toLocaleString('vi-VN')} đ</Text>
           </View>
           <View style={styles.dividerVertical} />
           <View style={styles.summaryCol}>
             <Text style={styles.summaryLabel}>Trung bình / ngày</Text>
-            <Text style={styles.summaryAvg}>149.000 đ</Text>
+            <Text style={styles.summaryAvg}>{dailyAvg.toLocaleString('vi-VN')} đ</Text>
           </View>
         </View>
 

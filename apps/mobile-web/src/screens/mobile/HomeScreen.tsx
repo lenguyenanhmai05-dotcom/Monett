@@ -10,10 +10,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { getBudgetApi, BudgetData } from '../../services/api';
+import { getBudgetApi, BudgetData, getTransactionsByDateApi } from '../../services/api';
 import { WeeklyCalendarWidget } from '../../components/WeeklyCalendarWidget';
 
 interface HomeScreenProps {
+  refreshTrigger?: number;
   onNavigateToCamera?: () => void;
   onNavigateToAddExpense?: () => void;
   onNavigateToQuickSave?: () => void;
@@ -22,7 +23,48 @@ interface HomeScreenProps {
   onNavigateToCalendar?: () => void;
 }
 
+interface ExpenseCardItem {
+  id: string;
+  title: string;
+  amount: string;
+  rawAmount: number;
+  time: string;
+  category: string;
+  image: string;
+}
+
+const DEFAULT_TODAY_EXPENSES: ExpenseCardItem[] = [
+  {
+    id: 'tx_1',
+    title: 'Bún bò Huế',
+    amount: '-85.000 đ',
+    rawAmount: 85000,
+    time: '12:30',
+    category: 'Ăn uống',
+    image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'tx_2',
+    title: 'Cà phê muối',
+    amount: '-45.000 đ',
+    rawAmount: 45000,
+    time: '10:15',
+    category: 'Cà phê',
+    image: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=200&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'tx_3',
+    title: 'Đổ xăng xe',
+    amount: '-55.000 đ',
+    rawAmount: 55000,
+    time: '08:20',
+    category: 'Di chuyển',
+    image: 'https://images.unsplash.com/photo-1527018607912-0ab8dc7ff34c?w=200&auto=format&fit=crop&q=80',
+  },
+];
+
 export const HomeScreen: React.FC<HomeScreenProps> = ({
+  refreshTrigger,
   onNavigateToCamera,
   onNavigateToAddExpense,
   onNavigateToQuickSave,
@@ -70,57 +112,39 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     currency: 'VND',
   });
 
-  React.useEffect(() => {
-    let isMounted = true;
-    getBudgetApi()
-      .then((data) => {
-        if (isMounted && data && data.limit) {
-          setBudget(data);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-  // Dữ liệu tuần mẫu (bám sát thiết kế Stitch)
-  const weekDays = [
-    { day: 'T2', date: '9/9', amount: '85k', image: 'https://images.unsplash.com/photo-1552611052-33e04de081de?w=120&auto=format&fit=crop&q=80', active: false },
-    { day: 'T3', date: '10/9', amount: '45k', image: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=120&auto=format&fit=crop&q=80', active: false },
-    { day: 'T4', date: '11/9', amount: '320k', image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=120&auto=format&fit=crop&q=80', active: false },
-    { day: 'T5', date: '12/9', amount: '150k', image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=120&auto=format&fit=crop&q=80', active: false },
-    { day: 'T6', date: '13/9', amount: '65k', image: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=120&auto=format&fit=crop&q=80', active: false },
-    { day: 'T7', date: '14/9', amount: '120k', image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=120&auto=format&fit=crop&q=80', active: false },
-    { day: 'CN', date: '15/9', amount: '185k', image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=120&auto=format&fit=crop&q=80', active: true },
-  ];
+  const [todayExpenses, setTodayExpenses] = React.useState<ExpenseCardItem[]>(DEFAULT_TODAY_EXPENSES);
+  const [todayTotal, setTodayTotal] = React.useState<number>(185000);
 
-  // Các giao dịch hôm nay
-  const todayExpenses = [
-    {
-      id: 'tx_1',
-      title: 'Bún bò Huế',
-      amount: '-85.000 đ',
-      time: '12:30',
-      category: 'Ăn uống',
-      image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'tx_2',
-      title: 'Cà phê muối',
-      amount: '-45.000 đ',
-      time: '10:15',
-      category: 'Cà phê',
-      image: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=200&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'tx_3',
-      title: 'Đổ xăng xe',
-      amount: '-55.000 đ',
-      time: '08:20',
-      category: 'Di chuyển',
-      image: 'https://images.unsplash.com/photo-1527018607912-0ab8dc7ff34c?w=200&auto=format&fit=crop&q=80',
-    },
-  ];
+  const fetchHomeData = React.useCallback(async () => {
+    try {
+      const budgetData = await getBudgetApi();
+      if (budgetData && budgetData.limit) {
+        setBudget(budgetData);
+      }
+    } catch (e) {}
+
+    try {
+      const dailyRes = await getTransactionsByDateApi();
+      if (dailyRes && dailyRes.items && dailyRes.items.length > 0) {
+        const formatted: ExpenseCardItem[] = dailyRes.items.map((it: any) => ({
+          id: it._id || it.id,
+          title: it.title,
+          amount: `-${Math.abs(it.amount).toLocaleString('vi-VN')} đ`,
+          rawAmount: Math.abs(it.amount),
+          time: it.date ? new Date(it.date).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'Hôm nay',
+          category: it.category || 'Ăn uống',
+          image: it.photoUri || 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&auto=format&fit=crop&q=80',
+        }));
+        setTodayExpenses(formatted);
+        const total = formatted.reduce((acc, curr) => acc + curr.rawAmount, 0);
+        setTodayTotal(total);
+      }
+    } catch (e) {}
+  }, []);
+
+  React.useEffect(() => {
+    fetchHomeData();
+  }, [fetchHomeData, refreshTrigger]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -249,7 +273,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         {/* Tổng kết hôm nay */}
         <View style={styles.todaySummary}>
           <Text style={styles.todaySummaryLabel}>Tổng hôm nay</Text>
-          <Text style={styles.todaySummaryAmount}>-185.000 đ</Text>
+          <Text style={styles.todaySummaryAmount}>-{todayTotal.toLocaleString('vi-VN')} đ</Text>
         </View>
 
         {/* Nút hành động nhanh Camera */}
@@ -375,70 +399,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#047857',
-  },
-  weekGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: '#F3F4F6',
-    padding: 10,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  dayColumn: {
-    alignItems: 'center',
-    flex: 1,
-    paddingVertical: 4,
-  },
-  dayColumnActive: {
-    backgroundColor: '#ECFDF5',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  dayName: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  dayNameActive: {
-    color: '#065F46',
-    fontWeight: '800',
-  },
-  dayDate: {
-    fontSize: 9,
-    color: '#9CA3AF',
-    marginBottom: 4,
-  },
-  dayDateActive: {
-    color: '#059669',
-    fontWeight: '600',
-  },
-  dayImageContainer: {
-    width: 36,
-    height: 48,
-    borderRadius: 8,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-  },
-  dayImageContainerActive: {
-    borderColor: '#059669',
-    borderWidth: 1.5,
-  },
-  dayThumb: {
-    width: '100%',
-    height: '100%',
-  },
-  dayAmount: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#374151',
-    marginTop: 4,
-  },
-  dayAmountActive: {
-    color: '#047857',
-    fontWeight: '800',
   },
   todayScroll: {
     flexDirection: 'row',

@@ -8,6 +8,8 @@ import { ProfileScreen } from './src/screens/web/ProfileScreen';
 import { AuthScreen } from './src/screens/web/AuthScreen';
 import { LandingScreen } from './src/screens/web/LandingScreen';
 import { FinancialReportScreen } from './src/screens/web/FinancialReportScreen';
+import { TransactionsScreen } from './src/screens/web/TransactionsScreen';
+import { BudgetScreen } from './src/screens/web/BudgetScreen';
 import { CalendarScreen } from './src/screens/mobile/CalendarScreen';
 import { WebCalendarScreen } from './src/screens/web/CalendarScreen';
 import { MobileAuthScreen } from './src/screens/mobile/MobileAuthScreen';
@@ -101,33 +103,9 @@ function MainApp() {
       case 'analytics':
         return <FinancialReportScreen onNavigateToTab={setActiveTab} />;
       case 'transactions':
-        return (
-          <View style={styles.centerContainer}>
-            <Text style={styles.placeholderIcon}>📝</Text>
-            <Text style={styles.placeholderTitle}>
-              {language === 'vi' ? 'Quản Lý Chi Tiêu' : 'Expense Manager'}
-            </Text>
-            <Text style={styles.placeholderDesc}>
-              {language === 'vi'
-                ? 'Bảng dữ liệu nhật ký thu chi chi tiết sẽ hiển thị tại đây!'
-                : 'Detailed transaction logs will appear here!'}
-            </Text>
-          </View>
-        );
+        return <TransactionsScreen onNavigateToTab={setActiveTab} />;
       case 'budget':
-        return (
-          <View style={styles.centerContainer}>
-            <Text style={styles.placeholderIcon}>💳</Text>
-            <Text style={styles.placeholderTitle}>
-              {language === 'vi' ? 'Kế Hoạch Ngân Sách' : 'Budget Plans'}
-            </Text>
-            <Text style={styles.placeholderDesc}>
-              {language === 'vi'
-                ? 'Thiết lập hạn mức chi tiêu theo tháng và danh mục tại đây!'
-                : 'Set your monthly and category spending limits here!'}
-            </Text>
-          </View>
-        );
+        return <BudgetScreen onNavigateToTab={setActiveTab} />;
       default:
         return <HomeScreen onNavigateToTab={setActiveTab} />;
     }

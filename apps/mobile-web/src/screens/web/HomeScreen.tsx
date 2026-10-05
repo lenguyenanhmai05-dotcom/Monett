@@ -514,7 +514,10 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
       />
 
       {/* ===================== ROW 4: GIAO DỊCH GẦN ĐÂY ===================== */}
-      <RecentTransactionsWidget language={language as any} />
+      <RecentTransactionsWidget
+        language={language as any}
+        onViewAll={() => onNavigateToTab && onNavigateToTab('transactions')}
+      />
 
       {/* ===================== ROW 5: BẢNG GIAO DỊCH CHI TIẾT (TRANSACTION TABLE) ===================== */}
       <TransactionTableWidget language={language as any} />
