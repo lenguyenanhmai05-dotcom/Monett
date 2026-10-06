@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,21 +14,29 @@ import {
   getCategoryBreakdownApi,
   getTransactionsApi,
 } from '../../services/api';
+import { getCurrentWeekRange, getDayOfWeekShort } from '../../utils/dateUtils';
 
 interface AnalyticsScreenProps {
   onBack?: () => void;
   refreshTrigger?: number;
 }
 
-const DEFAULT_CHART_DATA = [
-  { day: 'T2', amount: 85, heightPercent: 28 },
-  { day: 'T3', amount: 45, heightPercent: 15 },
-  { day: 'T4', amount: 320, heightPercent: 100, highest: true },
-  { day: 'T5', amount: 150, heightPercent: 48 },
-  { day: 'T6', amount: 65, heightPercent: 22 },
-  { day: 'T7', amount: 120, heightPercent: 38 },
-  { day: 'CN', amount: 185, heightPercent: 60, current: true },
-];
+const getInitialChartData = () => {
+  const todayShort = getDayOfWeekShort(new Date());
+  const rawChart = [
+    { day: 'T2', amount: 85, heightPercent: 28 },
+    { day: 'T3', amount: 45, heightPercent: 15 },
+    { day: 'T4', amount: 320, heightPercent: 100, highest: true },
+    { day: 'T5', amount: 150, heightPercent: 48 },
+    { day: 'T6', amount: 65, heightPercent: 22 },
+    { day: 'T7', amount: 120, heightPercent: 38 },
+    { day: 'CN', amount: 185, heightPercent: 60 },
+  ];
+  return rawChart.map((item) => ({
+    ...item,
+    current: item.day === todayShort,
+  }));
+};
 
 const DEFAULT_CATEGORIES = [
   { name: 'Ăn uống', icon: '🍜', amount: '520.000 đ', percent: 50, color: '#10B981' },
@@ -61,7 +69,8 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
   const [dailyAvg, setDailyAvg] = useState<number>(149000);
   const [categoryBreakdown, setCategoryBreakdown] = useState(DEFAULT_CATEGORIES);
   const [topExpenses, setTopExpenses] = useState(DEFAULT_TOP_EXPENSES);
-  const [chartData, setChartData] = useState(DEFAULT_CHART_DATA);
+  const [chartData, setChartData] = useState(getInitialChartData());
+  const currentWeekStr = useMemo(() => getCurrentWeekRange(), []);
 
   const fetchAnalyticsData = useCallback(async () => {
     try {
@@ -143,7 +152,7 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
                 period === 'week' && styles.periodTabTextActive,
               ]}
             >
-              Tuần này (9/9 - 15/9)
+              Tuần này ({currentWeekStr})
             </Text>
           </TouchableOpacity>
 

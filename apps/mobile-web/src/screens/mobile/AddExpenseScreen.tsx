@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { createTransactionApi, updateTransactionApi } from '../../services/api';
+import { formatDisplayDateVi, getDayOfWeekShort } from '../../utils/dateUtils';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -70,6 +71,13 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const amountInputRef = useRef<TextInput>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
+
+  const todayDateObj = useMemo(() => new Date(), []);
+  const todayChipText = useMemo(() => {
+    const dayShort = getDayOfWeekShort(todayDateObj);
+    const dateFormatted = `${String(todayDateObj.getDate()).padStart(2, '0')}/${String(todayDateObj.getMonth() + 1).padStart(2, '0')}`;
+    return `Hôm nay (${dayShort}, ${dateFormatted})`;
+  }, [todayDateObj]);
 
   const categories = [
     { id: '1', name: 'Ăn uống', icon: '🍜' },
@@ -298,11 +306,14 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
             <TouchableOpacity
               style={styles.metaChip}
               onPress={() => {
-                Alert.alert('Ngày ghi nhận', 'Giao dịch được ghi nhận cho ngày hôm nay.');
+                Alert.alert(
+                  'Ngày ghi nhận giao dịch 📅',
+                  `Giao dịch được ghi nhận vào: ${formatDisplayDateVi(todayDateObj)}.`
+                );
               }}
               activeOpacity={0.75}
             >
-              <Text style={styles.metaChipText}>Hôm nay</Text>
+              <Text style={styles.metaChipText}>{todayChipText}</Text>
             </TouchableOpacity>
           </View>
 

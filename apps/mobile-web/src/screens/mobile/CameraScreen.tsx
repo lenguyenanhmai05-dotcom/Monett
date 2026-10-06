@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, CameraType, FlashMode, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
+import { formatDisplayDateVi, formatDisplayTime } from '../../utils/dateUtils';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -35,6 +36,18 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
   onNavigateToWallets,
   onNavigateToAnalytics,
 }) => {
+  // Live date time display
+  const [currentDateTime, setCurrentDateTime] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const liveDateTimeStr = `${formatDisplayDateVi(currentDateTime)} • ${formatDisplayTime(currentDateTime)}`;
+
   // Camera Hardware Permissions & State
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<any>(null);
@@ -222,6 +235,12 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
               )}
             </View>
           )}
+
+          {/* Badge Thời Gian Thực Trên Kính Ngắm */}
+          <View style={styles.viewfinderLiveTimeBadge}>
+            <Ionicons name="time-outline" size={13} color="#10B981" style={{ marginRight: 5 }} />
+            <Text style={styles.viewfinderLiveTimeText}>{liveDateTimeStr}</Text>
+          </View>
 
           {/* Cụm điều khiển dọc bên phải kính ngắm */}
           <View style={styles.rightFloatingControls}>
@@ -478,6 +497,27 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13.5,
     fontWeight: '700',
+  },
+
+  viewfinderLiveTimeBadge: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(15, 23, 42, 0.78)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.16)',
+    zIndex: 25,
+  },
+  viewfinderLiveTimeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
 
   // Cụm nút bên phải kính ngắm

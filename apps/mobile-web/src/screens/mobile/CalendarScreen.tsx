@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { getTransactionsByDateApi, TransactionsByDateResponse } from '../../services/api';
+import { getMonthCalendarGrid, getDayOfWeekName, isSameDay } from '../../utils/dateUtils';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -313,13 +314,25 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
   }, [selectedDay, selectedMonth, selectedYear, refreshTrigger]);
 
   // Current day details
+  const monthGrid = useMemo(() => {
+    return getMonthCalendarGrid(selectedYear, selectedMonth);
+  }, [selectedYear, selectedMonth]);
+
+  const currentDayOfWeekName = useMemo(() => {
+    return getDayOfWeekName(new Date(selectedYear, selectedMonth - 1, selectedDay));
+  }, [selectedYear, selectedMonth, selectedDay]);
+
+  const isTodaySelected = useMemo(() => {
+    return isSameDay(new Date(selectedYear, selectedMonth - 1, selectedDay), new Date());
+  }, [selectedYear, selectedMonth, selectedDay]);
+
   const fallbackDayData = SAMPLE_DAYS_MAP[selectedDay] || {
     dayNum: selectedDay,
     isCurrentMonth: true,
     hasPhoto: false,
     amountText: '0đ',
     rawAmount: 0,
-    dayOfWeekName: 'Thứ Năm',
+    dayOfWeekName: currentDayOfWeekName,
     items: [],
   };
 
@@ -406,7 +419,14 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
         <View style={styles.monthNavWrapper}>
           <TouchableOpacity
             style={styles.monthArrowBtn}
-            onPress={() => setSelectedMonth(prev => (prev === 1 ? 12 : prev - 1))}
+            onPress={() => {
+              if (selectedMonth === 1) {
+                setSelectedMonth(12);
+                setSelectedYear(prev => prev - 1);
+              } else {
+                setSelectedMonth(prev => prev - 1);
+              }
+            }}
             activeOpacity={0.7}
           >
             <Ionicons name="chevron-back" size={20} color="#334155" />
@@ -423,7 +443,14 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
 
           <TouchableOpacity
             style={styles.monthArrowBtn}
-            onPress={() => setSelectedMonth(prev => (prev === 12 ? 1 : prev + 1))}
+            onPress={() => {
+              if (selectedMonth === 12) {
+                setSelectedMonth(1);
+                setSelectedYear(prev => prev + 1);
+              } else {
+                setSelectedMonth(prev => prev + 1);
+              }
+            }}
             activeOpacity={0.7}
           >
             <Ionicons name="chevron-forward" size={20} color="#334155" />
@@ -477,110 +504,62 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
             ))}
           </View>
 
-          {/* 7 Columns Grid */}
+          {/* 7 Columns Grid Sinh Động Theo Lịch Thực Tế */}
           <View style={styles.daysGrid}>
-            {/* Spillover day: 30 from previous month */}
-            <View style={styles.dayCellWrapper}>
-              <View style={[styles.dayCell, styles.prevMonthCell]}>
-                <Text style={styles.prevMonthDayText}>30</Text>
-              </View>
-            </View>
-
-            {/* Days 1 to 6 */}
-            {[1, 2, 3, 4, 5, 6].map((dayNum) => {
-              const dData = SAMPLE_DAYS_MAP[dayNum];
-              const isSelected = selectedDay === dayNum;
-              return (
-                <TouchableOpacity
-                  key={dayNum}
-                  style={styles.dayCellWrapper}
-                  onPress={() => setSelectedDay(dayNum)}
-                  activeOpacity={0.8}
-                >
-                  <View
-                    style={[
-                      styles.dayCell,
-                      styles.photoCell,
-                      isSelected && styles.photoCellSelected,
-                    ]}
-                  >
-                    {dData?.imageUrl && (
-                      <Image source={{ uri: dData.imageUrl }} style={styles.cellBgImage} />
-                    )}
-                    <View style={styles.cellGradientOverlay} />
-                    {/* Day Number */}
-                    <Text style={styles.cellDayNumText}>{dayNum}</Text>
-                    {/* Amount Pill */}
-                    <View style={styles.cellAmountBadge}>
-                      <Text style={styles.cellAmountText}>{dData?.amountText || '45k'}</Text>
+            {monthGrid.map((cell) => {
+              if (!cell.isCurrentMonth) {
+                return (
+                  <View key={`spill_${cell.year}_${cell.month}_${cell.dayNum}`} style={styles.dayCellWrapper}>
+                    <View style={[styles.dayCell, styles.prevMonthCell]}>
+                      <Text style={styles.prevMonthDayText}>{cell.dayNum}</Text>
                     </View>
                   </View>
-                </TouchableOpacity>
-              );
-            })}
+                );
+              }
 
-            {/* Days 18 to 24 */}
-            {[18, 19, 20, 21, 22, 23, 24].map((dayNum) => {
-              const dData = SAMPLE_DAYS_MAP[dayNum];
-              const isSelected = selectedDay === dayNum;
+              const dData = SAMPLE_DAYS_MAP[cell.dayNum];
+              const isSelected = selectedDay === cell.dayNum;
+              const hasPhoto = Boolean(dData?.imageUrl);
+
               return (
                 <TouchableOpacity
-                  key={dayNum}
+                  key={`day_${cell.fullDateStr}`}
                   style={styles.dayCellWrapper}
-                  onPress={() => setSelectedDay(dayNum)}
+                  onPress={() => setSelectedDay(cell.dayNum)}
                   activeOpacity={0.8}
                 >
                   <View
                     style={[
                       styles.dayCell,
-                      styles.photoCell,
-                      isSelected && styles.photoCellSelected,
+                      hasPhoto ? styles.photoCell : styles.emptyCell,
+                      isSelected && (hasPhoto ? styles.photoCellSelected : styles.emptyCellSelected),
                     ]}
                   >
-                    {dData?.imageUrl && (
-                      <Image source={{ uri: dData.imageUrl }} style={styles.cellBgImage} />
+                    {hasPhoto ? (
+                      <>
+                        <Image source={{ uri: dData!.imageUrl }} style={styles.cellBgImage} />
+                        <View style={styles.cellGradientOverlay} />
+                        <View style={[styles.cellDayNumBadge, isSelected && styles.cellDayNumBadgeActive]}>
+                          <Text style={styles.cellDayNumText}>{cell.dayNum}</Text>
+                        </View>
+                        <View style={[styles.cellAmountBadge, isSelected && styles.cellAmountBadgeActive]}>
+                          <Text style={[styles.cellAmountText, isSelected && styles.cellAmountTextActive]}>
+                            {dData!.amountText || '45k'}
+                          </Text>
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={[styles.emptyCellDayText, isSelected && styles.emptyCellDayTextSelected]}>
+                          {cell.dayNum}
+                        </Text>
+                        <Ionicons
+                          name="camera-outline"
+                          size={14}
+                          color={isSelected ? '#059669' : '#A5B4FC'}
+                        />
+                      </>
                     )}
-                    <View style={styles.cellGradientOverlay} />
-                    {/* Day Number */}
-                    <View style={[styles.cellDayNumBadge, isSelected && styles.cellDayNumBadgeActive]}>
-                      <Text style={styles.cellDayNumText}>{dayNum}</Text>
-                    </View>
-                    {/* Amount Pill */}
-                    <View style={[styles.cellAmountBadge, isSelected && styles.cellAmountBadgeActive]}>
-                      <Text style={[styles.cellAmountText, isSelected && styles.cellAmountTextActive]}>
-                        {dData?.amountText || '100k'}
-                      </Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-
-            {/* Days 25 to 31 (Not yet recorded / photo placeholders) */}
-            {[25, 26, 27, 28, 29, 30, 31].map((dayNum) => {
-              const isSelected = selectedDay === dayNum;
-              return (
-                <TouchableOpacity
-                  key={dayNum}
-                  style={styles.dayCellWrapper}
-                  onPress={() => setSelectedDay(dayNum)}
-                  activeOpacity={0.8}
-                >
-                  <View
-                    style={[
-                      styles.dayCell,
-                      styles.emptyCell,
-                      isSelected && styles.emptyCellSelected,
-                    ]}
-                  >
-                    <Text style={[styles.emptyCellDayText, isSelected && styles.emptyCellDayTextSelected]}>
-                      {dayNum}
-                    </Text>
-                    <Ionicons
-                      name="camera-outline"
-                      size={14}
-                      color={isSelected ? '#059669' : '#A5B4FC'}
-                    />
                   </View>
                 </TouchableOpacity>
               );
@@ -625,12 +604,12 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                   Ngày {selectedDay} Tháng {selectedMonth} , {selectedYear}
                 </Text>
                 <Text style={styles.detailDateSubtitle}>
-                  {fallbackDayData.dayOfWeekName || 'Thứ Năm'} • {totalTxCount} giao dịch lưu dấu
+                  {currentDayOfWeekName} • {totalTxCount} giao dịch lưu dấu
                 </Text>
               </View>
             </View>
 
-            {selectedDay === 24 && (
+            {isTodaySelected && (
               <View style={styles.todayPill}>
                 <Text style={styles.todayPillText}>Hôm nay</Text>
               </View>

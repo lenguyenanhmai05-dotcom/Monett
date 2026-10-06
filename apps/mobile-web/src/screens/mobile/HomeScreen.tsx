@@ -115,6 +115,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   const [todayExpenses, setTodayExpenses] = React.useState<ExpenseCardItem[]>(DEFAULT_TODAY_EXPENSES);
   const [todayTotal, setTodayTotal] = React.useState<number>(185000);
+  const [selectedWeekDay, setSelectedWeekDay] = React.useState<number>(new Date().getDate());
+
+  const greetingSub = React.useMemo(() => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Chào buổi sáng,';
+    if (h < 18) return 'Chào buổi chiều,';
+    return 'Chào buổi tối,';
+  }, []);
 
   const fetchHomeData = React.useCallback(async () => {
     try {
@@ -194,7 +202,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* 2. Lời chào */}
         <View style={styles.greetingSection}>
-          <Text style={styles.greetingSub}>Chào buổi sáng,</Text>
+          <Text style={styles.greetingSub}>{greetingSub}</Text>
           <Text style={styles.greetingName}>{displayName} 👋</Text>
         </View>
 
@@ -246,8 +254,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
         {/* 4. Tổng quan tuần (Weekly Overview 7 ngày) */}
         <WeeklyCalendarWidget
-          selectedDay={24}
-          onSelectDay={() => onNavigateToCalendar && onNavigateToCalendar()}
+          selectedDay={selectedWeekDay}
+          onSelectDay={(item) => {
+            setSelectedWeekDay(item.dayNum);
+            if (onNavigateToCalendar) onNavigateToCalendar();
+          }}
           onViewAll={onNavigateToCalendar}
         />
 
