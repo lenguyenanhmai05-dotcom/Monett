@@ -29,6 +29,7 @@ export const MobileNavigator: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<MobileTab>('home');
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [capturedPhoto, setCapturedPhoto] = useState<string | undefined>();
+  const [targetExpenseDate, setTargetExpenseDate] = useState<string | undefined>();
   const [selectedTxId, setSelectedTxId] = useState<string | undefined>();
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [refreshKey, setRefreshKey] = useState<number>(0);
@@ -48,9 +49,13 @@ export const MobileNavigator: React.FC = () => {
         return (
           <HomeScreen
             refreshTrigger={refreshKey}
-            onNavigateToCamera={() => setActiveModal('camera')}
-            onNavigateToAddExpense={() => {
+            onNavigateToCamera={(dateStr?: string) => {
+              setTargetExpenseDate(dateStr);
+              setActiveModal('camera');
+            }}
+            onNavigateToAddExpense={(dateStr?: string) => {
               setEditingTransaction(null);
+              setTargetExpenseDate(dateStr);
               setActiveModal('add_expense');
             }}
             onNavigateToQuickSave={() => setActiveModal('quick_save')}
@@ -66,7 +71,10 @@ export const MobileNavigator: React.FC = () => {
         return (
           <CalendarScreen
             refreshTrigger={refreshKey}
-            onNavigateToCamera={() => setActiveModal('camera')}
+            onNavigateToCamera={(dateStr) => {
+              setTargetExpenseDate(dateStr);
+              setActiveModal('camera');
+            }}
             onNavigateToDetail={(id) => {
               setSelectedTxId(id);
               setActiveModal('detail');
@@ -215,14 +223,17 @@ export const MobileNavigator: React.FC = () => {
         <View style={StyleSheet.absoluteFill}>
           <AddExpenseScreen
             initialPhotoUrl={capturedPhoto}
+            initialDate={targetExpenseDate}
             editingTransactionId={editingTransaction?.id}
             initialData={editingTransaction}
             onBack={() => {
               setEditingTransaction(null);
+              setTargetExpenseDate(undefined);
               setActiveModal('none');
             }}
             onSaveSuccess={() => {
               setEditingTransaction(null);
+              setTargetExpenseDate(undefined);
               setActiveModal('none');
               setCapturedPhoto(undefined);
               triggerRefresh();

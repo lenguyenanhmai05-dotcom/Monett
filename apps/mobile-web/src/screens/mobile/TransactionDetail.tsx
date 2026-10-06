@@ -6,12 +6,12 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getTransactionDetailApi, deleteTransactionApi } from '../../services/api';
+import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
 
 interface TransactionDetailProps {
   transactionId?: string;
@@ -27,6 +27,8 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
   onDelete,
 }) => {
   const [loading, setLoading] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [detail, setDetail] = useState({
     title: 'Bún bò Huế Cô Lan',
     amount: '-85.000 đ',
@@ -83,28 +85,22 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
     };
   }, [transactionId]);
 
-  const handleDelete = () => {
-    Alert.alert(
-      'Xác nhận xóa',
-      'Bạn có chắc chắn muốn xóa giao dịch này không?',
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: async () => {
-            if (transactionId && !transactionId.startsWith('tx_')) {
-              try {
-                await deleteTransactionApi(transactionId);
-              } catch (e) {
-                console.log('Error deleting transaction:', e);
-              }
-            }
-            if (onDelete) onDelete();
-          },
-        },
-      ]
-    );
+  const handleConfirmDelete = async () => {
+    setIsDeleting(true);
+    try {
+      if (transactionId && !transactionId.startsWith('tx_')) {
+        await deleteTransactionApi(transactionId);
+      }
+      setShowDeleteModal(false);
+      if (onDelete) onDelete();
+    } catch (e: any) {
+      console.log('Error deleting transaction:', e);
+      if (typeof alert !== 'undefined') {
+        alert('Không thể xóa giao dịch: ' + (e?.message || 'Lỗi kết nối'));
+      }
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -208,11 +204,23 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
         </View>
 
         {/* 5. Nút xóa giao dịch */}
-        <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.deleteBtn} onPress={() => setShowDeleteModal(true)} activeOpacity={0.8}>
           <Ionicons name="trash-outline" size={16} color="#DC2626" style={{ marginRight: 6 }} />
           <Text style={styles.deleteBtnText}>Xóa giao dịch này</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* 6. Modal xác nhận xóa chuẩn Fintech */}
+      <ConfirmDeleteModal
+        visible={showDeleteModal}
+        itemTitle={detail.title}
+        itemAmount={detail.amount}
+        itemImage={detail.imageUrl}
+        itemCategory={detail.category}
+        isDeleting={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setShowDeleteModal(false)}
+      />
     </SafeAreaView>
   );
 };

@@ -26,6 +26,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface AddExpenseScreenProps {
   initialPhotoUrl?: string;
+  initialDate?: string;
   editingTransactionId?: string;
   initialData?: {
     title?: string;
@@ -35,6 +36,7 @@ interface AddExpenseScreenProps {
     photoUri?: string;
     note?: string;
     type?: 'expense' | 'income';
+    date?: string;
   };
   onBack?: () => void;
   onSaveSuccess?: () => void;
@@ -42,6 +44,7 @@ interface AddExpenseScreenProps {
 
 export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   initialPhotoUrl,
+  initialDate,
   editingTransactionId,
   initialData,
   onBack,
@@ -72,12 +75,22 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   const amountInputRef = useRef<TextInput>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
 
-  const todayDateObj = useMemo(() => new Date(), []);
-  const todayChipText = useMemo(() => {
-    const dayShort = getDayOfWeekShort(todayDateObj);
-    const dateFormatted = `${String(todayDateObj.getDate()).padStart(2, '0')}/${String(todayDateObj.getMonth() + 1).padStart(2, '0')}`;
-    return `Hôm nay (${dayShort}, ${dateFormatted})`;
-  }, [todayDateObj]);
+  const expenseDateObj = useMemo(() => {
+    if (initialData?.date) return new Date(initialData.date);
+    if (initialDate) return new Date(initialDate);
+    return new Date();
+  }, [initialData?.date, initialDate]);
+
+  const dateChipText = useMemo(() => {
+    const today = new Date();
+    const isToday =
+      expenseDateObj.getFullYear() === today.getFullYear() &&
+      expenseDateObj.getMonth() === today.getMonth() &&
+      expenseDateObj.getDate() === today.getDate();
+    const dayShort = getDayOfWeekShort(expenseDateObj);
+    const dateFormatted = `${String(expenseDateObj.getDate()).padStart(2, '0')}/${String(expenseDateObj.getMonth() + 1).padStart(2, '0')}`;
+    return isToday ? `Hôm nay (${dayShort}, ${dateFormatted})` : `${dayShort}, ${dateFormatted}`;
+  }, [expenseDateObj]);
 
   const categories = [
     { id: '1', name: 'Ăn uống', icon: '🍜' },
@@ -145,7 +158,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
         category: selectedCategory,
         categoryIcon: selectedCategoryIcon,
         photoUri: photoUrl,
-        date: new Date().toISOString(),
+        date: expenseDateObj.toISOString(),
       };
 
       if (editingTransactionId && !editingTransactionId.startsWith('tx_')) {
@@ -302,18 +315,18 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
               />
             </TouchableOpacity>
 
-            {/* Nút Hôm nay */}
+            {/* Nút Ngày ghi nhận */}
             <TouchableOpacity
               style={styles.metaChip}
               onPress={() => {
                 Alert.alert(
                   'Ngày ghi nhận giao dịch 📅',
-                  `Giao dịch được ghi nhận vào: ${formatDisplayDateVi(todayDateObj)}.`
+                  `Giao dịch được ghi nhận vào: ${formatDisplayDateVi(expenseDateObj)}.`
                 );
               }}
               activeOpacity={0.75}
             >
-              <Text style={styles.metaChipText}>{todayChipText}</Text>
+              <Text style={styles.metaChipText}>{dateChipText}</Text>
             </TouchableOpacity>
           </View>
 

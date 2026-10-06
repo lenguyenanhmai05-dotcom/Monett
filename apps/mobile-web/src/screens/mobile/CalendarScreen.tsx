@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { getTransactionsByDateApi, TransactionsByDateResponse } from '../../services/api';
+import { getTransactionsByDateApi, TransactionsByDateResponse, deleteTransactionApi } from '../../services/api';
+import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
 import { getMonthCalendarGrid, getDayOfWeekName, isSameDay } from '../../utils/dateUtils';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -270,7 +271,7 @@ const SAMPLE_DAYS_MAP: Record<number, CalendarDayData> = {
 
 interface CalendarScreenProps {
   refreshTrigger?: number;
-  onNavigateToCamera?: () => void;
+  onNavigateToCamera?: (dateStr?: string) => void;
   onNavigateToDetail?: (txId: string) => void;
 }
 
@@ -286,32 +287,52 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
   const [selectedDay, setSelectedDay] = useState(now.getDate());
   const [isLoadingDate, setIsLoadingDate] = useState(false);
   const [apiData, setApiData] = useState<TransactionsByDateResponse | null>(null);
+  const [deletingTxItem, setDeletingTxItem] = useState<any>(null);
+  const [isDeletingCalTx, setIsDeletingCalTx] = useState(false);
 
   // Avatar initials / image
   const displayName = user?.fullName || (user?.email ? user.email.split('@')[0] : 'Min');
 
+  const fetchDayData = useCallback(async (dateStr: string) => {
+    setIsLoadingDate(true);
+    try {
+      const data = await getTransactionsByDateApi(dateStr);
+      if (data) {
+        setApiData(data as any);
+      }
+    } catch (err: any) {
+      console.log('[CalendarScreen] API fetch error:', err?.message);
+    } finally {
+      setIsLoadingDate(false);
+    }
+  }, []);
+
+  const handleConfirmDeleteCalendarTx = async () => {
+    if (!deletingTxItem) return;
+    setIsDeletingCalTx(true);
+    try {
+      const txId = deletingTxItem.id || deletingTxItem._id;
+      if (txId && !String(txId).startsWith('tx_')) {
+        await deleteTransactionApi(txId);
+      }
+      setDeletingTxItem(null);
+      const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+      await fetchDayData(dateStr);
+    } catch (e: any) {
+      console.log('Error deleting tx from calendar:', e);
+      if (typeof alert !== 'undefined') {
+        alert('Không thể xóa giao dịch: ' + (e?.message || 'Lỗi kết nối'));
+      }
+    } finally {
+      setIsDeletingCalTx(false);
+    }
+  };
+
   // Load transactions by date from API when selectedDay changes
   useEffect(() => {
-    let isMounted = true;
     const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
-    setIsLoadingDate(true);
-    getTransactionsByDateApi(dateStr)
-      .then((data) => {
-        if (isMounted && data) {
-          setApiData(data as any);
-        }
-      })
-      .catch((err) => {
-        console.log('[CalendarScreen] API fetch error (using fallback):', err?.message);
-      })
-      .finally(() => {
-        if (isMounted) setIsLoadingDate(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedDay, selectedMonth, selectedYear, refreshTrigger]);
+    fetchDayData(dateStr);
+  }, [selectedDay, selectedMonth, selectedYear, refreshTrigger, fetchDayData]);
 
   // Current day details
   const monthGrid = useMemo(() => {
@@ -373,7 +394,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
       <View style={styles.header}>
         <View style={styles.brandRow}>
           <Image
-            source={require('../../../assets/monett-brand-logo.png')}
+            source={require('../../../assets/adaptive-icon.png')}
             style={styles.brandLogo}
             resizeMode="contain"
           />
@@ -583,7 +604,10 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
         <TouchableOpacity
           style={styles.actionButton}
           activeOpacity={0.85}
-          onPress={onNavigateToCamera}
+          onPress={() => {
+            const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+            if (onNavigateToCamera) onNavigateToCamera(dateStr);
+          }}
         >
           <Ionicons name="images-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
           <Text style={styles.actionButtonText}>
@@ -626,7 +650,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
             {/* Top Badges */}
             <View style={styles.heroTopBadges}>
               <View style={styles.locationPill}>
-                <Text style={styles.locationIcon}>🍴</Text>
+                <Ionicons name="restaurant-outline" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
                 <Text style={styles.locationText}>{currentStoreName}</Text>
               </View>
 
@@ -664,7 +688,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
             <View style={styles.mascotContent}>
               <View style={styles.mascotTitleRow}>
                 <Text style={styles.mascotTitle}>Monett Mascot</Text>
-                <Text style={styles.mascotStar}>⭐</Text>
+                <Ionicons name="star" size={13} color="#F59E0B" />
               </View>
               <Text style={styles.mascotQuote}>
                 “Một khoảnh khắc ý nghĩa và rất xứng đáng!”
@@ -705,9 +729,22 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                     </Text>
                   </View>
 
-                  <Text style={styles.txItemAmount}>
-                    {item.amount}
-                  </Text>
+                  <View style={styles.txItemRight}>
+                    <Text style={styles.txItemAmount}>
+                      {item.amount}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.txRowDeleteBtn}
+                      activeOpacity={0.7}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        setDeletingTxItem(item);
+                      }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="trash-outline" size={15} color="#94A3B8" />
+                    </TouchableOpacity>
+                  </View>
                 </TouchableOpacity>
               ))}
             </View>
@@ -721,6 +758,17 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Modal xác nhận xóa chuẩn Fintech */}
+      <ConfirmDeleteModal
+        visible={Boolean(deletingTxItem)}
+        itemTitle={deletingTxItem?.title}
+        itemAmount={deletingTxItem?.amount}
+        itemCategory={deletingTxItem?.category || deletingTxItem?.subtitle}
+        isDeleting={isDeletingCalTx}
+        onConfirm={handleConfirmDeleteCalendarTx}
+        onCancel={() => setDeletingTxItem(null)}
+      />
     </SafeAreaView>
   );
 };
@@ -751,8 +799,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   brandLogo: {
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
   },
   brandTextWrap: {
     flexDirection: 'column',
@@ -1306,6 +1355,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: '#0F172A',
+  },
+  txItemRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  txRowDeleteBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyDayContainer: {
     alignItems: 'center',
