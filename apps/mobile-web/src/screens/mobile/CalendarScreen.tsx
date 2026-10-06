@@ -405,9 +405,9 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
         </View>
 
         <View style={styles.headerRight}>
-          {/* Streak Flame Badge */}
+          {/* Streak Flame Badge Tone-on-Tone */}
           <View style={styles.streakBadge}>
-            <Text style={styles.streakFlame}>🔥</Text>
+            <Ionicons name="flame" size={14} color="#D97706" style={{ marginRight: 2 }} />
             <Text style={styles.streakCount}>5</Text>
           </View>
 
@@ -487,21 +487,22 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
             </View>
             <View style={styles.statCardTexts}>
               <Text style={styles.statLabel}>Kỷ niệm lưu giữ</Text>
-              <Text style={styles.statValue}>
-                <Text style={{ color: '#047857' }}>26/31 ngày</Text> 📸
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                <Text style={[styles.statValue, { color: '#047857', marginRight: 4 }]}>26/31 ngày</Text>
+                <Ionicons name="sparkles" size={11} color="#10B981" />
+              </View>
             </View>
           </View>
 
           {/* Card 2: Tổng chi tiêu */}
           <View style={styles.statCard}>
             <View style={[styles.statIconBox, { backgroundColor: '#FEF3C7' }]}>
-              <Ionicons name="wallet-outline" size={20} color="#D97706" />
+              <Ionicons name="wallet-outline" size={18} color="#D97706" />
             </View>
             <View style={styles.statCardTexts}>
               <Text style={styles.statLabel}>Tổng chi tiêu</Text>
               <Text style={styles.statValue} numberOfLines={1}>
-                14.850.00...
+                14.850.000 đ
               </Text>
             </View>
           </View>
@@ -541,6 +542,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
               const dData = SAMPLE_DAYS_MAP[cell.dayNum];
               const isSelected = selectedDay === cell.dayNum;
               const hasPhoto = Boolean(dData?.imageUrl);
+              const isTodayCell = isSameDay(new Date(cell.year, cell.month - 1, cell.dayNum), new Date());
 
               return (
                 <TouchableOpacity
@@ -553,6 +555,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                     style={[
                       styles.dayCell,
                       hasPhoto ? styles.photoCell : styles.emptyCell,
+                      isTodayCell && !isSelected && styles.todayCellBorder,
                       isSelected && (hasPhoto ? styles.photoCellSelected : styles.emptyCellSelected),
                     ]}
                   >
@@ -576,8 +579,8 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                         </Text>
                         <Ionicons
                           name="camera-outline"
-                          size={14}
-                          color={isSelected ? '#059669' : '#A5B4FC'}
+                          size={13}
+                          color={isSelected ? '#047857' : isTodayCell ? '#059669' : '#A5B4FC'}
                         />
                       </>
                     )}
@@ -705,48 +708,73 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
             <ActivityIndicator size="small" color="#047857" style={{ marginVertical: 16 }} />
           ) : currentItems.length > 0 ? (
             <View style={styles.txListContainer}>
-              {currentItems.map((item, idx) => (
-                <TouchableOpacity
-                  key={item.id || idx}
-                  style={styles.txItemRow}
-                  activeOpacity={0.7}
-                  onPress={() => onNavigateToDetail && onNavigateToDetail(item.id)}
-                >
-                  <View style={styles.txIconBox}>
-                    <Ionicons
-                      name={item.icon as any || 'restaurant-outline'}
-                      size={20}
-                      color="#047857"
-                    />
-                  </View>
+              {currentItems.map((item, idx) => {
+                const catLower = (item.category || item.title || '').toLowerCase();
+                let catBg = '#ECFDF5';
+                let catColor = '#059669';
+                let catIcon = 'restaurant-outline';
 
-                  <View style={styles.txItemInfo}>
-                    <Text style={styles.txItemTitle} numberOfLines={1}>
-                      {item.title}
-                    </Text>
-                    <Text style={styles.txItemSubtitle}>
-                      {item.subtitle}
-                    </Text>
-                  </View>
+                if (catLower.includes('mua') || catLower.includes('sắm') || catLower.includes('shop')) {
+                  catBg = '#EFF6FF';
+                  catColor = '#2563EB';
+                  catIcon = 'bag-handle-outline';
+                } else if (catLower.includes('xe') || catLower.includes('di chuyển') || catLower.includes('xăng')) {
+                  catBg = '#FEF3C7';
+                  catColor = '#D97706';
+                  catIcon = 'car-outline';
+                } else if (catLower.includes('cà phê') || catLower.includes('cafe')) {
+                  catBg = '#FCE7F3';
+                  catColor = '#DB2777';
+                  catIcon = 'cafe-outline';
+                } else if (!catLower.includes('ăn') && !catLower.includes('uống') && !catLower.includes('bún')) {
+                  catBg = '#F1F5F9';
+                  catColor = '#475569';
+                  catIcon = 'receipt-outline';
+                }
 
-                  <View style={styles.txItemRight}>
-                    <Text style={styles.txItemAmount}>
-                      {item.amount}
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.txRowDeleteBtn}
-                      activeOpacity={0.7}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        setDeletingTxItem(item);
-                      }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Ionicons name="trash-outline" size={15} color="#94A3B8" />
-                    </TouchableOpacity>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                return (
+                  <TouchableOpacity
+                    key={item.id || idx}
+                    style={styles.txItemRow}
+                    activeOpacity={0.7}
+                    onPress={() => onNavigateToDetail && onNavigateToDetail(item.id)}
+                  >
+                    <View style={[styles.txIconBox, { backgroundColor: catBg }]}>
+                      <Ionicons
+                        name={catIcon as any}
+                        size={18}
+                        color={catColor}
+                      />
+                    </View>
+
+                    <View style={styles.txItemInfo}>
+                      <Text style={styles.txItemTitle} numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      <Text style={styles.txItemSubtitle}>
+                        {item.subtitle}
+                      </Text>
+                    </View>
+
+                    <View style={styles.txItemRight}>
+                      <Text style={styles.txItemAmount}>
+                        {item.amount}
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.txRowDeleteBtn}
+                        activeOpacity={0.7}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          setDeletingTxItem(item);
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="trash-outline" size={15} color="#94A3B8" />
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           ) : (
             <View style={styles.emptyDayContainer}>
@@ -1072,6 +1100,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#059669',
     backgroundColor: '#ECFDF5',
+  },
+  todayCellBorder: {
+    borderWidth: 1.5,
+    borderColor: '#047857',
+    backgroundColor: '#F0FDF4',
   },
   emptyCellDayText: {
     fontSize: 11,

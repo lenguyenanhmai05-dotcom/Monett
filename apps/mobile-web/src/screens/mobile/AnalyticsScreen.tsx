@@ -38,27 +38,56 @@ const getInitialChartData = () => {
   }));
 };
 
-const DEFAULT_CATEGORIES = [
-  { name: 'Ăn uống', icon: '🍜', amount: '520.000 đ', percent: 50, color: '#10B981' },
-  { name: 'Mua sắm', icon: '🛍️', amount: '200.000 đ', percent: 19, color: '#3B82F6' },
-  { name: 'Di chuyển', icon: '🚗', amount: '180.000 đ', percent: 17, color: '#F59E0B' },
-  { name: 'Cà phê', icon: '☕', amount: '145.000 đ', percent: 14, color: '#EC4899' },
+interface CategoryItem {
+  name: string;
+  amount: string;
+  percent: number;
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  bg: string;
+}
+
+const getCategoryMeta = (catName: string) => {
+  const name = catName.toLowerCase();
+  if (name.includes('ăn') || name.includes('uống') || name.includes('ẩm thực') || name.includes('bún')) {
+    return { icon: 'restaurant-outline' as const, color: '#059669', bg: '#ECFDF5' };
+  }
+  if (name.includes('mua') || name.includes('sắm') || name.includes('shop')) {
+    return { icon: 'bag-handle-outline' as const, color: '#2563EB', bg: '#EFF6FF' };
+  }
+  if (name.includes('xe') || name.includes('di chuyển') || name.includes('xăng')) {
+    return { icon: 'car-outline' as const, color: '#D97706', bg: '#FEF3C7' };
+  }
+  if (name.includes('cà phê') || name.includes('cafe')) {
+    return { icon: 'cafe-outline' as const, color: '#DB2777', bg: '#FCE7F3' };
+  }
+  return { icon: 'grid-outline' as const, color: '#7C3AED', bg: '#F5F3FF' };
+};
+
+const DEFAULT_CATEGORIES: CategoryItem[] = [
+  { name: 'Ăn uống', icon: 'restaurant-outline', amount: '520.000 đ', percent: 50, color: '#059669', bg: '#ECFDF5' },
+  { name: 'Mua sắm', icon: 'bag-handle-outline', amount: '200.000 đ', percent: 19, color: '#2563EB', bg: '#EFF6FF' },
+  { name: 'Di chuyển', icon: 'car-outline', amount: '180.000 đ', percent: 17, color: '#D97706', bg: '#FEF3C7' },
+  { name: 'Cà phê', icon: 'cafe-outline', amount: '145.000 đ', percent: 14, color: '#DB2777', bg: '#FCE7F3' },
 ];
 
 const DEFAULT_TOP_EXPENSES = [
   {
     title: 'Lẩu Haidilao (T4)',
     amount: '320.000 đ',
+    category: 'Ăn uống',
     image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=120&auto=format&fit=crop&q=80',
   },
   {
     title: 'Bún bò & bữa tối (CN)',
     amount: '185.000 đ',
+    category: 'Ẩm thực',
     image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=120&auto=format&fit=crop&q=80',
   },
   {
     title: 'Đi siêu thị WinMart (T5)',
     amount: '150.000 đ',
+    category: 'Mua sắm',
     image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=120&auto=format&fit=crop&q=80',
   },
 ];
@@ -67,7 +96,7 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
   const [period, setPeriod] = useState<'week' | 'month'>('week');
   const [totalSpent, setTotalSpent] = useState<number>(1045000);
   const [dailyAvg, setDailyAvg] = useState<number>(149000);
-  const [categoryBreakdown, setCategoryBreakdown] = useState(DEFAULT_CATEGORIES);
+  const [categoryBreakdown, setCategoryBreakdown] = useState<CategoryItem[]>(DEFAULT_CATEGORIES);
   const [topExpenses, setTopExpenses] = useState(DEFAULT_TOP_EXPENSES);
   const [chartData, setChartData] = useState(getInitialChartData());
   const currentWeekStr = useMemo(() => getCurrentWeekRange(), []);
@@ -95,14 +124,17 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
       }
 
       if (catData.status === 'fulfilled' && Array.isArray(catData.value) && catData.value.length > 0) {
-        const colors = ['#10B981', '#3B82F6', '#F59E0B', '#EC4899', '#8B5CF6'];
-        const cats = catData.value.map((c: any, index: number) => ({
-          name: c.name || c.category || 'Khác',
-          icon: c.icon || '🍜',
-          amount: `${Math.abs(c.amount || c.total || 0).toLocaleString('vi-VN')} đ`,
-          percent: c.percentage || Math.round(c.percent || 0),
-          color: colors[index % colors.length],
-        }));
+        const cats: CategoryItem[] = catData.value.map((c: any) => {
+          const meta = getCategoryMeta(c.name || c.category || 'Khác');
+          return {
+            name: c.name || c.category || 'Khác',
+            icon: meta.icon,
+            color: meta.color,
+            bg: meta.bg,
+            amount: `${Math.abs(c.amount || c.total || 0).toLocaleString('vi-VN')} đ`,
+            percent: c.percentage || Math.round(c.percent || 0),
+          };
+        });
         setCategoryBreakdown(cats);
       }
 
@@ -112,6 +144,7 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
           const formatted = items.slice(0, 3).map((t: any) => ({
             title: t.title,
             amount: `${Math.abs(t.amount).toLocaleString('vi-VN')} đ`,
+            category: t.category || 'Chi tiêu',
             image: t.photoUri || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=120&auto=format&fit=crop&q=80',
           }));
           setTopExpenses(formatted);
@@ -128,69 +161,118 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* 1. Header Bar */}
+      {/* 1. Header Bar Chuẩn Fintech */}
       <View style={styles.header}>
-        {onBack && (
-          <TouchableOpacity style={styles.backBtn} onPress={onBack}>
-            <Ionicons name="chevron-back" size={22} color="#1E293B" />
+        {onBack ? (
+          <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
+            <Ionicons name="chevron-back" size={20} color="#0F172A" />
           </TouchableOpacity>
+        ) : (
+          <View style={{ width: 36 }} />
         )}
         <Text style={styles.headerTitle}>Báo Cáo Thống Kê</Text>
-        <View style={{ width: 36 }} />
+        <TouchableOpacity style={styles.infoBtn} activeOpacity={0.7}>
+          <Ionicons name="sparkles" size={17} color="#047857" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* 2. Bộ lọc Tuần / Tháng */}
-        <View style={styles.periodTabs}>
+        {/* 2. Bộ lọc Tuần / Tháng: Segmented Control iOS Cao Cấp */}
+        <View style={styles.segmentedWrapper}>
           <TouchableOpacity
-            style={[styles.periodTab, period === 'week' && styles.periodTabActive]}
+            style={[styles.segmentBtn, period === 'week' && styles.segmentBtnActive]}
             onPress={() => setPeriod('week')}
+            activeOpacity={0.8}
           >
-            <Text
-              style={[
-                styles.periodTabText,
-                period === 'week' && styles.periodTabTextActive,
-              ]}
-            >
+            <Ionicons
+              name="calendar-outline"
+              size={13}
+              color={period === 'week' ? '#047857' : '#64748B'}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.segmentText, period === 'week' && styles.segmentTextActive]}>
               Tuần này ({currentWeekStr})
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.periodTab, period === 'month' && styles.periodTabActive]}
+            style={[styles.segmentBtn, period === 'month' && styles.segmentBtnActive]}
             onPress={() => setPeriod('month')}
+            activeOpacity={0.8}
           >
-            <Text
-              style={[
-                styles.periodTabText,
-                period === 'month' && styles.periodTabTextActive,
-              ]}
-            >
+            <Ionicons
+              name="pie-chart-outline"
+              size={13}
+              color={period === 'month' ? '#047857' : '#64748B'}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={[styles.segmentText, period === 'month' && styles.segmentTextActive]}>
               Tháng {new Date().getMonth() + 1}
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* 3. Tổng chi & Trung bình */}
+        {/* 3. Thẻ Metrics Banner Tổng Chi Tiêu (Fintech Overview Card) */}
         <View style={styles.summaryCard}>
-          <View style={styles.summaryCol}>
-            <Text style={styles.summaryLabel}>Tổng chi tiêu</Text>
-            <Text style={styles.summaryTotal}>{totalSpent.toLocaleString('vi-VN')} đ</Text>
+          <View style={styles.summaryTopRow}>
+            <View>
+              <Text style={styles.summaryLabel}>TỔNG CHI TIÊU KỲ NÀY</Text>
+              <Text style={styles.summaryTotal}>{totalSpent.toLocaleString('vi-VN')} đ</Text>
+            </View>
+
+            {/* Trend Badge Tone-on-Tone */}
+            <View style={styles.trendBadge}>
+              <Ionicons name="trending-down" size={13} color="#059669" style={{ marginRight: 4 }} />
+              <Text style={styles.trendBadgeText}>Ổn định</Text>
+            </View>
           </View>
-          <View style={styles.dividerVertical} />
-          <View style={styles.summaryCol}>
-            <Text style={styles.summaryLabel}>Trung bình / ngày</Text>
-            <Text style={styles.summaryAvg}>{dailyAvg.toLocaleString('vi-VN')} đ</Text>
+
+          <View style={styles.summaryDivider} />
+
+          <View style={styles.summaryBottomRow}>
+            <View style={styles.subMetricCol}>
+              <Text style={styles.subMetricLabel}>Trung bình / ngày</Text>
+              <Text style={styles.subMetricValue}>{dailyAvg.toLocaleString('vi-VN')} đ</Text>
+            </View>
+            <View style={styles.subMetricCol}>
+              <Text style={styles.subMetricLabel}>Đánh giá kỳ</Text>
+              <Text style={[styles.subMetricValue, { color: '#6EE7B7' }]}>Dưới hạn mức 🛡️</Text>
+            </View>
           </View>
         </View>
 
-        {/* 4. Biểu đồ cột tuần */}
+        {/* 3.5. Chỉ số kỷ luật tài chính (Financial Health Score) */}
+        <View style={styles.healthScoreCard}>
+          <View style={styles.healthScoreLeft}>
+            <View style={styles.healthShieldCircle}>
+              <Ionicons name="shield-checkmark" size={18} color="#059669" />
+            </View>
+            <View style={{ marginLeft: 12 }}>
+              <Text style={styles.healthScoreTitle}>Kỷ luật ngân sách</Text>
+              <Text style={styles.healthScoreSubtitle}>Chi tiêu đúng kế hoạch, không thâm hụt</Text>
+            </View>
+          </View>
+          <View style={styles.healthScoreBadge}>
+            <Text style={styles.healthScoreNumber}>88<Text style={styles.healthScoreTotal}>/100</Text></Text>
+          </View>
+        </View>
+
+        {/* 4. Biểu đồ cột tuần: Capsule Bars Hiện Đại */}
         <View style={styles.chartCard}>
-          <Text style={styles.cardHeading}>BIỂU ĐỒ CHI THEO NGÀY</Text>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.cardHeading}>BIỂU ĐỒ CHI THEO NGÀY</Text>
+            <View style={styles.chartLegend}>
+              <View style={[styles.chartLegendDot, { backgroundColor: '#10B981' }]} />
+              <Text style={styles.chartLegendText}>Hôm nay</Text>
+            </View>
+          </View>
+
           <View style={styles.barChartWrapper}>
             {chartData.map((item, idx) => (
               <View key={idx} style={styles.barColumn}>
-                <Text style={styles.barTopAmount}>{item.amount}k</Text>
+                <Text style={[styles.barTopAmount, item.highest && styles.barTopAmountHighest]}>
+                  {item.amount}k
+                </Text>
                 <View style={styles.barTrack}>
                   <View
                     style={[
@@ -204,6 +286,7 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
                 <Text
                   style={[
                     styles.barDayLabel,
+                    item.day === 'CN' && styles.barDayLabelSunday,
                     item.current && styles.barDayLabelCurrent,
                   ]}
                 >
@@ -214,23 +297,31 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
           </View>
         </View>
 
-        {/* 5. Phân bổ theo Danh Mục */}
+        {/* 5. Phân bổ theo Danh Mục: Vector Icon Box Tone-on-Tone */}
         <View style={styles.breakdownCard}>
-          <Text style={styles.cardHeading}>CƠ CẤU DANH MỤC</Text>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.cardHeading}>CƠ CẤU DANH MỤC</Text>
+            <Text style={styles.cardSubCount}>{categoryBreakdown.length} nhóm chi tiêu</Text>
+          </View>
+
           {categoryBreakdown.map((cat, i) => (
             <View key={i} style={styles.catBreakdownItem}>
               <View style={styles.catInfoRow}>
                 <View style={styles.catLeft}>
-                  <Text style={styles.catEmoji}>{cat.icon}</Text>
+                  <View style={[styles.catIconContainer, { backgroundColor: cat.bg }]}>
+                    <Ionicons name={cat.icon} size={15} color={cat.color} />
+                  </View>
                   <Text style={styles.catTitle}>{cat.name}</Text>
                 </View>
                 <View style={styles.catRight}>
                   <Text style={styles.catSum}>{cat.amount}</Text>
-                  <Text style={styles.catPct}>{cat.percent}%</Text>
+                  <View style={styles.catPercentBadge}>
+                    <Text style={styles.catPct}>{cat.percent}%</Text>
+                  </View>
                 </View>
               </View>
 
-              {/* Progress track */}
+              {/* Progress track bo tròn mượt mà */}
               <View style={styles.progressTrack}>
                 <View
                   style={[
@@ -244,15 +335,20 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
         </View>
 
         {/* 6. Top chi tiêu cao nhất */}
-        <View style={[styles.breakdownCard, { marginBottom: 20 }]}>
-          <Text style={styles.cardHeading}>KHOẢN CHI LỚN TRONG TUẦN</Text>
+        <View style={[styles.breakdownCard, { marginBottom: 24 }]}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.cardHeading}>KHOẢN CHI LỚN TRONG TUẦN</Text>
+            <Ionicons name="sparkles-outline" size={14} color="#D97706" />
+          </View>
+
           {topExpenses.map((t, idx) => (
             <View key={idx} style={styles.topExpRow}>
               <Image source={{ uri: t.image }} style={styles.topExpThumb} />
               <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.topExpTitle}>{t.title}</Text>
-                <Text style={styles.topExpAmount}>{t.amount}</Text>
+                <Text style={styles.topExpTitle} numberOfLines={1}>{t.title}</Text>
+                <Text style={styles.topExpCategory}>{t.category}</Text>
               </View>
+              <Text style={styles.topExpAmount}>{t.amount}</Text>
             </View>
           ))}
         </View>
@@ -264,7 +360,7 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAF9',
+    backgroundColor: '#F8FAFC',
   },
   header: {
     flexDirection: 'row',
@@ -274,113 +370,248 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#F1F5F9',
   },
   backBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
     borderColor: '#E2E8F0',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+  },
+  infoBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#ECFDF5',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '800',
+    color: '#0F172A',
+    letterSpacing: -0.3,
   },
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
   },
-  periodTabs: {
+  // SEGMENTED CONTROL
+  segmentedWrapper: {
     flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 16,
     padding: 4,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  periodTab: {
+  segmentBtn: {
     flex: 1,
-    paddingVertical: 8,
+    flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 10,
+    justifyContent: 'center',
+    paddingVertical: 9,
+    borderRadius: 12,
   },
-  periodTabActive: {
+  segmentBtnActive: {
     backgroundColor: '#FFFFFF',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  periodTabText: {
+  segmentText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6B7280',
+    color: '#64748B',
   },
-  periodTabTextActive: {
-    color: '#064E3B',
-    fontWeight: '700',
+  segmentTextActive: {
+    color: '#047857',
+    fontWeight: '800',
   },
+  // METRICS BANNER CARD
   summaryCard: {
-    flexDirection: 'row',
-    backgroundColor: '#0D3B37',
-    borderRadius: 20,
+    backgroundColor: '#064E3B',
+    borderRadius: 24,
     padding: 18,
-    marginBottom: 16,
+    marginBottom: 14,
+    shadowColor: '#064E3B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 211, 153, 0.25)',
   },
-  summaryCol: {
-    flex: 1,
-  },
-  dividerVertical: {
-    width: 1,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    marginHorizontal: 16,
+  summaryTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
   summaryLabel: {
-    fontSize: 12,
-    color: '#D1D5DB',
-  },
-  summaryTotal: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 4,
-  },
-  summaryAvg: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#6EE7B7',
-    marginTop: 4,
-  },
-  chartCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginBottom: 16,
-  },
-  cardHeading: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#6B7280',
-    letterSpacing: 0.8,
+    color: '#A7F3D0',
+    letterSpacing: 0.6,
+  },
+  summaryTotal: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginTop: 4,
+    letterSpacing: -0.5,
+  },
+  trendBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  trendBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    marginVertical: 14,
+  },
+  summaryBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  subMetricCol: {
+    flex: 1,
+  },
+  subMetricLabel: {
+    fontSize: 11,
+    color: '#D1FAE5',
+    fontWeight: '500',
+  },
+  subMetricValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    marginTop: 3,
+  },
+  // HEALTH SCORE CARD
+  healthScoreCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  healthScoreLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  healthShieldCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#ECFDF5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  healthScoreTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  healthScoreSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  healthScoreBadge: {
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  healthScoreNumber: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#047857',
+  },
+  healthScoreTotal: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  // CHART CARD
+  chartCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 14,
+  },
+  cardHeading: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#475569',
+    letterSpacing: 0.6,
+  },
+  cardSubCount: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  chartLegend: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  chartLegendDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  chartLegendText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
   },
   barChartWrapper: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-between',
-    height: 140,
+    height: 145,
     paddingTop: 10,
   },
   barColumn: {
@@ -388,68 +619,92 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   barTopAmount: {
-    fontSize: 9,
-    color: '#9CA3AF',
-    marginBottom: 4,
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#94A3B8',
+    marginBottom: 6,
+  },
+  barTopAmountHighest: {
+    color: '#E11D48',
+    fontWeight: '800',
   },
   barTrack: {
-    width: 14,
-    height: 90,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 7,
+    width: 16,
+    height: 95,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
     justifyContent: 'flex-end',
     overflow: 'hidden',
   },
   barFill: {
     width: '100%',
     backgroundColor: '#A7F3D0',
-    borderRadius: 7,
+    borderRadius: 8,
   },
   barHighest: {
-    backgroundColor: '#E11D48',
+    backgroundColor: '#F43F5E',
   },
   barCurrent: {
-    backgroundColor: '#047857',
+    backgroundColor: '#10B981',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 2,
   },
   barDayLabel: {
-    fontSize: 10,
-    color: '#6B7280',
-    marginTop: 6,
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 8,
     fontWeight: '600',
+  },
+  barDayLabelSunday: {
+    color: '#EA580C',
+    fontWeight: '700',
   },
   barDayLabelCurrent: {
     color: '#047857',
-    fontWeight: '800',
+    fontWeight: '900',
   },
+  // CATEGORY BREAKDOWN CARD
   breakdownCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
+    borderRadius: 22,
+    padding: 18,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#E2E8F0',
     marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
   catBreakdownItem: {
-    marginBottom: 14,
+    marginBottom: 16,
   },
   catInfoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   catLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
-  catEmoji: {
-    fontSize: 16,
+  catIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   catTitle: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontWeight: '700',
+    color: '#1E293B',
   },
   catRight: {
     flexDirection: 'row',
@@ -458,18 +713,23 @@ const styles = StyleSheet.create({
   },
   catSum: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  catPercentBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
   catPct: {
     fontSize: 11,
-    color: '#6B7280',
-    width: 32,
-    textAlign: 'right',
+    fontWeight: '700',
+    color: '#64748B',
   },
   progressTrack: {
     height: 6,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F1F5F9',
     borderRadius: 3,
     overflow: 'hidden',
   },
@@ -477,27 +737,35 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 3,
   },
+  // TOP EXPENSES
   topExpRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F9FAFB',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   topExpThumb: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
+    width: 46,
+    height: 46,
+    borderRadius: 12,
   },
   topExpTitle: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#1F2937',
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  topExpCategory: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
   },
   topExpAmount: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '800',
     color: '#E11D48',
-    marginTop: 2,
   },
 });

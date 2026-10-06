@@ -20,19 +20,35 @@ export const CategoriesScreen: React.FC<CategoriesScreenProps> = ({
 }) => {
   const [tab, setTab] = useState<'expense' | 'income'>('expense');
 
-  const expenseCategories = [
-    { id: 'c1', name: 'Ăn uống', icon: '🍜', spent: '520.000 đ', limit: '1.500.000 đ', color: '#10B981', bg: '#ECFDF5' },
-    { id: 'c2', name: 'Cà phê & Đồ uống', icon: '☕', spent: '145.000 đ', limit: '500.000 đ', color: '#F59E0B', bg: '#FEF3C7' },
-    { id: 'c3', name: 'Mua sắm cá nhân', icon: '🛍️', spent: '200.000 đ', limit: '800.000 đ', color: '#3B82F6', bg: '#EFF6FF' },
-    { id: 'c4', name: 'Di chuyển & Xăng xe', icon: '🚗', spent: '180.000 đ', limit: '600.000 đ', color: '#8B5CF6', bg: '#F5F3FF' },
-    { id: 'c5', name: 'Hóa đơn & Tiện ích', icon: '🧾', spent: '0 đ', limit: '1.200.000 đ', color: '#EF4444', bg: '#FEF2F2' },
-    { id: 'c6', name: 'Giải trí & Phim ảnh', icon: '🎬', spent: '0 đ', limit: '400.000 đ', color: '#EC4899', bg: '#FDF2F8' },
+  const expenseCategories: {
+    id: string;
+    name: string;
+    iconName: keyof typeof Ionicons.glyphMap;
+    spent: string;
+    limit: string;
+    color: string;
+    bg: string;
+  }[] = [
+    { id: 'c1', name: 'Ăn uống', iconName: 'restaurant-outline', spent: '520.000 đ', limit: '1.500.000 đ', color: '#10B981', bg: '#ECFDF5' },
+    { id: 'c2', name: 'Cà phê & Đồ uống', iconName: 'cafe-outline', spent: '145.000 đ', limit: '500.000 đ', color: '#F59E0B', bg: '#FEF3C7' },
+    { id: 'c3', name: 'Mua sắm cá nhân', iconName: 'bag-handle-outline', spent: '200.000 đ', limit: '800.000 đ', color: '#3B82F6', bg: '#EFF6FF' },
+    { id: 'c4', name: 'Di chuyển & Xăng xe', iconName: 'car-outline', spent: '180.000 đ', limit: '600.000 đ', color: '#8B5CF6', bg: '#F5F3FF' },
+    { id: 'c5', name: 'Hóa đơn & Tiện ích', iconName: 'receipt-outline', spent: '0 đ', limit: '1.200.000 đ', color: '#EF4444', bg: '#FEF2F2' },
+    { id: 'c6', name: 'Giải trí & Phim ảnh', iconName: 'film-outline', spent: '0 đ', limit: '400.000 đ', color: '#EC4899', bg: '#FDF2F8' },
   ];
 
-  const incomeCategories = [
-    { id: 'i1', name: 'Tiền lương', icon: '💰', spent: '15.000.000 đ', limit: 'Định kỳ', color: '#10B981', bg: '#ECFDF5' },
-    { id: 'i2', name: 'Thưởng & Tip', icon: '🎁', spent: '1.200.000 đ', limit: 'Phát sinh', color: '#F59E0B', bg: '#FEF3C7' },
-    { id: 'i3', name: 'Freelance & Dự án', icon: '💻', spent: '3.500.000 đ', limit: 'Linh hoạt', color: '#3B82F6', bg: '#EFF6FF' },
+  const incomeCategories: {
+    id: string;
+    name: string;
+    iconName: keyof typeof Ionicons.glyphMap;
+    spent: string;
+    limit: string;
+    color: string;
+    bg: string;
+  }[] = [
+    { id: 'i1', name: 'Tiền lương', iconName: 'cash-outline', spent: '15.000.000 đ', limit: 'Định kỳ', color: '#10B981', bg: '#ECFDF5' },
+    { id: 'i2', name: 'Thưởng & Tip', iconName: 'gift-outline', spent: '1.200.000 đ', limit: 'Phát sinh', color: '#F59E0B', bg: '#FEF3C7' },
+    { id: 'i3', name: 'Freelance & Dự án', iconName: 'laptop-outline', spent: '3.500.000 đ', limit: 'Linh hoạt', color: '#3B82F6', bg: '#EFF6FF' },
   ];
 
   const list = tab === 'expense' ? expenseCategories : incomeCategories;
@@ -78,7 +94,7 @@ export const CategoriesScreen: React.FC<CategoriesScreenProps> = ({
         {list.map((cat) => (
           <TouchableOpacity key={cat.id} style={styles.catCard} activeOpacity={0.75}>
             <View style={[styles.iconBox, { backgroundColor: cat.bg }]}>
-              <Text style={styles.catEmoji}>{cat.icon}</Text>
+              <Ionicons name={cat.iconName} size={20} color={cat.color} />
             </View>
 
             <View style={styles.catDetails}>

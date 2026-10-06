@@ -58,13 +58,17 @@ export const MobileNavigator: React.FC = () => {
               setTargetExpenseDate(dateStr);
               setActiveModal('add_expense');
             }}
-            onNavigateToQuickSave={() => setActiveModal('quick_save')}
+            onNavigateToQuickSave={(dateStr?: string) => {
+              setTargetExpenseDate(dateStr);
+              setActiveModal('quick_save');
+            }}
             onNavigateToDetail={(id) => {
               setSelectedTxId(id);
               setActiveModal('detail');
             }}
             onNavigateToAnalytics={() => setCurrentTab('analytics')}
             onNavigateToCalendar={() => setCurrentTab('calendar')}
+            onNavigateToProfile={() => setCurrentTab('profile')}
           />
         );
       case 'calendar':
@@ -84,11 +88,19 @@ export const MobileNavigator: React.FC = () => {
       case 'analytics':
         return <AnalyticsScreen refreshTrigger={refreshKey} />;
       case 'feed':
-        return <FriendsFeedScreen />;
+        return <FriendsFeedScreen onBack={() => setCurrentTab('profile')} />;
+      case 'wallets':
+        return <WalletsScreen onBack={() => setCurrentTab('profile')} />;
       case 'categories':
-        return <CategoriesScreen />;
+        return <CategoriesScreen onBack={() => setCurrentTab('profile')} />;
       case 'profile':
-        return <ProfileScreen />;
+        return (
+          <ProfileScreen
+            onNavigateToWallets={() => setCurrentTab('wallets')}
+            onNavigateToCategories={() => setCurrentTab('categories')}
+            onNavigateToFeed={() => setCurrentTab('feed')}
+          />
+        );
       default:
         return <HomeScreen refreshTrigger={refreshKey} />;
     }
@@ -208,7 +220,7 @@ export const MobileNavigator: React.FC = () => {
             }}
             onNavigateToWallets={() => {
               setActiveModal('none');
-              setCurrentTab('profile');
+              setCurrentTab('wallets');
             }}
             onNavigateToAnalytics={() => {
               setActiveModal('none');
@@ -267,19 +279,25 @@ export const MobileNavigator: React.FC = () => {
       {/* 6. Modal QuickSave (Bạn vừa chi?) */}
       <QuickSaveModal
         visible={activeModal === 'quick_save'}
-        onClose={() => setActiveModal('none')}
-        onSaveQuick={async (amount, category) => {
+        targetDate={targetExpenseDate}
+        onClose={() => {
+          setTargetExpenseDate(undefined);
+          setActiveModal('none');
+        }}
+        onSaveQuick={async (amount, category, date) => {
           try {
             await createTransactionApi({
               title: category,
               amount: -Math.abs(amount),
               category,
               type: 'expense',
+              date: date ? new Date(date).toISOString() : new Date().toISOString(),
             });
             triggerRefresh();
           } catch (e) {
             console.log('Saved quick expense (offline/local fallback):', amount, category);
           }
+          setTargetExpenseDate(undefined);
           setActiveModal('none');
         }}
         onOpenFullCamera={() => setActiveModal('camera')}

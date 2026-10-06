@@ -21,10 +21,11 @@ interface HomeScreenProps {
   refreshTrigger?: number;
   onNavigateToCamera?: (dateStr?: string) => void;
   onNavigateToAddExpense?: (dateStr?: string) => void;
-  onNavigateToQuickSave?: () => void;
+  onNavigateToQuickSave?: (dateStr?: string) => void;
   onNavigateToDetail?: (transactionId: string) => void;
   onNavigateToAnalytics?: () => void;
   onNavigateToCalendar?: () => void;
+  onNavigateToProfile?: () => void;
 }
 
 interface ExpenseCardItem {
@@ -75,6 +76,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToDetail,
   onNavigateToAnalytics,
   onNavigateToCalendar,
+  onNavigateToProfile,
 }) => {
   const { user: authUser } = useAuth();
   const avatarUri = authUser?.avatarUrl;
@@ -233,29 +235,45 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </View>
 
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.quickSaveBtn} onPress={onNavigateToQuickSave} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.quickSaveBtn}
+            onPress={() => onNavigateToQuickSave && onNavigateToQuickSave(selectedDateStr)}
+            activeOpacity={0.8}
+          >
             <Ionicons name="flash" size={13} color="#047857" style={{ marginRight: 3 }} />
             <Text style={styles.quickSaveBtnText}>Lưu nhanh</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.iconButton}>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => {
+              if (typeof alert !== 'undefined') {
+                alert('Bạn không có thông báo mới nào.');
+              }
+            }}
+          >
             <Ionicons name="notifications-outline" size={21} color="#1E293B" />
             <View style={styles.notificationDot} />
           </TouchableOpacity>
 
-          {avatarUri && !imageError ? (
-            <Image
-              source={{ uri: avatarUri }}
-              style={styles.avatar}
-              onError={() => setImageError(true)}
-            />
-          ) : (
-            <View style={[styles.avatar, { backgroundColor: avatarColor.bg, justifyContent: 'center', alignItems: 'center' }]}>
-              <Text style={{ color: avatarColor.text, fontWeight: '800', fontSize: 16 }}>
-                {displayName.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          )}
+          <TouchableOpacity
+            onPress={onNavigateToProfile}
+            activeOpacity={0.8}
+          >
+            {avatarUri && !imageError ? (
+              <Image
+                source={{ uri: avatarUri }}
+                style={styles.avatar}
+                onError={() => setImageError(true)}
+              />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: avatarColor.bg, justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={{ color: avatarColor.text, fontWeight: '800', fontSize: 16 }}>
+                  {displayName.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -274,7 +292,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         {/* 2. Lời chào */}
         <View style={styles.greetingSection}>
           <Text style={styles.greetingSub}>{greetingSub}</Text>
-          <Text style={styles.greetingName}>{displayName} 👋</Text>
+          <Text style={styles.greetingName}>{displayName}</Text>
         </View>
 
         {/* 2.5 Streak Widget: Giữ lửa chi tiêu */}

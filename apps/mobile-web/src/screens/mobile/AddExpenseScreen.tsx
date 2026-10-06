@@ -92,21 +92,27 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     return isToday ? `Hôm nay (${dayShort}, ${dateFormatted})` : `${dayShort}, ${dateFormatted}`;
   }, [expenseDateObj]);
 
-  const categories = [
-    { id: '1', name: 'Ăn uống', icon: '🍜' },
-    { id: '2', name: 'Cà phê', icon: '☕' },
-    { id: '3', name: 'Mua sắm', icon: '🛍️' },
-    { id: '4', name: 'Di chuyển', icon: '🚗' },
-    { id: '5', name: 'Hóa đơn', icon: '🧾' },
-    { id: '6', name: 'Giải trí', icon: '🎬' },
-    { id: '7', name: 'Lương', icon: '💰' },
-    { id: '8', name: 'Khác', icon: '📦' },
+  const categories: {
+    id: string;
+    name: string;
+    iconName: keyof typeof Ionicons.glyphMap;
+    color: string;
+    bg: string;
+  }[] = [
+    { id: '1', name: 'Ăn uống', iconName: 'restaurant-outline', color: '#059669', bg: '#ECFDF5' },
+    { id: '2', name: 'Cà phê', iconName: 'cafe-outline', color: '#7C3AED', bg: '#F5F3FF' },
+    { id: '3', name: 'Mua sắm', iconName: 'bag-handle-outline', color: '#2563EB', bg: '#EFF6FF' },
+    { id: '4', name: 'Di chuyển', iconName: 'car-outline', color: '#D97706', bg: '#FEF3C7' },
+    { id: '5', name: 'Hóa đơn', iconName: 'receipt-outline', color: '#DC2626', bg: '#FEE2E2' },
+    { id: '6', name: 'Giải trí', iconName: 'film-outline', color: '#DB2777', bg: '#FDF2F8' },
+    { id: '7', name: 'Lương & Thu nhập', iconName: 'cash-outline', color: '#059669', bg: '#ECFDF5' },
+    { id: '8', name: 'Khác', iconName: 'cube-outline', color: '#64748B', bg: '#F1F5F9' },
   ];
 
   const wallets = [
-    { id: 'w1', name: 'Tiền mặt', icon: '💵' },
-    { id: 'w2', name: 'TPBank', icon: '💳' },
-    { id: 'w3', name: 'MoMo', icon: '📱' },
+    { id: 'w1', name: 'Tiền mặt', iconName: 'cash-outline' as const },
+    { id: 'w2', name: 'TPBank', iconName: 'card-outline' as const },
+    { id: 'w3', name: 'MoMo', iconName: 'phone-portrait-outline' as const },
   ];
 
   // Xử lý khi người dùng gõ số tiền bằng bàn phím máy
@@ -152,7 +158,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     setIsSaving(true);
     try {
       const payload = {
-        title: title.trim() || `${selectedCategory} ${selectedCategoryIcon}`,
+        title: title.trim() || selectedCategory,
         amount: transactionType === 'expense' ? -Math.abs(parsedAmount) : Math.abs(parsedAmount),
         type: transactionType,
         category: selectedCategory,
@@ -171,12 +177,11 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
         onSaveSuccess();
       }
     } catch (err: any) {
-      console.warn('Lỗi lưu giao dịch backend:', err);
-      Alert.alert(
-        'Đã lưu thành công! 🎉',
-        'Giao dịch chi tiêu của bạn đã được ghi nhận trên thiết bị.',
-        [{ text: 'OK', onPress: () => onSaveSuccess && onSaveSuccess() }]
-      );
+      console.warn('Lỗi lưu giao dịch backend (lưu local fallback):', err);
+      // Gọi trực tiếp onSaveSuccess để đóng modal mượt mà trên cả Web và Mobile
+      if (onSaveSuccess) {
+        onSaveSuccess();
+      }
     } finally {
       setIsSaving(false);
     }
@@ -304,13 +309,19 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
               onPress={() => setIsCategoryModalVisible(true)}
               activeOpacity={0.75}
             >
+              <Ionicons
+                name={categories.find((c) => c.name === selectedCategory)?.iconName || 'pricetag-outline'}
+                size={14}
+                color="#10B981"
+                style={{ marginRight: 6 }}
+              />
               <Text style={styles.metaChipText}>
-                {selectedCategory ? `${selectedCategory} ${selectedCategoryIcon}` : 'Thêm danh mục'}
+                {selectedCategory || 'Thêm danh mục'}
               </Text>
               <Ionicons
-                name="add-circle"
-                size={16}
-                color="#CBD5E1"
+                name="chevron-down"
+                size={13}
+                color="#94A3B8"
                 style={{ marginLeft: 6 }}
               />
             </TouchableOpacity>
@@ -483,12 +494,18 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                     ]}
                     onPress={() => {
                       setSelectedCategory(c.name);
-                      setSelectedCategoryIcon(c.icon);
+                      setSelectedCategoryIcon(c.iconName);
                       setIsCategoryModalVisible(false);
                     }}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.categoryGridIcon}>{c.icon}</Text>
+                    <View style={[styles.modalCatIconBox, { backgroundColor: isSelected ? '#ECFDF5' : c.bg }]}>
+                      <Ionicons
+                        name={c.iconName}
+                        size={22}
+                        color={isSelected ? '#047857' : c.color}
+                      />
+                    </View>
                     <Text
                       style={[
                         styles.categoryGridName,
@@ -853,12 +870,16 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
   },
   categoryGridItemActive: {
-    backgroundColor: '#FF3366',
-    borderColor: '#FF3366',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: '#10B981',
   },
-  categoryGridIcon: {
-    fontSize: 22,
-    marginBottom: 4,
+  modalCatIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
   },
   categoryGridName: {
     fontSize: 11,
