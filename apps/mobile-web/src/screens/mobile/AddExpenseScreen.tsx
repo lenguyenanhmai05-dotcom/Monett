@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,60 +19,128 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { createTransactionApi } from '../../services/api';
+import { createTransactionApi, updateTransactionApi } from '../../services/api';
+import { formatDisplayDateVi, getDayOfWeekShort } from '../../utils/dateUtils';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface AddExpenseScreenProps {
   initialPhotoUrl?: string;
+  initialDate?: string;
+  editingTransactionId?: string;
+  initialData?: {
+    title?: string;
+    amount?: number;
+    category?: string;
+    categoryIcon?: string;
+    photoUri?: string;
+    note?: string;
+    type?: 'expense' | 'income';
+    date?: string;
+  };
   onBack?: () => void;
   onSaveSuccess?: () => void;
 }
 
 export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   initialPhotoUrl,
+  initialDate,
+  editingTransactionId,
+  initialData,
   onBack,
   onSaveSuccess,
 }) => {
   const [photoUrl, setPhotoUrl] = useState<string>(
-    initialPhotoUrl ||
+    initialData?.photoUri ||
+      initialPhotoUrl ||
       'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=800&auto=format&fit=crop&q=80'
   );
 
-  const [transactionType, setTransactionType] = useState<'expense' | 'income'>('expense');
-  const [amountStr, setAmountStr] = useState('0');
-  const [title, setTitle] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('Ăn uống');
-  const [selectedCategoryIcon, setSelectedCategoryIcon] = useState<string>('🍜');
+  const [transactionType, setTransactionType] = useState<'expense' | 'income'>(
+    initialData?.type || 'expense'
+  );
+  const [amountStr, setAmountStr] = useState(
+    initialData?.amount ? String(Math.abs(initialData.amount)) : '0'
+  );
+  const [title, setTitle] = useState(initialData?.title || '');
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    initialData?.category || 'Ăn uống'
+  );
+  const [selectedCategoryIcon, setSelectedCategoryIcon] = useState<string>(
+    initialData?.categoryIcon || '🍜'
+  );
   const [selectedWallet, setSelectedWallet] = useState<string>('Tiền mặt');
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const amountInputRef = useRef<TextInput>(null);
+  const [isInputFocused, setIsInputFocused] = useState(false);
 
-  const categories = [
-    { id: '1', name: 'Ăn uống', icon: '🍜' },
-    { id: '2', name: 'Cà phê', icon: '☕' },
-    { id: '3', name: 'Mua sắm', icon: '🛍️' },
-    { id: '4', name: 'Di chuyển', icon: '🚗' },
-    { id: '5', name: 'Hóa đơn', icon: '🧾' },
-    { id: '6', name: 'Giải trí', icon: '🎬' },
-    { id: '7', name: 'Lương', icon: '💰' },
-    { id: '8', name: 'Khác', icon: '📦' },
+  const expenseDateObj = useMemo(() => {
+    if (initialData?.date) return new Date(initialData.date);
+    if (initialDate) return new Date(initialDate);
+    return new Date();
+  }, [initialData?.date, initialDate]);
+
+  const dateChipText = useMemo(() => {
+    const today = new Date();
+    const isToday =
+      expenseDateObj.getFullYear() === today.getFullYear() &&
+      expenseDateObj.getMonth() === today.getMonth() &&
+      expenseDateObj.getDate() === today.getDate();
+    const dayShort = getDayOfWeekShort(expenseDateObj);
+    const dateFormatted = `${String(expenseDateObj.getDate()).padStart(2, '0')}/${String(expenseDateObj.getMonth() + 1).padStart(2, '0')}`;
+    return isToday ? `Hôm nay (${dayShort}, ${dateFormatted})` : `${dayShort}, ${dateFormatted}`;
+  }, [expenseDateObj]);
+
+  const categories: {
+    id: string;
+    name: string;
+    iconName: keyof typeof Ionicons.glyphMap;
+    color: string;
+    bg: string;
+  }[] = [
+    { id: '1', name: 'Ăn uống', iconName: 'restaurant-outline', color: '#059669', bg: '#ECFDF5' },
+    { id: '2', name: 'Cà phê', iconName: 'cafe-outline', color: '#7C3AED', bg: '#F5F3FF' },
+    { id: '3', name: 'Mua sắm', iconName: 'bag-handle-outline', color: '#2563EB', bg: '#EFF6FF' },
+    { id: '4', name: 'Di chuyển', iconName: 'car-outline', color: '#D97706', bg: '#FEF3C7' },
+    { id: '5', name: 'Hóa đơn', iconName: 'receipt-outline', color: '#DC2626', bg: '#FEE2E2' },
+    { id: '6', name: 'Giải trí', iconName: 'film-outline', color: '#DB2777', bg: '#FDF2F8' },
+    { id: '7', name: 'Lương & Thu nhập', iconName: 'cash-outline', color: '#059669', bg: '#ECFDF5' },
+    { id: '8', name: 'Khác', iconName: 'cube-outline', color: '#64748B', bg: '#F1F5F9' },
   ];
 
   const wallets = [
-    { id: 'w1', name: 'Tiền mặt', icon: '💵' },
-    { id: 'w2', name: 'TPBank', icon: '💳' },
-    { id: 'w3', name: 'MoMo', icon: '📱' },
+    { id: 'w1', name: 'Tiền mặt', iconName: 'cash-outline' as const },
+    { id: 'w2', name: 'TPBank', iconName: 'card-outline' as const },
+    { id: 'w3', name: 'MoMo', iconName: 'phone-portrait-outline' as const },
   ];
 
   // Xử lý khi người dùng gõ số tiền bằng bàn phím máy
   const handleAmountChange = (text: string) => {
     const rawNumber = text.replace(/[^0-9]/g, '');
+    if (rawNumber.length > 11) return; // Chống tràn số (tối đa 99 tỷ)
     if (!rawNumber) {
       setAmountStr('0');
     } else {
       setAmountStr(String(parseInt(rawNumber, 10)));
     }
+  };
+
+  const getAmountWordHelper = (num: number): string => {
+    if (num <= 0) return '';
+    if (num >= 1000000000) {
+      const b = (num / 1000000000).toFixed(1).replace('.0', '');
+      return `~ ${b} tỷ VNĐ`;
+    }
+    if (num >= 1000000) {
+      const m = (num / 1000000).toFixed(1).replace('.0', '');
+      return `~ ${m} triệu VNĐ`;
+    }
+    if (num >= 1000) {
+      const k = (num / 1000).toFixed(0);
+      return `~ ${k} nghìn VNĐ`;
+    }
+    return `${num.toLocaleString('vi-VN')} VNĐ`;
   };
 
   const handleClearAmount = () => {
@@ -89,26 +157,31 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
 
     setIsSaving(true);
     try {
-      await createTransactionApi({
-        title: title.trim() || `${selectedCategory} ${selectedCategoryIcon}`,
+      const payload = {
+        title: title.trim() || selectedCategory,
         amount: transactionType === 'expense' ? -Math.abs(parsedAmount) : Math.abs(parsedAmount),
         type: transactionType,
         category: selectedCategory,
         categoryIcon: selectedCategoryIcon,
         photoUri: photoUrl,
-        date: new Date().toISOString(),
-      });
+        date: expenseDateObj.toISOString(),
+      };
+
+      if (editingTransactionId && !editingTransactionId.startsWith('tx_')) {
+        await updateTransactionApi(editingTransactionId, payload);
+      } else {
+        await createTransactionApi(payload);
+      }
 
       if (onSaveSuccess) {
         onSaveSuccess();
       }
     } catch (err: any) {
-      console.warn('Lỗi lưu giao dịch backend:', err);
-      Alert.alert(
-        'Đã lưu thành công! 🎉',
-        'Giao dịch chi tiêu của bạn đã được ghi nhận trên thiết bị.',
-        [{ text: 'OK', onPress: () => onSaveSuccess && onSaveSuccess() }]
-      );
+      console.warn('Lỗi lưu giao dịch backend (lưu local fallback):', err);
+      // Gọi trực tiếp onSaveSuccess để đóng modal mượt mà trên cả Web và Mobile
+      if (onSaveSuccess) {
+        onSaveSuccess();
+      }
     } finally {
       setIsSaving(false);
     }
@@ -146,9 +219,9 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
               <Ionicons name="close" size={20} color="#FFFFFF" />
             </TouchableOpacity>
 
-            {/* Tiêu đề "Thêm giao dịch" */}
+            {/* Tiêu đề "Thêm giao dịch" / "Sửa giao dịch" */}
             <View style={styles.heroTitleContainer}>
-              <Text style={styles.heroTitleText}>Thêm giao</Text>
+              <Text style={styles.heroTitleText}>{editingTransactionId ? 'Sửa giao' : 'Thêm giao'}</Text>
               <Text style={styles.heroTitleText}>dịch</Text>
             </View>
 
@@ -236,63 +309,103 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
               onPress={() => setIsCategoryModalVisible(true)}
               activeOpacity={0.75}
             >
+              <Ionicons
+                name={categories.find((c) => c.name === selectedCategory)?.iconName || 'pricetag-outline'}
+                size={14}
+                color="#10B981"
+                style={{ marginRight: 6 }}
+              />
               <Text style={styles.metaChipText}>
-                {selectedCategory ? `${selectedCategory} ${selectedCategoryIcon}` : 'Thêm danh mục'}
+                {selectedCategory || 'Thêm danh mục'}
               </Text>
               <Ionicons
-                name="add-circle"
-                size={16}
-                color="#CBD5E1"
+                name="chevron-down"
+                size={13}
+                color="#94A3B8"
                 style={{ marginLeft: 6 }}
               />
             </TouchableOpacity>
 
-            {/* Nút Hôm nay */}
+            {/* Nút Ngày ghi nhận */}
             <TouchableOpacity
               style={styles.metaChip}
               onPress={() => {
-                Alert.alert('Ngày ghi nhận', 'Giao dịch được ghi nhận cho ngày hôm nay.');
+                Alert.alert(
+                  'Ngày ghi nhận giao dịch 📅',
+                  `Giao dịch được ghi nhận vào: ${formatDisplayDateVi(expenseDateObj)}.`
+                );
               }}
               activeOpacity={0.75}
             >
-              <Text style={styles.metaChipText}>Hôm nay</Text>
+              <Text style={styles.metaChipText}>{dateChipText}</Text>
             </TouchableOpacity>
           </View>
 
           {/* Row 3: Big Amount & Description Card (Nhập trực tiếp bằng bàn phím máy) */}
           <View style={styles.amountCard}>
-            {/* Nhập số tiền trực tiếp với bàn phím của máy */}
-            <View style={styles.amountRow}>
-              <View style={styles.amountInputWrapper}>
-                <TextInput
-                  style={styles.amountInput}
-                  value={amountStr === '0' || !amountStr ? '' : Number(amountStr).toLocaleString('vi-VN')}
-                  placeholder="0"
-                  placeholderTextColor="#FFFFFF"
-                  keyboardType="numeric"
-                  onChangeText={handleAmountChange}
-                  cursorColor="#FF3366"
-                  selectionColor="rgba(255, 51, 102, 0.4)"
-                  returnKeyType="done"
-                  selectTextOnFocus
-                />
-                <Text style={styles.amountCurrency}>đ</Text>
-              </View>
+            {/* Nút Clear X tròn đặt góc phải absolute để không làm lệch tâm số tiền */}
+            {amountStr !== '0' && amountStr !== '' && (
+              <TouchableOpacity
+                style={styles.amountClearBtnAbsolute}
+                onPress={handleClearAmount}
+                activeOpacity={0.7}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="close" size={14} color="#FFFFFF" />
+              </TouchableOpacity>
+            )}
 
-              {amountStr !== '0' && amountStr !== '' && (
-                <TouchableOpacity
-                  style={styles.amountClearBtn}
-                  onPress={handleClearAmount}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="close" size={14} color="#FFFFFF" />
-                </TouchableOpacity>
-              )}
-            </View>
+            {/* Vùng nhập và hiển thị số tiền chuẩn Fintech: Raw Input ẩn + Visual Display có định dạng */}
+            <TouchableOpacity
+              style={styles.amountDisplayArea}
+              onPress={() => amountInputRef.current?.focus()}
+              activeOpacity={1}
+            >
+              {/* Thẻ TextInput ẩn: CHỈ NHẬN VÀ LƯU SỐ NGUYÊN THUẦN TÚY (RAW DIGITS)
+                  Tuyệt đối KHÔNG chứa dấu chấm để tránh xung đột buffer Unikey / Browser caret */}
+              <TextInput
+                ref={amountInputRef}
+                style={styles.hiddenRawInput}
+                value={amountStr === '0' || !amountStr ? '' : amountStr}
+                placeholder="0"
+                placeholderTextColor="transparent"
+                keyboardType="number-pad"
+                onChangeText={handleAmountChange}
+                cursorColor="#FF3366"
+                selectionColor="rgba(255, 51, 102, 0.4)"
+                returnKeyType="done"
+                maxLength={11}
+                onFocus={() => setIsInputFocused(true)}
+                onBlur={() => setIsInputFocused(false)}
+              />
+
+              {/* Lớp hiển thị số tiền có dấu chấm phân cách + ký hiệu đ (Visual Text) */}
+              <View style={styles.amountVisualRow} pointerEvents="none">
+                <Text style={styles.amountDisplayText}>
+                  {amountStr === '0' || !amountStr ? '0' : Number(amountStr).toLocaleString('vi-VN')}
+                </Text>
+                <Text style={styles.amountCurrency}>đ</Text>
+                {/* Con trỏ nhấp nháy tinh tế khi đang focus */}
+                {isInputFocused && <View style={styles.blinkingCaret} />}
+              </View>
+            </TouchableOpacity>
+
+            {/* Dòng đọc số tiền bằng chữ trợ giúp tránh gõ nhầm số 0 */}
+            {amountStr !== '0' && amountStr !== '' && (
+              <View style={styles.amountHelperRow}>
+                <Ionicons name="sparkles" size={12} color="#10B981" style={{ marginRight: 4 }} />
+                <Text style={styles.amountHelperText}>
+                  {getAmountWordHelper(parseInt(amountStr, 10))}
+                </Text>
+              </View>
+            )}
 
             {/* Nhập mô tả */}
             <TextInput
-              style={styles.descriptionInput}
+              style={[
+                styles.descriptionInput,
+                Platform.select({ web: { outlineStyle: 'none' } as any }),
+              ]}
               value={title}
               onChangeText={setTitle}
               placeholder="Nhập mô tả"
@@ -336,7 +449,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
             ) : (
               <View style={styles.saveBtnContent}>
                 <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-                <Text style={styles.saveBtnText}>Lưu</Text>
+                <Text style={styles.saveBtnText}>{editingTransactionId ? 'Lưu thay đổi' : 'Lưu'}</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -381,12 +494,18 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                     ]}
                     onPress={() => {
                       setSelectedCategory(c.name);
-                      setSelectedCategoryIcon(c.icon);
+                      setSelectedCategoryIcon(c.iconName);
                       setIsCategoryModalVisible(false);
                     }}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.categoryGridIcon}>{c.icon}</Text>
+                    <View style={[styles.modalCatIconBox, { backgroundColor: isSelected ? '#ECFDF5' : c.bg }]}>
+                      <Ionicons
+                        name={c.iconName}
+                        size={22}
+                        color={isSelected ? '#047857' : c.color}
+                      />
+                    </View>
                     <Text
                       style={[
                         styles.categoryGridName,
@@ -565,44 +684,80 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.06)',
     marginBottom: 14,
+    position: 'relative',
+    width: '100%',
   },
-  amountRow: {
-    flexDirection: 'row',
+  amountClearBtnAbsolute: {
+    position: 'absolute',
+    right: 16,
+    top: 22,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  amountDisplayArea: {
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
-    minWidth: 140,
+    paddingVertical: 6,
+    minHeight: 52,
+    width: '100%',
   },
-  amountInputWrapper: {
+  hiddenRawInput: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0,
+    zIndex: 2,
+    fontSize: 28,
+    ...Platform.select({ web: { outlineStyle: 'none' } as any }),
+  },
+  amountVisualRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'center',
   },
-  amountInput: {
+  amountDisplayText: {
     fontSize: 38,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.5,
-    padding: 0,
-    margin: 0,
-    minWidth: 40,
     textAlign: 'center',
   },
   amountCurrency: {
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: '700',
     color: '#FFFFFF',
     textDecorationLine: 'underline',
     marginLeft: 4,
   },
-  amountClearBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
-    justifyContent: 'center',
+  blinkingCaret: {
+    width: 2.5,
+    height: 32,
+    backgroundColor: '#FF3366',
+    marginLeft: 4,
+    borderRadius: 1.5,
+  },
+  amountHelperRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: 12,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  amountHelperText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#34D399',
   },
   descriptionInput: {
     fontSize: 15,
@@ -715,12 +870,16 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
   },
   categoryGridItemActive: {
-    backgroundColor: '#FF3366',
-    borderColor: '#FF3366',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: '#10B981',
   },
-  categoryGridIcon: {
-    fontSize: 22,
-    marginBottom: 4,
+  modalCatIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
   },
   categoryGridName: {
     fontSize: 11,

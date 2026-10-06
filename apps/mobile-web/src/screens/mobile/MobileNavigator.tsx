@@ -29,7 +29,9 @@ export const MobileNavigator: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<MobileTab>('home');
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [capturedPhoto, setCapturedPhoto] = useState<string | undefined>();
+  const [targetExpenseDate, setTargetExpenseDate] = useState<string | undefined>();
   const [selectedTxId, setSelectedTxId] = useState<string | undefined>();
+  const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [refreshKey, setRefreshKey] = useState<number>(0);
 
   const triggerRefresh = () => {
@@ -47,22 +49,36 @@ export const MobileNavigator: React.FC = () => {
         return (
           <HomeScreen
             refreshTrigger={refreshKey}
-            onNavigateToCamera={() => setActiveModal('camera')}
-            onNavigateToAddExpense={() => setActiveModal('add_expense')}
-            onNavigateToQuickSave={() => setActiveModal('quick_save')}
+            onNavigateToCamera={(dateStr?: string) => {
+              setTargetExpenseDate(dateStr);
+              setActiveModal('camera');
+            }}
+            onNavigateToAddExpense={(dateStr?: string) => {
+              setEditingTransaction(null);
+              setTargetExpenseDate(dateStr);
+              setActiveModal('add_expense');
+            }}
+            onNavigateToQuickSave={(dateStr?: string) => {
+              setTargetExpenseDate(dateStr);
+              setActiveModal('quick_save');
+            }}
             onNavigateToDetail={(id) => {
               setSelectedTxId(id);
               setActiveModal('detail');
             }}
             onNavigateToAnalytics={() => setCurrentTab('analytics')}
             onNavigateToCalendar={() => setCurrentTab('calendar')}
+            onNavigateToProfile={() => setCurrentTab('profile')}
           />
         );
       case 'calendar':
         return (
           <CalendarScreen
             refreshTrigger={refreshKey}
-            onNavigateToCamera={() => setActiveModal('camera')}
+            onNavigateToCamera={(dateStr) => {
+              setTargetExpenseDate(dateStr);
+              setActiveModal('camera');
+            }}
             onNavigateToDetail={(id) => {
               setSelectedTxId(id);
               setActiveModal('detail');
@@ -72,11 +88,19 @@ export const MobileNavigator: React.FC = () => {
       case 'analytics':
         return <AnalyticsScreen refreshTrigger={refreshKey} />;
       case 'feed':
-        return <FriendsFeedScreen />;
+        return <FriendsFeedScreen onBack={() => setCurrentTab('profile')} />;
+      case 'wallets':
+        return <WalletsScreen onBack={() => setCurrentTab('profile')} />;
       case 'categories':
-        return <CategoriesScreen />;
+        return <CategoriesScreen onBack={() => setCurrentTab('profile')} />;
       case 'profile':
-        return <ProfileScreen />;
+        return (
+          <ProfileScreen
+            onNavigateToWallets={() => setCurrentTab('wallets')}
+            onNavigateToCategories={() => setCurrentTab('categories')}
+            onNavigateToFeed={() => setCurrentTab('feed')}
+          />
+        );
       default:
         return <HomeScreen refreshTrigger={refreshKey} />;
     }
@@ -196,7 +220,7 @@ export const MobileNavigator: React.FC = () => {
             }}
             onNavigateToWallets={() => {
               setActiveModal('none');
-              setCurrentTab('profile');
+              setCurrentTab('wallets');
             }}
             onNavigateToAnalytics={() => {
               setActiveModal('none');
@@ -206,13 +230,22 @@ export const MobileNavigator: React.FC = () => {
         </View>
       )}
 
-      {/* 4. Màn hình Thêm Chi Tiêu */}
+      {/* 4. Màn hình Thêm / Sửa Chi Tiêu */}
       {activeModal === 'add_expense' && (
         <View style={StyleSheet.absoluteFill}>
           <AddExpenseScreen
             initialPhotoUrl={capturedPhoto}
-            onBack={() => setActiveModal('none')}
+            initialDate={targetExpenseDate}
+            editingTransactionId={editingTransaction?.id}
+            initialData={editingTransaction}
+            onBack={() => {
+              setEditingTransaction(null);
+              setTargetExpenseDate(undefined);
+              setActiveModal('none');
+            }}
             onSaveSuccess={() => {
+              setEditingTransaction(null);
+              setTargetExpenseDate(undefined);
               setActiveModal('none');
               setCapturedPhoto(undefined);
               triggerRefresh();
@@ -226,9 +259,16 @@ export const MobileNavigator: React.FC = () => {
         <View style={StyleSheet.absoluteFill}>
           <TransactionDetail
             transactionId={selectedTxId}
-            onBack={() => setActiveModal('none')}
-            onEdit={() => setActiveModal('add_expense')}
+            onBack={() => {
+              setSelectedTxId(undefined);
+              setActiveModal('none');
+            }}
+            onEdit={(txData) => {
+              setEditingTransaction(txData);
+              setActiveModal('add_expense');
+            }}
             onDelete={() => {
+              setSelectedTxId(undefined);
               setActiveModal('none');
               triggerRefresh();
             }}
@@ -239,19 +279,25 @@ export const MobileNavigator: React.FC = () => {
       {/* 6. Modal QuickSave (Bạn vừa chi?) */}
       <QuickSaveModal
         visible={activeModal === 'quick_save'}
-        onClose={() => setActiveModal('none')}
-        onSaveQuick={async (amount, category) => {
+        targetDate={targetExpenseDate}
+        onClose={() => {
+          setTargetExpenseDate(undefined);
+          setActiveModal('none');
+        }}
+        onSaveQuick={async (amount, category, date) => {
           try {
             await createTransactionApi({
               title: category,
               amount: -Math.abs(amount),
               category,
               type: 'expense',
+              date: date ? new Date(date).toISOString() : new Date().toISOString(),
             });
             triggerRefresh();
           } catch (e) {
             console.log('Saved quick expense (offline/local fallback):', amount, category);
           }
+          setTargetExpenseDate(undefined);
           setActiveModal('none');
         }}
         onOpenFullCamera={() => setActiveModal('camera')}

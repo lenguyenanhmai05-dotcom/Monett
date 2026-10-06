@@ -53,6 +53,29 @@ export const MobileCameraScreen: React.FC<MobileCameraScreenProps> = ({
   const [expenseCategory, setExpenseCategory] = useState('Ẩm thực');
   const [expenseNote, setExpenseNote] = useState('');
 
+  const handleExpenseAmountChange = (text: string) => {
+    const rawNumber = text.replace(/[^0-9]/g, '');
+    if (rawNumber.length > 11) return;
+    setExpenseAmount(rawNumber);
+  };
+
+  const getAmountWordHelper = (num: number): string => {
+    if (num <= 0) return '';
+    if (num >= 1000000000) {
+      const b = (num / 1000000000).toFixed(1).replace('.0', '');
+      return `~ ${b} tỷ VNĐ`;
+    }
+    if (num >= 1000000) {
+      const m = (num / 1000000).toFixed(1).replace('.0', '');
+      return `~ ${m} triệu VNĐ`;
+    }
+    if (num >= 1000) {
+      const k = (num / 1000).toFixed(0);
+      return `~ ${k} nghìn VNĐ`;
+    }
+    return `${num.toLocaleString('vi-VN')} VNĐ`;
+  };
+
   // 1. Chụp ảnh từ Camera trực tiếp
   const handleTakePicture = async () => {
     if (isCapturing) return;
@@ -442,14 +465,21 @@ export const MobileCameraScreen: React.FC<MobileCameraScreenProps> = ({
             </View>
 
             <View style={styles.photoInputGroup}>
-              <Text style={styles.photoInputLabel}>Số tiền (VNĐ) *</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={styles.photoInputLabel}>Số tiền (VNĐ) *</Text>
+                {expenseAmount && expenseAmount !== '0' ? (
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#10B981' }}>
+                    {getAmountWordHelper(parseInt(expenseAmount, 10))}
+                  </Text>
+                ) : null}
+              </View>
               <TextInput
                 style={styles.photoTextInput}
-                placeholder="Ví dụ: 45000"
+                placeholder="Ví dụ: 45.000"
                 placeholderTextColor="#94A3B8"
-                keyboardType="numeric"
-                value={expenseAmount}
-                onChangeText={setExpenseAmount}
+                keyboardType="number-pad"
+                value={expenseAmount || ''}
+                onChangeText={handleExpenseAmountChange}
               />
             </View>
 

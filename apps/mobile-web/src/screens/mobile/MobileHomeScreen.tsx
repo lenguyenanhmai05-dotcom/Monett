@@ -249,7 +249,7 @@ export const MobileHomeScreen: React.FC = () => {
       <View style={styles.topHeader}>
         <View style={styles.headerLeft}>
           <Image
-            source={require('../../../assets/monett-brand-logo.png')}
+            source={require('../../../assets/adaptive-icon.png')}
             style={styles.headerLogo}
             resizeMode="contain"
           />
@@ -716,6 +716,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   headerLogo: {
     width: 38,
     height: 38,
+    borderRadius: 8,
     marginRight: 10,
   },
   headerTextGroup: {

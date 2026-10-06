@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,7 +13,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { getTransactionsByDateApi, TransactionsByDateResponse } from '../../services/api';
+import { getTransactionsByDateApi, TransactionsByDateResponse, deleteTransactionApi } from '../../services/api';
+import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
+import { getMonthCalendarGrid, getDayOfWeekName, isSameDay } from '../../utils/dateUtils';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -269,7 +271,7 @@ const SAMPLE_DAYS_MAP: Record<number, CalendarDayData> = {
 
 interface CalendarScreenProps {
   refreshTrigger?: number;
-  onNavigateToCamera?: () => void;
+  onNavigateToCamera?: (dateStr?: string) => void;
   onNavigateToDetail?: (txId: string) => void;
 }
 
@@ -285,41 +287,73 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
   const [selectedDay, setSelectedDay] = useState(now.getDate());
   const [isLoadingDate, setIsLoadingDate] = useState(false);
   const [apiData, setApiData] = useState<TransactionsByDateResponse | null>(null);
+  const [deletingTxItem, setDeletingTxItem] = useState<any>(null);
+  const [isDeletingCalTx, setIsDeletingCalTx] = useState(false);
 
   // Avatar initials / image
   const displayName = user?.fullName || (user?.email ? user.email.split('@')[0] : 'Min');
 
+  const fetchDayData = useCallback(async (dateStr: string) => {
+    setIsLoadingDate(true);
+    try {
+      const data = await getTransactionsByDateApi(dateStr);
+      if (data) {
+        setApiData(data as any);
+      }
+    } catch (err: any) {
+      console.log('[CalendarScreen] API fetch error:', err?.message);
+    } finally {
+      setIsLoadingDate(false);
+    }
+  }, []);
+
+  const handleConfirmDeleteCalendarTx = async () => {
+    if (!deletingTxItem) return;
+    setIsDeletingCalTx(true);
+    try {
+      const txId = deletingTxItem.id || deletingTxItem._id;
+      if (txId && !String(txId).startsWith('tx_')) {
+        await deleteTransactionApi(txId);
+      }
+      setDeletingTxItem(null);
+      const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+      await fetchDayData(dateStr);
+    } catch (e: any) {
+      console.log('Error deleting tx from calendar:', e);
+      if (typeof alert !== 'undefined') {
+        alert('Không thể xóa giao dịch: ' + (e?.message || 'Lỗi kết nối'));
+      }
+    } finally {
+      setIsDeletingCalTx(false);
+    }
+  };
+
   // Load transactions by date from API when selectedDay changes
   useEffect(() => {
-    let isMounted = true;
     const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
-    setIsLoadingDate(true);
-    getTransactionsByDateApi(dateStr)
-      .then((data) => {
-        if (isMounted && data) {
-          setApiData(data as any);
-        }
-      })
-      .catch((err) => {
-        console.log('[CalendarScreen] API fetch error (using fallback):', err?.message);
-      })
-      .finally(() => {
-        if (isMounted) setIsLoadingDate(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedDay, selectedMonth, selectedYear, refreshTrigger]);
+    fetchDayData(dateStr);
+  }, [selectedDay, selectedMonth, selectedYear, refreshTrigger, fetchDayData]);
 
   // Current day details
+  const monthGrid = useMemo(() => {
+    return getMonthCalendarGrid(selectedYear, selectedMonth);
+  }, [selectedYear, selectedMonth]);
+
+  const currentDayOfWeekName = useMemo(() => {
+    return getDayOfWeekName(new Date(selectedYear, selectedMonth - 1, selectedDay));
+  }, [selectedYear, selectedMonth, selectedDay]);
+
+  const isTodaySelected = useMemo(() => {
+    return isSameDay(new Date(selectedYear, selectedMonth - 1, selectedDay), new Date());
+  }, [selectedYear, selectedMonth, selectedDay]);
+
   const fallbackDayData = SAMPLE_DAYS_MAP[selectedDay] || {
     dayNum: selectedDay,
     isCurrentMonth: true,
     hasPhoto: false,
     amountText: '0đ',
     rawAmount: 0,
-    dayOfWeekName: 'Thứ Năm',
+    dayOfWeekName: currentDayOfWeekName,
     items: [],
   };
 
@@ -360,7 +394,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
       <View style={styles.header}>
         <View style={styles.brandRow}>
           <Image
-            source={require('../../../assets/monett-brand-logo.png')}
+            source={require('../../../assets/adaptive-icon.png')}
             style={styles.brandLogo}
             resizeMode="contain"
           />
@@ -371,9 +405,9 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
         </View>
 
         <View style={styles.headerRight}>
-          {/* Streak Flame Badge */}
+          {/* Streak Flame Badge Tone-on-Tone */}
           <View style={styles.streakBadge}>
-            <Text style={styles.streakFlame}>🔥</Text>
+            <Ionicons name="flame" size={14} color="#D97706" style={{ marginRight: 2 }} />
             <Text style={styles.streakCount}>5</Text>
           </View>
 
@@ -406,7 +440,14 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
         <View style={styles.monthNavWrapper}>
           <TouchableOpacity
             style={styles.monthArrowBtn}
-            onPress={() => setSelectedMonth(prev => (prev === 1 ? 12 : prev - 1))}
+            onPress={() => {
+              if (selectedMonth === 1) {
+                setSelectedMonth(12);
+                setSelectedYear(prev => prev - 1);
+              } else {
+                setSelectedMonth(prev => prev - 1);
+              }
+            }}
             activeOpacity={0.7}
           >
             <Ionicons name="chevron-back" size={20} color="#334155" />
@@ -423,7 +464,14 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
 
           <TouchableOpacity
             style={styles.monthArrowBtn}
-            onPress={() => setSelectedMonth(prev => (prev === 12 ? 1 : prev + 1))}
+            onPress={() => {
+              if (selectedMonth === 12) {
+                setSelectedMonth(1);
+                setSelectedYear(prev => prev + 1);
+              } else {
+                setSelectedMonth(prev => prev + 1);
+              }
+            }}
             activeOpacity={0.7}
           >
             <Ionicons name="chevron-forward" size={20} color="#334155" />
@@ -439,21 +487,22 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
             </View>
             <View style={styles.statCardTexts}>
               <Text style={styles.statLabel}>Kỷ niệm lưu giữ</Text>
-              <Text style={styles.statValue}>
-                <Text style={{ color: '#047857' }}>26/31 ngày</Text> 📸
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                <Text style={[styles.statValue, { color: '#047857', marginRight: 4 }]}>26/31 ngày</Text>
+                <Ionicons name="sparkles" size={11} color="#10B981" />
+              </View>
             </View>
           </View>
 
           {/* Card 2: Tổng chi tiêu */}
           <View style={styles.statCard}>
             <View style={[styles.statIconBox, { backgroundColor: '#FEF3C7' }]}>
-              <Ionicons name="wallet-outline" size={20} color="#D97706" />
+              <Ionicons name="wallet-outline" size={18} color="#D97706" />
             </View>
             <View style={styles.statCardTexts}>
               <Text style={styles.statLabel}>Tổng chi tiêu</Text>
               <Text style={styles.statValue} numberOfLines={1}>
-                14.850.00...
+                14.850.000 đ
               </Text>
             </View>
           </View>
@@ -477,110 +526,64 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
             ))}
           </View>
 
-          {/* 7 Columns Grid */}
+          {/* 7 Columns Grid Sinh Động Theo Lịch Thực Tế */}
           <View style={styles.daysGrid}>
-            {/* Spillover day: 30 from previous month */}
-            <View style={styles.dayCellWrapper}>
-              <View style={[styles.dayCell, styles.prevMonthCell]}>
-                <Text style={styles.prevMonthDayText}>30</Text>
-              </View>
-            </View>
-
-            {/* Days 1 to 6 */}
-            {[1, 2, 3, 4, 5, 6].map((dayNum) => {
-              const dData = SAMPLE_DAYS_MAP[dayNum];
-              const isSelected = selectedDay === dayNum;
-              return (
-                <TouchableOpacity
-                  key={dayNum}
-                  style={styles.dayCellWrapper}
-                  onPress={() => setSelectedDay(dayNum)}
-                  activeOpacity={0.8}
-                >
-                  <View
-                    style={[
-                      styles.dayCell,
-                      styles.photoCell,
-                      isSelected && styles.photoCellSelected,
-                    ]}
-                  >
-                    {dData?.imageUrl && (
-                      <Image source={{ uri: dData.imageUrl }} style={styles.cellBgImage} />
-                    )}
-                    <View style={styles.cellGradientOverlay} />
-                    {/* Day Number */}
-                    <Text style={styles.cellDayNumText}>{dayNum}</Text>
-                    {/* Amount Pill */}
-                    <View style={styles.cellAmountBadge}>
-                      <Text style={styles.cellAmountText}>{dData?.amountText || '45k'}</Text>
+            {monthGrid.map((cell) => {
+              if (!cell.isCurrentMonth) {
+                return (
+                  <View key={`spill_${cell.year}_${cell.month}_${cell.dayNum}`} style={styles.dayCellWrapper}>
+                    <View style={[styles.dayCell, styles.prevMonthCell]}>
+                      <Text style={styles.prevMonthDayText}>{cell.dayNum}</Text>
                     </View>
                   </View>
-                </TouchableOpacity>
-              );
-            })}
+                );
+              }
 
-            {/* Days 18 to 24 */}
-            {[18, 19, 20, 21, 22, 23, 24].map((dayNum) => {
-              const dData = SAMPLE_DAYS_MAP[dayNum];
-              const isSelected = selectedDay === dayNum;
+              const dData = SAMPLE_DAYS_MAP[cell.dayNum];
+              const isSelected = selectedDay === cell.dayNum;
+              const hasPhoto = Boolean(dData?.imageUrl);
+              const isTodayCell = isSameDay(new Date(cell.year, cell.month - 1, cell.dayNum), new Date());
+
               return (
                 <TouchableOpacity
-                  key={dayNum}
+                  key={`day_${cell.fullDateStr}`}
                   style={styles.dayCellWrapper}
-                  onPress={() => setSelectedDay(dayNum)}
+                  onPress={() => setSelectedDay(cell.dayNum)}
                   activeOpacity={0.8}
                 >
                   <View
                     style={[
                       styles.dayCell,
-                      styles.photoCell,
-                      isSelected && styles.photoCellSelected,
+                      hasPhoto ? styles.photoCell : styles.emptyCell,
+                      isTodayCell && !isSelected && styles.todayCellBorder,
+                      isSelected && (hasPhoto ? styles.photoCellSelected : styles.emptyCellSelected),
                     ]}
                   >
-                    {dData?.imageUrl && (
-                      <Image source={{ uri: dData.imageUrl }} style={styles.cellBgImage} />
+                    {hasPhoto ? (
+                      <>
+                        <Image source={{ uri: dData!.imageUrl }} style={styles.cellBgImage} />
+                        <View style={styles.cellGradientOverlay} />
+                        <View style={[styles.cellDayNumBadge, isSelected && styles.cellDayNumBadgeActive]}>
+                          <Text style={styles.cellDayNumText}>{cell.dayNum}</Text>
+                        </View>
+                        <View style={[styles.cellAmountBadge, isSelected && styles.cellAmountBadgeActive]}>
+                          <Text style={[styles.cellAmountText, isSelected && styles.cellAmountTextActive]}>
+                            {dData!.amountText || '45k'}
+                          </Text>
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={[styles.emptyCellDayText, isSelected && styles.emptyCellDayTextSelected]}>
+                          {cell.dayNum}
+                        </Text>
+                        <Ionicons
+                          name="camera-outline"
+                          size={13}
+                          color={isSelected ? '#047857' : isTodayCell ? '#059669' : '#A5B4FC'}
+                        />
+                      </>
                     )}
-                    <View style={styles.cellGradientOverlay} />
-                    {/* Day Number */}
-                    <View style={[styles.cellDayNumBadge, isSelected && styles.cellDayNumBadgeActive]}>
-                      <Text style={styles.cellDayNumText}>{dayNum}</Text>
-                    </View>
-                    {/* Amount Pill */}
-                    <View style={[styles.cellAmountBadge, isSelected && styles.cellAmountBadgeActive]}>
-                      <Text style={[styles.cellAmountText, isSelected && styles.cellAmountTextActive]}>
-                        {dData?.amountText || '100k'}
-                      </Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-
-            {/* Days 25 to 31 (Not yet recorded / photo placeholders) */}
-            {[25, 26, 27, 28, 29, 30, 31].map((dayNum) => {
-              const isSelected = selectedDay === dayNum;
-              return (
-                <TouchableOpacity
-                  key={dayNum}
-                  style={styles.dayCellWrapper}
-                  onPress={() => setSelectedDay(dayNum)}
-                  activeOpacity={0.8}
-                >
-                  <View
-                    style={[
-                      styles.dayCell,
-                      styles.emptyCell,
-                      isSelected && styles.emptyCellSelected,
-                    ]}
-                  >
-                    <Text style={[styles.emptyCellDayText, isSelected && styles.emptyCellDayTextSelected]}>
-                      {dayNum}
-                    </Text>
-                    <Ionicons
-                      name="camera-outline"
-                      size={14}
-                      color={isSelected ? '#059669' : '#A5B4FC'}
-                    />
                   </View>
                 </TouchableOpacity>
               );
@@ -604,7 +607,10 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
         <TouchableOpacity
           style={styles.actionButton}
           activeOpacity={0.85}
-          onPress={onNavigateToCamera}
+          onPress={() => {
+            const dateStr = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
+            if (onNavigateToCamera) onNavigateToCamera(dateStr);
+          }}
         >
           <Ionicons name="images-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
           <Text style={styles.actionButtonText}>
@@ -625,12 +631,12 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
                   Ngày {selectedDay} Tháng {selectedMonth} , {selectedYear}
                 </Text>
                 <Text style={styles.detailDateSubtitle}>
-                  {fallbackDayData.dayOfWeekName || 'Thứ Năm'} • {totalTxCount} giao dịch lưu dấu
+                  {currentDayOfWeekName} • {totalTxCount} giao dịch lưu dấu
                 </Text>
               </View>
             </View>
 
-            {selectedDay === 24 && (
+            {isTodaySelected && (
               <View style={styles.todayPill}>
                 <Text style={styles.todayPillText}>Hôm nay</Text>
               </View>
@@ -647,7 +653,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
             {/* Top Badges */}
             <View style={styles.heroTopBadges}>
               <View style={styles.locationPill}>
-                <Text style={styles.locationIcon}>🍴</Text>
+                <Ionicons name="restaurant-outline" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
                 <Text style={styles.locationText}>{currentStoreName}</Text>
               </View>
 
@@ -685,7 +691,7 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
             <View style={styles.mascotContent}>
               <View style={styles.mascotTitleRow}>
                 <Text style={styles.mascotTitle}>Monett Mascot</Text>
-                <Text style={styles.mascotStar}>⭐</Text>
+                <Ionicons name="star" size={13} color="#F59E0B" />
               </View>
               <Text style={styles.mascotQuote}>
                 “Một khoảnh khắc ý nghĩa và rất xứng đáng!”
@@ -702,35 +708,73 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
             <ActivityIndicator size="small" color="#047857" style={{ marginVertical: 16 }} />
           ) : currentItems.length > 0 ? (
             <View style={styles.txListContainer}>
-              {currentItems.map((item, idx) => (
-                <TouchableOpacity
-                  key={item.id || idx}
-                  style={styles.txItemRow}
-                  activeOpacity={0.7}
-                  onPress={() => onNavigateToDetail && onNavigateToDetail(item.id)}
-                >
-                  <View style={styles.txIconBox}>
-                    <Ionicons
-                      name={item.icon as any || 'restaurant-outline'}
-                      size={20}
-                      color="#047857"
-                    />
-                  </View>
+              {currentItems.map((item, idx) => {
+                const catLower = (item.category || item.title || '').toLowerCase();
+                let catBg = '#ECFDF5';
+                let catColor = '#059669';
+                let catIcon = 'restaurant-outline';
 
-                  <View style={styles.txItemInfo}>
-                    <Text style={styles.txItemTitle} numberOfLines={1}>
-                      {item.title}
-                    </Text>
-                    <Text style={styles.txItemSubtitle}>
-                      {item.subtitle}
-                    </Text>
-                  </View>
+                if (catLower.includes('mua') || catLower.includes('sắm') || catLower.includes('shop')) {
+                  catBg = '#EFF6FF';
+                  catColor = '#2563EB';
+                  catIcon = 'bag-handle-outline';
+                } else if (catLower.includes('xe') || catLower.includes('di chuyển') || catLower.includes('xăng')) {
+                  catBg = '#FEF3C7';
+                  catColor = '#D97706';
+                  catIcon = 'car-outline';
+                } else if (catLower.includes('cà phê') || catLower.includes('cafe')) {
+                  catBg = '#FCE7F3';
+                  catColor = '#DB2777';
+                  catIcon = 'cafe-outline';
+                } else if (!catLower.includes('ăn') && !catLower.includes('uống') && !catLower.includes('bún')) {
+                  catBg = '#F1F5F9';
+                  catColor = '#475569';
+                  catIcon = 'receipt-outline';
+                }
 
-                  <Text style={styles.txItemAmount}>
-                    {item.amount}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                return (
+                  <TouchableOpacity
+                    key={item.id || idx}
+                    style={styles.txItemRow}
+                    activeOpacity={0.7}
+                    onPress={() => onNavigateToDetail && onNavigateToDetail(item.id)}
+                  >
+                    <View style={[styles.txIconBox, { backgroundColor: catBg }]}>
+                      <Ionicons
+                        name={catIcon as any}
+                        size={18}
+                        color={catColor}
+                      />
+                    </View>
+
+                    <View style={styles.txItemInfo}>
+                      <Text style={styles.txItemTitle} numberOfLines={1}>
+                        {item.title}
+                      </Text>
+                      <Text style={styles.txItemSubtitle}>
+                        {item.subtitle}
+                      </Text>
+                    </View>
+
+                    <View style={styles.txItemRight}>
+                      <Text style={styles.txItemAmount}>
+                        {item.amount}
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.txRowDeleteBtn}
+                        activeOpacity={0.7}
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          setDeletingTxItem(item);
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="trash-outline" size={15} color="#94A3B8" />
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           ) : (
             <View style={styles.emptyDayContainer}>
@@ -742,6 +786,17 @@ export const CalendarScreen: React.FC<CalendarScreenProps> = ({
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Modal xác nhận xóa chuẩn Fintech */}
+      <ConfirmDeleteModal
+        visible={Boolean(deletingTxItem)}
+        itemTitle={deletingTxItem?.title}
+        itemAmount={deletingTxItem?.amount}
+        itemCategory={deletingTxItem?.category || deletingTxItem?.subtitle}
+        isDeleting={isDeletingCalTx}
+        onConfirm={handleConfirmDeleteCalendarTx}
+        onCancel={() => setDeletingTxItem(null)}
+      />
     </SafeAreaView>
   );
 };
@@ -772,8 +827,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   brandLogo: {
-    width: 28,
-    height: 28,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
   },
   brandTextWrap: {
     flexDirection: 'column',
@@ -1044,6 +1100,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#059669',
     backgroundColor: '#ECFDF5',
+  },
+  todayCellBorder: {
+    borderWidth: 1.5,
+    borderColor: '#047857',
+    backgroundColor: '#F0FDF4',
   },
   emptyCellDayText: {
     fontSize: 11,
@@ -1327,6 +1388,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: '#0F172A',
+  },
+  txItemRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  txRowDeleteBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyDayContainer: {
     alignItems: 'center',
