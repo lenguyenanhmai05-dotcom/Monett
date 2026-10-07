@@ -21,9 +21,9 @@ export const getBaseUrl = (): string => {
   const envApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 
   // 1. Nếu có cấu hình https (production domain hoặc cloud tunnel) -> ưu tiên dùng ở mọi nơi
-  if (envApiUrl && envApiUrl.startsWith('https://')) {
-    return envApiUrl.replace(/\/$/, '');
-  }
+  // if (envApiUrl) {
+  //   return envApiUrl.replace(/\/$/, '');
+  // }
 
   // 2. Nếu chạy trên Web browser (PC hoặc Mobile Browser)
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -42,6 +42,10 @@ export const getBaseUrl = (): string => {
 
   // 3. Nếu chạy Native Mobile App (iOS / Android trong Expo Go)
   try {
+    if (envApiUrl && !envApiUrl.includes('localhost') && !envApiUrl.includes('127.0.0.1')) {
+      return envApiUrl.replace(/\/$/, '');
+    }
+    
     const Constants = require('expo-constants').default;
     const hostUri =
       Constants.expoConfig?.hostUri ||
@@ -748,5 +752,18 @@ export const getAnalyticsFullReportApi = async (
 
   const qs = params.toString() ? `?${params.toString()}` : '';
   const res = await request<IFullAnalyticsReport>(`/api/analytics/full-report${qs}`);
+  return (res as any).data || res;
+};
+
+export const getMessagesApi = async (friendId: string): Promise<any> => {
+  const res = await request<any>(`/api/messages/${friendId}`);
+  return (res as any).data || res;
+};
+
+export const sendMessageApi = async (receiverId: string, text: string): Promise<any> => {
+  const res = await request<any>('/api/messages', {
+    method: 'POST',
+    body: JSON.stringify({ receiverId, text }),
+  });
   return (res as any).data || res;
 };

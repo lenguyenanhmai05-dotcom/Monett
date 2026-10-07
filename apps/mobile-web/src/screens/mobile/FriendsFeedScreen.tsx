@@ -1094,7 +1094,12 @@ const MomentChatModal = ({
                         {c.text}
                       </Text>
                       <Text style={[chatStyles.bubbleTime, isMe && chatStyles.bubbleTimeMe]}>
-                        {c.time}
+                        {c.createdAt ? (() => {
+                          const d = new Date(c.createdAt);
+                          const dd = d.getDate().toString().padStart(2, '0');
+                          const mm = (d.getMonth() + 1).toString().padStart(2, '0');
+                          return `${dd}/${mm} · ${c.time}`;
+                        })() : c.time}
                       </Text>
                     </View>
                   </View>
@@ -1784,16 +1789,14 @@ export const FriendsFeedScreen: React.FC = () => {
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>{isVi ? 'Bảng tin Monett 📸' : 'Monett Feed 📸'}</Text>
-          <Text style={styles.headerSub}>{isVi ? 'Khoảnh khắc vui vẻ & trò chuyện cùng bạn bè' : 'Fun moments & chat with friends'}</Text>
+
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TouchableOpacity style={styles.createBtn} onPress={() => { setEditingMoment(null); setShowCreate(true); }}>
             <Ionicons name="camera" size={16} color="#fff" />
             <Text style={styles.createBtnText}>{isVi ? 'Đăng tin' : 'Post'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.inviteBtn} onPress={() => setShowInvite(true)}>
-            <Ionicons name="person-add-outline" size={16} color="#059669" />
-          </TouchableOpacity>
+
         </View>
       </View>
 
@@ -1938,9 +1941,11 @@ export const FriendsFeedScreen: React.FC = () => {
             ))
           )}
 
-          <TouchableOpacity style={styles.addFriendBtn} onPress={() => setShowInvite(true)}>
-            <Ionicons name="person-add-outline" size={20} color="#059669" />
-            <Text style={styles.addFriendBtnText}>{isVi ? '➕ Thêm / Mời bạn bè' : '➕ Add / Invite Friends'}</Text>
+          <TouchableOpacity style={styles.addFriendBtn} onPress={() => setShowInvite(true)} activeOpacity={0.85}>
+            <View style={styles.addFriendIconWrap}>
+              <Ionicons name="person-add" size={18} color="#FFFFFF" />
+            </View>
+            <Text style={styles.addFriendBtnText}>{isVi ? 'Thêm / Mời bạn bè' : 'Add / Invite Friends'}</Text>
           </TouchableOpacity>
         </ScrollView>
       )}
@@ -2136,19 +2141,31 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: isDark ? '#064E3B' : '#F0FDF4',
-    borderWidth: 1.5,
-    borderColor: isDark ? '#065F46' : '#BBF7D0',
-    borderStyle: 'dashed',
-    borderRadius: 16,
-    paddingVertical: 16,
-    marginTop: 8,
+    gap: 12,
+    backgroundColor: '#059669',
+    borderRadius: 100,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    marginTop: 16,
+    marginBottom: 24,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  addFriendIconWrap: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    padding: 6,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   addFriendBtnText: {
-    color: '#059669',
-    fontWeight: '700',
-    fontSize: 15,
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 16,
+    letterSpacing: 0.3,
   },
   requestsBox: {
     backgroundColor: isDark ? '#1E293B' : '#EFF6FF',

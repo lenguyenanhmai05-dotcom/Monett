@@ -76,7 +76,7 @@ export const MobileNavigator: React.FC = () => {
       case 'categories':
         return <CategoriesScreen />;
       case 'profile':
-        return <ProfileScreen />;
+        return <ProfileScreen onNavigateToFeed={() => setCurrentTab('feed')} />;
       default:
         return <HomeScreen refreshTrigger={refreshKey} />;
     }
@@ -104,6 +104,8 @@ export const MobileNavigator: React.FC = () => {
             Trang chủ
           </Text>
         </TouchableOpacity>
+
+
 
         <TouchableOpacity
           style={styles.navItem}

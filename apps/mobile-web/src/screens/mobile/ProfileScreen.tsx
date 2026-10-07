@@ -33,13 +33,15 @@ import { useTransactions } from '../../contexts/TransactionContext';
 import { FROGS } from '../../../assets/frogIndex';
 import * as ImagePicker from 'expo-image-picker';
 import QRCode from 'react-qr-code';
+import { ChatModal } from '../../components/ChatModal';
 
 interface ProfileScreenProps {
   onBack?: () => void;
   onLogout?: () => void;
+  onNavigateToFeed?: () => void;
 }
 
-export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }) => {
+export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout, onNavigateToFeed }) => {
   const { user: authUser, logout, refreshUser } = useAuth();
   const { language, setLanguage } = useLanguage();
   const isVi = language === 'vi';
@@ -96,10 +98,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
   const [friendsTab, setFriendsTab] = useState<'list' | 'requests'>('list');
   const [friendsList, setFriendsList] = useState<any[]>([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
+  const [activeChatFriend, setActiveChatFriend] = useState<any | null>(null);
 
   // Streak & Gamification State (Interactive)
   const [streakCount, setStreakCount] = useState<number>(authUser?.streak || 1);
   const [activeToday, setActiveToday] = useState<boolean>(false);
+  const [totalActiveDays, setTotalActiveDays] = useState<number>(authUser?.totalActiveDays || 0);
+  const [longestStreak, setLongestStreak] = useState<number>(authUser?.longestStreak || 0);
+  const [shieldAvailable, setShieldAvailable] = useState<boolean>(true);
+  const [shieldUsedToday, setShieldUsedToday] = useState<boolean>(false);
   const [streakLoading, setStreakLoading] = useState<boolean>(false);
   const [showStreakModal, setShowStreakModal] = useState<boolean>(false);
   const [showFrogModal, setShowFrogModal] = useState<boolean>(false);
@@ -117,6 +124,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
       if (data) {
         if (data.streak !== undefined) setStreakCount(data.streak);
         if (data.activeToday !== undefined) setActiveToday(Boolean(data.activeToday));
+        if (data.totalActiveDays !== undefined) setTotalActiveDays(data.totalActiveDays);
+        if (data.longestStreak !== undefined) setLongestStreak(data.longestStreak);
+        if (data.shieldAvailable !== undefined) setShieldAvailable(Boolean(data.shieldAvailable));
+        if (data.shieldUsedToday !== undefined) setShieldUsedToday(Boolean(data.shieldUsedToday));
       }
     } catch (e) {
       console.warn('Error loading streak data:', e);
@@ -135,6 +146,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
       if (res && res.streak !== undefined) {
         setStreakCount(res.streak);
         setActiveToday(true);
+        if (res.totalActiveDays !== undefined) setTotalActiveDays(res.totalActiveDays);
+        if (res.longestStreak !== undefined) setLongestStreak(res.longestStreak);
+        if (res.shieldAvailable !== undefined) setShieldAvailable(Boolean(res.shieldAvailable));
+        if (res.shieldUsed) setShieldUsedToday(true);
         if (refreshUser) await refreshUser();
         Alert.alert(
           '🔥 ' + (isVi ? 'Thành công!' : 'Awesome!'),
@@ -187,6 +202,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
           fullName: friend?.fullName || f.fullName || 'User',
           email: friend?.email || f.email || '',
           avatarUrl: normalizeAvatarUrl(friend?.avatarUrl || f.avatarUrl),
+          lastActiveDate: friend?.lastActiveDate || f.lastActiveDate || '',
+          updatedAt: friend?.updatedAt || f.updatedAt || '',
         };
       }).filter((f: any) => f._id && f._id !== myId);
       setFriendsList(normalized);
@@ -421,7 +438,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
     title: string;
     subtitle: string;
     onPress?: () => void;
+    rightElement?: React.ReactNode;
   }[] = [
+    {
+      iconName: 'newspaper-outline',
+      iconBg: '#FFFBEB',
+      iconColor: '#D97706',
+      title: isVi ? 'Cộng đồng Monett (Feed)' : 'Monett Feed',
+      subtitle: isVi ? 'Xem khoảnh khắc vui vẻ từ mọi người' : 'View fun moments from everyone',
+      onPress: () => {
+        if (onNavigateToFeed) onNavigateToFeed();
+      },
+    },
     {
       iconName: 'people-outline',
       iconBg: '#ECFDF5',
@@ -434,17 +462,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
         loadFriendsData();
       },
     },
-    {
-      iconName: 'qr-code-outline',
-      iconBg: '#EFF6FF',
-      iconColor: '#2563EB',
-      title: isVi ? 'Kết bạn & QR Code' : 'Add Friends & QR Code',
-      subtitle: isVi ? 'Chia sẻ mã & kết bạn' : 'Share QR code & add friends',
-      onPress: () => {
-        setShowQRModal(true);
-        loadPendingRequests();
-      },
-    },
+
     { 
       iconName: 'alarm-outline', 
       iconBg: '#FEF3C7',
@@ -459,8 +477,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
       iconName: 'globe-outline',
       iconBg: '#F3E8FF',
       iconColor: '#7C3AED',
-      title: isVi ? 'Ngôn ngữ hiển thị' : 'Display Language',
-      subtitle: isVi ? 'Tiếng Việt (VI 🇻🇳)' : 'English (EN 🇺🇸)',
+      title: isVi ? 'Ngôn ngữ' : 'Language',
+      subtitle: isVi ? 'Tiếng Việt' : 'English',
+      rightElement: (
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', marginRight: 8 }}>
+          <Image source={{ uri: isVi ? 'https://flagcdn.com/w40/vn.png' : 'https://flagcdn.com/w40/us.png' }} style={{ width: 18, height: 13, marginRight: 6, borderRadius: 2 }} />
+          <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>{isVi ? 'VI' : 'EN'}</Text>
+        </View>
+      ),
       onPress: () => setShowLanguageModal(true),
     },
     {
@@ -468,7 +492,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
       iconBg: '#ECFDF5',
       iconColor: '#059669',
       title: isVi ? 'Đơn vị tiền tệ' : 'Currency',
-      subtitle: currentCurrency === 'USD' ? 'US Dollar (USD $)' : 'Việt Nam Đồng (VND ₫)',
+      subtitle: currentCurrency === 'USD' ? 'US Dollar ($)' : 'Việt Nam Đồng (₫)',
+      rightElement: (
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', marginRight: 8 }}>
+          <Image source={{ uri: currentCurrency === 'USD' ? 'https://flagcdn.com/w40/us.png' : 'https://flagcdn.com/w40/vn.png' }} style={{ width: 18, height: 13, marginRight: 6, borderRadius: 2 }} />
+          <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>{currentCurrency}</Text>
+        </View>
+      ),
       onPress: () => setShowCurrencyModal(true),
     },
     {
@@ -543,6 +573,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
 
           <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => { setNewFullName(displayName); setShowProfileModal(true); }}>
             <Text style={styles.userName}>{displayName}</Text>
+            {authUser?.isPro && (
+              <View style={{ backgroundColor: '#FEF08A', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginLeft: 8, borderWidth: 1, borderColor: '#FDE047' }}>
+                <Text style={{ fontSize: 10, fontWeight: '900', color: '#854D0E' }}>PRO</Text>
+              </View>
+            )}
             <Ionicons name="pencil" size={14} color="#059669" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
           <Text style={styles.userEmail}>{displayEmail}</Text>
@@ -611,6 +646,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                 <Text style={styles.menuTitle}>{item.title}</Text>
                 <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
               </View>
+              {item.rightElement}
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </TouchableOpacity>
           ))}
@@ -696,27 +732,95 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                   </View>
                 ) : (
                   friendsList.map((friend, i) => {
-                    const colors = ['#059669', '#8B5CF6', '#F59E0B', '#EF4444', '#0EA5E9'];
-                    let hash = 0;
-                    for (let j = 0; j < (friend.fullName || '').length; j++) hash = (friend.fullName || '').charCodeAt(j) + ((hash << 5) - hash);
-                    const bg = colors[Math.abs(hash) % colors.length];
+                    // Generate Genshin style background colors
+                    const bgColors = [
+                      ['#FFF5F5', '#FED7D7'],
+                      ['#F0FFF4', '#C6F6D5'],
+                      ['#EBF8FF', '#BEE3F8'],
+                      ['#FAF5FF', '#E9D8FD'],
+                      ['#FFFFF0', '#FEFCBF']
+                    ];
+                    const cardBg = bgColors[i % 5][0];
+                    
+                    let isOnline = false;
+                    let offlineString = '';
+                    if (friend.updatedAt || friend.lastActiveDate) {
+                      const now = new Date();
+                      // Try to use updatedAt for accurate time difference
+                      if (friend.updatedAt) {
+                        const lastActive = new Date(friend.updatedAt);
+                        const diffMs = Math.abs(now.getTime() - lastActive.getTime());
+                        const diffMins = Math.floor(diffMs / (1000 * 60));
+                        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                        
+                        // Consider online if active within last 10 minutes
+                        if (diffMins < 10) {
+                          isOnline = true;
+                        } else if (diffHours < 1) {
+                          offlineString = isVi ? `Đăng nhập lần cuối ${diffMins} phút` : `Last login ${diffMins} mins`;
+                        } else if (diffHours < 24) {
+                          offlineString = isVi ? `Đăng nhập lần cuối ${diffHours} giờ` : `Last login ${diffHours} hrs`;
+                        } else {
+                          offlineString = isVi ? `Đăng nhập lần cuối ${diffDays} ngày` : `Last login ${diffDays} days`;
+                        }
+                      } else {
+                        // Fallback to lastActiveDate (YYYY-MM-DD)
+                        const vnTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+                        const todayStr = vnTime.toISOString().split('T')[0];
+                        if (friend.lastActiveDate === todayStr) {
+                          isOnline = true;
+                        } else {
+                          const lastActive = new Date(friend.lastActiveDate);
+                          const diffTime = Math.abs(vnTime.getTime() - lastActive.getTime());
+                          const daysOffline = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+                          offlineString = isVi ? `Đăng nhập lần cuối ${daysOffline} ngày` : `Last login ${daysOffline} days`;
+                        }
+                      }
+                    } else {
+                      offlineString = isVi ? 'Đăng nhập lần cuối > 30 ngày' : 'Last login > 30 days';
+                    }
+                    
                     const initial = (friend.fullName || '?').charAt(0).toUpperCase();
                     return (
-                      <View key={friend._id || i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' }}>
-                        {/* Avatar */}
-                        {friend.avatarUrl ? (
-                          <Image source={{ uri: friend.avatarUrl }} style={{ width: 44, height: 44, borderRadius: 22 }} />
-                        ) : (
-                          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: bg, justifyContent: 'center', alignItems: 'center' }}>
-                            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>{initial}</Text>
+                      <View key={friend._id || i} style={{ 
+                        flexDirection: 'row', 
+                        alignItems: 'center', 
+                        paddingVertical: 12, 
+                        paddingHorizontal: 16,
+                        borderRadius: 24,
+                        marginBottom: 10,
+                        backgroundColor: cardBg,
+                        borderWidth: 1,
+                        borderColor: 'rgba(0,0,0,0.05)',
+                        justifyContent: 'space-between'
+                      }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          {/* Avatar */}
+                          {friend.avatarUrl ? (
+                            <Image source={{ uri: friend.avatarUrl }} style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: '#FFFFFF' }} />
+                          ) : (
+                            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#059669', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFFFFF' }}>
+                              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>{initial}</Text>
+                            </View>
+                          )}
+                          <View style={{ marginLeft: 12 }}>
+                            <Text style={{ fontSize: 15, fontWeight: '700', color: '#0F172A' }}>{friend.fullName || 'Người dùng'}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                              <View style={{ width: 6, height: 6, borderRadius: 3, marginRight: 6, backgroundColor: isOnline ? '#4ADE80' : '#94A3B8' }} />
+                              <Text style={{ fontSize: 12, fontWeight: '500', color: isOnline ? '#4ADE80' : '#64748B' }}>
+                                {isOnline ? (isVi ? 'Trực tuyến' : 'Online') : offlineString}
+                              </Text>
+                            </View>
                           </View>
-                        )}
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                          <Text style={{ fontSize: 15, fontWeight: '700', color: '#0F172A' }}>{friend.fullName}</Text>
-                          <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>{friend.email}</Text>
                         </View>
-                        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#F0FDF4', justifyContent: 'center', alignItems: 'center' }}>
-                          <Text style={{ fontSize: 14 }}>✓</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'flex-end', marginLeft: 16 }}>
+                          <TouchableOpacity 
+                            style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.05)', justifyContent: 'center', alignItems: 'center' }}
+                            onPress={() => setActiveChatFriend(friend)}
+                          >
+                            <Ionicons name="chatbubble-ellipses" size={18} color="#475569" />
+                          </TouchableOpacity>
                         </View>
                       </View>
                     );
@@ -997,7 +1101,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
               ]}
               onPress={() => { setLanguage('vi'); setShowLanguageModal(false); }}
             >
-              <Text style={styles.langFlag}>🇻🇳</Text>
+              <Image source={{ uri: 'https://flagcdn.com/w40/vn.png' }} style={{ width: 24, height: 16, marginRight: 12, borderRadius: 2 }} />
               <Text style={[styles.langLabel, language === 'vi' && styles.langLabelActive]}>Tiếng Việt</Text>
               {language === 'vi' && <Text style={styles.langCheck}>✓</Text>}
             </TouchableOpacity>
@@ -1008,7 +1112,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
               ]}
               onPress={() => { setLanguage('en'); setShowLanguageModal(false); }}
             >
-              <Text style={styles.langFlag}>🇺🇸</Text>
+              <Image source={{ uri: 'https://flagcdn.com/w40/us.png' }} style={{ width: 24, height: 16, marginRight: 12, borderRadius: 2 }} />
               <Text style={[styles.langLabel, language === 'en' && styles.langLabelActive]}>English</Text>
               {language === 'en' && <Text style={styles.langCheck}>✓</Text>}
             </TouchableOpacity>
@@ -1337,94 +1441,124 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
         </View>
       </Modal>
 
-      {/* MODAL: CHI TIẾT CHUỖI STREAK GIỮ LỬA (STREAK CHECK-IN & REWARDS) */}
-      <Modal visible={showStreakModal} transparent animationType="slide" onRequestClose={() => setShowStreakModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%', paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, overflow: 'hidden' }]}>
-            {/* Header */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}>
-              <View>
-                <Text style={styles.modalTitle}>{isVi ? '🔥 Chuỗi Giữ Lửa Tài Chính' : '🔥 Mindful Financial Streak'}</Text>
-                <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
-                  {isVi ? 'Ghi chép liên tục để duy trì kỷ luật và mở quà' : 'Daily discipline unlocks perks and free rewards'}
+      {/* GENSHIN STYLE STREAK MODAL */}
+      <Modal visible={showStreakModal} transparent animationType="fade" onRequestClose={() => setShowStreakModal(false)}>
+        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.8)' }]}>
+          <View style={[styles.modalContent, { maxHeight: '92%', width: '92%', paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, overflow: 'hidden', backgroundColor: '#1A1C23', borderRadius: 16, borderWidth: 1, borderColor: '#4B5563' }]}>
+            
+            {/* Header: Genshin style deep blue/gold */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 24, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#374151' }}>
+              <View style={{ flex: 1, paddingRight: 16 }}>
+                <Text style={{ fontSize: 20, fontWeight: '800', color: '#E5C07B', marginBottom: 4 }}>
+                  {isVi ? '✨ Hành Trình Kỷ Luật' : '✨ Mindful Journey'}
+                </Text>
+                <Text style={{ fontSize: 13, color: '#9CA3AF', lineHeight: 18 }}>
+                  {isVi ? 'Duy trì ngọn lửa để nhận Thạch thưởng' : 'Keep the flame alive for mystical rewards'}
                 </Text>
               </View>
-              <TouchableOpacity onPress={() => setShowStreakModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <View style={{ width: 28, height: 28, borderRadius: 8, borderWidth: 1.5, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' }}>
-                  <Ionicons name="close" size={18} color="#64748B" />
+              <TouchableOpacity onPress={() => setShowStreakModal(false)} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#4B5563' }}>
+                  <Ionicons name="close" size={20} color="#E5C07B" />
                 </View>
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
+              
               {/* Flame Hero Card */}
-              <View style={{ backgroundColor: '#FFF7ED', borderRadius: 20, padding: 20, alignItems: 'center', borderWidth: 1.5, borderColor: '#FDBA74', marginBottom: 20 }}>
-                <Text style={{ fontSize: 52, marginBottom: 8 }}>🔥</Text>
-                <Text style={{ fontSize: 24, fontWeight: '900', color: '#9A3412', marginBottom: 4 }}>
-                  {isVi ? `Chuỗi ${currentStreak} Ngày` : `${currentStreak}-Day Streak`}
+              <View style={{ backgroundColor: 'rgba(229, 192, 123, 0.05)', borderRadius: 16, padding: 24, alignItems: 'center', marginBottom: 24, borderWidth: 1, borderColor: 'rgba(229, 192, 123, 0.3)' }}>
+                <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(229, 192, 123, 0.1)', justifyContent: 'center', alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: '#E5C07B' }}>
+                  <Text style={{ fontSize: 42 }}>🔥</Text>
+                </View>
+                <Text style={{ fontSize: 28, fontWeight: '900', color: '#FDFBF7', marginBottom: 6 }}>
+                  {isVi ? `${currentStreak} Ngày` : `${currentStreak} Days`}
                 </Text>
-                <Text style={{ fontSize: 13, color: '#C2410C', textAlign: 'center', marginBottom: 16 }}>
+                <Text style={{ fontSize: 14, color: activeToday ? '#E5C07B' : '#FCA5A5', textAlign: 'center', marginBottom: 24, fontWeight: '600' }}>
                   {activeToday
-                    ? (isVi ? '✅ Hôm nay bạn đã ghi chép giữ chuỗi thành công!' : '✅ Streak is active today! Keep the flame alive!')
-                    : (isVi ? '⚡ Chưa ghi nhận hôm nay! Nhấn điểm danh để giữ lửa trước 23:00.' : '⚡ Pending today! Tap below to maintain your streak before 23:00.')}
+                    ? (isVi ? '✨ Đã thắp sáng hôm nay!' : '✨ Streak illuminated today!')
+                    : (isVi ? '⚡ Ngọn lửa đang tàn! Thắp sáng ngay.' : '⚡ The flame fades! Ignite it now.')}
                 </Text>
 
-                {/* Check-in CTA Button */}
+                {/* Check-in CTA Button: Genshin Gold */}
                 <TouchableOpacity
                   style={{
-                    backgroundColor: activeToday ? '#16A34A' : '#EA580C',
-                    paddingVertical: 12,
-                    paddingHorizontal: 28,
-                    borderRadius: 14,
+                    backgroundColor: activeToday ? 'rgba(255,255,255,0.1)' : '#E5C07B',
+                    paddingVertical: 14,
+                    paddingHorizontal: 24,
+                    borderRadius: 8,
                     width: '100%',
                     alignItems: 'center',
                     flexDirection: 'row',
                     justifyContent: 'center',
-                    shadowColor: '#EA580C',
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: activeToday ? 0 : 0.3,
-                    shadowRadius: 8,
-                    elevation: activeToday ? 0 : 4,
+                    borderWidth: 1,
+                    borderColor: activeToday ? '#4B5563' : '#FBBF24',
                   }}
                   onPress={handleCheckInStreak}
                   disabled={activeToday || streakLoading}
                   activeOpacity={0.8}
                 >
                   {streakLoading ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <ActivityIndicator size="small" color={activeToday ? '#9CA3AF' : '#171822'} />
                   ) : (
-                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>
+                    <Text style={{ color: activeToday ? '#9CA3AF' : '#171822', fontSize: 16, fontWeight: '800' }}>
                       {activeToday
-                        ? (isVi ? '✓ Đã Giữ Chuỗi Hôm Nay 🔥' : '✓ Maintained Today 🔥')
-                        : (isVi ? '🔥 Điểm Danh Giữ Chuỗi Ngay ⚡' : '🔥 Check-in to Keep Streak ⚡')}
+                        ? (isVi ? '✓ Đã thắp sáng' : '✓ Illuminated')
+                        : (isVi ? 'Thắp Sáng Ngay ✦' : 'Ignite Now ✦')}
                     </Text>
                   )}
                 </TouchableOpacity>
               </View>
 
-              {/* Streak Shield */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#BFDBFE', marginBottom: 20 }}>
-                <Text style={{ fontSize: 28, marginRight: 12 }}>🛡️</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#1E40AF' }}>
-                    {isVi ? 'Lá Chắn Streak (Còn 1 lần dùng)' : 'Streak Shield (1 use remaining)'}
+              {/* Stats Panel */}
+              <View style={{ flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 16, padding: 20, marginBottom: 24, borderWidth: 1, borderColor: '#374151' }}>
+                <View style={{ flex: 1, alignItems: 'center', borderRightWidth: 1, borderRightColor: '#374151' }}>
+                  <Text style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 8, fontWeight: '600' }}>
+                    {isVi ? 'Tổng hành trình' : 'Total Journey'}
                   </Text>
-                  <Text style={{ fontSize: 11, color: '#3B82F6', marginTop: 2 }}>
-                    {isVi ? 'Tự động bảo vệ chuỗi nếu bạn vô tình bỏ lỡ 1 ngày ghi chép.' : 'Auto-protects your streak if you accidentally miss a day.'}
+                  <Text style={{ fontSize: 24, fontWeight: '900', color: '#FDFBF7' }}>
+                    {Math.max(totalActiveDays, currentStreak)}
+                  </Text>
+                </View>
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 8, fontWeight: '600' }}>
+                    {isVi ? 'Hạng cao nhất' : 'Highest Rank'}
+                  </Text>
+                  <Text style={{ fontSize: 24, fontWeight: '900', color: '#E5C07B' }}>
+                    {Math.max(longestStreak, currentStreak)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Streak Shield */}
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 16, padding: 20, marginBottom: 32, borderWidth: 1, borderColor: '#374151' }}>
+                <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: shieldAvailable ? 'rgba(59, 130, 246, 0.1)' : 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center', marginRight: 16, opacity: shieldAvailable ? 1 : 0.5, borderWidth: 1, borderColor: shieldAvailable ? '#3B82F6' : '#4B5563' }}>
+                  <Text style={{ fontSize: 22 }}>🛡️</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: shieldAvailable ? '#93C5FD' : '#6B7280', marginBottom: 4 }}>
+                    {shieldUsedToday
+                      ? (isVi ? 'Khiên đã kích hoạt ✨' : 'Shield Activated ✨')
+                      : shieldAvailable
+                        ? (isVi ? 'Khiên Hộ Thể (1/tuần)' : 'Aegis Shield (1 left)')
+                        : (isVi ? 'Khiên Hộ Thể (Đã vỡ)' : 'Aegis Shield (Shattered)')}
+                  </Text>
+                  <Text style={{ fontSize: 13, color: '#9CA3AF', lineHeight: 20 }}>
+                    {shieldAvailable
+                      ? (isVi ? 'Tự động bảo vệ chuỗi nếu bạn quên thắp sáng 1 ngày.' : 'Auto-protects your streak if you miss 1 day.')
+                      : (isVi ? 'Hồi phục vào Thứ 2. Tránh bỏ lỡ để không rớt hạng.' : 'Refills on Monday. Don\'t miss a day to keep your rank.')}
                   </Text>
                 </View>
               </View>
 
               {/* Milestones */}
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A', marginBottom: 12 }}>
-                {isVi ? '🏆 Cột Mốc Thành Tựu Streak' : '🏆 Streak Milestones & Perks'}
+              <Text style={{ fontSize: 16, fontWeight: '800', color: '#E5C07B', marginBottom: 16 }}>
+                {isVi ? 'Phần Thưởng Đột Phá' : 'Breakthrough Rewards'}
               </Text>
-              <View style={{ gap: 8, marginBottom: 20 }}>
+              <View style={{ gap: 12, marginBottom: 24 }}>
                 {[
-                  { days: 3, icon: '🔥', titleVi: 'Ngọn Lửa Khởi Đầu', titleEn: 'First Spark', rewardVi: 'Mở huy hiệu Streak Đồng', rewardEn: 'Unlock Bronze Badge' },
-                  { days: 7, icon: '🌱', titleVi: 'Tuần Lễ Kỷ Luật', titleEn: 'Mindful Week', rewardVi: 'MỞ KHÓA BẢN PRO MIỄN PHÍ!', rewardEn: 'UNLOCK PRO FOR FREE!', highlight: true },
-                  { days: 14, icon: '⚡', titleVi: 'Chi Tiêu Bền Bỉ', titleEn: 'Consistent Logger', rewardVi: 'Mở huy hiệu Bạc + 300 XP', rewardEn: 'Silver Badge + 300 XP' },
-                  { days: 30, icon: '👑', titleVi: 'Bậc Thầy Kỷ Luật', titleEn: 'Discipline Master', rewardVi: 'Huy hiệu Vàng Hoàng Gia', rewardEn: 'Royal Gold Badge' },
+                  { days: 3, icon: '🌟', titleVi: 'Ngôi Sao Sơ Khởi', titleEn: 'Initial Star', rewardVi: 'MỞ KHÓA BẢN PRO', rewardEn: 'UNLOCK PRO', highlight: true },
+                  { days: 7, icon: '💎', titleVi: 'Tuần Lễ Khai Sáng', titleEn: 'Enlightened Week', rewardVi: 'Huy hiệu Streak Đồng', rewardEn: 'Bronze Badge' },
+                  { days: 14, icon: '⚡', titleVi: 'Dấu Ấn Kiên Định', titleEn: 'Mark of Resolve', rewardVi: 'Huy hiệu Bạc + 300 XP', rewardEn: 'Silver Badge + 300 XP' },
                 ].map((m, idx) => {
                   const reached = currentStreak >= m.days;
                   return (
@@ -1433,66 +1567,44 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
                       style={{
                         flexDirection: 'row',
                         alignItems: 'center',
-                        backgroundColor: m.highlight ? '#FEFCE8' : '#FFFFFF',
-                        borderRadius: 14,
-                        padding: 12,
-                        borderWidth: 1.5,
-                        borderColor: m.highlight ? '#FDE047' : '#E2E8F0',
+                        backgroundColor: 'rgba(255,255,255,0.03)',
+                        borderRadius: 12,
+                        padding: 16,
+                        borderWidth: 1,
+                        borderColor: (m.highlight && !reached) ? '#E5C07B' : (reached ? '#4B5563' : '#374151'),
                       }}
                     >
-                      <Text style={{ fontSize: 22, marginRight: 12 }}>{m.icon}</Text>
+                      <View style={{ width: 40, height: 40, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center', marginRight: 16, borderWidth: 1, borderColor: '#4B5563' }}>
+                        <Text style={{ fontSize: 20 }}>{m.icon}</Text>
+                      </View>
                       <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: '#0F172A' }}>
-                            {m.days} {isVi ? 'ngày' : 'days'}: {isVi ? m.titleVi : m.titleEn}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '800', color: '#FDFBF7' }}>
+                            {m.days} {isVi ? 'ngày' : 'days'}
                           </Text>
                           {m.highlight && (
-                            <View style={{ marginLeft: 6, backgroundColor: '#EF4444', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 }}>
-                              <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>HOT</Text>
+                            <View style={{ marginLeft: 8, backgroundColor: 'rgba(239, 68, 68, 0.2)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: '#EF4444' }}>
+                              <Text style={{ color: '#FCA5A5', fontSize: 10, fontWeight: '800' }}>HOT</Text>
                             </View>
                           )}
                         </View>
-                        <Text style={{ fontSize: 11, fontWeight: m.highlight ? '700' : '400', color: m.highlight ? '#B45309' : '#64748B', marginTop: 2 }}>
+                        <Text style={{ fontSize: 13, fontWeight: m.highlight ? '700' : '500', color: m.highlight ? '#E5C07B' : '#9CA3AF' }}>
                           {isVi ? m.rewardVi : m.rewardEn}
                         </Text>
                       </View>
-                      <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: reached ? '#DCFCE7' : '#F1F5F9', justifyContent: 'center', alignItems: 'center' }}>
-                        <Text style={{ fontSize: 12 }}>{reached ? '✓' : '🔒'}</Text>
+                      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: reached ? 'rgba(229, 192, 123, 0.2)' : 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: reached ? '#E5C07B' : '#4B5563' }}>
+                        {reached ? <Ionicons name="star" size={16} color="#E5C07B" /> : <Ionicons name="lock-closed" size={14} color="#6B7280" />}
                       </View>
                     </View>
                   );
                 })}
               </View>
 
-              {/* Reminder Shortcut */}
               <TouchableOpacity
-                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F8FAFC', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 12 }}
-                onPress={() => {
-                  setShowStreakModal(false);
-                  setShowReminderModal(true);
-                }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 20, marginRight: 10 }}>⏰</Text>
-                  <View>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#1E293B' }}>
-                      {isVi ? 'Cài giờ nhắc nhở giữ chuỗi Streak' : 'Set Daily Streak Reminder'}
-                    </Text>
-                    <Text style={{ fontSize: 11, color: '#64748B' }}>
-                      {(authUser as any)?.reminderTime
-                        ? (isVi ? `Đang đặt lúc ${(authUser as any).reminderTime}` : `Set at ${(authUser as any).reminderTime}`)
-                        : (isVi ? 'Chưa đặt giờ nhắc nhở' : 'No reminder set')}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={{ fontSize: 16, color: '#94A3B8' }}>›</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.btnCancel, { width: '100%' }]}
+                style={{ width: '100%', paddingVertical: 16, alignItems: 'center' }}
                 onPress={() => setShowStreakModal(false)}
               >
-                <Text style={styles.btnCancelText}>{isVi ? 'Đóng' : 'Close'}</Text>
+                <Text style={{ color: '#9CA3AF', fontSize: 16, fontWeight: '700' }}>{isVi ? 'Đóng (X)' : 'Close (X)'}</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -1605,6 +1717,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout }
         </View>
       </Modal>
 
+      <ChatModal 
+        visible={!!activeChatFriend}
+        onClose={() => setActiveChatFriend(null)}
+        friend={activeChatFriend}
+      />
     </SafeAreaView>
   );
 };
@@ -1866,6 +1983,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: 24,
+    flexShrink: 1,
   },
   modalTitle: {
     fontSize: 20,

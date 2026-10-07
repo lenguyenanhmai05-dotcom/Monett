@@ -74,8 +74,8 @@ export class FriendsService {
         $or: [{ requester: userObjId }, { recipient: userObjId }],
         status: 'accepted',
       })
-      .populate('requester', 'fullName email avatarUrl streak')
-      .populate('recipient', 'fullName email avatarUrl streak');
+      .populate('requester', 'fullName email avatarUrl streak lastActiveDate updatedAt')
+      .populate('recipient', 'fullName email avatarUrl streak lastActiveDate updatedAt');
 
     // Extract the actual friend object
     return friendships.map((f) => {

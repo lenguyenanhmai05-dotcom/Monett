@@ -117,7 +117,7 @@ export const MiniAnalyticsWidget: React.FC<MiniAnalyticsWidgetProps> = ({
         <View style={styles.chartCol}>
           <View style={styles.donutWrapper}>
             <Svg width="130" height="130" viewBox="0 0 130 130">
-              <G rotation="-90" origin="65, 65">
+              <G rotation="-90" originX="65" originY="65">
                 {categories.map((c, i) => {
                   const strokeDash = (c.percent / 100) * circum;
                   const offset = accumulatedOffset;
