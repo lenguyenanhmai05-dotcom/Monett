@@ -69,7 +69,7 @@ export const TransactionTableWidget: React.FC<{ language?: 'vi' | 'en' }> = ({ l
         sort: sortOption,
       });
       const rawItems = (res as any)?.items || (res as any)?.data?.items;
-      if (rawItems && Array.isArray(rawItems) && rawItems.length > 0) {
+      if (rawItems && Array.isArray(rawItems)) {
         setTransactions(rawItems);
       }
     } catch (e) {

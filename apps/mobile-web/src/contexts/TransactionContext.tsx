@@ -7,6 +7,12 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { ITransaction, IBudget, IWallet } from '@monett/shared';
 import { useAuth } from './AuthContext';
+import {
+  getTransactionsApi,
+  createTransactionApi,
+  deleteTransactionApi,
+  getBudgetApi,
+} from '../services/api';
 
 // ============================================================
 // DEMO DATA — Hiển thị giao diện ngay khi chưa có API
@@ -187,46 +193,86 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // Thêm giao dịch mới (optimistic update + gọi API sau)
   const addTransaction = useCallback(
-    (txData: Omit<ITransaction, 'id' | 'createdAt'>) => {
+    async (txData: Omit<ITransaction, 'id' | 'createdAt'>) => {
+      const tempId = 'tx-' + Date.now();
       const newTx: ITransaction = {
         ...txData,
-        id: 'tx-' + Date.now(),
+        id: tempId,
         createdAt: new Date().toISOString(),
         date: txData.date || new Date().toISOString(),
       };
       setTransactions((prev) => [newTx, ...prev]);
 
-      // TODO: Khi có API — gọi createTransactionApi(newTx) ở đây
-      // và cập nhật lại id từ response của server
+      try {
+        const res: any = await createTransactionApi({
+          title: txData.title,
+          amount: txData.amount,
+          type: txData.type,
+          category: txData.category,
+          categoryIcon: txData.categoryIcon,
+          note: txData.note,
+          photoUri: txData.photoUri,
+          date: txData.date,
+        });
+        const serverId = res?.id || res?._id;
+        if (serverId) {
+          setTransactions((prev) =>
+            prev.map((t) => (t.id === tempId ? { ...t, id: serverId } : t))
+          );
+        }
+      } catch (err) {
+        console.warn('[TransactionContext] addTransaction API fallback:', err);
+      }
     },
     []
   );
 
-  const removeTransaction = useCallback((id: string) => {
+  const removeTransaction = useCallback(async (id: string) => {
     setTransactions((prev) => prev.filter((t) => t.id !== id));
-    // TODO: gọi deleteTransactionApi(id)
+    try {
+      if (!id.startsWith('tx-')) {
+        await deleteTransactionApi(id);
+      }
+    } catch (err) {
+      console.warn('[TransactionContext] removeTransaction API fallback:', err);
+    }
   }, []);
 
-  // Tải data từ server (khi có API)
+  // Tải data từ server
   const refreshData = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
     try {
-      // TODO: Khi BE có sẵn API:
-      // const [txRes, budgetRes, walletRes] = await Promise.all([
-      //   getTransactionsApi(),
-      //   getBudgetApi(),
-      //   getWalletsApi(),
-      // ]);
-      // setTransactions(txRes.data || DEMO_TRANSACTIONS);
-      // setBudget(budgetRes.data || DEMO_BUDGET);
-      // setWallets(walletRes.data || DEMO_WALLETS);
+      const [txRes, budgetRes] = await Promise.all([
+        getTransactionsApi({ limit: 100 }),
+        getBudgetApi(),
+      ]);
+      const items = (txRes as any)?.items || (txRes as any)?.data?.items;
+      if (Array.isArray(items) && items.length > 0) {
+        setTransactions(items);
+      }
+      if (budgetRes && budgetRes.limit) {
+        setBudget({
+          id: 'budget-current',
+          month: budgetRes.month,
+          year: budgetRes.year,
+          limit: budgetRes.limit,
+          spent: budgetRes.spent,
+          currency: budgetRes.currency || 'VND',
+        });
+      }
     } catch (err) {
       console.warn('[TransactionContext] refreshData error:', err);
     } finally {
       setIsLoading(false);
     }
   }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      refreshData();
+    }
+  }, [user, refreshData]);
 
   return (
     <TransactionContext.Provider

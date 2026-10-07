@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { TxItem } from './TransactionTableWidget';
+import { getTransactionsApi } from '../services/api';
 
 interface RecentTransactionsWidgetProps {
   transactions?: TxItem[];
@@ -17,12 +18,42 @@ const DEFAULT_RECENT: TxItem[] = [
 ];
 
 export const RecentTransactionsWidget: React.FC<RecentTransactionsWidgetProps> = ({
-  transactions = DEFAULT_RECENT,
+  transactions: propTransactions,
   onViewAll,
   language = 'vi',
 }) => {
   const isVi = language === 'vi';
-  const displayItems = transactions.slice(0, 4);
+  const [internalList, setInternalList] = useState<TxItem[]>(DEFAULT_RECENT);
+
+  useEffect(() => {
+    if (propTransactions) {
+      setInternalList(propTransactions);
+      return;
+    }
+
+    let isMounted = true;
+    getTransactionsApi({ limit: 4 })
+      .then((res: any) => {
+        if (!isMounted) return;
+        const items = res?.items || res?.data?.items;
+        if (Array.isArray(items)) {
+          if (items.length > 0) {
+            setInternalList(items);
+          } else {
+            setInternalList([]);
+          }
+        }
+      })
+      .catch((err) => {
+        console.log('RecentTransactionsWidget fallback to default:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [propTransactions]);
+
+  const displayItems = internalList.slice(0, 4);
 
   return (
     <View style={styles.card}>
