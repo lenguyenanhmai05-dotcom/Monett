@@ -42,7 +42,7 @@ export const MobileCameraScreen: React.FC<MobileCameraScreenProps> = ({
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<CameraType>('back');
   const [flash, setFlash] = useState<FlashMode>('off');
-  const [zoomLevel, setZoomLevel] = useState<'1x' | '2x'>('1x');
+  const [displayZoom, setDisplayZoom] = useState<number>(1);
   const [cameraMode, setCameraMode] = useState<'video' | 'photo' | 'voice'>('photo');
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
@@ -52,6 +52,29 @@ export const MobileCameraScreen: React.FC<MobileCameraScreenProps> = ({
   const [expenseAmount, setExpenseAmount] = useState('');
   const [expenseCategory, setExpenseCategory] = useState('Ẩm thực');
   const [expenseNote, setExpenseNote] = useState('');
+
+  const handleExpenseAmountChange = (text: string) => {
+    const rawNumber = text.replace(/[^0-9]/g, '');
+    if (rawNumber.length > 11) return;
+    setExpenseAmount(rawNumber);
+  };
+
+  const getAmountWordHelper = (num: number): string => {
+    if (num <= 0) return '';
+    if (num >= 1000000000) {
+      const b = (num / 1000000000).toFixed(1).replace('.0', '');
+      return `~ ${b} tỷ VNĐ`;
+    }
+    if (num >= 1000000) {
+      const m = (num / 1000000).toFixed(1).replace('.0', '');
+      return `~ ${m} triệu VNĐ`;
+    }
+    if (num >= 1000) {
+      const k = (num / 1000).toFixed(0);
+      return `~ ${k} nghìn VNĐ`;
+    }
+    return `${num.toLocaleString('vi-VN')} VNĐ`;
+  };
 
   // 1. Chụp ảnh từ Camera trực tiếp
   const handleTakePicture = async () => {
@@ -101,11 +124,58 @@ export const MobileCameraScreen: React.FC<MobileCameraScreenProps> = ({
   // 3. Đổi camera trước / sau
   const handleToggleFacing = () => {
     setFacing((cur) => (cur === 'back' ? 'front' : 'back'));
+    setDisplayZoom(1); // Reset zoom khi đổi cam
   };
 
   // 4. Đổi Flash
   const handleToggleFlash = () => {
     setFlash((cur) => (cur === 'off' ? 'on' : cur === 'on' ? 'auto' : 'off'));
+  };
+
+  // ==========================================
+  // XỬ LÝ GESTURE PINCH TO ZOOM
+  // ==========================================
+  const initialPinchDistance = useRef<number | null>(null);
+  const initialZoomOnPinch = useRef<number>(1);
+
+  const calculateDistance = (event: any) => {
+    const touches = event.nativeEvent.touches;
+    if (touches.length >= 2) {
+      const dx = touches[0].pageX - touches[1].pageX;
+      const dy = touches[0].pageY - touches[1].pageY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+    return null;
+  };
+
+  const handleTouchStart = (event: any) => {
+    if (event.nativeEvent.touches.length === 2) {
+      initialPinchDistance.current = calculateDistance(event);
+      initialZoomOnPinch.current = displayZoom;
+    }
+  };
+
+  const handleTouchMove = (event: any) => {
+    if (event.nativeEvent.touches.length === 2 && initialPinchDistance.current) {
+      const currentDistance = calculateDistance(event);
+      if (currentDistance) {
+        const scale = currentDistance / initialPinchDistance.current;
+        let newZoom = initialZoomOnPinch.current * scale;
+        // Giới hạn từ 0.5x đến 6.0x
+        newZoom = Math.max(0.5, Math.min(newZoom, 6));
+        setDisplayZoom(newZoom);
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    initialPinchDistance.current = null;
+  };
+
+  // Chuyển đổi từ số zoom UI (0.5 -> 6.0) sang chuẩn expo-camera (0 -> 1)
+  const getExpoZoom = () => {
+    const clamped = Math.max(0.5, Math.min(displayZoom, 6));
+    return (clamped - 0.5) / 5.5; 
   };
 
   // 5. Lưu khoảnh khắc chi tiêu
@@ -241,13 +311,23 @@ export const MobileCameraScreen: React.FC<MobileCameraScreenProps> = ({
               </View>
             ) : (
               /* Màn hình camera trực tiếp từ CameraView */
-              <CameraView
-                ref={cameraRef}
-                style={StyleSheet.absoluteFill}
-                facing={facing}
-                flash={flash}
-                zoom={zoomLevel === '2x' ? 0.15 : 0}
-              >
+              <>
+                <View 
+                  style={StyleSheet.absoluteFill}
+                  onStartShouldSetResponder={() => true}
+                  onResponderGrant={handleTouchStart}
+                  onResponderMove={handleTouchMove}
+                  onResponderRelease={handleTouchEnd}
+                >
+                  <CameraView
+                    ref={cameraRef}
+                    style={StyleSheet.absoluteFill}
+                    facing={facing}
+                    flash={flash}
+                    zoom={getExpoZoom()}
+                  />
+                </View>
+                
                 {/* Controls overlay ở đáy kính ngắm (Flash, 1x, 3:4) */}
                 <View style={styles.viewfinderBottomOverlay}>
                   {/* Flash toggle */}
@@ -269,13 +349,26 @@ export const MobileCameraScreen: React.FC<MobileCameraScreenProps> = ({
                     </Text>
                   </TouchableOpacity>
 
-                  {/* Zoom toggle (1x / 2x) */}
+                  {/* Zoom toggle (Locket style) */}
                   <TouchableOpacity
                     style={styles.viewfinderPillBtn}
-                    onPress={() => setZoomLevel((z) => (z === '1x' ? '2x' : '1x'))}
+                    onPress={() => {
+                      if (facing === 'front') {
+                        // Cam trước: 1x hoặc 0.5x (kí hiệu mũi tên chụm lại)
+                        setDisplayZoom(z => (z === 1 ? 0.5 : 1));
+                      } else {
+                        // Cam sau: 1x -> 0.5x, hoặc nếu đang số lẻ thì về 1x
+                        setDisplayZoom(z => (z === 1 ? 0.5 : 1));
+                      }
+                    }}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.viewfinderPillText}>{zoomLevel}</Text>
+                    <Text style={styles.viewfinderPillText}>
+                      {facing === 'front' 
+                        ? (displayZoom === 1 ? '1x' : '↘ ↙') 
+                        : `${displayZoom.toFixed(1)}x`
+                      }
+                    </Text>
                   </TouchableOpacity>
 
                   {/* Aspect ratio badge (3:4) */}
@@ -283,7 +376,7 @@ export const MobileCameraScreen: React.FC<MobileCameraScreenProps> = ({
                     <Text style={styles.viewfinderPillText}>3:4</Text>
                   </View>
                 </View>
-              </CameraView>
+              </>
             )}
           </View>
         </View>
@@ -442,14 +535,21 @@ export const MobileCameraScreen: React.FC<MobileCameraScreenProps> = ({
             </View>
 
             <View style={styles.photoInputGroup}>
-              <Text style={styles.photoInputLabel}>Số tiền (VNĐ) *</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={styles.photoInputLabel}>Số tiền (VNĐ) *</Text>
+                {expenseAmount && expenseAmount !== '0' ? (
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#10B981' }}>
+                    {getAmountWordHelper(parseInt(expenseAmount, 10))}
+                  </Text>
+                ) : null}
+              </View>
               <TextInput
                 style={styles.photoTextInput}
-                placeholder="Ví dụ: 45000"
+                placeholder="Ví dụ: 45.000"
                 placeholderTextColor="#94A3B8"
-                keyboardType="numeric"
-                value={expenseAmount}
-                onChangeText={setExpenseAmount}
+                keyboardType="number-pad"
+                value={expenseAmount || ''}
+                onChangeText={handleExpenseAmountChange}
               />
             </View>
 

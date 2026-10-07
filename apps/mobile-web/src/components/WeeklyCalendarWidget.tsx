@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,16 +6,18 @@ import {
   TouchableOpacity,
   Image,
 } from 'react-native';
+import { getCurrentWeekDays, getCurrentWeekRange } from '../utils/dateUtils';
 
 export interface WeekDayItem {
   day: string; // T2, T3...
-  date: string; // 18/10, 24/10...
-  dayNum: number; // 18, 24...
-  fullDateStr: string; // 2024-10-24
+  date: string; // 06/10...
+  dayNum: number; // 6, 7...
+  fullDateStr: string; // 2026-10-06
   amount: string; // 450k
   rawAmount: number;
   image?: string;
   hasPhoto: boolean;
+  isToday?: boolean;
 }
 
 interface WeeklyCalendarWidgetProps {
@@ -24,91 +26,51 @@ interface WeeklyCalendarWidgetProps {
   onViewAll?: () => void;
 }
 
-const DEFAULT_WEEK_DAYS: WeekDayItem[] = [
-  {
-    day: 'T2',
-    date: '18/10',
-    dayNum: 18,
-    fullDateStr: '2024-10-18',
-    amount: '65k',
-    rawAmount: 65000,
-    image: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=160&auto=format&fit=crop&q=80',
-    hasPhoto: true,
-  },
-  {
-    day: 'T3',
-    date: '19/10',
-    dayNum: 19,
-    fullDateStr: '2024-10-19',
-    amount: '820k',
-    rawAmount: 820000,
-    image: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=160&auto=format&fit=crop&q=80',
-    hasPhoto: true,
-  },
-  {
-    day: 'T4',
-    date: '20/10',
-    dayNum: 20,
-    fullDateStr: '2024-10-20',
-    amount: '280k',
-    rawAmount: 280000,
-    image: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=160&auto=format&fit=crop&q=80',
-    hasPhoto: true,
-  },
-  {
-    day: 'T5',
-    date: '21/10',
-    dayNum: 21,
-    fullDateStr: '2024-10-21',
-    amount: '220k',
-    rawAmount: 220000,
-    image: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=160&auto=format&fit=crop&q=80',
-    hasPhoto: true,
-  },
-  {
-    day: 'T6',
-    date: '22/10',
-    dayNum: 22,
-    fullDateStr: '2024-10-22',
-    amount: '75k',
-    rawAmount: 75000,
-    image: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=160&auto=format&fit=crop&q=80',
-    hasPhoto: true,
-  },
-  {
-    day: 'T7',
-    date: '23/10',
-    dayNum: 23,
-    fullDateStr: '2024-10-23',
-    amount: '190k',
-    rawAmount: 190000,
-    image: 'https://images.unsplash.com/photo-1552611052-33e04de081de?w=160&auto=format&fit=crop&q=80',
-    hasPhoto: true,
-  },
-  {
-    day: 'CN',
-    date: '24/10',
-    dayNum: 24,
-    fullDateStr: '2024-10-24',
-    amount: '450k',
-    rawAmount: 450000,
-    image: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=160&auto=format&fit=crop&q=80',
-    hasPhoto: true,
-  },
+const SAMPLE_PHOTO_FALLBACKS = [
+  'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=160&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=160&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=160&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=160&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=160&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1552611052-33e04de081de?w=160&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=160&auto=format&fit=crop&q=80',
 ];
 
+const SAMPLE_AMOUNTS = ['65k', '820k', '280k', '220k', '75k', '190k', '450k'];
+const SAMPLE_RAW_AMOUNTS = [65000, 820000, 280000, 220000, 75000, 190000, 450000];
+
 export const WeeklyCalendarWidget: React.FC<WeeklyCalendarWidgetProps> = ({
-  selectedDay = 24,
+  selectedDay,
   onSelectDay,
   onViewAll,
 }) => {
+  const todayDateNum = useMemo(() => new Date().getDate(), []);
+  const activeSelectedDay = selectedDay !== undefined ? selectedDay : todayDateNum;
+
+  const weekDays = useMemo<WeekDayItem[]>(() => {
+    const rawDays = getCurrentWeekDays();
+    return rawDays.map((item, idx) => ({
+      day: item.day,
+      date: item.dateStr,
+      dayNum: item.dayNum,
+      fullDateStr: item.fullDateStr,
+      amount: SAMPLE_AMOUNTS[idx % SAMPLE_AMOUNTS.length],
+      rawAmount: SAMPLE_RAW_AMOUNTS[idx % SAMPLE_RAW_AMOUNTS.length],
+      image: SAMPLE_PHOTO_FALLBACKS[idx % SAMPLE_PHOTO_FALLBACKS.length],
+      hasPhoto: true,
+      isToday: item.isToday,
+    }));
+  }, []);
+
+  const weekSubtitle = useMemo(() => getCurrentWeekRange(), []);
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
           <Text style={styles.title}>TUẦN NÀY</Text>
-          <Text style={styles.subtitle}>18/10 - 24/10</Text>
+          <Text style={styles.subtitle}>{weekSubtitle}</Text>
         </View>
         {onViewAll && (
           <TouchableOpacity onPress={onViewAll} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -119,16 +81,17 @@ export const WeeklyCalendarWidget: React.FC<WeeklyCalendarWidgetProps> = ({
 
       {/* 7 Days Grid */}
       <View style={styles.weekGrid}>
-        {DEFAULT_WEEK_DAYS.map((item) => {
-          const isSelected = item.dayNum === selectedDay;
+        {weekDays.map((item) => {
+          const isSelected = item.dayNum === activeSelectedDay;
           const isSunday = item.day === 'CN';
 
           return (
             <TouchableOpacity
-              key={item.dayNum}
+              key={`${item.fullDateStr}_${item.dayNum}`}
               style={[
                 styles.dayColumn,
                 isSelected && styles.dayColumnActive,
+                item.isToday && !isSelected && styles.dayColumnToday,
               ]}
               onPress={() => onSelectDay && onSelectDay(item)}
               activeOpacity={0.8}
@@ -139,6 +102,7 @@ export const WeeklyCalendarWidget: React.FC<WeeklyCalendarWidgetProps> = ({
                   styles.dayName,
                   isSunday && styles.sundayName,
                   isSelected && styles.dayNameActive,
+                  item.isToday && !isSelected && styles.dayNameToday,
                 ]}
               >
                 {item.day}
@@ -149,6 +113,7 @@ export const WeeklyCalendarWidget: React.FC<WeeklyCalendarWidgetProps> = ({
                 style={[
                   styles.dayDate,
                   isSelected && styles.dayDateActive,
+                  item.isToday && !isSelected && styles.dayDateToday,
                 ]}
               >
                 {item.dayNum}
@@ -259,6 +224,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     transform: [{ scale: 1.02 }],
   },
+  dayColumnToday: {
+    backgroundColor: '#F0FDF4',
+    borderColor: 'rgba(5, 150, 105, 0.35)',
+    borderWidth: 1,
+  },
   dayName: {
     fontSize: 11,
     fontWeight: '700',
@@ -272,6 +242,10 @@ const styles = StyleSheet.create({
     color: '#047857',
     fontWeight: '800',
   },
+  dayNameToday: {
+    color: '#059669',
+    fontWeight: '800',
+  },
   dayDate: {
     fontSize: 12.5,
     fontWeight: '800',
@@ -280,6 +254,10 @@ const styles = StyleSheet.create({
   },
   dayDateActive: {
     color: '#047857',
+  },
+  dayDateToday: {
+    color: '#059669',
+    fontWeight: '800',
   },
   dayImageContainer: {
     width: 38,

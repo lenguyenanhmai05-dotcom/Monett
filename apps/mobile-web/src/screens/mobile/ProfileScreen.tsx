@@ -38,10 +38,18 @@ import { ChatModal } from '../../components/ChatModal';
 interface ProfileScreenProps {
   onBack?: () => void;
   onLogout?: () => void;
+  onNavigateToWallets?: () => void;
+  onNavigateToCategories?: () => void;
   onNavigateToFeed?: () => void;
 }
 
-export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout, onNavigateToFeed }) => {
+export const ProfileScreen: React.FC<ProfileScreenProps> = ({
+  onBack,
+  onLogout,
+  onNavigateToWallets,
+  onNavigateToCategories,
+  onNavigateToFeed,
+}) => {
   const { user: authUser, logout, refreshUser } = useAuth();
   const { language, setLanguage } = useLanguage();
   const isVi = language === 'vi';
@@ -430,8 +438,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout, 
     logout();
   };
 
-
-  const menuItems: {
+  type MenuItem = {
     iconName: keyof typeof Ionicons.glyphMap;
     iconBg: string;
     iconColor: string;
@@ -439,19 +446,35 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout, 
     subtitle: string;
     onPress?: () => void;
     rightElement?: React.ReactNode;
-  }[] = [
-    {
-      iconName: 'newspaper-outline',
-      iconBg: '#FFFBEB',
+  };
+
+  const menuItems: MenuItem[] = [
+    ...(onNavigateToWallets ? [{
+      iconName: 'wallet-outline' as const,
+      iconBg: '#ECFDF5',
+      iconColor: '#059669',
+      title: isVi ? 'Ví của tôi' : 'My Wallets',
+      subtitle: isVi ? 'Quản lý tài khoản ngân hàng & nguồn tiền' : 'Manage bank accounts & wallets',
+      onPress: onNavigateToWallets,
+    }] : []),
+    ...(onNavigateToCategories ? [{
+      iconName: 'grid-outline' as const,
+      iconBg: '#EFF6FF',
+      iconColor: '#2563EB',
+      title: isVi ? 'Danh mục chi tiêu' : 'Categories',
+      subtitle: isVi ? 'Quản lý danh mục & hạn mức ngân sách' : 'Manage expense categories & limits',
+      onPress: onNavigateToCategories,
+    }] : []),
+    ...(onNavigateToFeed ? [{
+      iconName: 'people-outline' as const,
+      iconBg: '#FEF3C7',
       iconColor: '#D97706',
-      title: isVi ? 'Cộng đồng Monett (Feed)' : 'Monett Feed',
-      subtitle: isVi ? 'Xem khoảnh khắc vui vẻ từ mọi người' : 'View fun moments from everyone',
-      onPress: () => {
-        if (onNavigateToFeed) onNavigateToFeed();
-      },
-    },
+      title: isVi ? 'Bảng tin bạn bè' : 'Friends Feed',
+      subtitle: isVi ? 'Khoảnh khắc chi tiêu & trò chuyện cùng bạn' : 'Moments & chat with friends',
+      onPress: onNavigateToFeed,
+    }] : []),
     {
-      iconName: 'people-outline',
+      iconName: 'people-outline' as const,
       iconBg: '#ECFDF5',
       iconColor: '#059669',
       title: isVi ? 'Bạn bè' : 'Friends',
@@ -462,9 +485,19 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout, 
         loadFriendsData();
       },
     },
-
+    {
+      iconName: 'qr-code-outline' as const,
+      iconBg: '#EFF6FF',
+      iconColor: '#2563EB',
+      title: isVi ? 'Kết bạn & QR Code' : 'Add Friends & QR Code',
+      subtitle: isVi ? 'Chia sẻ mã & kết bạn' : 'Share QR code & add friends',
+      onPress: () => {
+        setShowQRModal(true);
+        loadPendingRequests();
+      },
+    },
     { 
-      iconName: 'alarm-outline', 
+      iconName: 'alarm-outline' as const, 
       iconBg: '#FEF3C7',
       iconColor: '#D97706',
       title: isVi ? 'Nhắc nhở giữ chuỗi Streak' : 'Daily Streak Reminder', 
@@ -474,7 +507,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout, 
       onPress: () => setShowReminderModal(true) 
     },
     {
-      iconName: 'globe-outline',
+      iconName: 'globe-outline' as const,
       iconBg: '#F3E8FF',
       iconColor: '#7C3AED',
       title: isVi ? 'Ngôn ngữ' : 'Language',
@@ -488,7 +521,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout, 
       onPress: () => setShowLanguageModal(true),
     },
     {
-      iconName: 'cash-outline',
+      iconName: 'cash-outline' as const,
       iconBg: '#ECFDF5',
       iconColor: '#059669',
       title: isVi ? 'Đơn vị tiền tệ' : 'Currency',
@@ -502,7 +535,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout, 
       onPress: () => setShowCurrencyModal(true),
     },
     {
-      iconName: 'document-text-outline',
+      iconName: 'document-text-outline' as const,
       iconBg: '#EFF6FF',
       iconColor: '#2563EB',
       title: isVi ? 'Xuất dữ liệu thu chi' : 'Export Financial Data',
@@ -510,7 +543,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, onLogout, 
       onPress: () => setShowExportModal(true),
     },
     { 
-      iconName: 'help-circle-outline',
+      iconName: 'help-circle-outline' as const,
       iconBg: '#F1F5F9',
       iconColor: '#475569',
       title: isVi ? 'Trợ giúp & Góp ý' : 'Help & Feedback', 

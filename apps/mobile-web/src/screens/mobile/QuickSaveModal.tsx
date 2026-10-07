@@ -12,8 +12,9 @@ import { Ionicons } from '@expo/vector-icons';
 interface QuickSaveModalProps {
   visible: boolean;
   onClose: () => void;
-  onSaveQuick: (amount: number, category: string) => void;
+  onSaveQuick: (amount: number, category: string, date?: string) => void;
   onOpenFullCamera: () => void;
+  targetDate?: string;
 }
 
 export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
@@ -21,19 +22,25 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
   onClose,
   onSaveQuick,
   onOpenFullCamera,
+  targetDate,
 }) => {
   const [selectedAmount, setSelectedAmount] = useState<number>(35000);
   const [selectedCategory, setSelectedCategory] = useState<string>('Cà phê');
 
   const presetAmounts = [20000, 35000, 50000, 80000, 100000, 150000];
 
-  const quickCategories = [
-    { name: 'Cà phê', icon: '☕' },
-    { name: 'Ăn sáng', icon: '🍳' },
-    { name: 'Ăn trưa', icon: '🍱' },
-    { name: 'Đổ xăng', icon: '⛽' },
-    { name: 'Đi chợ', icon: '🛒' },
-    { name: 'Trà sữa', icon: '🧋' },
+  const quickCategories: {
+    name: string;
+    icon: keyof typeof Ionicons.glyphMap;
+    color: string;
+    bg: string;
+  }[] = [
+    { name: 'Cà phê', icon: 'cafe-outline', color: '#7C3AED', bg: '#F5F3FF' },
+    { name: 'Ăn sáng', icon: 'sunny-outline', color: '#D97706', bg: '#FEF3C7' },
+    { name: 'Ăn trưa', icon: 'restaurant-outline', color: '#059669', bg: '#ECFDF5' },
+    { name: 'Đổ xăng', icon: 'car-outline', color: '#2563EB', bg: '#EFF6FF' },
+    { name: 'Đi chợ', icon: 'cart-outline', color: '#0D9488', bg: '#F0FDFA' },
+    { name: 'Trà sữa', icon: 'ice-cream-outline', color: '#DB2777', bg: '#FDF2F8' },
   ];
 
   return (
@@ -93,7 +100,13 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
                   onPress={() => setSelectedCategory(item.name)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.catIcon}>{item.icon}</Text>
+                  <View style={[styles.catIconBox, { backgroundColor: isSelected ? '#ECFDF5' : item.bg }]}>
+                    <Ionicons
+                      name={item.icon}
+                      size={20}
+                      color={isSelected ? '#047857' : item.color}
+                    />
+                  </View>
                   <Text style={[styles.catName, isSelected && styles.catNameActive]}>
                     {item.name}
                   </Text>
@@ -113,7 +126,7 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
               }}
               activeOpacity={0.8}
             >
-              <Text style={styles.cameraActionIcon}>📷</Text>
+              <Ionicons name="camera-outline" size={18} color="#374151" />
               <Text style={styles.cameraActionText}>Chụp ảnh</Text>
             </TouchableOpacity>
 
@@ -121,7 +134,7 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
             <TouchableOpacity
               style={styles.saveNowBtn}
               onPress={() => {
-                onSaveQuick(selectedAmount, selectedCategory);
+                onSaveQuick(selectedAmount, selectedCategory, targetDate);
                 onClose();
               }}
               activeOpacity={0.85}
@@ -244,9 +257,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#ECFDF5',
     borderColor: '#10B981',
   },
-  catIcon: {
-    fontSize: 24,
-    marginBottom: 4,
+  catIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
   },
   catName: {
     fontSize: 12,

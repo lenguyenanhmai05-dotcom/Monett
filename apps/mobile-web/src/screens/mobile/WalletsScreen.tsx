@@ -15,39 +15,52 @@ interface WalletsScreenProps {
 }
 
 export const WalletsScreen: React.FC<WalletsScreenProps> = ({ onBack, onAddWallet }) => {
-  const wallets = [
+  const wallets: {
+    id: string;
+    name: string;
+    type: string;
+    iconName: keyof typeof Ionicons.glyphMap;
+    balance: string;
+    color: string;
+    bg: string;
+    isDefault?: boolean;
+  }[] = [
     {
       id: 'w1',
       name: 'TPBank (Tài khoản chính)',
       type: 'Ngân hàng',
-      icon: '💳',
+      iconName: 'card-outline',
       balance: '12.500.000 đ',
       color: '#064E3B',
+      bg: '#ECFDF5',
       isDefault: true,
     },
     {
       id: 'w2',
       name: 'Ví Tiền Mặt',
       type: 'Tiền mặt mang theo',
-      icon: '💵',
+      iconName: 'cash-outline',
       balance: '1.850.000 đ',
       color: '#047857',
+      bg: '#ECFDF5',
     },
     {
       id: 'w3',
       name: 'Ví MoMo',
       type: 'Ví điện tử',
-      icon: '📱',
+      iconName: 'phone-portrait-outline',
       balance: '3.200.000 đ',
       color: '#A21CAF',
+      bg: '#FDF2F8',
     },
     {
       id: 'w4',
       name: 'Vietcombank',
       type: 'Tài khoản tiết kiệm',
-      icon: '🏛️',
+      iconName: 'business-outline',
       balance: '900.000 đ',
       color: '#15803D',
+      bg: '#F0FDF4',
     },
   ];
 
@@ -72,7 +85,8 @@ export const WalletsScreen: React.FC<WalletsScreenProps> = ({ onBack, onAddWalle
           <Text style={styles.totalAssetLabel}>Tổng số dư khả dụng</Text>
           <Text style={styles.totalAssetValue}>18.450.000 đ</Text>
           <View style={styles.safetyTag}>
-            <Text style={styles.safetyTagText}>🛡️ Ngân sách an toàn 60%</Text>
+            <Ionicons name="shield-checkmark" size={13} color="#047857" style={{ marginRight: 4 }} />
+            <Text style={styles.safetyTagText}>Ngân sách an toàn 60%</Text>
           </View>
         </View>
 
@@ -84,8 +98,8 @@ export const WalletsScreen: React.FC<WalletsScreenProps> = ({ onBack, onAddWalle
             style={styles.walletCard}
             activeOpacity={0.8}
           >
-            <View style={styles.walletIconBox}>
-              <Text style={styles.walletIconEmoji}>{wallet.icon}</Text>
+            <View style={[styles.walletIconBox, { backgroundColor: wallet.bg }]}>
+              <Ionicons name={wallet.iconName} size={22} color={wallet.color} />
             </View>
 
             <View style={styles.walletInfo}>

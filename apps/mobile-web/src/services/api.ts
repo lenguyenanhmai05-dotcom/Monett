@@ -73,7 +73,7 @@ export const getBaseUrl = (): string => {
   }
 
   // 5. Fallback mặc định
-  return 'http://10.12.0.216:3000';
+  return 'http://localhost:3000';
 };
 
 
@@ -285,19 +285,9 @@ export const uploadAvatarApi = async (imageUri: string, mimeType: string, filena
 
   const formData = new FormData();
   
-  if (Platform.OS === 'web') {
-    // Trên web, cần fetch lấy Blob từ blob URI rồi append
-    const response = await fetch(imageUri);
-    const blob = await response.blob();
-    formData.append('file', blob, filename);
-  } else {
-    // Trên Mobile (React Native), FormData nhận object đặc biệt này
-    formData.append('file', {
-      uri: imageUri,
-      type: mimeType,
-      name: filename,
-    } as any);
-  }
+  const fileResp = await fetch(imageUri);
+  const blob = await fileResp.blob();
+  formData.append('file', blob, filename);
 
   const response = await fetch(url, {
     method: 'POST',
@@ -318,6 +308,42 @@ export const uploadAvatarApi = async (imageUri: string, mimeType: string, filena
     userData.avatarUrl = normalizeAvatarUrl(userData.avatarUrl) as string;
   }
   return userData;
+};
+
+// Cloud Storage & OCR APIs
+export const uploadReceiptApi = async (imageUri: string, mimeType: string, filename: string): Promise<string> => {
+  const token = getAuthToken();
+  const url = `${getBaseUrl()}/api/upload`;
+
+  const formData = new FormData();
+  
+  // Cách chuẩn xác nhất trên Expo hiện nay (cho cả Web lẫn Mobile) 
+  // là dùng fetch để biến file uri thành Blob, tránh lỗi Unsupported FormDataPart
+  const fileResp = await fetch(imageUri);
+  const blob = await fileResp.blob();
+  formData.append('file', blob, filename);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: token ? `Bearer ${token}` : '',
+    },
+    body: formData,
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.message || 'Lỗi khi tải ảnh hóa đơn lên đám mây');
+  }
+  return json.url;
+};
+
+export const scanReceiptOcrApi = async (imageUrl: string): Promise<any> => {
+  const res = await request<any>('/api/ocr/scan', {
+    method: 'POST',
+    body: JSON.stringify({ imageUrl }),
+  });
+  return res.data;
 };
 
 // Friends API
@@ -375,17 +401,9 @@ export const uploadMomentPhotoApi = async (imageUri: string, mimeType: string, f
   const url = `${getBaseUrl()}/api/moments/upload-photo`;
 
   const formData = new FormData();
-  if (Platform.OS === 'web') {
-    const response = await fetch(imageUri);
-    const blob = await response.blob();
-    formData.append('file', blob, filename);
-  } else {
-    formData.append('file', {
-      uri: imageUri,
-      type: mimeType,
-      name: filename,
-    } as any);
-  }
+  const fileResp = await fetch(imageUri);
+  const blob = await fileResp.blob();
+  formData.append('file', blob, filename);
 
   const response = await fetch(url, {
     method: 'POST',

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { getStreakApi } from '../services/api';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -27,7 +28,7 @@ export const StreakBadgeWidget: React.FC = () => {
     <View style={styles.container}>
       <View style={styles.leftCol}>
         <View style={styles.iconCircle}>
-          <Text style={styles.fireEmoji}>🔥</Text>
+          <Ionicons name="flame" size={22} color="#D97706" />
         </View>
         <View style={{ marginLeft: 12 }}>
           <View style={styles.streakRow}>
@@ -40,20 +41,34 @@ export const StreakBadgeWidget: React.FC = () => {
               {language === 'vi' ? 'NGÀY LIÊN TỤC' : 'DAY STREAK'}
             </Text>
           </View>
-          <Text style={styles.subText}>
-            {activeToday
-              ? (language === 'vi' ? '✅ Đã ghi nhận hôm nay' : '✅ Active today')
-              : (language === 'vi' ? '⚡ Chưa ghi chép hôm nay' : '⚡ Pending today')}
-          </Text>
+          <View style={styles.subTextRow}>
+            <Ionicons
+              name={activeToday ? 'checkmark-circle' : 'flash-outline'}
+              size={13}
+              color={activeToday ? '#059669' : '#D97706'}
+              style={{ marginRight: 4 }}
+            />
+            <Text style={styles.subText}>
+              {activeToday
+                ? (language === 'vi' ? 'Đã ghi nhận hôm nay' : 'Active today')
+                : (language === 'vi' ? 'Chưa ghi chép hôm nay' : 'Pending today')}
+            </Text>
+          </View>
         </View>
       </View>
 
       {/* Badge trạng thái */}
       <View style={[styles.statusBadge, activeToday ? styles.statusBadgeDone : styles.statusBadgePending]}>
+        <Ionicons
+          name={activeToday ? 'flame' : 'sparkles-outline'}
+          size={12}
+          color={activeToday ? '#059669' : '#B45309'}
+          style={{ marginRight: 4 }}
+        />
         <Text style={[styles.statusText, activeToday ? styles.statusTextDone : styles.statusTextPending]}>
           {activeToday
-            ? (language === 'vi' ? 'Đã giữ chuỗi 🔥' : 'Maintained 🔥')
-            : (language === 'vi' ? 'Hôm nay chưa đăng nhập ⚡' : 'Login to check-in ⚡')}
+            ? (language === 'vi' ? 'Đã giữ chuỗi' : 'Maintained')
+            : (language === 'vi' ? 'Chưa điểm danh' : 'Check-in pending')}
         </Text>
       </View>
     </View>
@@ -112,14 +127,20 @@ const styles = StyleSheet.create({
     color: '#D97706',
     letterSpacing: 0.5,
   },
+  subTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
   subText: {
     fontSize: 12,
     color: '#78350F',
-    marginTop: 2,
   },
   statusBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 14,
   },
   statusBadgeDone: {

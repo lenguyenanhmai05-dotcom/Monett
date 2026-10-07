@@ -1645,7 +1645,7 @@ const inviteStyles = StyleSheet.create({
 });
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
-export const FriendsFeedScreen: React.FC = () => {
+export const FriendsFeedScreen: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
   const { user } = useAuth();
   const { language } = useLanguage();
   const { isDark, colors } = useTheme();
@@ -1787,9 +1787,16 @@ export const FriendsFeedScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>{isVi ? 'Bảng tin Monett 📸' : 'Monett Feed 📸'}</Text>
-
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          {onBack && (
+            <TouchableOpacity onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
+            </TouchableOpacity>
+          )}
+          <View>
+            <Text style={styles.headerTitle}>{isVi ? 'Bảng tin Monett' : 'Monett Feed'}</Text>
+            <Text style={styles.headerSub}>{isVi ? 'Khoảnh khắc vui vẻ & trò chuyện cùng bạn bè' : 'Fun moments & chat with friends'}</Text>
+          </View>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TouchableOpacity style={styles.createBtn} onPress={() => { setEditingMoment(null); setShowCreate(true); }}>
