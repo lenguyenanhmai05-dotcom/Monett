@@ -32,11 +32,15 @@ export const getBaseUrl = (): string => {
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return 'http://localhost:3000';
     }
+    // Nếu có envApiUrl (tức là đang chạy tunnel) -> dùng envApiUrl
+    if (envApiUrl && envApiUrl.startsWith('https://')) {
+      return envApiUrl.replace(/\/$/, '');
+    }
     // Chạy qua tunnel domain
-    if (hostname.includes('ngrok') || hostname.includes('trycloudflare') || hostname.includes('vercel.app')) {
+    if (hostname.includes('ngrok') || hostname.includes('trycloudflare') || hostname.includes('vercel.app') || hostname.includes('loca.lt')) {
       return `${window.location.protocol}//${hostname}`;
     }
-    // Mở web qua IP LAN từ thiết bị khác (VD: http://10.12.1.76:8081 -> gọi http://10.12.1.76:3000)
+    // Mở web qua IP LAN từ thiết bị khác
     return `http://${hostname}:3000`;
   }
 

@@ -176,12 +176,12 @@ export const MobileHomeScreen: React.FC = () => {
         moment.category === 'Ẩm thực'
           ? '🍕'
           : moment.category === 'Đồ uống'
-          ? '☕'
-          : moment.category === 'Mua sắm'
-          ? '🛍️'
-          : moment.category === 'Di chuyển'
-          ? '🚗'
-          : '📸',
+            ? '☕'
+            : moment.category === 'Mua sắm'
+              ? '🛍️'
+              : moment.category === 'Di chuyển'
+                ? '🚗'
+                : '📸',
       amount: -moment.amount,
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
       note: moment.note,
@@ -259,8 +259,8 @@ export const MobileHomeScreen: React.FC = () => {
               {activeTab === 'home'
                 ? isVi ? 'Trang Chủ' : 'Home'
                 : activeTab === 'journal'
-                ? isVi ? 'Nhật Ký Ảnh' : 'Photo Journal'
-                : isVi ? 'Cá Nhân' : 'Profile'}
+                  ? isVi ? 'Nhật Ký Ảnh' : 'Photo Journal'
+                  : isVi ? 'Cá Nhân' : 'Profile'}
             </Text>
           </View>
         </View>
@@ -268,7 +268,7 @@ export const MobileHomeScreen: React.FC = () => {
         <View style={styles.headerRight}>
           {/* Streak Flame Badge */}
           <View style={styles.streakBadge}>
-            <Text style={styles.streakFlame}>🔥</Text>
+            <Ionicons name="flame" size={16} color="#EA580C" style={{ marginRight: 2, textShadowColor: "rgba(234, 88, 12, 0.4)", textShadowOffset: {width: 0, height: 2}, textShadowRadius: 4 }} />
             <Text style={styles.streakCount}>5</Text>
           </View>
 
@@ -725,7 +725,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   brandTitle: {
     fontSize: 18,
     fontWeight: '900',
-    color: isDark ? '#34D399' : '#064E3B',
+    color: isDark ? '#34D399' : '#047857',
     letterSpacing: -0.3,
   },
   brandSubtitle: {

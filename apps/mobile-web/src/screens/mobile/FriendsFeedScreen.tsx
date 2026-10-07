@@ -1795,15 +1795,13 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void }> = ({ onBack })
           )}
           <View>
             <Text style={styles.headerTitle}>{isVi ? 'Bảng tin Monett' : 'Monett Feed'}</Text>
-            <Text style={styles.headerSub}>{isVi ? 'Khoảnh khắc vui vẻ & trò chuyện cùng bạn bè' : 'Fun moments & chat with friends'}</Text>
           </View>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity style={styles.createBtn} onPress={() => { setEditingMoment(null); setShowCreate(true); }}>
+          <TouchableOpacity style={[styles.createBtn, { paddingHorizontal: 16, paddingVertical: 8, marginRight: 8 }]} onPress={() => { setEditingMoment(null); setShowCreate(true); }}>
             <Ionicons name="camera" size={16} color="#fff" />
             <Text style={styles.createBtnText}>{isVi ? 'Đăng tin' : 'Post'}</Text>
           </TouchableOpacity>
-
         </View>
       </View>
 

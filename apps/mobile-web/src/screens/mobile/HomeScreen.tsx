@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { getBudgetApi, BudgetData, getTransactionsByDateApi, deleteTransactionApi } from '../../services/api';
 import { WeeklyCalendarWidget, WeekDayItem } from '../../components/WeeklyCalendarWidget';
-import { StreakBadgeWidget } from '../../components/StreakBadgeWidget';
+
 import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
 import { formatYMD } from '../../utils/dateUtils';
 
@@ -295,10 +295,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <Text style={styles.greetingName}>{displayName}</Text>
         </View>
 
-        {/* 2.5 Streak Widget: Giữ lửa chi tiêu */}
-        <View style={{ marginBottom: 14 }}>
-          <StreakBadgeWidget />
-        </View>
+
 
         {/* 3. THE SIGNATURE EMERALD BUDGET CARD */}
         <TouchableOpacity
