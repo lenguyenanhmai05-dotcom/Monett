@@ -83,4 +83,22 @@ export class FriendsService {
       return isRequester ? f.recipient : f.requester;
     });
   }
+
+  async removeFriend(userId: string, friendId: string) {
+    const userObjId = new Types.ObjectId(userId);
+    const friendObjId = new Types.ObjectId(friendId);
+    
+    const result = await this.friendshipModel.findOneAndDelete({
+      $or: [
+        { requester: userObjId, recipient: friendObjId },
+        { requester: friendObjId, recipient: userObjId },
+      ],
+      status: 'accepted'
+    });
+
+    if (!result) {
+      throw new NotFoundException('Friendship not found');
+    }
+    return { success: true, message: 'Friend removed' };
+  }
 }

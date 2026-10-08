@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getStreakApi } from '../services/api';
@@ -89,7 +90,7 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ onEditProf
             </View>
           )}
           <View style={styles.avatarEditBadge}>
-            <Text style={styles.cameraIcon}>📷</Text>
+            <Ionicons name="camera" size={12} color="#FFFFFF" />
           </View>
         </TouchableOpacity>
 
@@ -97,8 +98,24 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ onEditProf
           <View style={styles.nameRow}>
             <Text style={styles.userName}>{displayName}</Text>
             {isPro && (
-              <View style={styles.eliteBadge}>
-                <Text style={styles.eliteBadgeText}>✨ PRO</Text>
+              <View style={{
+                backgroundColor: '#059669',
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderRadius: 12,
+                marginLeft: 10,
+                flexDirection: 'row',
+                alignItems: 'center',
+                shadowColor: '#059669',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
+                elevation: 3,
+              }}>
+                <Ionicons name="star" size={10} color="#FDE047" style={{ marginRight: 4 }} />
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#FFFFFF' }}>
+                  PRO
+                </Text>
               </View>
             )}
           </View>
@@ -126,25 +143,53 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ onEditProf
       </View>
 
       {/* Right Block: Integrated Sleek Streak Capsule (No Box-in-Box!) */}
-      <View style={styles.streakPill}>
-        <View style={styles.streakPillFlame}>
-          <Text style={styles.fireEmoji}>🔥</Text>
-        </View>
-        <View style={styles.streakPillTexts}>
-          <View style={styles.streakCountRow}>
-            <Text style={styles.streakCountNum}>{streakCount}</Text>
-            <Text style={styles.streakCountLabel}>
-              {language === 'vi' ? 'NGÀY LIÊN TỤC' : 'DAY STREAK'}
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#ECFDF5',
+        borderWidth: 1.5,
+        borderColor: '#A7F3D0',
+        borderRadius: 20,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        flex: 1,
+        maxWidth: 400,
+      }}>
+        <Image 
+          source={require('../../assets/frogs/frog-3d-m-coin-transparent.png')} 
+          style={{ width: 70, height: 70, marginLeft: -12, marginTop: -18, marginBottom: -18, zIndex: 10 }} 
+          resizeMode="contain"
+        />
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', flexWrap: 'wrap', gap: 6 }}>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: '#0F172A', flexShrink: 1 }}>
+              {language === 'vi'
+                ? `Chuỗi ${streakCount} ngày bùng cháy`
+                : `${streakCount}-Day Blazing Streak`}
             </Text>
+            {activeToday ? (
+              <View style={{ backgroundColor: '#D1FAE5', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 10, flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#10B981', marginRight: 4 }}>
+                  {language === 'vi' ? 'ĐÃ GIỮ CHUỖI' : 'ACTIVE'}
+                </Text>
+                <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+              </View>
+            ) : (
+              <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#D97706' }}>
+                  {language === 'vi' ? 'CHƯA ĐIỂM DANH' : 'PENDING'}
+                </Text>
+              </View>
+            )}
           </View>
-          <Text style={styles.streakStatusNotice}>
+          <Text style={{ fontSize: 11, color: '#047857', marginTop: 4, lineHeight: 16 }}>
             {activeToday
-              ? language === 'vi'
-                ? '✅ Đã giữ chuỗi hôm nay'
-                : '✅ Maintained today'
-              : language === 'vi'
-              ? '⚡ Đã ghi nhận hôm nay'
-              : '⚡ Active today'}
+              ? (language === 'vi'
+                  ? 'Đã ghi nhận khoảnh khắc hôm nay. Chạm để xem chi tiết & mốc thưởng!'
+                  : 'Continuous moments recorded. Tap to view perks!')
+              : (language === 'vi'
+                  ? 'Chưa duy trì hôm nay. Hãy ghi chép hoặc tham gia cùng bạn bè!'
+                  : 'Not active today. Add a transaction or join a friend!')}
           </Text>
         </View>
       </View>
