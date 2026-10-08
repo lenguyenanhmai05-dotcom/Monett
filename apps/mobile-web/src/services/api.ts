@@ -590,6 +590,28 @@ export const deleteTransactionApi = async (id: string) => {
   return res;
 };
 
+export interface MonthStatsData {
+  month: number;
+  year: number;
+  totalExpense: number;
+  totalIncome: number;
+  balance: number;
+  count: number;
+  categorySpending?: Record<string, number>;
+}
+
+export const getTransactionsMonthStatsApi = async (
+  month?: number,
+  year?: number,
+): Promise<MonthStatsData> => {
+  const params = new URLSearchParams();
+  if (month) params.append('month', String(month));
+  if (year) params.append('year', String(year));
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  const res = await request<MonthStatsData>(`/api/transactions/stats/month${qs}`);
+  return (res as any).data || res;
+};
+
 // ============================================================
 // BUDGET APIS
 // ============================================================
@@ -606,6 +628,7 @@ export interface BudgetData {
   payday: number;
   daysUntilPayday: number;
   currency: string;
+  categorySpending?: Record<string, number>;
 }
 
 export const getBudgetApi = async (): Promise<BudgetData> => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { TransactionTableWidget } from '../../components/TransactionTableWidget';
-import { getTransactionsApi } from '../../services/api';
+import { getTransactionsMonthStatsApi } from '../../services/api';
 
 interface TransactionsScreenProps {
   onNavigateToTab?: (tab: any) => void;
@@ -24,47 +24,54 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ onNaviga
   const { isDark, colors } = useTheme();
   const isVi = language === 'vi';
 
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+
   const [stats, setStats] = useState({
-    totalIncome: 3650000,
-    totalExpense: 630000,
-    netBalance: 3020000,
-    txCount: 6,
+    totalIncome: 0,
+    totalExpense: 0,
+    netBalance: 0,
+    txCount: 0,
   });
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchStats = async () => {
-      try {
-        const res: any = await getTransactionsApi({ limit: 100 });
-        const items = res?.items || res?.data?.items || [];
-        if (items.length > 0 && isMounted) {
-          let inc = 0;
-          let exp = 0;
-          items.forEach((item: any) => {
-            const amt = Math.abs(item.amount || 0);
-            if (item.type === 'income' || item.amount > 0) {
-              inc += amt;
-            } else {
-              exp += amt;
-            }
-          });
-          setStats({
-            totalIncome: inc,
-            totalExpense: exp,
-            netBalance: inc - exp,
-            txCount: items.length,
-          });
-        }
-      } catch (e) {
-        // Fallback default mock stats
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await getTransactionsMonthStatsApi(selectedMonth, selectedYear);
+      if (res) {
+        setStats({
+          totalIncome: res.totalIncome || 0,
+          totalExpense: res.totalExpense || 0,
+          netBalance: res.balance !== undefined ? res.balance : (res.totalIncome || 0) - (res.totalExpense || 0),
+          txCount: res.count || 0,
+        });
       }
-    };
+    } catch (e) {
+      console.warn('Failed to fetch month stats:', e);
+    }
+  }, [selectedMonth, selectedYear]);
 
+  useEffect(() => {
     fetchStats();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  }, [fetchStats]);
+
+  const handlePrevMonth = () => {
+    if (selectedMonth === 1) {
+      setSelectedMonth(12);
+      setSelectedYear((y) => y - 1);
+    } else {
+      setSelectedMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (selectedMonth === 12) {
+      setSelectedMonth(1);
+      setSelectedYear((y) => y + 1);
+    } else {
+      setSelectedMonth((m) => m + 1);
+    }
+  };
 
   const styles = getStyles(isDark, colors);
 
@@ -92,18 +99,33 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ onNaviga
           </Text>
         </View>
 
-        {onNavigateToTab && (
-          <TouchableOpacity
-            style={styles.backBtn}
-            onPress={() => onNavigateToTab('home')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="arrow-back-outline" size={16} color="#059669" style={{ marginRight: 6 }} />
-            <Text style={styles.backBtnText}>
-              {isVi ? 'Về Tổng quan' : 'Back to Home'}
+        <View style={styles.headerRight}>
+          {/* Month Selector */}
+          <View style={styles.monthSelector}>
+            <TouchableOpacity style={styles.monthNavBtn} onPress={handlePrevMonth}>
+              <Ionicons name="chevron-back" size={16} color={isDark ? '#CBD5E1' : '#475569'} />
+            </TouchableOpacity>
+            <Text style={styles.monthLabel}>
+              {isVi ? `Tháng ${selectedMonth}/${selectedYear}` : `${selectedMonth}/${selectedYear}`}
             </Text>
-          </TouchableOpacity>
-        )}
+            <TouchableOpacity style={styles.monthNavBtn} onPress={handleNextMonth}>
+              <Ionicons name="chevron-forward" size={16} color={isDark ? '#CBD5E1' : '#475569'} />
+            </TouchableOpacity>
+          </View>
+
+          {onNavigateToTab && (
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => onNavigateToTab('home')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="arrow-back-outline" size={16} color="#059669" style={{ marginRight: 6 }} />
+              <Text style={styles.backBtnText}>
+                {isVi ? 'Về Tổng quan' : 'Back to Home'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {/* ================= KPI STATS CARDS ================= */}
@@ -112,7 +134,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ onNaviga
         <View style={[styles.kpiCard, styles.kpiCardIncome]}>
           <View style={styles.kpiHeader}>
             <Text style={styles.kpiLabel}>{isVi ? 'Tổng thu nhập' : 'Total Income'}</Text>
-            <View style={[styles.kpiIconWrap, { backgroundColor: '#DCFCE7' }]}>
+            <View style={[styles.kpiIconWrap, { backgroundColor: isDark ? '#064E3B' : '#DCFCE7' }]}>
               <Ionicons name="trending-up" size={16} color="#059669" />
             </View>
           </View>
@@ -120,7 +142,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ onNaviga
             +{stats.totalIncome.toLocaleString('vi-VN')} đ
           </Text>
           <Text style={styles.kpiNote}>
-            {isVi ? 'Bao gồm lương, thưởng & hoàn tiền' : 'Includes salary, bonus & cashback'}
+            {isVi ? `Ghi nhận tháng ${selectedMonth}/${selectedYear}` : `Recorded in ${selectedMonth}/${selectedYear}`}
           </Text>
         </View>
 
@@ -128,7 +150,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ onNaviga
         <View style={[styles.kpiCard, styles.kpiCardExpense]}>
           <View style={styles.kpiHeader}>
             <Text style={styles.kpiLabel}>{isVi ? 'Tổng chi tiêu' : 'Total Expenses'}</Text>
-            <View style={[styles.kpiIconWrap, { backgroundColor: '#FEE2E2' }]}>
+            <View style={[styles.kpiIconWrap, { backgroundColor: isDark ? '#450A0A' : '#FEE2E2' }]}>
               <Ionicons name="trending-down" size={16} color="#E11D48" />
             </View>
           </View>
@@ -136,7 +158,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ onNaviga
             -{stats.totalExpense.toLocaleString('vi-VN')} đ
           </Text>
           <Text style={styles.kpiNote}>
-            {isVi ? 'Chi phí sinh hoạt & ăn uống' : 'Living expenses & daily dining'}
+            {isVi ? 'Tổng các khoản chi tiêu' : 'Total recorded expenses'}
           </Text>
         </View>
 
@@ -144,7 +166,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ onNaviga
         <View style={[styles.kpiCard, styles.kpiCardNet]}>
           <View style={styles.kpiHeader}>
             <Text style={styles.kpiLabel}>{isVi ? 'Dòng tiền ròng' : 'Net Cashflow'}</Text>
-            <View style={[styles.kpiIconWrap, { backgroundColor: '#ECFDF5' }]}>
+            <View style={[styles.kpiIconWrap, { backgroundColor: isDark ? '#064E3B' : '#ECFDF5' }]}>
               <Ionicons name="wallet-outline" size={16} color="#047857" />
             </View>
           </View>
@@ -161,22 +183,22 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ onNaviga
         <View style={[styles.kpiCard, styles.kpiCardCount]}>
           <View style={styles.kpiHeader}>
             <Text style={styles.kpiLabel}>{isVi ? 'Số lượng mục' : 'Transactions'}</Text>
-            <View style={[styles.kpiIconWrap, { backgroundColor: '#F1F5F9' }]}>
+            <View style={[styles.kpiIconWrap, { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' }]}>
               <Ionicons name="documents-outline" size={16} color="#475569" />
             </View>
           </View>
-          <Text style={[styles.kpiValue, { color: '#0F172A' }]}>
+          <Text style={[styles.kpiValue, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
             {stats.txCount} {isVi ? 'khoản' : 'entries'}
           </Text>
           <Text style={styles.kpiNote}>
-            {isVi ? 'Được ghi chép trong kỳ' : 'Recorded in period'}
+            {isVi ? `Tháng ${selectedMonth}/${selectedYear}` : `In month ${selectedMonth}/${selectedYear}`}
           </Text>
         </View>
       </View>
 
       {/* ================= TRANSACTION MASTER TABLE ================= */}
       <View style={styles.tableSection}>
-        <TransactionTableWidget language={language as any} />
+        <TransactionTableWidget language={language as any} onChanged={fetchStats} />
       </View>
     </ScrollView>
   );
@@ -204,14 +226,19 @@ const getStyles = (isDark: boolean, colors: any) =>
       flex: 1,
       minWidth: 260,
     },
+    headerRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
     badgeLabel: {
       alignSelf: 'flex-start',
       paddingHorizontal: 10,
       paddingVertical: 4,
       borderRadius: 6,
-      backgroundColor: '#ECFDF5',
+      backgroundColor: isDark ? '#064E3B' : '#ECFDF5',
       borderWidth: 1,
-      borderColor: '#A7F3D0',
+      borderColor: isDark ? '#047857' : '#A7F3D0',
       marginBottom: 8,
     },
     badgeLabelText: {
@@ -230,6 +257,25 @@ const getStyles = (isDark: boolean, colors: any) =>
       fontSize: 13,
       color: isDark ? '#94A3B8' : '#64748B',
       lineHeight: 18,
+    },
+    monthSelector: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+      borderWidth: 1,
+      borderColor: isDark ? '#334155' : '#E2E8F0',
+      borderRadius: 12,
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+    },
+    monthNavBtn: {
+      padding: 4,
+    },
+    monthLabel: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: isDark ? '#F1F5F9' : '#0F172A',
+      paddingHorizontal: 8,
     },
     backBtn: {
       flexDirection: 'row',

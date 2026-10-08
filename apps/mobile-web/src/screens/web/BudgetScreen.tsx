@@ -20,21 +20,21 @@ interface BudgetScreenProps {
   onNavigateToTab?: (tab: any) => void;
 }
 
-interface CategoryBudgetItem {
+interface CategoryConfig {
   category: string;
   icon: string;
-  spent: number;
-  limit: number;
+  defaultLimitRatio: number; // Tỷ lệ tương đối trên tổng ngân sách
   color: string;
 }
 
-const DEFAULT_CATEGORY_BUDGETS: CategoryBudgetItem[] = [
-  { category: 'Ăn uống & Thực phẩm', icon: '🍲', spent: 3200000, limit: 6000000, color: '#059669' },
-  { category: 'Mua sắm & Đồ gia dụng', icon: '🛍️', spent: 1850000, limit: 3500000, color: '#0284C7' },
-  { category: 'Cà phê & Gặp gỡ', icon: '☕', spent: 1650000, limit: 2000000, color: '#D97706' },
-  { category: 'Di chuyển & Xăng xe', icon: '⛽', spent: 480000, limit: 1500000, color: '#7C3AED' },
-  { category: 'Học tập & Sách vở', icon: '📚', spent: 250000, limit: 1000000, color: '#2563EB' },
-  { category: 'Giải trí & Phim ảnh', icon: '🎬', spent: 350000, limit: 1000000, color: '#DB2777' },
+const CATEGORY_CONFIGS: CategoryConfig[] = [
+  { category: 'Ăn uống', icon: '🍲', defaultLimitRatio: 0.3, color: '#059669' },
+  { category: 'Mua sắm', icon: '🛍️', defaultLimitRatio: 0.2, color: '#0284C7' },
+  { category: 'Cà phê', icon: '☕', defaultLimitRatio: 0.1, color: '#D97706' },
+  { category: 'Di chuyển', icon: '⛽', defaultLimitRatio: 0.1, color: '#7C3AED' },
+  { category: 'Học tập', icon: '📚', defaultLimitRatio: 0.1, color: '#2563EB' },
+  { category: 'Giải trí', icon: '🎬', defaultLimitRatio: 0.1, color: '#DB2777' },
+  { category: 'Khác', icon: '📦', defaultLimitRatio: 0.1, color: '#64748B' },
 ];
 
 export const BudgetScreen: React.FC<BudgetScreenProps> = ({ onNavigateToTab }) => {
@@ -47,31 +47,34 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({ onNavigateToTab }) =
   const [budget, setBudget] = useState<BudgetData>({
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
-    limit: 22000000,
-    spent: 6180000,
-    remaining: 15820000,
-    spentPercent: 28.1,
-    remainingPercent: 71.9,
+    limit: 20000000,
+    spent: 0,
+    remaining: 20000000,
+    spentPercent: 0,
+    remainingPercent: 100,
     status: 'safe',
     payday: 5,
     daysUntilPayday: 12,
     currency: 'VND',
+    categorySpending: {},
   });
 
   const [showModal, setShowModal] = useState(false);
 
-  useEffect(() => {
-    let isMounted = true;
+  const fetchBudget = () => {
     getBudgetApi()
       .then((data) => {
-        if (isMounted && data && data.limit) {
+        if (data && data.limit) {
           setBudget(data);
         }
       })
-      .catch(() => {});
-    return () => {
-      isMounted = false;
-    };
+      .catch((err) => {
+        console.warn('Failed to load budget:', err);
+      });
+  };
+
+  useEffect(() => {
+    fetchBudget();
   }, []);
 
   const styles = getStyles(isDark, colors);
@@ -174,7 +177,7 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({ onNavigateToTab }) =
         </View>
       </View>
 
-      {/* ================= ROW 2: CATEGORY BREAKDOWN ================= */}
+      {/* ================= ROW 2: CATEGORY BREAKDOWN (REAL DATA) ================= */}
       <View style={styles.categoryCard}>
         <View style={styles.catHeader}>
           <View style={styles.catHeaderLeft}>
@@ -183,20 +186,24 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({ onNavigateToTab }) =
             </View>
             <View>
               <Text style={styles.catCardTitle}>
-                {isVi ? 'Phân Bổ Hạn Mức Theo Danh Mục' : 'Category Spending Allocations'}
+                {isVi ? 'Phân Bổ Chi Tiêu Theo Danh Mục' : 'Category Spending Breakdown'}
               </Text>
               <Text style={styles.catCardSub}>
-                {isVi ? 'Giám sát chi tiết từng nhóm chi tiêu hàng ngày' : 'Track limits across daily expense groups'}
+                {isVi
+                  ? 'Số liệu chi tiêu thực tế từ cơ sở dữ liệu giao dịch tháng này'
+                  : 'Actual spending calculated from real transaction records'}
               </Text>
             </View>
           </View>
         </View>
 
         <View style={styles.catList}>
-          {DEFAULT_CATEGORY_BUDGETS.map((item, idx) => {
-            const pct = Math.min(100, Math.round((item.spent / item.limit) * 100));
+          {CATEGORY_CONFIGS.map((item, idx) => {
+            const spent = budget.categorySpending?.[item.category] || 0;
+            const categoryLimit = Math.max(500000, Math.round(budget.limit * item.defaultLimitRatio));
+            const pct = Math.min(100, Math.round((spent / categoryLimit) * 100));
             const isCatWarning = pct >= 80 && pct <= 100;
-            const isCatDanger = pct > 100;
+            const isCatDanger = pct > 100 || (spent > categoryLimit);
 
             return (
               <View key={idx} style={styles.catItemRow}>
@@ -207,11 +214,11 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({ onNavigateToTab }) =
                   </View>
 
                   <View style={styles.catAmountWrap}>
-                    <Text style={styles.catAmountSpent}>
-                      {item.spent.toLocaleString('vi-VN')} đ
+                    <Text style={[styles.catAmountSpent, isCatDanger && { color: '#EF4444' }]}>
+                      {spent.toLocaleString('vi-VN')} đ
                     </Text>
                     <Text style={styles.catAmountLimit}>
-                      {' '}/ {item.limit.toLocaleString('vi-VN')} đ ({pct}%)
+                      {' '}/ {categoryLimit.toLocaleString('vi-VN')} đ ({pct}%)
                     </Text>
                   </View>
                 </View>
@@ -222,7 +229,7 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({ onNavigateToTab }) =
                     style={[
                       styles.catFill,
                       {
-                        width: `${pct}%`,
+                        width: `${Math.min(100, pct)}%`,
                         backgroundColor: isCatDanger ? '#EF4444' : isCatWarning ? '#F59E0B' : item.color,
                       },
                     ]}
@@ -238,7 +245,10 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({ onNavigateToTab }) =
       <BudgetModal
         visible={showModal}
         onClose={() => setShowModal(false)}
-        onSaved={setBudget}
+        onSaved={(updated) => {
+          setBudget(updated);
+          fetchBudget();
+        }}
         currentLimit={budget.limit}
         currentPayday={budget.payday}
         currentSpent={budget.spent}
@@ -279,9 +289,9 @@ const getStyles = (isDark: boolean, colors: any) =>
       paddingHorizontal: 10,
       paddingVertical: 4,
       borderRadius: 6,
-      backgroundColor: '#ECFDF5',
+      backgroundColor: isDark ? '#064E3B' : '#ECFDF5',
       borderWidth: 1,
-      borderColor: '#A7F3D0',
+      borderColor: isDark ? '#047857' : '#A7F3D0',
       marginBottom: 8,
     },
     badgeLabelText: {
@@ -374,9 +384,9 @@ const getStyles = (isDark: boolean, colors: any) =>
       width: 48,
       height: 48,
       borderRadius: 14,
-      backgroundColor: '#ECFDF5',
+      backgroundColor: isDark ? '#064E3B' : '#ECFDF5',
       borderWidth: 1,
-      borderColor: '#A7F3D0',
+      borderColor: isDark ? '#047857' : '#A7F3D0',
       justifyContent: 'center',
       alignItems: 'center',
       marginRight: 12,
@@ -399,15 +409,15 @@ const getStyles = (isDark: boolean, colors: any) =>
       marginBottom: 16,
     },
     ruleBadge: {
-      backgroundColor: '#F8FAFC',
+      backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
       padding: 12,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: '#E2E8F0',
+      borderColor: isDark ? '#334155' : '#E2E8F0',
     },
     ruleBadgeText: {
       fontSize: 12,
-      color: '#475569',
+      color: isDark ? '#94A3B8' : '#475569',
       lineHeight: 18,
       fontStyle: 'italic',
     },
@@ -432,12 +442,12 @@ const getStyles = (isDark: boolean, colors: any) =>
       width: 36,
       height: 36,
       borderRadius: 10,
-      backgroundColor: '#ECFDF5',
+      backgroundColor: isDark ? '#064E3B' : '#ECFDF5',
       justifyContent: 'center',
       alignItems: 'center',
       marginRight: 10,
       borderWidth: 1,
-      borderColor: '#A7F3D0',
+      borderColor: isDark ? '#047857' : '#A7F3D0',
     },
     catCardTitle: {
       fontSize: 16,

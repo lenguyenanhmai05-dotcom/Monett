@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Budget, BudgetDocument } from './schemas/budget.schema';
@@ -12,23 +12,31 @@ export class BudgetsService {
     private readonly transactionsService: TransactionsService,
   ) {}
 
+  private toObjectId(id: string): Types.ObjectId {
+    if (!id || !Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('ID người dùng không hợp lệ');
+    }
+    return new Types.ObjectId(id);
+  }
+
   async getCurrent(userId: string) {
+    const userObjId = this.toObjectId(userId);
     const now = new Date();
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
 
     let budget = await this.budgetModel.findOne({
-      user: new Types.ObjectId(userId),
+      user: userObjId,
       month,
       year,
     });
 
     if (!budget) {
       budget = await this.budgetModel.create({
-        user: new Types.ObjectId(userId),
+        user: userObjId,
         month,
         year,
-        limit: 22000000,
+        limit: 20000000,
         currency: 'VND',
         payday: 5,
       });
@@ -70,6 +78,7 @@ export class BudgetsService {
       payday,
       daysUntilPayday,
       currency: budget.currency || 'VND',
+      categorySpending: stats.categorySpending || {},
     };
   }
 
@@ -77,16 +86,28 @@ export class BudgetsService {
     userId: string,
     dto: { month?: number; year?: number; limit: number; payday?: number; currency?: string },
   ) {
+    const userObjId = this.toObjectId(userId);
+    const numLimit = Number(dto.limit);
+    if (isNaN(numLimit) || numLimit <= 0) {
+      throw new BadRequestException('Hạn mức ngân sách phải là số lớn hơn 0');
+    }
+
     const now = new Date();
     const month = dto.month || now.getMonth() + 1;
     const year = dto.year || now.getFullYear();
 
-    const updateFields: any = { limit: dto.limit };
-    if (dto.payday) updateFields.payday = dto.payday;
+    const updateFields: any = { limit: numLimit };
+    if (dto.payday !== undefined) {
+      const numPayday = Number(dto.payday);
+      if (isNaN(numPayday) || numPayday < 1 || numPayday > 31) {
+        throw new BadRequestException('Ngày trả lương phải từ 1 đến 31');
+      }
+      updateFields.payday = numPayday;
+    }
     if (dto.currency) updateFields.currency = dto.currency;
 
     await this.budgetModel.findOneAndUpdate(
-      { user: new Types.ObjectId(userId), month, year },
+      { user: userObjId, month, year },
       { $set: updateFields },
       { upsert: true, new: true },
     );
