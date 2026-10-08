@@ -1535,7 +1535,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 <View style={{ position: 'absolute', bottom: -40, left: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.05)' }} />
 
                 <View style={{ width: 86, height: 86, borderRadius: 43, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', marginBottom: 16, shadowColor: '#EA580C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 }}>
-                  <Ionicons name="flame" size={48} color="#EA580C" style={{ textShadowColor: "rgba(234, 88, 12, 0.5)", textShadowOffset: {width: 0, height: 4}, textShadowRadius: 8 }} />
+                  <Image 
+                    source={require('../../../assets/frogs/frog-3d-m-coin-transparent.png')} 
+                    style={{ width: 64, height: 64 }} 
+                    resizeMode="contain"
+                  />
                 </View>
                 <Text style={{ fontSize: 36, fontWeight: '900', color: '#FFFFFF', marginBottom: 4 }}>
                   {isVi ? `${currentStreak} Ngày` : `${currentStreak} Days`}
@@ -1549,58 +1553,59 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   </Text>
                 </View>
 
-                {/* Check-in CTA Button */}
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: activeToday ? 'rgba(255,255,255,0.9)' : '#FCD34D',
-                    paddingVertical: 16,
-                    paddingHorizontal: 24,
-                    borderRadius: 16,
-                    width: '100%',
-                    alignItems: 'center',
-                    flexDirection: 'row',
-                    justifyContent: 'center',
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.15,
-                    shadowRadius: 6,
-                    elevation: 4,
-                  }}
-                  onPress={handleCheckInStreak}
-                  disabled={activeToday || streakLoading}
-                  activeOpacity={0.8}
-                >
-                  {streakLoading ? (
-                    <ActivityIndicator size="small" color="#059669" />
-                  ) : (
-                    <Text style={{ color: activeToday ? '#047857' : '#92400E', fontSize: 16, fontWeight: '900', textTransform: 'uppercase' }}>
-                      {activeToday
-                        ? (isVi ? '✓ Lửa Đang Cháy' : '✓ Flame is Alive')
-                        : (isVi ? 'Thắp Lửa Ngay ✦' : 'Ignite Flame ✦')}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
+                {/* Check-in CTA Button & Progress Combined */}
+                <View style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, padding: 16 }}>
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: activeToday ? 'rgba(255,255,255,0.95)' : '#FCD34D',
+                      paddingVertical: 14,
+                      paddingHorizontal: 20,
+                      borderRadius: 14,
+                      width: '100%',
+                      alignItems: 'center',
+                      flexDirection: 'row',
+                      justifyContent: 'center',
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.15,
+                      shadowRadius: 6,
+                      elevation: 4,
+                      marginBottom: 16,
+                    }}
+                    onPress={handleCheckInStreak}
+                    disabled={activeToday || streakLoading}
+                    activeOpacity={0.8}
+                  >
+                    {streakLoading ? (
+                      <ActivityIndicator size="small" color="#059669" />
+                    ) : (
+                      <Text style={{ color: activeToday ? '#047857' : '#92400E', fontSize: 16, fontWeight: '900', textTransform: 'uppercase' }}>
+                        {activeToday && <Text style={{ color: '#F97316' }}>✓ </Text>}
+                        {activeToday
+                          ? (isVi ? 'Lửa Đang Cháy' : 'Flame is Alive')
+                          : (isVi ? 'Thắp Lửa Ngay ✦' : 'Ignite Flame ✦')}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
 
-              {/* Progress to next milestone (New feature visually) */}
-              <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, marginBottom: 24, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A' }}>{isVi ? 'Tiến độ Cột Mốc' : 'Milestone Progress'}</Text>
-                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#059669' }}>
-                    {currentStreak} / {currentStreak < 3 ? 3 : currentStreak < 7 ? 7 : currentStreak < 14 ? 14 : 30}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }}>{isVi ? 'Tiến độ Cột Mốc' : 'Milestone Progress'}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#D1FAE5' }}>
+                      {currentStreak} / {currentStreak < 3 ? 3 : currentStreak < 7 ? 7 : currentStreak < 14 ? 14 : 30}
+                    </Text>
+                  </View>
+                  <View style={{ height: 10, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 5, overflow: 'hidden' }}>
+                    <View style={{ 
+                      height: '100%', 
+                      width: `${Math.min(100, (currentStreak / (currentStreak < 3 ? 3 : currentStreak < 7 ? 7 : currentStreak < 14 ? 14 : 30)) * 100)}%`, 
+                      backgroundColor: '#FCD34D', 
+                      borderRadius: 5 
+                    }} />
+                  </View>
+                  <Text style={{ fontSize: 11, color: '#D1FAE5', marginTop: 8, textAlign: 'center', fontWeight: '500' }}>
+                    {isVi ? 'Duy trì thêm để nhận Thưởng Đột Phá' : 'Keep going for Breakthrough Rewards!'}
                   </Text>
                 </View>
-                <View style={{ height: 12, backgroundColor: '#F1F5F9', borderRadius: 6, overflow: 'hidden' }}>
-                  <View style={{ 
-                    height: '100%', 
-                    width: `${Math.min(100, (currentStreak / (currentStreak < 3 ? 3 : currentStreak < 7 ? 7 : currentStreak < 14 ? 14 : 30)) * 100)}%`, 
-                    backgroundColor: '#10B981', 
-                    borderRadius: 6 
-                  }} />
-                </View>
-                <Text style={{ fontSize: 12, color: '#64748B', marginTop: 10, textAlign: 'center', fontWeight: '500' }}>
-                  {isVi ? 'Duy trì thêm để nhận Thưởng Đột Phá' : 'Keep going for Breakthrough Rewards!'}
-                </Text>
               </View>
 
                             {/* Stats Box with Skill Icons */}
