@@ -13,11 +13,10 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { FROGS } from '../../../assets/frogIndex';
 import { UserProfileHeader } from '../../components/UserProfileHeader';
-import { StreakBadgeWidget } from '../../components/StreakBadgeWidget';
-import { BudgetCardWidget } from '../../components/BudgetCardWidget';
+import { SocialPostComposer } from '../../components/SocialPostComposer';
+import { IntegratedBudgetBar } from '../../components/IntegratedBudgetBar';
 import { RecentTransactionsWidget } from '../../components/RecentTransactionsWidget';
 import { TransactionTableWidget } from '../../components/TransactionTableWidget';
-import { MiniAnalyticsWidget } from '../../components/MiniAnalyticsWidget';
 import { getBudgetApi, BudgetData } from '../../services/api';
 
 export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({ onNavigateToTab }) => {
@@ -28,16 +27,10 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
   const { isDark, colors } = useTheme();
   const styles = getStyles(isDark, colors);
 
-  // Dữ liệu hiển thị (có thể tùy chỉnh)
-  const [slogan, setSlogan] = useState(
-    language === 'vi'
-      ? '“Chi tiêu có chừng mực, trân trọng từng khoảnh khắc cuộc sống ✨”'
-      : '“Spend mindfully, cherish every moment of life ✨”',
-  );
   const [selectedDay, setSelectedDay] = useState<number>(18);
   const [showStreakShield, setShowStreakShield] = useState(true);
 
-  const displayName = user?.fullName || 'Nguyễn Mai Linh';
+  const displayName = user?.fullName || 'Ánh Mai';
   const [imageError, setImageError] = useState(false);
 
   const [frogSeed] = useState(() => Math.floor(Math.random() * FROGS.length));
@@ -95,276 +88,157 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
-      {/* ===================== ROW 1: PROFILE & SLOGAN (LEFT) + DÒNG TIỀN (RIGHT) ===================== */}
-      <View style={[styles.gridRow, isDesktop ? styles.rowDesktop : styles.rowMobile]}>
-        {/* CARD 1: THÔNG TIN CÁ NHÂN & SLOGAN TÀI CHÍNH */}
-        <View style={[styles.card, isDesktop ? styles.cardRow1Left : styles.flex1]}>
-          {/* Header Card & Streak Widget */}
-          <UserProfileHeader />
-          <StreakBadgeWidget />
+      {/* ===================== PHẦN ĐẦU TRANG TỔNG QUAN (LIỀN MẠCH, THÔNG THOÁNG, KHÔNG ĐÓNG KHUNG) ===================== */}
+      <View style={styles.overviewSection}>
+        {/* 1. Header: Avatar + Tên + Badge + Streak liên tục */}
+        <UserProfileHeader />
 
-          {/* Slogan Tài Chính Cá Nhân */}
-          <View style={styles.sloganBox}>
-            <View style={styles.sloganHeaderRow}>
-              <Text style={styles.sloganTag}>
-                ❞ {language === 'vi' ? 'SLOGAN TÀI CHÍNH CÁ NHÂN' : 'FINANCIAL MOTTO'}
-              </Text>
-              <TouchableOpacity
-                onPress={() =>
-                  setSlogan(
-                    slogan.includes('hạt mầm')
-                      ? '“Chi tiêu có chừng mực, trân trọng từng khoảnh khắc cuộc sống ✨”'
-                      : '“Mỗi đồng tiêu đi là một hạt mầm cho tương lai thảnh thơi 🌱”',
-                  )
-                }
-              >
-                <Text style={styles.sloganEditBtn}>
-                  ✏️ {language === 'vi' ? 'Chỉnh sửa' : 'Edit'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+        {/* 2. Tổng Tài Sản & Hạn Mức Tháng (Tích hợp liền mạch, không chia ô tách biệt) */}
+        <IntegratedBudgetBar
+          budget={budget}
+          onBudgetUpdated={setBudget}
+          language={language as any}
+        />
 
-            <Text style={styles.sloganText}>{slogan}</Text>
-
-            <View style={styles.sloganChipsRow}>
-              <Text style={styles.sloganChipLabel}>
-                {language === 'vi' ? 'Gợi ý sống đẹp:' : 'Motto ideas:'}
-              </Text>
-              <TouchableOpacity
-                style={styles.chipItem}
-                onPress={() =>
-                  setSlogan('“Mỗi đồng tiêu đi là một hạt mầm cho tương lai 🌱”')
-                }
-              >
-                <Text style={styles.chipText}>
-                  Mỗi đồng tiêu đi là một hạt mầm cho tương lai 🌱
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.chipItem}
-                onPress={() =>
-                  setSlogan('“Mua trải nghiệm quý báu, tích luỹ an nhiên ☕”')
-                }
-              >
-                <Text style={styles.chipText}>
-                  Mua trải nghiệm quý báu, tích luỹ an nhiên
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.sloganFooter}>
-              <Text style={styles.sloganFooterText}>
-                {language === 'vi'
-                  ? 'Khẩu hiệu được hiển thị trang trọng tại trang chủ và nhật ký mỗi ngày'
-                  : 'Motto prominently featured on dashboard and daily moments'}
-              </Text>
-              <TouchableOpacity>
-                <Text style={styles.sloganHistoryLink}>
-                  {language === 'vi' ? 'Xem lịch sử châm ngôn >' : 'Motto history >'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        {/* CARD 2: THIẾT LẬP DÒNG TIỀN & NGÂN SÁCH THÁNG (BUDGET CARD WIDGET) */}
-        <View style={[isDesktop ? styles.cardRow1Right : styles.flex1]}>
-          <BudgetCardWidget
-            budget={budget}
-            onBudgetUpdated={setBudget}
-            language={language as any}
-          />
-        </View>
+        {/* 3. Khung chia sẻ khoảnh khắc mạng xã hội (Facebook Composer Style) */}
+        <SocialPostComposer user={user} />
       </View>
 
-      {/* ===================== ROW 2: STREAK (LEFT) + CHIBI FROG LỜI NHẮC (RIGHT) ===================== */}
-      <View style={[styles.gridRow, isDesktop ? styles.rowDesktop : styles.rowMobile]}>
-        {/* CARD 3: STREAK RỰC RỠ */}
-        <View style={[styles.card, isDesktop ? styles.cardRow2Left : styles.flex1]}>
-          <View style={styles.streakCardHeader}>
-            <View style={styles.streakTitleBlock}>
-              <View style={[styles.streakFlameTeardrop, { overflow: 'visible', justifyContent: 'center', alignItems: 'center' }]}>
-                <Image
-                  source={FROGS[frogSeed]}
-                  style={[{ width: 44, height: 44 }, styles.shadow3D]}
-                  resizeMode="contain"
-                />
-              </View>
-              <View>
-                <View style={styles.streakBadgeRow}>
-                  <View style={styles.streakLabelBadge}>
-                    <Text style={styles.streakLabelText}>
-                      🔥 {language === 'vi' ? 'STREAK RỰC RỠ' : 'ACTIVE STREAK'}
-                    </Text>
-                  </View>
-                  <Text style={styles.streakTimeAgo}>
-                    {language === 'vi' ? 'Cập nhật 2 giờ trước' : 'Updated 2h ago'}
+      {/* ===================== ROW 2: STREAK RỰC RỠ (FULL WIDTH) ===================== */}
+      <View style={[styles.card, styles.fullWidthCard]}>
+        <View style={styles.streakCardHeader}>
+          <View style={styles.streakTitleBlock}>
+            <View style={[styles.streakFlameTeardrop, { overflow: 'visible', justifyContent: 'center', alignItems: 'center' }]}>
+              <Image
+                source={FROGS[frogSeed]}
+                style={[{ width: 44, height: 44 }, styles.shadow3D]}
+                resizeMode="contain"
+              />
+            </View>
+            <View>
+              <View style={styles.streakBadgeRow}>
+                <View style={styles.streakLabelBadge}>
+                  <Text style={styles.streakLabelText}>
+                    🔥 {language === 'vi' ? 'STREAK RỰC RỠ' : 'ACTIVE STREAK'}
                   </Text>
                 </View>
-                <Text style={styles.streakMainTitle}>
-                  {language === 'vi' ? (
-                    <>
-                      Chuỗi <Text style={styles.streakHighlightNum}>18</Text> Ngày Ghi Chép Liên Tục
-                    </>
-                  ) : (
-                    <>
-                      <Text style={styles.streakHighlightNum}>18-Day</Text> Continuous Moment Streak
-                    </>
-                  )}
+                <Text style={styles.streakTimeAgo}>
+                  {language === 'vi' ? 'Cập nhật 2 giờ trước' : 'Updated 2h ago'}
                 </Text>
               </View>
-            </View>
-
-            <View style={styles.multiplierCard}>
-              <Text style={styles.multiplierMedal}>🎖️</Text>
-              <View>
-                <Text style={styles.multiplierLabel}>
-                  {language === 'vi' ? 'Hệ số tích lũy' : 'Bonus Multiplier'}
-                </Text>
-                <Text style={styles.multiplierValue}>
-                  x1.8{' '}
-                  <Text style={styles.multiplierDesc}>
-                    {language === 'vi' ? 'Điểm thưởng' : 'Reward pts'}
-                  </Text>
-                </Text>
-              </View>
+              <Text style={styles.streakMainTitle}>
+                {language === 'vi' ? (
+                  <>
+                    Chuỗi <Text style={styles.streakHighlightNum}>18</Text> Ngày Ghi Chép Liên Tục
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.streakHighlightNum}>18-Day</Text> Continuous Moment Streak
+                  </>
+                )}
+              </Text>
             </View>
           </View>
 
-          <Text style={styles.streakRecordNotice}>
-            {language === 'vi'
-              ? `Kỷ lục cá nhân cao nhất của ${displayName}: 24 ngày liên tiếp. Giữ vững phong độ nhé!`
-              : `Personal best: 24 consecutive days. Keep up the brilliant momentum!`}
-          </Text>
-
-          {/* 30-Day Grid */}
-          <View style={styles.streakJourneyBox}>
-            <View style={styles.journeyHeader}>
-              <Text style={styles.journeyTitle}>
-                📊 {language === 'vi' ? 'Hành Trình 30 Ngày Gần Nhất' : '30-Day Activity Journey'}
+          <View style={styles.multiplierCard}>
+            <Text style={styles.multiplierMedal}>🎖️</Text>
+            <View>
+              <Text style={styles.multiplierLabel}>
+                {language === 'vi' ? 'Hệ số tích lũy' : 'Bonus Multiplier'}
               </Text>
-              <View style={styles.legendRow}>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: '#059669' }]} />
-                  <Text style={styles.legendText}>
-                    {language === 'vi' ? 'Đã hoàn thành' : 'Completed'}
-                  </Text>
-                </View>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
-                  <Text style={styles.legendText}>
-                    {language === 'vi' ? 'Hôm nay' : 'Today'}
-                  </Text>
-                </View>
-                <View style={styles.legendItem}>
-                  <View style={[styles.legendDot, { backgroundColor: '#E2E8F0' }]} />
-                  <Text style={styles.legendText}>
-                    {language === 'vi' ? 'Chưa ghi' : 'Pending'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Matrix 30 ngày (3 hàng x 10 cột) */}
-            <View style={styles.daysMatrix}>
-              {Array.from({ length: 30 }, (_, i) => {
-                const dayNum = i + 1;
-                const isCompleted = dayNum < 18;
-                const isToday = dayNum === 18;
-                const isSelected = selectedDay === dayNum;
-
-                return (
-                  <TouchableOpacity
-                    key={dayNum}
-                    style={[
-                      styles.dayCell,
-                      isCompleted && styles.dayCellCompleted,
-                      isToday && styles.dayCellToday,
-                      isSelected && styles.dayCellSelected,
-                    ]}
-                    onPress={() => setSelectedDay(dayNum)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.dayNumText,
-                        isToday && styles.dayNumTextToday,
-                        isCompleted && styles.dayNumTextCompleted,
-                      ]}
-                    >
-                      {dayNum < 10 ? `0${dayNum}` : dayNum}
-                    </Text>
-                    <Text style={styles.dayStatusIcon}>
-                      {isCompleted ? '🔥' : isToday ? '📈' : dayNum === 30 ? '🏁' : '○'}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Footer Lá Chắn Streak */}
-          <View style={styles.streakFooter}>
-            <Text style={styles.streakShieldText}>
-              🛡️{' '}
-              {language === 'vi'
-                ? 'Được bảo vệ bởi Lá Chắn Streak (Còn 1 lần dùng)'
-                : 'Protected by Streak Shield (1 use remaining)'}
-            </Text>
-            <TouchableOpacity>
-              <Text style={styles.streakRuleLink}>
-                {language === 'vi' ? 'Tìm hiểu luật Streak >' : 'Streak rules >'}
+              <Text style={styles.multiplierValue}>
+                x1.8{' '}
+                <Text style={styles.multiplierDesc}>
+                  {language === 'vi' ? 'Điểm thưởng' : 'Reward pts'}
+                </Text>
               </Text>
-            </TouchableOpacity>
+            </View>
           </View>
         </View>
 
-        {/* CARD 4: LỜI NHẮC THÂN THƯƠNG - MONETT CHIBI FROG */}
-        <View style={[styles.card, isDesktop ? styles.cardRow2Right : styles.flex1, styles.chibiCard]}>
-          <View style={styles.chibiHeaderRow}>
-            <Image
-              source={FROGS[frogSeed]}
-              style={[styles.chibiFrogMascot, styles.shadow3D]}
-              resizeMode="contain"
-            />
-            <View style={{ flex: 1 }}>
-              <View style={styles.chibiBadge}>
-                <Text style={styles.chibiBadgeText}>
-                  {language === 'vi' ? 'Lời Nhắc Thân Thương' : 'Gentle Reminder'}
+        <Text style={styles.streakRecordNotice}>
+          {language === 'vi'
+            ? `Kỷ lục cá nhân cao nhất của ${displayName}: 24 ngày liên tiếp. Giữ vững phong độ nhé!`
+            : `Personal best: 24 consecutive days. Keep up the brilliant momentum!`}
+        </Text>
+
+        {/* 30-Day Grid */}
+        <View style={styles.streakJourneyBox}>
+          <View style={styles.journeyHeader}>
+            <Text style={styles.journeyTitle}>
+              📊 {language === 'vi' ? 'Hành Trình 30 Ngày Gần Nhất' : '30-Day Activity Journey'}
+            </Text>
+            <View style={styles.legendRow}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: '#059669' }]} />
+                <Text style={styles.legendText}>
+                  {language === 'vi' ? 'Đã hoàn thành' : 'Completed'}
                 </Text>
               </View>
-              <Text style={styles.chibiNameTitle}>Monett Chibi Frog</Text>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
+                <Text style={styles.legendText}>
+                  {language === 'vi' ? 'Hôm nay' : 'Today'}
+                </Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: '#E2E8F0' }]} />
+                <Text style={styles.legendText}>
+                  {language === 'vi' ? 'Chưa ghi' : 'Pending'}
+                </Text>
+              </View>
             </View>
           </View>
 
-          <View style={styles.speechBubble}>
-            <Text style={styles.speechBubbleText}>
-              {language === 'vi'
-                ? `“Hôm nay ${displayName} chưa ghi nhận khoảnh khắc cà phê chiều, hãy chụp ảnh hoặc lưu hoá đơn trước 23:00 để giữ chuỗi 18 ngày bừng cháy nhé! ☕✨”`
-                : `“Hey ${displayName}! You haven't captured your afternoon coffee moment today. Snap a photo or receipt before 23:00 to keep your 18-day flame alive! ☕✨”`}
-            </Text>
-            <View style={styles.speechBubbleArrow} />
+          {/* Matrix 30 ngày (3 hàng x 10 cột) */}
+          <View style={styles.daysMatrix}>
+            {Array.from({ length: 30 }, (_, i) => {
+              const dayNum = i + 1;
+              const isCompleted = dayNum < 18;
+              const isToday = dayNum === 18;
+              const isSelected = selectedDay === dayNum;
+
+              return (
+                <TouchableOpacity
+                  key={dayNum}
+                  style={[
+                    styles.dayCell,
+                    isCompleted && styles.dayCellCompleted,
+                    isToday && styles.dayCellToday,
+                    isSelected && styles.dayCellSelected,
+                  ]}
+                  onPress={() => setSelectedDay(dayNum)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.dayNumText,
+                      isToday && styles.dayNumTextToday,
+                      isCompleted && styles.dayNumTextCompleted,
+                    ]}
+                  >
+                    {dayNum < 10 ? `0${dayNum}` : dayNum}
+                  </Text>
+                  <Text style={styles.dayStatusIcon}>
+                    {isCompleted ? '🔥' : isToday ? '📈' : dayNum === 30 ? '🏁' : '○'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
+        </View>
 
-          <View style={styles.countdownRow}>
-            <Text style={styles.countdownIcon}>⏱️</Text>
-            <Text style={styles.countdownText}>
-              {language === 'vi' ? 'Đếm ngược: 04h 32m' : 'Countdown: 04h 32m'}
-            </Text>
-          </View>
-
-          <TouchableOpacity style={styles.captureNowBtn} activeOpacity={0.85}>
-            <Text style={styles.captureNowIcon}>📷</Text>
-            <Text style={styles.captureNowText}>
-              {language === 'vi' ? 'Ghi Khoảnh Khắc Ngay' : 'Capture Moment Now'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.snoozeBtn}>
-            <Text style={styles.snoozeText}>
-              {language === 'vi'
-                ? 'Để sau (Nhắc lại lúc 21:30)'
-                : 'Remind me later (at 21:30)'}
+        {/* Footer Lá Chắn Streak */}
+        <View style={styles.streakFooter}>
+          <Text style={styles.streakShieldText}>
+            🛡️{' '}
+            {language === 'vi'
+              ? 'Được bảo vệ bởi Lá Chắn Streak (Còn 1 lần dùng)'
+              : 'Protected by Streak Shield (1 use remaining)'}
+          </Text>
+          <TouchableOpacity>
+            <Text style={styles.streakRuleLink}>
+              {language === 'vi' ? 'Tìm hiểu luật Streak >' : 'Streak rules >'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -507,11 +381,6 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
         </View>
       </View>
 
-      {/* ===================== MINI ANALYTICS WIDGET ===================== */}
-      <MiniAnalyticsWidget
-        language={language as any}
-        onViewFullReport={() => onNavigateToTab && onNavigateToTab('analytics')}
-      />
 
       {/* ===================== ROW 4: GIAO DỊCH GẦN ĐÂY ===================== */}
       <RecentTransactionsWidget
@@ -528,7 +397,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
 const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: isDark ? '#0F172A' : '#F8FAFD',
+    backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
   },
   contentContainer: {
     paddingHorizontal: 28,
@@ -538,18 +407,12 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     alignSelf: 'center',
     gap: 24,
   },
-  cardRow1Left: {
-    flex: 1.15,
+  overviewSection: {
+    width: '100%',
+    gap: 14,
+    paddingBottom: 6,
   },
-  cardRow1Right: {
-    flex: 0.85,
-  },
-  cardRow2Left: {
-    flex: 1.25,
-  },
-  cardRow2Right: {
-    flex: 0.75,
-  },
+
   gridRow: {
     gap: 24,
   },
@@ -692,80 +555,8 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     color: '#334155',
   },
 
-  // Slogan box
-  sloganBox: {
-    backgroundColor: isDark ? '#1E293B' : '#F8FAF9',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    padding: 18,
-    gap: 12,
-  },
-  sloganHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  sloganTag: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#047857',
-    letterSpacing: 0.5,
-  },
-  sloganEditBtn: {
-    fontSize: 12,
-    color: '#047857',
-    fontWeight: '600',
-  },
-  sloganText: {
-    fontSize: 16,
-    fontWeight: '700',
-    fontStyle: 'italic',
-    color: colors.textPrimary,
-    lineHeight: 24,
-  },
-  sloganChipsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: 8,
-  },
-  sloganChipLabel: {
-    fontSize: 12,
-    color: colors.textMuted,
-    fontWeight: '500',
-  },
-  chipItem: {
-    backgroundColor: isDark ? '#334155' : '#FFFFFF',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  chipText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  sloganFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: 10,
-    marginTop: 4,
-  },
-  sloganFooterText: {
-    fontSize: 11,
-    color: colors.textMuted,
-    flex: 1,
-  },
-  sloganHistoryLink: {
-    fontSize: 12,
-    color: '#047857',
-    fontWeight: '600',
-  },
+  // Slogan box (Editorial Pullquote Style - No Enclosing Box)
+
 
   // ==================== CASHFLOW CARD STYLES ====================
   cashflowHeader: {
@@ -1132,120 +923,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     fontWeight: '700',
   },
 
-  // ==================== CHIBI FROG CARD STYLES ====================
-  chibiCard: {
-    backgroundColor: '#FEFCF8',
-    borderColor: '#FDE68A',
-  },
-  chibiHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    marginBottom: 16,
-  },
-  chibiFrogMascot: {
-    width: 60,
-    height: 60,
-  },
-  chibiBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#FEF08A',
-    borderColor: '#FACC15',
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginBottom: 4,
-  },
-  chibiBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#854D0E',
-  },
-  chibiNameTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  speechBubble: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 16,
-    padding: 16,
-    position: 'relative',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 1,
-  },
-  speechBubbleText: {
-    fontSize: 14,
-    color: '#1E293B',
-    lineHeight: 22,
-    fontWeight: '500',
-  },
-  speechBubbleArrow: {
-    position: 'absolute',
-    top: -8,
-    left: 24,
-    width: 14,
-    height: 14,
-    backgroundColor: '#FFFFFF',
-    borderLeftWidth: 1,
-    borderTopWidth: 1,
-    borderColor: '#E2E8F0',
-    transform: [{ rotate: '45deg' }],
-  },
-  countdownRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 16,
-  },
-  countdownIcon: {
-    fontSize: 14,
-  },
-  countdownText: {
-    fontSize: 13,
-    color: '#B45309',
-    fontWeight: '700',
-  },
-  captureNowBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#047857',
-    paddingVertical: 14,
-    borderRadius: 12,
-    shadowColor: '#047857',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  captureNowIcon: {
-    fontSize: 16,
-    color: '#FFFFFF',
-  },
-  captureNowText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  snoozeBtn: {
-    alignItems: 'center',
-    marginTop: 12,
-    paddingVertical: 4,
-  },
-  snoozeText: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '600',
-  },
+
 
   // ==================== GAMIFICATION ROW 3 STYLES ====================
   xpCardHeader: {
