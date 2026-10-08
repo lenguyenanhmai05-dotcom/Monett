@@ -33,6 +33,7 @@ import { useTransactions } from '../../contexts/TransactionContext';
 import { FROGS } from '../../../assets/frogIndex';
 import * as ImagePicker from 'expo-image-picker';
 import QRCode from 'react-qr-code';
+import { ChatModal } from '../../components/ChatModal';
 
 interface ProfileScreenProps {
   onBack?: () => void;
@@ -105,10 +106,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [friendsTab, setFriendsTab] = useState<'list' | 'requests'>('list');
   const [friendsList, setFriendsList] = useState<any[]>([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
+  const [activeChatFriend, setActiveChatFriend] = useState<any | null>(null);
 
   // Streak & Gamification State (Interactive)
   const [streakCount, setStreakCount] = useState<number>(authUser?.streak || 1);
   const [activeToday, setActiveToday] = useState<boolean>(false);
+  const [totalActiveDays, setTotalActiveDays] = useState<number>(authUser?.totalActiveDays || 0);
+  const [longestStreak, setLongestStreak] = useState<number>(authUser?.longestStreak || 0);
+  const [shieldAvailable, setShieldAvailable] = useState<boolean>(true);
+  const [shieldUsedToday, setShieldUsedToday] = useState<boolean>(false);
   const [streakLoading, setStreakLoading] = useState<boolean>(false);
   const [showStreakModal, setShowStreakModal] = useState<boolean>(false);
   const [showFrogModal, setShowFrogModal] = useState<boolean>(false);
@@ -126,6 +132,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       if (data) {
         if (data.streak !== undefined) setStreakCount(data.streak);
         if (data.activeToday !== undefined) setActiveToday(Boolean(data.activeToday));
+        if (data.totalActiveDays !== undefined) setTotalActiveDays(data.totalActiveDays);
+        if (data.longestStreak !== undefined) setLongestStreak(data.longestStreak);
+        if (data.shieldAvailable !== undefined) setShieldAvailable(Boolean(data.shieldAvailable));
+        if (data.shieldUsedToday !== undefined) setShieldUsedToday(Boolean(data.shieldUsedToday));
       }
     } catch (e) {
       console.warn('Error loading streak data:', e);
@@ -144,6 +154,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       if (res && res.streak !== undefined) {
         setStreakCount(res.streak);
         setActiveToday(true);
+        if (res.totalActiveDays !== undefined) setTotalActiveDays(res.totalActiveDays);
+        if (res.longestStreak !== undefined) setLongestStreak(res.longestStreak);
+        if (res.shieldAvailable !== undefined) setShieldAvailable(Boolean(res.shieldAvailable));
+        if (res.shieldUsed) setShieldUsedToday(true);
         if (refreshUser) await refreshUser();
         Alert.alert(
           '🔥 ' + (isVi ? 'Thành công!' : 'Awesome!'),
@@ -196,6 +210,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           fullName: friend?.fullName || f.fullName || 'User',
           email: friend?.email || f.email || '',
           avatarUrl: normalizeAvatarUrl(friend?.avatarUrl || f.avatarUrl),
+          lastActiveDate: friend?.lastActiveDate || f.lastActiveDate || '',
+          updatedAt: friend?.updatedAt || f.updatedAt || '',
         };
       }).filter((f: any) => f._id && f._id !== myId);
       setFriendsList(normalized);
@@ -427,23 +443,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     iconBg: string;
     iconColor: string;
     title: string;
-    subtitle: string;
+    subtitle?: string;
     onPress?: () => void;
+    rightElement?: React.ReactNode;
   };
 
   const menuItems: MenuItem[] = [
-    {
-      iconName: 'people-outline' as const,
-      iconBg: '#ECFDF5',
-      iconColor: '#059669',
-      title: isVi ? 'Bạn bè' : 'Friends',
-      subtitle: isVi ? 'Quản lý mạng lưới bạn bè' : 'Manage your network',
-      onPress: () => {
-        setFriendsTab('list');
-        setShowFriendsModal(true);
-        loadFriendsData();
-      },
-    },
     ...(onNavigateToWallets ? [{
       iconName: 'wallet-outline' as const,
       iconBg: '#ECFDF5',
@@ -465,9 +470,21 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       iconBg: '#FEF3C7',
       iconColor: '#D97706',
       title: isVi ? 'Bảng tin bạn bè' : 'Friends Feed',
-      subtitle: isVi ? 'Khoảnh khắc chi tiêu & trò chuyện cùng bạn' : 'Moments & chat with friends',
+      subtitle: undefined,
       onPress: onNavigateToFeed,
     }] : []),
+    {
+      iconName: 'people-outline' as const,
+      iconBg: '#ECFDF5',
+      iconColor: '#059669',
+      title: isVi ? 'Bạn bè' : 'Friends',
+      subtitle: isVi ? 'Quản lý mạng lưới bạn bè' : 'Manage your network',
+      onPress: () => {
+        setFriendsTab('list');
+        setShowFriendsModal(true);
+        loadFriendsData();
+      },
+    },
     {
       iconName: 'qr-code-outline' as const,
       iconBg: '#EFF6FF',
@@ -493,8 +510,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       iconName: 'globe-outline' as const,
       iconBg: '#F3E8FF',
       iconColor: '#7C3AED',
-      title: isVi ? 'Ngôn ngữ hiển thị' : 'Display Language',
-      subtitle: isVi ? 'Tiếng Việt (VI 🇻🇳)' : 'English (EN 🇺🇸)',
+      title: isVi ? 'Ngôn ngữ' : 'Language',
+      subtitle: isVi ? 'Tiếng Việt' : 'English',
+      rightElement: (
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', marginRight: 8 }}>
+          <Image source={{ uri: isVi ? 'https://flagcdn.com/w40/vn.png' : 'https://flagcdn.com/w40/us.png' }} style={{ width: 18, height: 13, marginRight: 6, borderRadius: 2 }} />
+          <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>{isVi ? 'VI' : 'EN'}</Text>
+        </View>
+      ),
       onPress: () => setShowLanguageModal(true),
     },
     {
@@ -502,7 +525,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       iconBg: '#ECFDF5',
       iconColor: '#059669',
       title: isVi ? 'Đơn vị tiền tệ' : 'Currency',
-      subtitle: currentCurrency === 'USD' ? 'US Dollar (USD $)' : 'Việt Nam Đồng (VND ₫)',
+      subtitle: currentCurrency === 'USD' ? 'US Dollar ($)' : 'Việt Nam Đồng (₫)',
+      rightElement: (
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', marginRight: 8 }}>
+          <Image source={{ uri: currentCurrency === 'USD' ? 'https://flagcdn.com/w40/us.png' : 'https://flagcdn.com/w40/vn.png' }} style={{ width: 18, height: 13, marginRight: 6, borderRadius: 2 }} />
+          <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>{currentCurrency}</Text>
+        </View>
+      ),
       onPress: () => setShowCurrencyModal(true),
     },
     {
@@ -531,13 +560,26 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   return (
     <SafeAreaView style={styles.container}>
       {/* 1. Header Bar */}
-      <View style={styles.header}>
-        {onBack && (
+      <View style={[styles.header, !onBack && { justifyContent: 'space-between' }]}>
+        {onBack ? (
           <TouchableOpacity style={styles.headerBtn} onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="chevron-back" size={24} color="#1E293B" />
           </TouchableOpacity>
+        ) : (
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Image
+              source={require('../../../assets/adaptive-icon.png')}
+              style={{ width: 38, height: 38, borderRadius: 8, marginRight: 10 }}
+              resizeMode="contain"
+            />
+            <Text style={{ fontSize: 18, fontWeight: '800', color: '#047857' }}>Monett</Text>
+          </View>
         )}
-        <Text style={styles.headerTitle}>{isVi ? 'Hồ Sơ Cá Nhân' : 'My Profile'}</Text>
+        
+        <View style={{ position: 'absolute', left: 0, right: 0, alignItems: 'center', pointerEvents: 'none' }}>
+          <Text style={styles.headerTitle}>{isVi ? 'Hồ Sơ Cá Nhân' : 'My Profile'}</Text>
+        </View>
+
         <TouchableOpacity style={styles.headerBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Ionicons name="settings-outline" size={20} color="#1E293B" />
         </TouchableOpacity>
@@ -581,6 +623,26 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </TouchableOpacity>
           <Text style={styles.userEmail}>{displayEmail}</Text>
 
+          {authUser?.isPro && (
+            <View style={{
+              backgroundColor: '#111827',
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+              borderRadius: 20,
+              marginTop: 12,
+              flexDirection: 'row',
+              alignItems: 'center',
+              shadowColor: '#FDE047',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.2,
+              shadowRadius: 4,
+              elevation: 3,
+            }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#FDE047' }}>
+                ✨ PRO • {isVi ? 'Thành viên Tinh Hoa' : 'Elite Member'}
+              </Text>
+            </View>
+          )}
 
         </View>
 
@@ -590,7 +652,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           activeOpacity={0.85}
           onPress={() => setShowStreakModal(true)}
         >
-          <Text style={styles.streakFlame}>🔥</Text>
+          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#FFF7ED', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#FFEDD5', shadowColor: '#EA580C', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
+            <Ionicons name="flame" size={26} color="#EA580C" />
+          </View>
           <View style={{ flex: 1, marginLeft: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <Text style={styles.streakTitle}>
@@ -625,6 +689,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </TouchableOpacity>
 
 
+
         {/* 5. Cài đặt Menu */}
         <Text style={[styles.sectionTitle, { marginTop: 20 }]}>{isVi ? 'CÀI ĐẶT ỨNG DỤNG' : 'APP SETTINGS'}</Text>
         <View style={styles.menuContainer}>
@@ -643,8 +708,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={styles.menuTitle}>{item.title}</Text>
-                <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
+                {item.subtitle ? <Text style={styles.menuSubtitle}>{item.subtitle}</Text> : null}
               </View>
+              {item.rightElement}
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </TouchableOpacity>
           ))}
@@ -730,27 +796,95 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   </View>
                 ) : (
                   friendsList.map((friend, i) => {
-                    const colors = ['#059669', '#8B5CF6', '#F59E0B', '#EF4444', '#0EA5E9'];
-                    let hash = 0;
-                    for (let j = 0; j < (friend.fullName || '').length; j++) hash = (friend.fullName || '').charCodeAt(j) + ((hash << 5) - hash);
-                    const bg = colors[Math.abs(hash) % colors.length];
+                    // Generate Genshin style background colors
+                    const bgColors = [
+                      ['#FFF5F5', '#FED7D7'],
+                      ['#F0FFF4', '#C6F6D5'],
+                      ['#EBF8FF', '#BEE3F8'],
+                      ['#FAF5FF', '#E9D8FD'],
+                      ['#FFFFF0', '#FEFCBF']
+                    ];
+                    const cardBg = bgColors[i % 5][0];
+                    
+                    let isOnline = false;
+                    let offlineString = '';
+                    if (friend.updatedAt || friend.lastActiveDate) {
+                      const now = new Date();
+                      // Try to use updatedAt for accurate time difference
+                      if (friend.updatedAt) {
+                        const lastActive = new Date(friend.updatedAt);
+                        const diffMs = Math.abs(now.getTime() - lastActive.getTime());
+                        const diffMins = Math.floor(diffMs / (1000 * 60));
+                        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                        
+                        // Consider online if active within last 10 minutes
+                        if (diffMins < 10) {
+                          isOnline = true;
+                        } else if (diffHours < 1) {
+                          offlineString = isVi ? `Đăng nhập lần cuối ${diffMins} phút` : `Last login ${diffMins} mins`;
+                        } else if (diffHours < 24) {
+                          offlineString = isVi ? `Đăng nhập lần cuối ${diffHours} giờ` : `Last login ${diffHours} hrs`;
+                        } else {
+                          offlineString = isVi ? `Đăng nhập lần cuối ${diffDays} ngày` : `Last login ${diffDays} days`;
+                        }
+                      } else {
+                        // Fallback to lastActiveDate (YYYY-MM-DD)
+                        const vnTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+                        const todayStr = vnTime.toISOString().split('T')[0];
+                        if (friend.lastActiveDate === todayStr) {
+                          isOnline = true;
+                        } else {
+                          const lastActive = new Date(friend.lastActiveDate);
+                          const diffTime = Math.abs(vnTime.getTime() - lastActive.getTime());
+                          const daysOffline = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+                          offlineString = isVi ? `Đăng nhập lần cuối ${daysOffline} ngày` : `Last login ${daysOffline} days`;
+                        }
+                      }
+                    } else {
+                      offlineString = isVi ? 'Đăng nhập lần cuối > 30 ngày' : 'Last login > 30 days';
+                    }
+                    
                     const initial = (friend.fullName || '?').charAt(0).toUpperCase();
                     return (
-                      <View key={friend._id || i} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F8FAFC' }}>
-                        {/* Avatar */}
-                        {friend.avatarUrl ? (
-                          <Image source={{ uri: friend.avatarUrl }} style={{ width: 44, height: 44, borderRadius: 22 }} />
-                        ) : (
-                          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: bg, justifyContent: 'center', alignItems: 'center' }}>
-                            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>{initial}</Text>
+                      <View key={friend._id || i} style={{ 
+                        flexDirection: 'row', 
+                        alignItems: 'center', 
+                        paddingVertical: 12, 
+                        paddingHorizontal: 16,
+                        borderRadius: 24,
+                        marginBottom: 10,
+                        backgroundColor: cardBg,
+                        borderWidth: 1,
+                        borderColor: 'rgba(0,0,0,0.05)',
+                        justifyContent: 'space-between'
+                      }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          {/* Avatar */}
+                          {friend.avatarUrl ? (
+                            <Image source={{ uri: friend.avatarUrl }} style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: '#FFFFFF' }} />
+                          ) : (
+                            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#059669', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFFFFF' }}>
+                              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>{initial}</Text>
+                            </View>
+                          )}
+                          <View style={{ marginLeft: 12 }}>
+                            <Text style={{ fontSize: 15, fontWeight: '700', color: '#0F172A' }}>{friend.fullName || 'Người dùng'}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                              <View style={{ width: 6, height: 6, borderRadius: 3, marginRight: 6, backgroundColor: isOnline ? '#4ADE80' : '#94A3B8' }} />
+                              <Text style={{ fontSize: 12, fontWeight: '500', color: isOnline ? '#4ADE80' : '#64748B' }}>
+                                {isOnline ? (isVi ? 'Trực tuyến' : 'Online') : offlineString}
+                              </Text>
+                            </View>
                           </View>
-                        )}
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                          <Text style={{ fontSize: 15, fontWeight: '700', color: '#0F172A' }}>{friend.fullName}</Text>
-                          <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>{friend.email}</Text>
                         </View>
-                        <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#F0FDF4', justifyContent: 'center', alignItems: 'center' }}>
-                          <Text style={{ fontSize: 14 }}>✓</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'flex-end', marginLeft: 16 }}>
+                          <TouchableOpacity 
+                            style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.05)', justifyContent: 'center', alignItems: 'center' }}
+                            onPress={() => setActiveChatFriend(friend)}
+                          >
+                            <Ionicons name="chatbubble-ellipses" size={18} color="#475569" />
+                          </TouchableOpacity>
                         </View>
                       </View>
                     );
@@ -1031,7 +1165,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               ]}
               onPress={() => { setLanguage('vi'); setShowLanguageModal(false); }}
             >
-              <Text style={styles.langFlag}>🇻🇳</Text>
+              <Image source={{ uri: 'https://flagcdn.com/w40/vn.png' }} style={{ width: 24, height: 16, marginRight: 12, borderRadius: 2 }} />
               <Text style={[styles.langLabel, language === 'vi' && styles.langLabelActive]}>Tiếng Việt</Text>
               {language === 'vi' && <Text style={styles.langCheck}>✓</Text>}
             </TouchableOpacity>
@@ -1042,7 +1176,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               ]}
               onPress={() => { setLanguage('en'); setShowLanguageModal(false); }}
             >
-              <Text style={styles.langFlag}>🇺🇸</Text>
+              <Image source={{ uri: 'https://flagcdn.com/w40/us.png' }} style={{ width: 24, height: 16, marginRight: 12, borderRadius: 2 }} />
               <Text style={[styles.langLabel, language === 'en' && styles.langLabelActive]}>English</Text>
               {language === 'en' && <Text style={styles.langCheck}>✓</Text>}
             </TouchableOpacity>
@@ -1371,94 +1505,160 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </View>
       </Modal>
 
-      {/* MODAL: CHI TIẾT CHUỖI STREAK GIỮ LỬA (STREAK CHECK-IN & REWARDS) */}
-      <Modal visible={showStreakModal} transparent animationType="slide" onRequestClose={() => setShowStreakModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%', paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, overflow: 'hidden' }]}>
-            {/* Header */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' }}>
-              <View>
-                <Text style={styles.modalTitle}>{isVi ? '🔥 Chuỗi Giữ Lửa Tài Chính' : '🔥 Mindful Financial Streak'}</Text>
-                <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
-                  {isVi ? 'Ghi chép liên tục để duy trì kỷ luật và mở quà' : 'Daily discipline unlocks perks and free rewards'}
+      {/* PREMIUM STREAK MODAL */}
+      <Modal visible={showStreakModal} transparent animationType="fade" onRequestClose={() => setShowStreakModal(false)}>
+        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(15, 23, 42, 0.7)' }]}>
+          <View style={[styles.modalContent, { maxHeight: '95%', width: '92%', paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, overflow: 'hidden', backgroundColor: '#F8FAFC', borderRadius: 28, borderWidth: 1, borderColor: '#E2E8F0' }]}>
+            
+            {/* Header: Premium Style */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 24, paddingBottom: 16, backgroundColor: '#FFFFFF', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', zIndex: 10 }}>
+              <View style={{ flex: 1, paddingRight: 16 }}>
+                <Text style={{ fontSize: 22, fontWeight: '900', color: '#047857', marginBottom: 4 }}>
+                  {isVi ? '✨ Hành Trình Kỷ Luật' : '✨ Mindful Journey'}
                 </Text>
+
               </View>
-              <TouchableOpacity onPress={() => setShowStreakModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <View style={{ width: 28, height: 28, borderRadius: 8, borderWidth: 1.5, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' }}>
-                  <Ionicons name="close" size={18} color="#64748B" />
+              <TouchableOpacity onPress={() => setShowStreakModal(false)} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}>
+                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' }}>
+                  <Ionicons name="close" size={20} color="#64748B" />
                 </View>
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20 }}>
-              {/* Flame Hero Card */}
-              <View style={{ backgroundColor: '#FFF7ED', borderRadius: 20, padding: 20, alignItems: 'center', borderWidth: 1.5, borderColor: '#FDBA74', marginBottom: 20 }}>
-                <Text style={{ fontSize: 52, marginBottom: 8 }}>🔥</Text>
-                <Text style={{ fontSize: 24, fontWeight: '900', color: '#9A3412', marginBottom: 4 }}>
-                  {isVi ? `Chuỗi ${currentStreak} Ngày` : `${currentStreak}-Day Streak`}
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
+              
+              {/* Flame Hero Card with Decorative Elements */}
+              <View style={{ backgroundColor: '#059669', borderRadius: 24, padding: 24, alignItems: 'center', marginBottom: 24, overflow: 'hidden', shadowColor: '#059669', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8 }}>
+                {/* Decorative Circles */}
+                <View style={{ position: 'absolute', top: -30, right: -20, width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                <View style={{ position: 'absolute', bottom: -40, left: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.05)' }} />
+
+                <View style={{ width: 86, height: 86, borderRadius: 43, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', marginBottom: 16, shadowColor: '#EA580C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 }}>
+                  <Ionicons name="flame" size={48} color="#EA580C" style={{ textShadowColor: "rgba(234, 88, 12, 0.5)", textShadowOffset: {width: 0, height: 4}, textShadowRadius: 8 }} />
+                </View>
+                <Text style={{ fontSize: 36, fontWeight: '900', color: '#FFFFFF', marginBottom: 4 }}>
+                  {isVi ? `${currentStreak} Ngày` : `${currentStreak} Days`}
                 </Text>
-                <Text style={{ fontSize: 13, color: '#C2410C', textAlign: 'center', marginBottom: 16 }}>
-                  {activeToday
-                    ? (isVi ? '✅ Hôm nay bạn đã ghi chép giữ chuỗi thành công!' : '✅ Streak is active today! Keep the flame alive!')
-                    : (isVi ? '⚡ Chưa ghi nhận hôm nay! Nhấn điểm danh để giữ lửa trước 23:00.' : '⚡ Pending today! Tap below to maintain your streak before 23:00.')}
-                </Text>
+                
+                <View style={{ backgroundColor: activeToday ? 'rgba(255,255,255,0.2)' : 'rgba(252, 165, 165, 0.3)', paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, marginBottom: 24 }}>
+                  <Text style={{ fontSize: 13, color: activeToday ? '#FFFFFF' : '#FEE2E2', fontWeight: '800' }}>
+                    {activeToday
+                      ? (isVi ? '✨ ĐÃ THẮP SÁNG HÔM NAY' : '✨ ILLUMINATED TODAY')
+                      : (isVi ? '⚡ ĐANG TÀN! THẮP SÁNG NGAY' : '⚡ FADING! IGNITE NOW')}
+                  </Text>
+                </View>
 
                 {/* Check-in CTA Button */}
                 <TouchableOpacity
                   style={{
-                    backgroundColor: activeToday ? '#16A34A' : '#EA580C',
-                    paddingVertical: 12,
-                    paddingHorizontal: 28,
-                    borderRadius: 14,
+                    backgroundColor: activeToday ? 'rgba(255,255,255,0.9)' : '#FCD34D',
+                    paddingVertical: 16,
+                    paddingHorizontal: 24,
+                    borderRadius: 16,
                     width: '100%',
                     alignItems: 'center',
                     flexDirection: 'row',
                     justifyContent: 'center',
-                    shadowColor: '#EA580C',
+                    shadowColor: '#000',
                     shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: activeToday ? 0 : 0.3,
-                    shadowRadius: 8,
-                    elevation: activeToday ? 0 : 4,
+                    shadowOpacity: 0.15,
+                    shadowRadius: 6,
+                    elevation: 4,
                   }}
                   onPress={handleCheckInStreak}
                   disabled={activeToday || streakLoading}
                   activeOpacity={0.8}
                 >
                   {streakLoading ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <ActivityIndicator size="small" color="#059669" />
                   ) : (
-                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>
+                    <Text style={{ color: activeToday ? '#047857' : '#92400E', fontSize: 16, fontWeight: '900', textTransform: 'uppercase' }}>
                       {activeToday
-                        ? (isVi ? '✓ Đã Giữ Chuỗi Hôm Nay 🔥' : '✓ Maintained Today 🔥')
-                        : (isVi ? '🔥 Điểm Danh Giữ Chuỗi Ngay ⚡' : '🔥 Check-in to Keep Streak ⚡')}
+                        ? (isVi ? '✓ Lửa Đang Cháy' : '✓ Flame is Alive')
+                        : (isVi ? 'Thắp Lửa Ngay ✦' : 'Ignite Flame ✦')}
                     </Text>
                   )}
                 </TouchableOpacity>
               </View>
 
-              {/* Streak Shield */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#EFF6FF', borderRadius: 16, padding: 14, borderWidth: 1, borderColor: '#BFDBFE', marginBottom: 20 }}>
-                <Text style={{ fontSize: 28, marginRight: 12 }}>🛡️</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#1E40AF' }}>
-                    {isVi ? 'Lá Chắn Streak (Còn 1 lần dùng)' : 'Streak Shield (1 use remaining)'}
+              {/* Progress to next milestone (New feature visually) */}
+              <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, marginBottom: 24, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A' }}>{isVi ? 'Tiến độ Cột Mốc' : 'Milestone Progress'}</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#059669' }}>
+                    {currentStreak} / {currentStreak < 3 ? 3 : currentStreak < 7 ? 7 : currentStreak < 14 ? 14 : 30}
                   </Text>
-                  <Text style={{ fontSize: 11, color: '#3B82F6', marginTop: 2 }}>
-                    {isVi ? 'Tự động bảo vệ chuỗi nếu bạn vô tình bỏ lỡ 1 ngày ghi chép.' : 'Auto-protects your streak if you accidentally miss a day.'}
+                </View>
+                <View style={{ height: 12, backgroundColor: '#F1F5F9', borderRadius: 6, overflow: 'hidden' }}>
+                  <View style={{ 
+                    height: '100%', 
+                    width: `${Math.min(100, (currentStreak / (currentStreak < 3 ? 3 : currentStreak < 7 ? 7 : currentStreak < 14 ? 14 : 30)) * 100)}%`, 
+                    backgroundColor: '#10B981', 
+                    borderRadius: 6 
+                  }} />
+                </View>
+                <Text style={{ fontSize: 12, color: '#64748B', marginTop: 10, textAlign: 'center', fontWeight: '500' }}>
+                  {isVi ? 'Duy trì thêm để nhận Thưởng Đột Phá' : 'Keep going for Breakthrough Rewards!'}
+                </Text>
+              </View>
+
+                            {/* Stats Box with Skill Icons */}
+              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+                <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3, alignItems: 'center' }}>
+                  <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: '#F0FDF4', justifyContent: 'center', alignItems: 'center', marginBottom: 12, borderWidth: 1, borderColor: '#DCFCE7', shadowColor: '#22C55E', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 2 }}>
+                    <Text style={{ fontSize: 26 }}>🗺️</Text>
+                  </View>
+                  <Text style={{ fontSize: 28, fontWeight: '900', color: '#0F172A', marginBottom: 2 }}>
+                    {Math.max(totalActiveDays, currentStreak)}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '800', textAlign: 'center', letterSpacing: 0.5 }}>
+                    {isVi ? 'TỔNG HÀNH TRÌNH' : 'TOTAL DAYS'}
+                  </Text>
+                </View>
+
+                <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#FFFBEB', shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 3, alignItems: 'center' }}>
+                  <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center', marginBottom: 12, borderWidth: 1, borderColor: '#FDE68A', shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 2 }}>
+                    <Text style={{ fontSize: 26 }}>🏆</Text>
+                  </View>
+                  <Text style={{ fontSize: 28, fontWeight: '900', color: '#D97706', marginBottom: 2 }}>
+                    {Math.max(longestStreak, currentStreak)}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#B45309', fontWeight: '800', textAlign: 'center', letterSpacing: 0.5 }}>
+                    {isVi ? 'HẠNG CAO NHẤT' : 'HIGHEST RANK'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Streak Shield */}
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#EFF6FF', borderRadius: 16, padding: 20, marginBottom: 32, borderWidth: 1, borderColor: '#BFDBFE' }}>
+                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: shieldAvailable ? '#DBEAFE' : '#F1F5F9', justifyContent: 'center', alignItems: 'center', marginRight: 16, opacity: shieldAvailable ? 1 : 0.5, borderWidth: 2, borderColor: shieldAvailable ? '#93C5FD' : '#E2E8F0' }}>
+                  <Text style={{ fontSize: 24 }}>🛡️</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 15, fontWeight: '900', color: shieldAvailable ? '#1D4ED8' : '#64748B', marginBottom: 6 }}>
+                    {shieldUsedToday
+                      ? (isVi ? 'Khiên đã kích hoạt ✨' : 'Shield Activated ✨')
+                      : shieldAvailable
+                        ? (isVi ? 'Khiên Hộ Thể (1/tuần)' : 'Aegis Shield (1 left)')
+                        : (isVi ? 'Khiên Hộ Thể (Đã vỡ)' : 'Aegis Shield (Shattered)')}
+                  </Text>
+                  <Text style={{ fontSize: 13, color: '#475569', lineHeight: 20, fontWeight: '500' }}>
+                    {shieldAvailable
+                      ? (isVi ? 'Kỹ năng nội tại: Tự động bảo vệ chuỗi nếu bạn quên thắp sáng 1 ngày.' : 'Passive: Auto-protects your streak if you miss 1 day.')
+                      : (isVi ? 'Hồi phục vào Thứ 2. Tránh bỏ lỡ để không rớt hạng.' : 'Refills on Monday. Don\'t miss a day to keep your rank.')}
                   </Text>
                 </View>
               </View>
 
               {/* Milestones */}
-              <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A', marginBottom: 12 }}>
-                {isVi ? '🏆 Cột Mốc Thành Tựu Streak' : '🏆 Streak Milestones & Perks'}
+              <Text style={{ fontSize: 16, fontWeight: '900', color: '#0F172A', marginBottom: 16 }}>
+                {isVi ? '🎁 Phần Thưởng Đột Phá' : '🎁 Breakthrough Rewards'}
               </Text>
-              <View style={{ gap: 8, marginBottom: 20 }}>
+              <View style={{ gap: 12, marginBottom: 24 }}>
                 {[
-                  { days: 3, icon: '🔥', titleVi: 'Ngọn Lửa Khởi Đầu', titleEn: 'First Spark', rewardVi: 'Mở huy hiệu Streak Đồng', rewardEn: 'Unlock Bronze Badge' },
-                  { days: 7, icon: '🌱', titleVi: 'Tuần Lễ Kỷ Luật', titleEn: 'Mindful Week', rewardVi: 'MỞ KHÓA BẢN PRO MIỄN PHÍ!', rewardEn: 'UNLOCK PRO FOR FREE!', highlight: true },
-                  { days: 14, icon: '⚡', titleVi: 'Chi Tiêu Bền Bỉ', titleEn: 'Consistent Logger', rewardVi: 'Mở huy hiệu Bạc + 300 XP', rewardEn: 'Silver Badge + 300 XP' },
-                  { days: 30, icon: '👑', titleVi: 'Bậc Thầy Kỷ Luật', titleEn: 'Discipline Master', rewardVi: 'Huy hiệu Vàng Hoàng Gia', rewardEn: 'Royal Gold Badge' },
+                  { days: 3, icon: '🌟', titleVi: 'Ngôi Sao Sơ Khởi', titleEn: 'Initial Star', rewardVi: 'MỞ KHÓA BẢN PRO', rewardEn: 'UNLOCK PRO', highlight: true },
+                  { days: 7, icon: '💎', titleVi: 'Tuần Lễ Khai Sáng', titleEn: 'Enlightened Week', rewardVi: 'Huy hiệu Streak Đồng', rewardEn: 'Bronze Badge' },
+                  { days: 14, icon: '⚡', titleVi: 'Dấu Ấn Kiên Định', titleEn: 'Mark of Resolve', rewardVi: 'Huy hiệu Bạc + 300 XP', rewardEn: 'Silver Badge + 300 XP' },
                 ].map((m, idx) => {
                   const reached = currentStreak >= m.days;
                   return (
@@ -1467,66 +1667,49 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                       style={{
                         flexDirection: 'row',
                         alignItems: 'center',
-                        backgroundColor: m.highlight ? '#FEFCE8' : '#FFFFFF',
-                        borderRadius: 14,
-                        padding: 12,
-                        borderWidth: 1.5,
-                        borderColor: m.highlight ? '#FDE047' : '#E2E8F0',
+                        backgroundColor: '#FFFFFF',
+                        borderRadius: 16,
+                        padding: 16,
+                        borderWidth: 1,
+                        borderColor: (m.highlight && !reached) ? '#FCD34D' : (reached ? '#10B981' : '#E2E8F0'),
+                        shadowColor: m.highlight ? '#FBBF24' : '#000',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: m.highlight ? 0.2 : 0.03,
+                        shadowRadius: 4,
+                        elevation: m.highlight ? 3 : 1,
                       }}
                     >
-                      <Text style={{ fontSize: 22, marginRight: 12 }}>{m.icon}</Text>
+                      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: reached ? '#ECFDF5' : '#F8FAFC', justifyContent: 'center', alignItems: 'center', marginRight: 16, borderWidth: 1, borderColor: reached ? '#A7F3D0' : '#E2E8F0' }}>
+                        <Text style={{ fontSize: 20 }}>{m.icon}</Text>
+                      </View>
                       <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          <Text style={{ fontSize: 13, fontWeight: '800', color: '#0F172A' }}>
-                            {m.days} {isVi ? 'ngày' : 'days'}: {isVi ? m.titleVi : m.titleEn}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                          <Text style={{ fontSize: 14, fontWeight: '900', color: '#0F172A' }}>
+                            {m.days} {isVi ? 'ngày' : 'days'}
                           </Text>
                           {m.highlight && (
-                            <View style={{ marginLeft: 6, backgroundColor: '#EF4444', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6 }}>
-                              <Text style={{ color: '#fff', fontSize: 9, fontWeight: '800' }}>HOT</Text>
+                            <View style={{ marginLeft: 8, backgroundColor: '#FEF2F2', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#FECACA' }}>
+                              <Text style={{ color: '#DC2626', fontSize: 10, fontWeight: '800' }}>HOT</Text>
                             </View>
                           )}
                         </View>
-                        <Text style={{ fontSize: 11, fontWeight: m.highlight ? '700' : '400', color: m.highlight ? '#B45309' : '#64748B', marginTop: 2 }}>
+                        <Text style={{ fontSize: 13, fontWeight: m.highlight ? '700' : '600', color: m.highlight ? '#D97706' : (reached ? '#059669' : '#64748B') }}>
                           {isVi ? m.rewardVi : m.rewardEn}
                         </Text>
                       </View>
-                      <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: reached ? '#DCFCE7' : '#F1F5F9', justifyContent: 'center', alignItems: 'center' }}>
-                        <Text style={{ fontSize: 12 }}>{reached ? '✓' : '🔒'}</Text>
+                      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: reached ? '#10B981' : '#F1F5F9', justifyContent: 'center', alignItems: 'center' }}>
+                        {reached ? <Ionicons name="checkmark-sharp" size={18} color="#FFFFFF" /> : <Ionicons name="lock-closed" size={14} color="#94A3B8" />}
                       </View>
                     </View>
                   );
                 })}
               </View>
 
-              {/* Reminder Shortcut */}
               <TouchableOpacity
-                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F8FAFC', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 12 }}
-                onPress={() => {
-                  setShowStreakModal(false);
-                  setShowReminderModal(true);
-                }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 20, marginRight: 10 }}>⏰</Text>
-                  <View>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#1E293B' }}>
-                      {isVi ? 'Cài giờ nhắc nhở giữ chuỗi Streak' : 'Set Daily Streak Reminder'}
-                    </Text>
-                    <Text style={{ fontSize: 11, color: '#64748B' }}>
-                      {(authUser as any)?.reminderTime
-                        ? (isVi ? `Đang đặt lúc ${(authUser as any).reminderTime}` : `Set at ${(authUser as any).reminderTime}`)
-                        : (isVi ? 'Chưa đặt giờ nhắc nhở' : 'No reminder set')}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={{ fontSize: 16, color: '#94A3B8' }}>›</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.btnCancel, { width: '100%' }]}
+                style={{ width: '100%', paddingVertical: 18, alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0' }}
                 onPress={() => setShowStreakModal(false)}
               >
-                <Text style={styles.btnCancelText}>{isVi ? 'Đóng' : 'Close'}</Text>
+                <Text style={{ color: '#475569', fontSize: 15, fontWeight: '800' }}>{isVi ? 'Đóng cửa sổ' : 'Close window'}</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -1639,6 +1822,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </View>
       </Modal>
 
+      <ChatModal 
+        visible={!!activeChatFriend}
+        onClose={() => setActiveChatFriend(null)}
+        friend={activeChatFriend}
+      />
     </SafeAreaView>
   );
 };
@@ -1900,6 +2088,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 16,
     padding: 24,
+    flexShrink: 1,
   },
   modalTitle: {
     fontSize: 20,

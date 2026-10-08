@@ -12,6 +12,7 @@ import { updateProfileApi, changePasswordApi, uploadAvatarApi, sendFriendRequest
 import { useTransactions } from '../../contexts/TransactionContext';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { ChatModal } from '../../components/ChatModal';
 
 export const ProfileScreen: React.FC = () => {
   const { width } = useWindowDimensions();
@@ -42,6 +43,7 @@ export const ProfileScreen: React.FC = () => {
   const [friendsList, setFriendsList] = useState<any[]>([]);
   const [isFriendsLoading, setIsFriendsLoading] = useState(false);
   const [activeFriendTab, setActiveFriendTab] = useState<'friends' | 'requests'>('friends');
+  const [activeChatFriend, setActiveChatFriend] = useState<any | null>(null);
 
   // Currency & Reminder Settings State
   const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
@@ -680,26 +682,90 @@ export const ProfileScreen: React.FC = () => {
               <FlatList
                 data={friendsList}
                 keyExtractor={(item) => item._id?.toString() || item.id || String(Math.random())}
-                renderItem={({ item }) => {
+                renderItem={({ item, index }) => {
                   const name = item.fullName || item.email || 'N';
                   const initial = name.charAt(0).toUpperCase();
+                  
+                  const bgColors = [
+                    ['#FFF5F5', '#FED7D7'],
+                    ['#F0FFF4', '#C6F6D5'],
+                    ['#EBF8FF', '#BEE3F8'],
+                    ['#FAF5FF', '#E9D8FD'],
+                    ['#FFFFF0', '#FEFCBF']
+                  ];
+                  const darkBgColors = [
+                    ['#2D3748', '#1A202C'],
+                    ['#276749', '#22543D'],
+                    ['#2B6CB0', '#2A4365'],
+                    ['#553C9A', '#44337A'],
+                    ['#744210', '#5F370E']
+                  ];
+                  
+                  const bg = isDark ? darkBgColors[index % 5][0] : bgColors[index % 5][0];
+                  
+                  let isOnline = false;
+                  let offlineString = '';
+                  if (item.updatedAt || item.lastActiveDate) {
+                    const now = new Date();
+                    if (item.updatedAt) {
+                      const lastActive = new Date(item.updatedAt);
+                      const diffMs = Math.abs(now.getTime() - lastActive.getTime());
+                      const diffMins = Math.floor(diffMs / (1000 * 60));
+                      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                      
+                      if (diffMins < 10) {
+                        isOnline = true;
+                      } else if (diffHours < 1) {
+                        offlineString = language === 'vi' ? `Đăng nhập lần cuối ${diffMins} phút` : `Last login ${diffMins} mins`;
+                      } else if (diffHours < 24) {
+                        offlineString = language === 'vi' ? `Đăng nhập lần cuối ${diffHours} giờ` : `Last login ${diffHours} hrs`;
+                      } else {
+                        offlineString = language === 'vi' ? `Đăng nhập lần cuối ${diffDays} ngày` : `Last login ${diffDays} days`;
+                      }
+                    } else {
+                      const vnTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+                      const todayStr = vnTime.toISOString().split('T')[0];
+                      if (item.lastActiveDate === todayStr) {
+                        isOnline = true;
+                      } else {
+                        const lastActive = new Date(item.lastActiveDate);
+                        const diffTime = Math.abs(vnTime.getTime() - lastActive.getTime());
+                        const daysOffline = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+                        offlineString = language === 'vi' ? `Đăng nhập lần cuối ${daysOffline} ngày` : `Last login ${daysOffline} days`;
+                      }
+                    }
+                  } else {
+                    offlineString = language === 'vi' ? 'Đăng nhập lần cuối > 30 ngày' : 'Last login > 30 days';
+                  }
+
                   return (
-                    <View style={styles.friendRow}>
+                    <View style={[styles.friendRowGenshin, { backgroundColor: bg }]}>
                       <View style={styles.friendRowLeft}>
                         {item.avatarUrl ? (
                           <Image
                             source={{ uri: item.avatarUrl }}
-                            style={{ width: 40, height: 40, borderRadius: 20 }}
+                            style={styles.genshinAvatar}
                           />
                         ) : (
-                          <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#059669', justifyContent: 'center', alignItems: 'center' }}>
+                          <View style={[styles.genshinAvatar, { backgroundColor: '#059669', justifyContent: 'center', alignItems: 'center' }]}>
                             <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>{initial}</Text>
                           </View>
                         )}
-                        <View>
+                        <View style={{ marginLeft: 12 }}>
                           <Text style={styles.friendName}>{name}</Text>
-                          {item.email && item.fullName && <Text style={{ fontSize: 12, color: isDark ? '#94A3B8' : '#94A3B8' }}>{item.email}</Text>}
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                            <View style={[styles.statusDot, { backgroundColor: isOnline ? '#4ADE80' : '#94A3B8' }]} />
+                            <Text style={[styles.genshinStatus, { color: isOnline ? '#4ADE80' : (isDark ? '#94A3B8' : '#64748B') }]}>
+                              {isOnline ? (language === 'vi' ? 'Trực tuyến' : 'Online') : offlineString}
+                            </Text>
+                          </View>
                         </View>
+                      </View>
+                      <View style={styles.friendRowRight}>
+                        <TouchableOpacity style={styles.chatButtonGenshin} onPress={() => setActiveChatFriend(item)}>
+                          <Ionicons name="chatbubble-ellipses" size={18} color={isDark ? '#CBD5E1' : '#475569'} />
+                        </TouchableOpacity>
                       </View>
                     </View>
                   );
@@ -1153,6 +1219,11 @@ export const ProfileScreen: React.FC = () => {
         </View>
       </Modal>
 
+      <ChatModal 
+        visible={!!activeChatFriend}
+        onClose={() => setActiveChatFriend(null)}
+        friend={activeChatFriend}
+      />
     </ScrollView>
   );
 };
@@ -1296,6 +1367,57 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
   friendRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   friendName: { fontSize: 15, fontWeight: '600', color: isDark ? '#F1F5F9' : '#1E293B' },
   friendActions: { flexDirection: 'row', gap: 8 },
+  friendRowGenshin: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 24,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+  },
+  genshinAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: isDark ? '#334155' : '#FFFFFF',
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
+  },
+  genshinStatus: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  friendRowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'flex-end',
+    marginLeft: 16,
+  },
+  genshinQuote: {
+    fontSize: 12,
+    color: isDark ? '#94A3B8' : '#64748B',
+    fontStyle: 'italic',
+    flex: 1,
+    textAlign: 'right',
+    marginRight: 12,
+  },
+  chatButtonGenshin: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
   settingOptionCard: {
     flexDirection: 'row',

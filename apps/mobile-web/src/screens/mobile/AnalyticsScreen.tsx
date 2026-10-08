@@ -168,7 +168,14 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
             <Ionicons name="chevron-back" size={20} color="#0F172A" />
           </TouchableOpacity>
         ) : (
-          <View style={{ width: 36 }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Image
+              source={require('../../../assets/adaptive-icon.png')}
+              style={{ width: 38, height: 38, borderRadius: 8, marginRight: 10 }}
+              resizeMode="contain"
+            />
+            <Text style={{ fontSize: 18, fontWeight: '800', color: '#047857' }}>Monett</Text>
+          </View>
         )}
         <Text style={styles.headerTitle}>Báo Cáo Thống Kê</Text>
         <TouchableOpacity style={styles.infoBtn} activeOpacity={0.7}>

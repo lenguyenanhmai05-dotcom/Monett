@@ -21,9 +21,9 @@ export const getBaseUrl = (): string => {
   const envApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 
   // 1. Nếu có cấu hình https (production domain hoặc cloud tunnel) -> ưu tiên dùng ở mọi nơi
-  if (envApiUrl && envApiUrl.startsWith('https://')) {
-    return envApiUrl.replace(/\/$/, '');
-  }
+  // if (envApiUrl) {
+  //   return envApiUrl.replace(/\/$/, '');
+  // }
 
   // 2. Nếu chạy trên Web browser (PC hoặc Mobile Browser)
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -32,16 +32,24 @@ export const getBaseUrl = (): string => {
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return 'http://localhost:3000';
     }
+    // Nếu có envApiUrl (tức là đang chạy tunnel) -> dùng envApiUrl
+    if (envApiUrl && envApiUrl.startsWith('https://')) {
+      return envApiUrl.replace(/\/$/, '');
+    }
     // Chạy qua tunnel domain
-    if (hostname.includes('ngrok') || hostname.includes('trycloudflare') || hostname.includes('vercel.app')) {
+    if (hostname.includes('ngrok') || hostname.includes('trycloudflare') || hostname.includes('vercel.app') || hostname.includes('loca.lt')) {
       return `${window.location.protocol}//${hostname}`;
     }
-    // Mở web qua IP LAN từ thiết bị khác (VD: http://10.12.1.76:8081 -> gọi http://10.12.1.76:3000)
+    // Mở web qua IP LAN từ thiết bị khác
     return `http://${hostname}:3000`;
   }
 
   // 3. Nếu chạy Native Mobile App (iOS / Android trong Expo Go)
   try {
+    if (envApiUrl && !envApiUrl.includes('localhost') && !envApiUrl.includes('127.0.0.1')) {
+      return envApiUrl.replace(/\/$/, '');
+    }
+    
     const Constants = require('expo-constants').default;
     const hostUri =
       Constants.expoConfig?.hostUri ||
@@ -789,5 +797,18 @@ export const getAnalyticsFullReportApi = async (
 
   const qs = params.toString() ? `?${params.toString()}` : '';
   const res = await request<IFullAnalyticsReport>(`/api/analytics/full-report${qs}`);
+  return (res as any).data || res;
+};
+
+export const getMessagesApi = async (friendId: string): Promise<any> => {
+  const res = await request<any>(`/api/messages/${friendId}`);
+  return (res as any).data || res;
+};
+
+export const sendMessageApi = async (receiverId: string, text: string): Promise<any> => {
+  const res = await request<any>('/api/messages', {
+    method: 'POST',
+    body: JSON.stringify({ receiverId, text }),
+  });
   return (res as any).data || res;
 };

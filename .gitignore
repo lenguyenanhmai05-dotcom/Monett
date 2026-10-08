@@ -48,3 +48,12 @@ uploads/
 # Task tracking
 tasksdn_mma.md
 plan_member_1_status_and_fixes.md
+
+# Local scripts, executables, and scratch
+*.bat
+scripts/
+cloudflared.exe
+*.exe
+scratch/
+.local_backup/
+
