@@ -13,7 +13,9 @@ export class StorageController {
         fileSize: process.env.MAX_FILE_SIZE ? parseInt(process.env.MAX_FILE_SIZE) : 5242880, // 5MB
       },
       fileFilter: (req, file, cb) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png)$/)) {
+        const isValidMime = file.mimetype.match(/\/(jpg|jpeg|png)$/i);
+        const isValidExt = file.originalname.match(/\.(jpg|jpeg|png)$/i);
+        if (!isValidMime && !isValidExt) {
           return cb(new BadRequestException('Only JPG, JPEG, and PNG files are allowed!'), false);
         }
         cb(null, true);

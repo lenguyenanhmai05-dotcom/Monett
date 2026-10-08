@@ -1,79 +1,65 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { ScanReceiptDto } from './ocr.dto';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 @Injectable()
 export class OcrService {
   async scanReceipt(dto: ScanReceiptDto) {
     try {
-      const endpoint = process.env.MINDEE_API_ENDPOINT;
-      if (!endpoint) {
-        throw new Error('MINDEE_API_ENDPOINT chưa được cấu hình trong file .env');
-      }
-      const apiKey = process.env.MINDEE_API_KEY;
-      const modelId = process.env.MINDEE_MODEL_ID;
-
-      // 1. Gửi file vào hàng đợi (Enqueue) của Mindee v2
-      const enqueueUrl = `https://api-v2.mindee.net/v2/products/extraction/enqueue`;
-      const enqueuePayload = { 
-        model_id: modelId,
-        url: dto.imageUrl 
-      };
-
-      const response = await fetch(enqueueUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': apiKey, // API v2 không cần prefix "Token "
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(enqueuePayload),
-      });
-
-      const enqueueResult = await response.json();
-
-      if (!response.ok || !enqueueResult.job || !enqueueResult.job.polling_url) {
-        console.error('Mindee Enqueue Error:', enqueueResult);
-        throw new Error(enqueueResult.detail || 'Lỗi từ API Mindee khi đẩy vào hàng đợi');
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('GEMINI_API_KEY chưa được cấu hình trong file .env');
       }
 
-      const pollingUrl = enqueueResult.job.polling_url;
-      let finalInference = null;
+      // Khởi tạo Gemini
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
 
-      // 2. Polling chờ kết quả
-      for (let i = 0; i < 15; i++) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        const pollRes = await fetch(pollingUrl, {
-          headers: { 'Authorization': apiKey }
-        });
-        const pollData = await pollRes.json();
+      // Fetch ảnh từ Cloudinary về dạng ArrayBuffer
+      const imageResp = await fetch(dto.imageUrl);
+      if (!imageResp.ok) {
+        throw new Error('Không thể tải ảnh từ url để phân tích');
+      }
+      const arrayBuffer = await imageResp.arrayBuffer();
+      const base64Image = Buffer.from(arrayBuffer).toString('base64');
+      const mimeType = imageResp.headers.get('content-type') || 'image/jpeg';
 
-        if (pollData.inference && pollData.inference.result) {
-          finalInference = pollData.inference;
-          break;
-        } else if (pollData.job && pollData.job.status === "Failed") {
-          throw new Error('Mindee phân tích hóa đơn thất bại.');
+      const prompt = `
+        Bạn là một hệ thống AI chuyên bóc tách thông tin hóa đơn.
+        Hãy đọc bức ảnh hóa đơn (receipt) này và trả về ĐÚNG DUY NHẤT một object JSON, không được kèm bất kỳ text giải thích nào khác. Không dùng markdown code block, trả đúng raw JSON.
+        Các trường dữ liệu cần trích xuất:
+        - "amount": Tổng số tiền phải thanh toán (kiểu số, KHÔNG được chứa chữ hay dấu phẩy, ví dụ: 85000). Nếu không tìm thấy, để 0.
+        - "supplier": Tên quán ăn, cửa hàng, siêu thị. (kiểu chuỗi). Ưu tiên tên in to rõ ràng nhất ở trên cùng.
+        - "date": Ngày trên hóa đơn (chuỗi định dạng YYYY-MM-DD), nếu không có để null.
+        - "currency": Ký hiệu tiền tệ, thường là "VND", nếu không rõ để null.
+      `;
+
+      const result = await model.generateContent([
+        prompt,
+        {
+          inlineData: {
+            data: base64Image,
+            mimeType: mimeType
+          }
         }
-      }
+      ]);
 
-      if (!finalInference) {
-        throw new Error('Quá thời gian chờ Mindee phân tích.');
-      }
-
-      const fields = finalInference.result.fields;
+      const responseText = result.response.text().trim().replace(/```json/g, '').replace(/```/g, '');
+      const parsedData = JSON.parse(responseText);
 
       return {
         success: true,
         data: {
-          amount: fields.total_amount?.value || 0,
-          date: fields.date?.value || null,
-          currency: fields.locale?.fields?.currency?.value || null,
-          supplier: fields.supplier_name?.value || null,
+          amount: parsedData.amount || 0,
+          date: parsedData.date || null,
+          currency: parsedData.currency || null,
+          supplier: parsedData.supplier || null,
         },
-        message: 'Successfully parsed with Mindee OCR.',
+        message: 'Successfully parsed with Gemini OCR.',
       };
     } catch (error: any) {
-      console.error('Mindee OCR Error:', error.message);
-      throw new BadRequestException('Lỗi trong quá trình AI phân tích hóa đơn.');
+      console.error('Gemini OCR Error:', error);
+      throw new BadRequestException('Lỗi trong quá trình AI phân tích hóa đơn: ' + error.message);
     }
   }
 }
