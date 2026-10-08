@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { 
   View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, 
-  Image, useWindowDimensions, Switch, Platform, Modal, FlatList, ActivityIndicator 
+  Image, useWindowDimensions, Switch, Platform, Modal, FlatList, ActivityIndicator, Alert
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { FROGS } from '../../../assets/frogIndex';
 import QRCode from 'react-qr-code';
-import { updateProfileApi, changePasswordApi, uploadAvatarApi, sendFriendRequestApi, getFriendRequestsApi, getFriendsApi, respondFriendRequestApi, exportDataApi, submitFeedbackApi, submitRatingApi } from '../../services/api';
+import { updateProfileApi, changePasswordApi, uploadAvatarApi, sendFriendRequestApi, getFriendRequestsApi, getFriendsApi, respondFriendRequestApi, removeFriendApi, exportDataApi, submitFeedbackApi, submitRatingApi, getStreakApi } from '../../services/api';
 import { useTransactions } from '../../contexts/TransactionContext';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -47,6 +47,7 @@ export const ProfileScreen: React.FC = () => {
 
   // Currency & Reminder Settings State
   const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false);
+  const [isLanguageModalVisible, setIsLanguageModalVisible] = useState(false);
   const [isReminderModalVisible, setIsReminderModalVisible] = useState(false);
   const [isUpdatingSetting, setIsUpdatingSetting] = useState(false);
   const [customReminderInput, setCustomReminderInput] = useState('');
@@ -185,6 +186,29 @@ export const ProfileScreen: React.FC = () => {
 
   const avatarColor = getAvatarColor(user?.fullName || user?.email || 'U');
 
+  const [currentStreak, setCurrentStreak] = useState(user?.streak || 0);
+  const [activeToday, setActiveToday] = useState(() => {
+    const lastActiveDate = user?.lastActiveAt ? new Date(user.lastActiveAt) : null;
+    const today = new Date();
+    return Boolean(lastActiveDate && 
+      lastActiveDate.getDate() === today.getDate() && 
+      lastActiveDate.getMonth() === today.getMonth() && 
+      lastActiveDate.getFullYear() === today.getFullYear());
+  });
+
+  React.useEffect(() => {
+    const fetchStreak = async () => {
+      try {
+        const data: any = await getStreakApi();
+        if (data) {
+          if (data.streak !== undefined) setCurrentStreak(data.streak);
+          if (data.activeToday !== undefined) setActiveToday(Boolean(data.activeToday));
+        }
+      } catch (e) {}
+    };
+    fetchStreak();
+  }, []);
+
   const handleUpdateProfile = async () => {
     try {
       setIsLoadingProfile(true);
@@ -301,7 +325,7 @@ export const ProfileScreen: React.FC = () => {
     }
   };
 
-  const SettingRow = ({ icon, title, subtitle, value, color, onPress, isSwitch, switchValue, onSwitchChange, isPro }: any) => (
+  const SettingRow = ({ icon, title, subtitle, value, color, onPress, isSwitch, switchValue, onSwitchChange, isPro, rightElement }: any) => (
     <TouchableOpacity style={styles.settingRow} activeOpacity={onPress ? 0.7 : 1} onPress={onPress}>
       <View style={styles.settingRowLeft}>
         <View style={[styles.settingIconBox, { backgroundColor: color + '15' }]}>
@@ -324,13 +348,17 @@ export const ProfileScreen: React.FC = () => {
         </View>
       </View>
       <View style={styles.settingRowRight}>
-        {value && <Text style={styles.settingValue}>{value}</Text>}
-        {isSwitch ? (
-          <Switch value={switchValue} onValueChange={onSwitchChange} trackColor={{ false: '#E2E8F0', true: '#10B981' }} style={{ transform: [{ scale: 0.9 }] }} />
-        ) : (
-          <View style={styles.chevronBox}>
-            <Text style={styles.settingChevron}>›</Text>
-          </View>
+        {rightElement ? rightElement : (
+          <>
+            {value && <Text style={styles.settingValue}>{value}</Text>}
+            {isSwitch ? (
+              <Switch value={switchValue} onValueChange={onSwitchChange} trackColor={{ false: '#E2E8F0', true: '#10B981' }} style={{ transform: [{ scale: 0.9 }] }} />
+            ) : (
+              <View style={styles.chevronBox}>
+                <Text style={styles.settingChevron}>›</Text>
+              </View>
+            )}
+          </>
         )}
       </View>
     </TouchableOpacity>
@@ -352,7 +380,7 @@ export const ProfileScreen: React.FC = () => {
               </View>
             )}
             <TouchableOpacity style={styles.editAvatarBtn} onPress={handlePickImage} disabled={isUploading}>
-              <Text style={styles.editAvatarIcon}>📷</Text>
+              <Ionicons name="camera" size={18} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         </View>
@@ -361,13 +389,32 @@ export const ProfileScreen: React.FC = () => {
           <Text style={styles.userNameText}>{user?.fullName || 'Người dùng Monett'}</Text>
           <Text style={styles.userEmailText}>{user?.email}</Text>
           {/* Badge conditionally rendered based on user PRO status */}
-          {(user?.isPro || (user as any)?.role === 'ADMIN' || (user?.streak ?? 0) >= 7) ? (
-            <View style={styles.eliteBadge}>
-              <Text style={styles.eliteBadgeText}>✨ PRO • {language === 'vi' ? 'Thành viên Tinh Hoa' : 'Elite Member'}</Text>
+          {(user?.isPro || (user as any)?.role === 'ADMIN' || currentStreak >= 7) ? (
+            <View style={{
+              backgroundColor: '#059669',
+              paddingHorizontal: 16,
+              paddingVertical: 6,
+              borderRadius: 20,
+              marginTop: 12,
+              flexDirection: 'row',
+              alignItems: 'center',
+              shadowColor: '#059669',
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.3,
+              shadowRadius: 6,
+              elevation: 4,
+            }}>
+              <Ionicons name="star" size={14} color="#FDE047" style={{ marginRight: 6 }} />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
+                PRO • {language === 'vi' ? 'Thành viên Tinh Hoa' : 'Elite Member'}
+              </Text>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: '#FDE047', marginLeft: 8 }}>
+                VIP
+              </Text>
             </View>
           ) : (
-            <TouchableOpacity style={styles.standardBadge} onPress={() => window.alert(language === 'vi' ? `Giữ chuỗi streak ${user?.streak ?? 0}/3 ngày để mở khóa PRO miễn phí!` : `Keep a ${user?.streak ?? 0}/3 day streak to unlock PRO for free!`)}>
-              <Text style={styles.standardBadgeText}>🌱 {language === 'vi' ? `Bản Tiêu chuẩn • Streak ${user?.streak ?? 0}/3` : `Standard • Streak ${user?.streak ?? 0}/3`}</Text>
+            <TouchableOpacity style={styles.standardBadge} onPress={() => window.alert(language === 'vi' ? `Giữ chuỗi streak ${currentStreak}/3 ngày để mở khóa PRO miễn phí!` : `Keep a ${currentStreak}/3 day streak to unlock PRO for free!`)}>
+              <Text style={styles.standardBadgeText}>🌱 {language === 'vi' ? `Bản Tiêu chuẩn • Streak ${currentStreak}/3` : `Standard • Streak ${currentStreak}/3`}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -421,28 +468,58 @@ export const ProfileScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* Monett Frog Mascot */}
-          <View style={styles.mascotCard}>
-            <Image source={FROGS[frogSeed]} style={styles.mascotImage} resizeMode="contain" />
-            <View style={styles.mascotTextContainer}>
-              <Text style={styles.mascotGreeting}>Monett</Text>
-              <Text style={styles.mascotMessage}>
-                {language === 'vi' 
-                  ? [
-                      'Chúc cậu một ngày quản lý tài chính hiệu quả nhé!',
-                      'Đừng quên ghi chép lại chi tiêu hôm nay nha!',
-                      'Tiết kiệm hôm nay, sung túc ngày mai!',
-                      'Cố gắng giữ vững ngân sách của tuần này nhé!',
-                      'Hôm nay là một ngày tuyệt vời để đầu tư cho bản thân!'
-                    ][new Date().getDate() % 5]
-                  : [
-                      'Have a frog-tastic financial day!',
-                      'Remember to log all your expenses today!',
-                      'Save today, thrive tomorrow!',
-                      'Keep up the great work with your weekly budget!',
-                      'Today is a great day to invest in yourself!'
-                    ][new Date().getDate() % 5]
-                }
+          {/* Streak Card */}
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: isDark ? '#064E3B' : '#ECFDF5',
+            borderRadius: 28,
+            paddingVertical: 16,
+            paddingHorizontal: 14,
+            marginBottom: 20,
+            shadowColor: isDark ? '#000000' : '#059669',
+            shadowOffset: { width: 0, height: 12 },
+            shadowOpacity: isDark ? 0.3 : 0.08,
+            shadowRadius: 24,
+            elevation: 6,
+            borderWidth: 1.5,
+            borderColor: isDark ? '#047857' : '#A7F3D0',
+          }}>
+            <Image 
+              source={require('../../../assets/frogs/frog-3d-m-coin-transparent.png')} 
+              style={{ width: 90, height: 90, marginLeft: -12, marginTop: -24, marginBottom: -24, zIndex: 10 }} 
+              resizeMode="contain"
+            />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', flexWrap: 'wrap', gap: 6 }}>
+                <Text style={{ fontSize: 16, fontWeight: '800', color: isDark ? '#F8FAFC' : '#0F172A', flexShrink: 1 }}>
+                  {language === 'vi'
+                    ? `Chuỗi ${currentStreak} ngày bùng cháy`
+                    : `${currentStreak}-Day Blazing Streak`}
+                </Text>
+                {activeToday ? (
+                  <View style={{ backgroundColor: '#D1FAE5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#10B981', marginRight: 4 }}>
+                      {language === 'vi' ? 'ĐÃ GIỮ CHUỖI' : 'ACTIVE'}
+                    </Text>
+                    <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+                  </View>
+                ) : (
+                  <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#D97706' }}>
+                      {language === 'vi' ? 'CHƯA ĐIỂM DANH' : 'PENDING'}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text style={{ fontSize: 12, color: isDark ? '#A7F3D0' : '#047857', marginTop: 4, lineHeight: 18 }}>
+                {activeToday
+                  ? (language === 'vi'
+                      ? 'Đã ghi nhận khoảnh khắc hôm nay. Chạm để xem chi tiết & mốc thưởng!'
+                      : 'Continuous moments recorded. Tap to view perks & milestones!')
+                  : (language === 'vi'
+                      ? 'Chưa duy trì hôm nay. Hãy ghi chép hoặc tham gia cùng bạn bè!'
+                      : 'Not active today. Add a transaction or join a friend!')}
               </Text>
             </View>
           </View>
@@ -465,30 +542,9 @@ export const ProfileScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {/* 🌟 TÍNH NĂNG NỔI BẬT */}
+          {/* 🌟 CÀI ĐẶT CHUNG */}
           <View style={styles.settingsGroup}>
-            <Text style={styles.settingsGroupTitle}>{language === 'vi' ? 'Khám phá' : 'Explore'}</Text>
-            <View style={styles.settingsBlock}>
-              <SettingRow 
-                icon={<MaterialCommunityIcons name="crown" size={24} color="#F59E0B" />} 
-                title={language === 'vi' ? 'Nâng cấp lên PRO' : 'Upgrade to PRO'} 
-                subtitle={language === 'vi' ? 'Mở khóa mọi tính năng' : 'Unlock all features'} 
-                color="#F59E0B" 
-                onPress={() => window.alert('Tính năng nâng cấp PRO đang phát triển!')} 
-              />
-              <SettingRow 
-                icon={<Ionicons name="people" size={24} color="#8B5CF6" />} 
-                title={language === 'vi' ? 'Danh sách bạn bè' : 'Friends'} 
-                subtitle={language === 'vi' ? 'Quản lý bạn bè của bạn' : 'Manage your network'} 
-                color="#8B5CF6" 
-                onPress={handleOpenFriendsModal} 
-              />
-            </View>
-          </View>
-
-          {/* 🌟 GIAO DIỆN & TÙY CHỌN */}
-          <View style={styles.settingsGroup}>
-            <Text style={styles.settingsGroupTitle}>{language === 'vi' ? 'Giao diện & Tùy chọn' : 'Display & Options'}</Text>
+            <Text style={styles.settingsGroupTitle}>{language === 'vi' ? 'Cài đặt chung' : 'General Settings'}</Text>
             <View style={styles.settingsBlock}>
               <SettingRow 
                 icon={<Ionicons name={(user as any)?.theme === 'dark' ? 'moon' : 'moon-outline'} size={24} color="#64748B" />} 
@@ -498,17 +554,59 @@ export const ProfileScreen: React.FC = () => {
                 color="#64748B" 
                 onPress={handleToggleTheme} 
               />
-              <SettingRow icon={<Ionicons name="language-outline" size={24} color="#10B981" />} title={language === 'vi' ? 'Ngôn Ngữ' : 'Language'} subtitle={language === 'vi' ? 'Tiếng Việt' : 'English'} value={language === 'vi' ? 'VI' : 'EN'} color="#10B981" onPress={() => setLanguage(language === 'vi' ? 'en' : 'vi')} />
+              <SettingRow 
+                icon={<Ionicons name="language-outline" size={24} color="#10B981" />} 
+                title={language === 'vi' ? 'Ngôn Ngữ' : 'Language'} 
+                subtitle={language === 'vi' ? 'Tiếng Việt' : 'English'} 
+                color="#10B981" 
+                rightElement={
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#1E293B' : '#F8FAFC', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: isDark ? '#334155' : '#E2E8F0', marginRight: 8 }}>
+                    <Image source={{ uri: language === 'vi' ? 'https://flagcdn.com/w40/vn.png' : 'https://flagcdn.com/w40/us.png' }} style={{ width: 18, height: 13, marginRight: 6, borderRadius: 2 }} />
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: isDark ? '#F1F5F9' : '#0F172A' }}>{language === 'vi' ? 'VI' : 'EN'}</Text>
+                    <Ionicons name="chevron-forward" size={14} color={isDark ? '#64748B' : '#94A3B8'} style={{ marginLeft: 4 }} />
+                  </View>
+                }
+                onPress={() => setIsLanguageModalVisible(true)} 
+              />
               <SettingRow 
                 icon={<Ionicons name="globe-outline" size={24} color="#0EA5E9" />} 
                 title={language === 'vi' ? 'Đơn Vị Tiền Tệ' : 'Currency'} 
                 subtitle={getCurrencySubtitle()} 
-                value={currentCurrency} 
                 color="#0EA5E9" 
+                rightElement={
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#1E293B' : '#F8FAFC', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: isDark ? '#334155' : '#E2E8F0', marginRight: 8 }}>
+                    <Image source={{ uri: currentCurrency === 'USD' ? 'https://flagcdn.com/w40/us.png' : 'https://flagcdn.com/w40/vn.png' }} style={{ width: 18, height: 13, marginRight: 6, borderRadius: 2 }} />
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: isDark ? '#F1F5F9' : '#0F172A' }}>{currentCurrency}</Text>
+                    <Ionicons name="chevron-forward" size={14} color={isDark ? '#64748B' : '#94A3B8'} style={{ marginLeft: 4 }} />
+                  </View>
+                }
                 onPress={() => setIsCurrencyModalVisible(true)} 
               />
-              <SettingRow icon={<Ionicons name="layers-outline" size={24} color="#8B5CF6" />} title={language === 'vi' ? 'Hạng Mục Chi Tiêu' : 'Categories'} subtitle={language === 'vi' ? 'Tùy chỉnh danh mục thu chi' : 'Manage expense categories'} color="#8B5CF6" isPro onPress={() => window.alert('Tính năng PRO đang phát triển!')} />
 
+            </View>
+          </View>
+
+          {/* 🌟 TIỆN ÍCH & DỮ LIỆU */}
+          <View style={styles.settingsGroup}>
+            <Text style={styles.settingsGroupTitle}>{language === 'vi' ? 'Tiện ích & Dữ liệu' : 'Utilities & Data'}</Text>
+            <View style={styles.settingsBlock}>
+              <SettingRow 
+                icon={<Ionicons name="people" size={24} color="#F59E0B" />} 
+                title={language === 'vi' ? 'Danh sách bạn bè' : 'Friends'} 
+                subtitle={language === 'vi' ? 'Quản lý bạn bè của bạn' : 'Manage your network'} 
+                color="#F59E0B" 
+                onPress={handleOpenFriendsModal} 
+              />
+              <SettingRow 
+                icon={<Ionicons name={hasReminder ? "notifications" : "notifications-off-outline"} size={24} color={hasReminder ? "#10B981" : "#94A3B8"} />} 
+                title={language === 'vi' ? 'Giờ Nhắc Nhở' : 'Reminder Time'} 
+                subtitle={getReminderSubtitle()} 
+                value={hasReminder ? user?.reminderTime : (language === 'vi' ? 'Tắt' : 'Off')} 
+                color={hasReminder ? "#10B981" : "#94A3B8"} 
+                onPress={() => setIsReminderModalVisible(true)} 
+              />
+              <SettingRow icon={<Ionicons name="cloud-done-outline" size={24} color="#0EA5E9" />} title={language === 'vi' ? 'Đồng bộ đám mây' : 'Cloud Sync'} subtitle={language === 'vi' ? 'Dữ liệu đã được sao lưu an toàn' : 'Data is safely backed up'} color="#0EA5E9" onPress={() => window.alert(language === 'vi' ? 'Dữ liệu của bạn đang được đồng bộ hóa an toàn!' : 'Your data is safely synced!')} />
+              
               {!(user as any)?.googleId && (
                 <SettingRow 
                   icon={<Ionicons name="key-outline" size={24} color="#D97706" />} 
@@ -525,47 +623,15 @@ export const ProfileScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* 🌟 QUẢN LÝ DỮ LIỆU */}
-          <View style={styles.settingsGroup}>
-            <Text style={styles.settingsGroupTitle}>{language === 'vi' ? 'Quản lý dữ liệu' : 'Data Management'}</Text>
-            <View style={styles.settingsBlock}>
-              <SettingRow icon={<Ionicons name="cloud-done-outline" size={24} color="#0EA5E9" />} title={language === 'vi' ? 'Đồng bộ đám mây' : 'Cloud Sync'} subtitle={language === 'vi' ? 'Dữ liệu đã được sao lưu an toàn' : 'Data is safely backed up'} color="#0EA5E9" onPress={() => window.alert(language === 'vi' ? 'Dữ liệu của bạn đang được đồng bộ hóa an toàn!' : 'Your data is safely synced!')} />
-              <SettingRow 
-                icon={<Ionicons name="download-outline" size={24} color="#059669" />} 
-                title={language === 'vi' ? 'Xuất dữ liệu (Excel/CSV)' : 'Export Data'} 
-                subtitle={language === 'vi' ? 'Tải xuống báo cáo thu chi' : 'Download financial reports'} 
-                color="#059669" 
-                isPro 
-                onPress={() => setIsExportModalVisible(true)} 
-              />
-            </View>
-          </View>
-
-          {/* 🌟 THÔNG BÁO & NHẮC NHỞ */}
-          <View style={styles.settingsGroup}>
-            <Text style={styles.settingsGroupTitle}>{language === 'vi' ? 'Thông báo & Nhắc nhở' : 'Notifications'}</Text>
-            <View style={styles.settingsBlock}>
-              <SettingRow 
-                icon={<Ionicons name={hasReminder ? "notifications" : "notifications-off-outline"} size={24} color={hasReminder ? "#10B981" : "#94A3B8"} />} 
-                title={language === 'vi' ? 'Giờ Nhắc Nhở' : 'Reminder Time'} 
-                subtitle={getReminderSubtitle()} 
-                value={hasReminder ? user?.reminderTime : (language === 'vi' ? 'Tắt' : 'Off')} 
-                color={hasReminder ? "#10B981" : "#94A3B8"} 
-                onPress={() => setIsReminderModalVisible(true)} 
-              />
-            </View>
-          </View>
-
           {/* 🌟 ĐÁNH GIÁ & HỖ TRỢ */}
           <View style={styles.settingsGroup}>
-            <Text style={styles.settingsGroupTitle}>{language === 'vi' ? 'Đánh giá & Hỗ trợ' : 'Support'}</Text>
+            <Text style={styles.settingsGroupTitle}>{language === 'vi' ? 'Đánh giá & Hỗ trợ' : 'Support & Feedback'}</Text>
             <View style={styles.settingsBlock}>
               <SettingRow icon={<Ionicons name="star" size={24} color="#F59E0B" />} title={language === 'vi' ? 'Đánh giá Monett 5 sao' : 'Rate Monett'} subtitle={language === 'vi' ? 'Ủng hộ nhà phát triển' : 'Support developers'} color="#F59E0B" onPress={() => { setRatingSubmitted(false); setSelectedStars(0); setRatingComment(''); setIsRatingModalVisible(true); }} />
               <SettingRow icon={<Ionicons name="mail-outline" size={24} color="#3B82F6" />} title={language === 'vi' ? 'Góp ý cải thiện ứng dụng' : 'Feedback'} subtitle={language === 'vi' ? 'Gửi ý kiến đóng góp' : 'Send us feedback'} color="#3B82F6" onPress={() => { setFeedbackSubmitted(false); setFeedbackMessage(''); setFeedbackCategory('general'); setIsFeedbackModalVisible(true); }} />
               <SettingRow icon={<Ionicons name="log-out-outline" size={24} color="#EF4444" />} title={language === 'vi' ? 'Đăng xuất' : 'Sign Out'} subtitle={language === 'vi' ? 'Thoát tài khoản an toàn' : 'Log out securely'} color="#EF4444" onPress={logout} />
             </View>
           </View>
-
         </View>
       </View>
 
@@ -766,6 +832,42 @@ export const ProfileScreen: React.FC = () => {
                         <TouchableOpacity style={styles.chatButtonGenshin} onPress={() => setActiveChatFriend(item)}>
                           <Ionicons name="chatbubble-ellipses" size={18} color={isDark ? '#CBD5E1' : '#475569'} />
                         </TouchableOpacity>
+                        <TouchableOpacity 
+                          style={[styles.chatButtonGenshin, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2', marginLeft: 8 }]} 
+                          onPress={() => {
+                            if (Platform.OS === 'web') {
+                              if (window.confirm(language === 'vi' ? `Bạn có chắc muốn xóa ${name} khỏi danh sách bạn bè?` : `Remove ${name} from friends?`)) {
+                                removeFriendApi(item._id || item.id).then(() => {
+                                  setFriendsList(prev => prev.filter(f => (f._id || f.id) !== (item._id || item.id)));
+                                  alert(language === 'vi' ? 'Đã xóa thành công!' : 'Successfully removed!');
+                                }).catch(e => alert('Error: ' + e.message));
+                              }
+                            } else {
+                              Alert.alert(
+                                language === 'vi' ? 'Xóa bạn bè' : 'Remove friend',
+                                language === 'vi' ? `Bạn có chắc muốn xóa ${name} khỏi danh sách bạn bè?` : `Remove ${name} from friends?`,
+                                [
+                                  { text: language === 'vi' ? 'Hủy' : 'Cancel', style: 'cancel' },
+                                  { 
+                                    text: language === 'vi' ? 'Xóa' : 'Remove', 
+                                    style: 'destructive',
+                                    onPress: async () => {
+                                      try {
+                                        await removeFriendApi(item._id || item.id);
+                                        setFriendsList(prev => prev.filter(f => (f._id || f.id) !== (item._id || item.id)));
+                                        Alert.alert('Thành công', 'Đã xóa bạn bè');
+                                      } catch (e: any) {
+                                        Alert.alert('Lỗi', e.message);
+                                      }
+                                    }
+                                  }
+                                ]
+                              );
+                            }
+                          }}
+                        >
+                          <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                        </TouchableOpacity>
                       </View>
                     </View>
                   );
@@ -812,6 +914,51 @@ export const ProfileScreen: React.FC = () => {
                 ListEmptyComponent={<Text style={styles.modalEmptyText}>{language === 'vi' ? 'Không có lời mời nào' : 'No requests'}</Text>}
               />
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* 🌟 LANGUAGE MODAL */}
+      <Modal visible={isLanguageModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{language === 'vi' ? 'Ngôn ngữ' : 'Language'}</Text>
+              <TouchableOpacity onPress={() => setIsLanguageModalVisible(false)}>
+                <Ionicons name="close" size={24} color={isDark ? '#F1F5F9' : '#1E293B'} />
+              </TouchableOpacity>
+            </View>
+            <Text style={{ fontSize: 13, color: isDark ? '#94A3B8' : '#64748B', marginBottom: 16 }}>
+              {language === 'vi' ? 'Chọn ngôn ngữ hiển thị' : 'Select display language'}
+            </Text>
+
+            <View>
+              <TouchableOpacity
+                style={[styles.settingOptionCard, language === 'vi' && styles.settingOptionCardActive]}
+                onPress={() => { setLanguage('vi'); setIsLanguageModalVisible(false); }}
+                activeOpacity={0.7}
+              >
+                <Image source={{ uri: 'https://flagcdn.com/w40/vn.png' }} style={{ width: 24, height: 18, borderRadius: 2, marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.settingOptionLabel, language === 'vi' && { color: '#059669' }]}>Tiếng Việt</Text>
+                  <Text style={styles.settingOptionDesc}>Vietnamese</Text>
+                </View>
+                {language === 'vi' && <Ionicons name="checkmark-circle" size={24} color="#059669" />}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.settingOptionCard, language === 'en' && styles.settingOptionCardActive]}
+                onPress={() => { setLanguage('en'); setIsLanguageModalVisible(false); }}
+                activeOpacity={0.7}
+              >
+                <Image source={{ uri: 'https://flagcdn.com/w40/us.png' }} style={{ width: 24, height: 18, borderRadius: 2, marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.settingOptionLabel, language === 'en' && { color: '#059669' }]}>English</Text>
+                  <Text style={styles.settingOptionDesc}>Tiếng Anh</Text>
+                </View>
+                {language === 'en' && <Ionicons name="checkmark-circle" size={24} color="#059669" />}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1247,14 +1394,13 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
   },
   profileMetaBox: { paddingHorizontal: 40, alignItems: 'center', marginTop: 80 },
   avatarContainer: { position: 'relative', width: 130 },
-  avatarImg: { width: 130, height: 130, borderRadius: 65, borderWidth: 6, borderColor: isDark ? '#334155' : '#FFFFFF', backgroundColor: '#DCFCE7' },
+  avatarImg: { width: 130, height: 130, borderRadius: 65, backgroundColor: '#DCFCE7' },
   avatarInitials: { fontSize: 48, fontWeight: '800', color: '#047857' },
   editAvatarBtn: {
     position: 'absolute', bottom: 6, right: 6,
-    backgroundColor: isDark ? '#475569' : '#FFFFFF', width: 38, height: 38, borderRadius: 19,
+    backgroundColor: '#0F766E', width: 38, height: 38, borderRadius: 19,
     justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 5, elevation: 3,
-    borderWidth: 1, borderColor: isDark ? '#64748B' : '#F1F5F9',
+    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 5, elevation: 3,
   },
   editAvatarIcon: { fontSize: 18 },
   metaTextContainer: { paddingHorizontal: 40, paddingTop: 16, alignItems: 'center' },

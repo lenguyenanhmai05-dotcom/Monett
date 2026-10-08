@@ -433,6 +433,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   };
 
+
   const handleLogout = () => {
     if (onLogout) onLogout();
     logout();
@@ -534,14 +535,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       ),
       onPress: () => setShowCurrencyModal(true),
     },
-    {
-      iconName: 'document-text-outline' as const,
-      iconBg: '#EFF6FF',
-      iconColor: '#2563EB',
-      title: isVi ? 'Xuất dữ liệu thu chi' : 'Export Financial Data',
-      subtitle: isVi ? 'Tải báo cáo Excel (CSV) hoặc file JSON' : 'Download Excel (CSV) or JSON report',
-      onPress: () => setShowExportModal(true),
-    },
+
     { 
       iconName: 'help-circle-outline' as const,
       iconBg: '#F1F5F9',
@@ -625,21 +619,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
           {authUser?.isPro && (
             <View style={{
-              backgroundColor: '#111827',
+              backgroundColor: '#059669',
               paddingHorizontal: 16,
-              paddingVertical: 8,
+              paddingVertical: 6,
               borderRadius: 20,
               marginTop: 12,
               flexDirection: 'row',
               alignItems: 'center',
-              shadowColor: '#FDE047',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.2,
-              shadowRadius: 4,
-              elevation: 3,
+              shadowColor: '#059669',
+              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.3,
+              shadowRadius: 6,
+              elevation: 4,
             }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#FDE047' }}>
-                ✨ PRO • {isVi ? 'Thành viên Tinh Hoa' : 'Elite Member'}
+              <Ionicons name="star" size={14} color="#FDE047" style={{ marginRight: 6 }} />
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
+                PRO • {isVi ? 'Thành viên Tinh Hoa' : 'Elite Member'}
+              </Text>
+              <Text style={{ fontSize: 11, fontWeight: '800', color: '#FDE047', marginLeft: 8 }}>
+                VIP
               </Text>
             </View>
           )}
@@ -652,31 +650,34 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           activeOpacity={0.85}
           onPress={() => setShowStreakModal(true)}
         >
-          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#FFF7ED', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#FFEDD5', shadowColor: '#EA580C', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
-            <Ionicons name="flame" size={26} color="#EA580C" />
-          </View>
+          <Image 
+            source={require('../../../assets/frogs/frog-3d-m-coin-transparent.png')} 
+            style={{ width: 90, height: 90, marginLeft: -12, marginTop: -24, marginBottom: -24, zIndex: 10 }} 
+            resizeMode="contain"
+          />
           <View style={{ flex: 1, marginLeft: 12 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={styles.streakTitle}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', flexWrap: 'wrap', gap: 6 }}>
+              <Text style={[styles.streakTitle, { fontSize: 16, flexShrink: 1 }]}>
                 {isVi
                   ? `Chuỗi ${currentStreak} ngày bùng cháy`
                   : `${currentStreak}-Day Blazing Streak`}
               </Text>
               {activeToday ? (
-                <View style={{ backgroundColor: '#DCFCE7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#16A34A' }}>
+                <View style={{ backgroundColor: '#D1FAE5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#10B981', marginRight: 4 }}>
                     {isVi ? 'ĐÃ GIỮ CHUỖI' : 'ACTIVE'}
                   </Text>
+                  <Ionicons name="checkmark-circle" size={12} color="#10B981" />
                 </View>
               ) : (
-                <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+                <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 }}>
                   <Text style={{ fontSize: 10, fontWeight: '800', color: '#D97706' }}>
                     {isVi ? 'CHƯA ĐIỂM DANH' : 'PENDING'}
                   </Text>
                 </View>
               )}
             </View>
-            <Text style={styles.streakSub}>
+            <Text style={[styles.streakSub, { marginTop: 4, color: '#475569' }]}>
               {activeToday
                 ? (isVi
                     ? 'Đã ghi nhận khoảnh khắc hôm nay. Chạm để xem chi tiết & mốc thưởng!'
@@ -1822,6 +1823,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </View>
       </Modal>
 
+
       <ChatModal 
         visible={!!activeChatFriend}
         onClose={() => setActiveChatFriend(null)}
@@ -1958,26 +1960,33 @@ const styles = StyleSheet.create({
   streakCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF7ED',
-    borderWidth: 1,
-    borderColor: '#FED7AA',
-    borderRadius: 18,
-    padding: 14,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+    borderRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
     marginBottom: 16,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
+    overflow: 'visible',
   },
   streakFlame: {
     fontSize: 32,
   },
   streakTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '800',
-    color: '#C2410C',
+    color: '#0F172A',
   },
   streakSub: {
-    fontSize: 11,
-    color: '#EA580C',
-    marginTop: 2,
-    lineHeight: 16,
+    fontSize: 12,
+    color: '#047857',
+    marginTop: 4,
+    lineHeight: 18,
   },
   sectionTitle: {
     fontSize: 12,

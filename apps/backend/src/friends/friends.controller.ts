@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Req, Put, Param, Get } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Req, Put, Param, Get, Delete } from '@nestjs/common';
 import { FriendsService } from './friends.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
@@ -30,5 +30,10 @@ export class FriendsController {
   @Get()
   async getFriends(@Req() req) {
     return this.friendsService.getFriends(req.user._id.toString());
+  }
+
+  @Delete(':friendId')
+  async removeFriend(@Req() req, @Param('friendId') friendId: string) {
+    return this.friendsService.removeFriend(req.user._id.toString(), friendId);
   }
 }
