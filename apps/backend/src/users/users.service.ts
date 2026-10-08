@@ -79,41 +79,110 @@ export class UsersService {
     ).exec();
   }
 
+  // Ngày theo giờ Việt Nam (YYYY-MM-DD) – tránh lệch ngày do dùng UTC (00:00–06:59 VN bị tính là hôm trước)
+  private toVnDateStr(date: Date): string {
+    return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+  }
 
-  async getStreak(userId: string): Promise<{ streak: number; lastActiveDate: string; activeToday: boolean }> {
+  // Trả về ngày Thứ 2 (YYYY-MM-DD) của tuần chứa ngày dateStr – dùng làm "mã tuần"
+  private getWeekKey(dateStr: string): string {
+    if (!dateStr) return '';
+    const d = new Date(`${dateStr}T00:00:00Z`);
+    const diffToMonday = (d.getUTCDay() + 6) % 7; // CN=6, T2=0, T3=1, ...
+    d.setUTCDate(d.getUTCDate() - diffToMonday);
+    return d.toISOString().split('T')[0];
+  }
+
+  // Mỗi tuần có 1 lá chắn, không cộng dồn: còn lá chắn nếu tuần này chưa dùng
+  private isShieldAvailable(shieldUsedDate: string | undefined, todayStr: string): boolean {
+    return !shieldUsedDate || this.getWeekKey(shieldUsedDate) !== this.getWeekKey(todayStr);
+  }
+
+  async getStreak(userId: string): Promise<{
+    streak: number;
+    lastActiveDate: string;
+    activeToday: boolean;
+    totalActiveDays: number;
+    longestStreak: number;
+    shieldAvailable: boolean;
+    shieldUsedToday: boolean;
+  }> {
     const user = await this.userModel.findById(userId).exec();
-    const today = new Date().toISOString().split('T')[0];
+    const today = this.toVnDateStr(new Date());
     const streak = user?.streak ?? 0;
     const lastActiveDate = user?.lastActiveDate || '';
     return {
       streak,
       lastActiveDate,
       activeToday: lastActiveDate === today,
+      // User cũ chưa có field mới -> lấy tối thiểu bằng streak hiện tại
+      totalActiveDays: Math.max(user?.totalActiveDays || 0, streak),
+      longestStreak: Math.max(user?.longestStreak || 0, streak),
+      shieldAvailable: this.isShieldAvailable(user?.shieldUsedDate, today),
+      shieldUsedToday: !!user?.shieldUsedDate && user.shieldUsedDate === today,
     };
   }
 
-  async checkInStreak(userId: string): Promise<{ streak: number; message: string }> {
+  async checkInStreak(userId: string): Promise<{
+    streak: number;
+    totalActiveDays: number;
+    longestStreak: number;
+    shieldAvailable: boolean;
+    shieldUsed: boolean;
+    message: string;
+  }> {
     const user = await this.userModel.findById(userId).exec();
     if (!user) throw new Error('User not found');
 
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const todayStr = this.toVnDateStr(new Date(now));
+    const yesterdayStr = this.toVnDateStr(new Date(now - DAY_MS));
+    const twoDaysAgoStr = this.toVnDateStr(new Date(now - 2 * DAY_MS));
 
     let currentStreak = user.streak || 0;
+    // User cũ chưa có field mới -> lấy tối thiểu bằng streak hiện tại
+    let totalActiveDays = Math.max(user.totalActiveDays || 0, currentStreak);
+    let longestStreak = Math.max(user.longestStreak || 0, currentStreak);
 
     if (user.lastActiveDate === todayStr) {
-      return { streak: currentStreak, message: 'Hôm nay bạn đã duy trì chuỗi rồi!' };
-    } else if (user.lastActiveDate === yesterdayStr) {
-      currentStreak += 1;
-    } else {
-      currentStreak = 1;
+      return {
+        streak: currentStreak,
+        totalActiveDays,
+        longestStreak,
+        shieldAvailable: this.isShieldAvailable(user.shieldUsedDate, todayStr),
+        shieldUsed: false,
+        message: 'Hôm nay bạn đã duy trì chuỗi rồi!',
+      };
     }
 
+    let shieldUsed = false;
+    if (user.lastActiveDate === yesterdayStr) {
+      // Vào liên tiếp -> tăng chuỗi
+      currentStreak += 1;
+    } else if (
+      user.lastActiveDate === twoDaysAgoStr &&
+      currentStreak > 0 &&
+      this.isShieldAvailable(user.shieldUsedDate, todayStr)
+    ) {
+      // Lỡ đúng 1 ngày + tuần này còn lá chắn -> tự động dùng lá chắn, giữ chuỗi
+      // (ngày bị lỡ không được cộng vào chuỗi)
+      shieldUsed = true;
+      user.shieldUsedDate = todayStr;
+      currentStreak += 1;
+    } else {
+      // Lỡ từ 2 ngày trở lên hoặc hết lá chắn -> mất chuỗi
+      currentStreak = 1;
+    }
+    const isComeback = !!user.lastActiveDate && !shieldUsed && user.lastActiveDate !== yesterdayStr;
+
+    // Tổng số ngày hoạt động luôn được cộng dồn, không bao giờ reset
+    totalActiveDays += 1;
+    longestStreak = Math.max(longestStreak, currentStreak);
+
     user.streak = currentStreak;
+    user.totalActiveDays = totalActiveDays;
+    user.longestStreak = longestStreak;
     user.lastActiveDate = todayStr;
     if (currentStreak >= 3) {
       user.isPro = true;
@@ -121,9 +190,22 @@ export class UsersService {
     await user.save();
 
     const proBonusMsg = currentStreak === 3 ? ' 👑 Chúc mừng bạn đã mở khóa danh hiệu PRO Thành Viên Tinh Hoa!' : '';
-    return { 
-      streak: currentStreak, 
-      message: `Tuyệt vời! Chuỗi của bạn đã tăng lên ${currentStreak} ngày! 🔥${proBonusMsg}` 
+    let message: string;
+    if (shieldUsed) {
+      message = `🛡️ Lá chắn đã bảo vệ chuỗi của bạn! Chuỗi hiện tại: ${currentStreak} ngày. Lá chắn sẽ hồi lại vào Thứ 2 tuần sau.${proBonusMsg}`;
+    } else if (isComeback) {
+      message = `Chào mừng bạn quay lại! 👋 Bạn đã đồng hành cùng Monett ${totalActiveDays} ngày (kỷ lục chuỗi: ${longestStreak} ngày).`;
+    } else {
+      message = `Tuyệt vời! Chuỗi của bạn đã tăng lên ${currentStreak} ngày! 🔥${proBonusMsg}`;
+    }
+
+    return {
+      streak: currentStreak,
+      totalActiveDays,
+      longestStreak,
+      shieldAvailable: this.isShieldAvailable(user.shieldUsedDate, todayStr),
+      shieldUsed,
+      message,
     };
   }
 

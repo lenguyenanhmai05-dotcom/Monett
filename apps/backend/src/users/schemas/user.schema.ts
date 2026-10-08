@@ -39,6 +39,19 @@ export class User {
   @Prop({ default: '' })
   lastActiveDate: string;
 
+  // Tổng số ngày đã hoạt động (không bao giờ reset, kể cả khi mất chuỗi)
+  @Prop({ default: 0 })
+  totalActiveDays: number;
+
+  // Kỷ lục chuỗi dài nhất từng đạt được
+  @Prop({ default: 0 })
+  longestStreak: number;
+
+  // Ngày (YYYY-MM-DD, giờ VN) lá chắn streak được dùng gần nhất.
+  // Mỗi tuần (bắt đầu Thứ 2) có 1 lá chắn, tự động dùng khi lỡ đúng 1 ngày.
+  @Prop({ default: '' })
+  shieldUsedDate: string;
+
   @Prop({ default: null })
   reminderTime?: string;
 
