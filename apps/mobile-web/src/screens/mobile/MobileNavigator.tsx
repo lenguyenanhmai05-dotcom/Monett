@@ -212,22 +212,6 @@ export const MobileNavigator: React.FC = () => {
           <CameraScreen
             onClose={() => setActiveModal('none')}
             onPhotoCaptured={handlePhotoCaptured}
-            onNavigateToCalendar={() => {
-              setActiveModal('none');
-              setCurrentTab('calendar');
-            }}
-            onNavigateToHome={() => {
-              setActiveModal('none');
-              setCurrentTab('home');
-            }}
-            onNavigateToWallets={() => {
-              setActiveModal('none');
-              setCurrentTab('wallets');
-            }}
-            onNavigateToAnalytics={() => {
-              setActiveModal('none');
-              setCurrentTab('analytics');
-            }}
           />
         </View>
       )}
