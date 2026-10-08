@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { getStreakApi } from '../services/api';
 
 interface UserProfileHeaderProps {
   onEditProfile?: () => void;
@@ -11,8 +13,25 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ onEditProf
   const { user } = useAuth();
   const { language } = useLanguage();
   const [imageError, setImageError] = useState(false);
+  const [streak, setStreak] = useState<number>(0);
+  const [activeToday, setActiveToday] = useState<boolean>(false);
 
-  const displayName = user?.fullName || 'Người dùng Monett';
+  useEffect(() => {
+    let mounted = true;
+    getStreakApi()
+      .then((data: any) => {
+        if (mounted && data) {
+          setStreak(data.streak ?? 0);
+          setActiveToday(Boolean(data.activeToday));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const displayName = user?.fullName || 'Ánh Mai';
 
   const getAvatarColor = (name: string) => {
     const colors = [
@@ -29,61 +48,149 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({ onEditProf
   };
 
   const avatarColor = getAvatarColor(displayName);
-  const userIdStr = (user as any)?._id || (user as any)?.id || 'MNT-8942';
-  const streakCount = user?.streak || 0;
+  const userIdStr = (user as any)?._id || (user as any)?.id || '4576E7';
+  const streakCount = user?.streak || streak || 1;
   const isPro = Boolean(user?.isPro || (user as any)?.role === 'ADMIN' || streakCount >= 3);
 
   return (
     <View style={styles.profileHeader}>
-      <TouchableOpacity
-        style={styles.avatarWrapper}
-        onPress={onEditProfile}
-        activeOpacity={0.85}
-      >
-        {user?.avatarUrl && !imageError ? (
-          <Image
-            source={{ uri: user.avatarUrl }}
-            style={styles.avatarImg}
-            onError={() => setImageError(true)}
-          />
-        ) : (
-          <View style={[styles.avatarImg, { backgroundColor: avatarColor.bg, justifyContent: 'center', alignItems: 'center' }]}>
-            <Text style={{ color: avatarColor.text, fontWeight: '800', fontSize: 30 }}>
-              {displayName.charAt(0).toUpperCase()}
-            </Text>
-          </View>
-        )}
-        <View style={styles.avatarEditBadge}>
-          <Text style={styles.cameraIcon}>📷</Text>
-        </View>
-      </TouchableOpacity>
-
-      <View style={styles.profileInfo}>
-        <View style={styles.nameRow}>
-          <Text style={styles.userName}>{displayName}</Text>
-          {isPro && (
-            <View style={styles.eliteBadge}>
-              <Text style={styles.eliteBadgeText}>✨ PRO</Text>
+      {/* Left Block: Avatar & User Metadata */}
+      <View style={styles.leftProfileBlock}>
+        <TouchableOpacity
+          style={styles.avatarWrapper}
+          onPress={onEditProfile}
+          activeOpacity={0.85}
+        >
+          {user?.avatarUrl && !imageError ? (
+            <Image
+              source={{ uri: user.avatarUrl }}
+              style={styles.avatarImg}
+              onError={() => setImageError(true)}
+            />
+          ) : (
+            <View
+              style={[
+                styles.avatarImg,
+                {
+                  backgroundColor: avatarColor.bg,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  color: avatarColor.text,
+                  fontWeight: '800',
+                  fontSize: 26,
+                }}
+              >
+                {displayName.charAt(0).toUpperCase()}
+              </Text>
             </View>
           )}
-        </View>
-        <Text style={styles.userSubText}>
-          {isPro 
-            ? (language === 'vi' ? '👑 Thành viên Tinh Hoa Monett' : '👑 Elite Monett PRO Member')
-            : (language === 'vi' 
-                ? `🌱 Thành viên Monett • Chuỗi ${streakCount}/3 ngày mở PRO` 
-                : `🌱 Monett Member • Streak ${streakCount}/3 days to PRO`)}
-        </Text>
-        <View style={styles.metaRow}>
-          <Text style={styles.userIdText}>
-            ID: #{userIdStr.slice(-6).toUpperCase()}
-          </Text>
-          <View style={styles.activeDotBadge}>
-            <View style={styles.activeDot} />
-            <Text style={styles.activeText}>
-              {language === 'vi' ? 'Đang hoạt động' : 'Active'}
-            </Text>
+          <View style={styles.avatarEditBadge}>
+            <Ionicons name="camera" size={12} color="#FFFFFF" />
           </View>
+        </TouchableOpacity>
+
+        <View style={styles.profileInfo}>
+          <View style={styles.nameRow}>
+            <Text style={styles.userName}>{displayName}</Text>
+            {isPro && (
+              <View style={{
+                backgroundColor: '#059669',
+                paddingHorizontal: 10,
+                paddingVertical: 4,
+                borderRadius: 12,
+                marginLeft: 10,
+                flexDirection: 'row',
+                alignItems: 'center',
+                shadowColor: '#059669',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.3,
+                shadowRadius: 4,
+                elevation: 3,
+              }}>
+                <Ionicons name="star" size={10} color="#FDE047" style={{ marginRight: 4 }} />
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#FFFFFF' }}>
+                  PRO
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={styles.userSubText}>
+            {isPro
+              ? language === 'vi'
+                ? '👑 Thành viên Tinh Hoa Monett'
+                : '👑 Elite Monett PRO Member'
+              : language === 'vi'
+              ? `🌱 Thành viên Monett • Chuỗi ${streakCount}/3 ngày mở PRO`
+              : `🌱 Monett Member • Streak ${streakCount}/3 days to PRO`}
+          </Text>
+          <View style={styles.metaRow}>
+            <Text style={styles.userIdText}>
+              ID: #{userIdStr.slice(-6).toUpperCase()}
+            </Text>
+            <View style={styles.activeDotBadge}>
+              <View style={styles.activeDot} />
+              <Text style={styles.activeText}>
+                {language === 'vi' ? 'Đang hoạt động' : 'Active'}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* Right Block: Integrated Sleek Streak Capsule (No Box-in-Box!) */}
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#ECFDF5',
+        borderWidth: 1.5,
+        borderColor: '#A7F3D0',
+        borderRadius: 20,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        flex: 1,
+        maxWidth: 400,
+      }}>
+        <Image 
+          source={require('../../assets/frogs/frog-3d-m-coin-transparent.png')} 
+          style={{ width: 70, height: 70, marginLeft: -12, marginTop: -18, marginBottom: -18, zIndex: 10 }} 
+          resizeMode="contain"
+        />
+        <View style={{ flex: 1, marginLeft: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', flexWrap: 'wrap', gap: 6 }}>
+            <Text style={{ fontSize: 15, fontWeight: '800', color: '#0F172A', flexShrink: 1 }}>
+              {language === 'vi'
+                ? `Chuỗi ${streakCount} ngày bùng cháy`
+                : `${streakCount}-Day Blazing Streak`}
+            </Text>
+            {activeToday ? (
+              <View style={{ backgroundColor: '#D1FAE5', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 10, flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#10B981', marginRight: 4 }}>
+                  {language === 'vi' ? 'ĐÃ GIỮ CHUỖI' : 'ACTIVE'}
+                </Text>
+                <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+              </View>
+            ) : (
+              <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 }}>
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#D97706' }}>
+                  {language === 'vi' ? 'CHƯA ĐIỂM DANH' : 'PENDING'}
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={{ fontSize: 11, color: '#047857', marginTop: 4, lineHeight: 16 }}>
+            {activeToday
+              ? (language === 'vi'
+                  ? 'Đã ghi nhận khoảnh khắc hôm nay. Chạm để xem chi tiết & mốc thưởng!'
+                  : 'Continuous moments recorded. Tap to view perks!')
+              : (language === 'vi'
+                  ? 'Chưa duy trì hôm nay. Hãy ghi chép hoặc tham gia cùng bạn bè!'
+                  : 'Not active today. Add a transaction or join a friend!')}
+          </Text>
         </View>
       </View>
     </View>
@@ -94,16 +201,25 @@ const styles = StyleSheet.create({
   profileHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 16,
     marginBottom: 16,
+  },
+  leftProfileBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 260,
   },
   avatarWrapper: {
     position: 'relative',
   },
   avatarImg: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    borderWidth: 3,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2.5,
     borderColor: '#ECFDF5',
   },
   avatarEditBadge: {
@@ -111,19 +227,19 @@ const styles = StyleSheet.create({
     bottom: -2,
     right: -2,
     backgroundColor: '#059669',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
     borderColor: '#FFFFFF',
   },
   cameraIcon: {
-    fontSize: 11,
+    fontSize: 10,
   },
   profileInfo: {
-    marginLeft: 16,
+    marginLeft: 14,
     flex: 1,
   },
   nameRow: {
@@ -132,7 +248,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   userName: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: '800',
     color: '#0F172A',
   },
@@ -141,8 +257,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
   },
   eliteBadgeText: {
     fontSize: 11,
@@ -184,5 +298,52 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#047857',
     fontWeight: '700',
+  },
+
+  // Streak Pill
+  streakPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
+    gap: 10,
+    alignSelf: 'center',
+  },
+  streakPillFlame: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fireEmoji: {
+    fontSize: 18,
+  },
+  streakPillTexts: {
+    gap: 2,
+  },
+  streakCountRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 5,
+  },
+  streakCountNum: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#B45309',
+  },
+  streakCountLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#D97706',
+    letterSpacing: 0.5,
+  },
+  streakStatusNotice: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#059669',
   },
 });

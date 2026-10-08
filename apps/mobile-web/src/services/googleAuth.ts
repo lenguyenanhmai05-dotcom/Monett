@@ -9,6 +9,10 @@ export const GOOGLE_CLIENT_ID =
   process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ||
   '445629432994-fvcmcfc2o2ik4ngi9r4vie44hrojkf3v.apps.googleusercontent.com';
 
+if (!process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID) {
+  console.warn('Thiếu cấu hình EXPO_PUBLIC_GOOGLE_CLIENT_ID trong file .env, đang dùng mặc định');
+}
+
 declare global {
   interface Window {
     google?: any;
@@ -19,16 +23,16 @@ declare global {
 export const loadGoogleGsiScript = (): Promise<void> => {
   return new Promise((resolve, reject) => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') {
-      return resolve();
+      return resolve(undefined);
     }
 
     if (window.google?.accounts?.oauth2 || window.google?.accounts?.id) {
-      return resolve();
+      return resolve(undefined);
     }
 
     const existingScript = document.getElementById('google-gsi-client');
     if (existingScript) {
-      existingScript.addEventListener('load', () => resolve());
+      existingScript.addEventListener('load', () => resolve(undefined));
       existingScript.addEventListener('error', (e) => reject(e));
       return;
     }
@@ -38,7 +42,7 @@ export const loadGoogleGsiScript = (): Promise<void> => {
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
     script.defer = true;
-    script.onload = () => resolve();
+    script.onload = () => resolve(undefined);
     script.onerror = (err) => reject(err);
     document.body.appendChild(script);
   });
@@ -117,6 +121,9 @@ export const requestGoogleLogin = async (): Promise<GoogleAuthDto> => {
   // 2. NỀN TẢNG NATIVE MOBILE (iOS / Android trong Expo Go)
   try {
     const proxyRedirectUri = process.env.EXPO_PUBLIC_PROXY_REDIRECT_URI || 'https://auth.expo.io/@tobiezdev/monett-app';
+    if (!process.env.EXPO_PUBLIC_PROXY_REDIRECT_URI) {
+      console.warn('Thiếu cấu hình EXPO_PUBLIC_PROXY_REDIRECT_URI trong file .env, đang dùng mặc định');
+    }
     const returnUrl = AuthSession.getDefaultReturnUrl();
 
     // Google OAuth URL với redirect_uri trỏ về Expo Auth Proxy đã đăng ký

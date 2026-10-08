@@ -129,6 +129,8 @@ export const MobileNavigator: React.FC = () => {
           </Text>
         </TouchableOpacity>
 
+
+
         <TouchableOpacity
           style={styles.navItem}
           onPress={() => setCurrentTab('calendar')}

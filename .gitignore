@@ -48,3 +48,10 @@ uploads/
 # Local Overrides
 monett.bat
 apps/mobile-web/src/services/googleAuth.ts
+# Local scripts, executables, and scratch
+*.bat
+scripts/
+cloudflared.exe
+*.exe
+scratch/
+.local_backup/

@@ -12,6 +12,8 @@ import { TransactionsScreen } from './src/screens/web/TransactionsScreen';
 import { BudgetScreen } from './src/screens/web/BudgetScreen';
 import { CalendarScreen } from './src/screens/mobile/CalendarScreen';
 import { WebCalendarScreen } from './src/screens/web/CalendarScreen';
+import { FriendsFeedScreen } from './src/screens/mobile/FriendsFeedScreen';
+import { WebFeedScreen } from './src/screens/web/WebFeedScreen';
 import { MobileAuthScreen } from './src/screens/mobile/MobileAuthScreen';
 import { MobileNavigator } from './src/screens/mobile/MobileNavigator';
 import { TransactionProvider } from './src/contexts/TransactionContext';
@@ -96,6 +98,8 @@ function MainApp() {
     switch (activeTab) {
       case 'home':
         return <HomeScreen onNavigateToTab={setActiveTab} />;
+      case 'feed':
+        return <WebFeedScreen />;
       case 'profile':
         return <ProfileScreen />;
       case 'moments':

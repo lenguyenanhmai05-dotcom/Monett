@@ -369,25 +369,25 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
           <View style={styles.topBar}>
             <View />
             <View style={styles.topRightActions}>
-              <View style={styles.langToggleContainer}>
+              <View style={{ flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 24, padding: 4 }}>
                 <TouchableOpacity
-                  style={[styles.langToggleBtn, isVi && styles.langToggleBtnActive]}
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, backgroundColor: isVi ? '#FFFFFF' : 'transparent', ...(isVi ? { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 } : {}) }}
                   onPress={() => setLanguage('vi')}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.flagEmoji}>🇻🇳</Text>
-                  <Text style={[styles.langToggleText, isVi && styles.langToggleTextActive]}>
+                  <Text style={{ fontSize: 14, marginRight: 6 }}>🇻🇳</Text>
+                  <Text style={{ fontSize: 13, fontWeight: isVi ? '800' : '600', color: isVi ? '#0F172A' : '#64748B' }}>
                     VI
                   </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.langToggleBtn, !isVi && styles.langToggleBtnActive]}
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, backgroundColor: !isVi ? '#FFFFFF' : 'transparent', ...(!isVi ? { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 } : {}) }}
                   onPress={() => setLanguage('en')}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.flagEmoji}>🇺🇸</Text>
-                  <Text style={[styles.langToggleText, !isVi && styles.langToggleTextActive]}>
+                  <Text style={{ fontSize: 14, marginRight: 6 }}>🇺🇸</Text>
+                  <Text style={{ fontSize: 13, fontWeight: !isVi ? '800' : '600', color: !isVi ? '#0F172A' : '#64748B' }}>
                     EN
                   </Text>
                 </TouchableOpacity>

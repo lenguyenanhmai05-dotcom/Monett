@@ -74,13 +74,31 @@ export class FriendsService {
         $or: [{ requester: userObjId }, { recipient: userObjId }],
         status: 'accepted',
       })
-      .populate('requester', 'fullName email avatarUrl streak')
-      .populate('recipient', 'fullName email avatarUrl streak');
+      .populate('requester', 'fullName email avatarUrl streak lastActiveDate updatedAt')
+      .populate('recipient', 'fullName email avatarUrl streak lastActiveDate updatedAt');
 
     // Extract the actual friend object
     return friendships.map((f) => {
       const isRequester = f.requester._id.toString() === userId;
       return isRequester ? f.recipient : f.requester;
     });
+  }
+
+  async removeFriend(userId: string, friendId: string) {
+    const userObjId = new Types.ObjectId(userId);
+    const friendObjId = new Types.ObjectId(friendId);
+    
+    const result = await this.friendshipModel.findOneAndDelete({
+      $or: [
+        { requester: userObjId, recipient: friendObjId },
+        { requester: friendObjId, recipient: userObjId },
+      ],
+      status: 'accepted'
+    });
+
+    if (!result) {
+      throw new NotFoundException('Friendship not found');
+    }
+    return { success: true, message: 'Friend removed' };
   }
 }

@@ -8,13 +8,14 @@ import {
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { LanguageToggle } from '../components/LanguageToggle';
 
 export type TabKey =
   | 'home'
+  | 'feed'
   | 'moments'
   | 'analytics'
   | 'transactions'
@@ -34,7 +35,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
 }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 860;
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { language } = useLanguage();
   const { isDark, colors } = useTheme();
   const [imageError, setImageError] = useState(false);
@@ -64,43 +65,15 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
     key: TabKey;
     labelVi: string;
     labelEn: string;
-    icon: string;
+    icon: keyof typeof Ionicons.glyphMap;
   }[] = [
-    { key: 'home', labelVi: 'Tổng quan', labelEn: 'Overview', icon: '⊞' },
-    {
-      key: 'moments',
-      labelVi: 'Lịch ảnh\nchi tiêu',
-      labelEn: 'Moments\nJournal',
-      icon: '🖼️',
-    },
-    {
-      key: 'analytics',
-      labelVi: 'Thống kê',
-      labelEn: 'Analytics',
-      icon: '📈',
-    },
-    {
-      key: 'transactions',
-      labelVi: 'Quản lý\nChi tiêu',
-      labelEn: 'Expense\nManager',
-      icon: '🧾',
-    },
-    {
-      key: 'budget',
-      labelVi: 'Ngân sách',
-      labelEn: 'Budget',
-      icon: '💳',
-    },
-    {
-      key: 'profile',
-      labelVi: 'Trang cá nhân\n& Slogan',
-      labelEn: 'Profile\n& Motto',
-      icon: '👤',
-    },
+    { key: 'home', labelVi: 'Tổng quan', labelEn: 'Overview', icon: 'grid-outline' },
+    { key: 'feed', labelVi: 'Bảng tin', labelEn: 'News Feed', icon: 'newspaper-outline' },
+    { key: 'moments', labelVi: 'Khoảnh khắc', labelEn: 'Moments', icon: 'images-outline' },
+    { key: 'analytics', labelVi: 'Báo cáo', labelEn: 'Analytics', icon: 'bar-chart-outline' },
+    { key: 'transactions', labelVi: 'Chi tiêu', labelEn: 'Expenses', icon: 'receipt-outline' },
+    { key: 'budget', labelVi: 'Ngân sách', labelEn: 'Budget', icon: 'wallet-outline' },
   ];
-
-  const currentDateFormatted =
-    language === 'vi' ? 'Hôm nay, 24 Tháng 10, 2024 ▾' : 'Today, Oct 24, 2024 ▾';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -108,22 +81,20 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
         {/* ==================== TOP NAVIGATION BAR CHO DESKTOP ==================== */}
         {isDesktop ? (
           <View style={styles.topNavbar}>
-            {/* Left: Brand Logo & Search/Slogan Bar */}
-            <View style={styles.navLeft}>
+            {/* Left: Brand Logo */}
+            <TouchableOpacity
+              style={styles.navLeft}
+              onPress={() => onSelectTab('home')}
+              activeOpacity={0.8}
+            >
               <Image
                 source={require('../../assets/monett-brand-logo.png')}
                 style={styles.navLogo}
                 resizeMode="contain"
               />
-              <View style={styles.navSearchBox}>
-                <Text style={styles.navSearchIcon}>⚲</Text>
-                <Text style={styles.navSearchPlaceholder} numberOfLines={1}>
-                  "Ghi lại khoảnh khắc, giữ trọn an y..."
-                </Text>
-              </View>
-            </View>
+            </TouchableOpacity>
 
-            {/* Center: Main Navigation Tabs */}
+            {/* Center: Main Navigation Tabs (Clean Frameless Nav Links) */}
             <View style={styles.navCenter}>
               {tabs.map((tab) => {
                 const isActive = activeTab === tab.key;
@@ -133,17 +104,19 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
                     key={tab.key}
                     style={[styles.navTabBtn, isActive && styles.navTabBtnActive]}
                     onPress={() => onSelectTab(tab.key)}
-                    activeOpacity={0.8}
+                    activeOpacity={0.7}
                   >
-                    <Text style={[styles.navTabIcon, isActive && styles.navTabIconActive]}>
-                      {tab.icon}
-                    </Text>
+                    <Ionicons
+                      name={tab.icon}
+                      size={17}
+                      color={isActive ? '#047857' : (isDark ? '#94A3B8' : '#64748B')}
+                    />
                     <Text
                       style={[
                         styles.navTabText,
                         isActive && styles.navTabTextActive,
                       ]}
-                      numberOfLines={2}
+                      numberOfLines={1}
                     >
                       {label}
                     </Text>
@@ -152,36 +125,27 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
               })}
             </View>
 
-            {/* Right: Date, Quick Action, Lang, Profile */}
+            {/* Right: Notifications & User Profile */}
             <View style={styles.navRight}>
-              {/* Date Chip */}
-              <View style={styles.dateChip}>
-                <Text style={{ fontSize: 13, marginRight: 5 }}>📅</Text>
-                <Text style={styles.dateChipText}>24/10/2024</Text>
-              </View>
-
-              {/* Quick Action Button: Ghi chép nhanh */}
-              <TouchableOpacity style={styles.quickCaptureBtn} activeOpacity={0.85}>
-                <Text style={styles.quickCaptureIcon}>📷</Text>
-                <Text style={styles.quickCaptureText}>
-                  {language === 'vi' ? 'Ghi chép nhanh' : 'Quick Capture'}
-                </Text>
-              </TouchableOpacity>
-
               {/* Notification Bell */}
-              <TouchableOpacity style={styles.bellBtn} activeOpacity={0.7}>
-                <Text style={styles.bellIcon}>🔔</Text>
+              <TouchableOpacity
+                style={styles.bellBtn}
+                activeOpacity={0.7}
+                accessibilityLabel="Thông báo"
+              >
+                <Ionicons
+                  name="notifications-outline"
+                  size={19}
+                  color={isDark ? '#94A3B8' : '#64748B'}
+                />
                 <View style={styles.bellBadge} />
               </TouchableOpacity>
 
-              {/* Language Switcher */}
-              <LanguageToggle />
-
-              {/* User Profile Chip */}
+              {/* User Profile */}
               <TouchableOpacity
                 style={styles.userChip}
                 onPress={() => onSelectTab('profile')}
-                activeOpacity={0.8}
+                activeOpacity={0.75}
               >
                 {user?.avatarUrl && !imageError ? (
                   <Image
@@ -190,29 +154,30 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
                     onError={() => setImageError(true)}
                   />
                 ) : (
-                  <View style={[styles.userChipAvatar, { backgroundColor: avatarColor.bg, justifyContent: 'center', alignItems: 'center' }]}>
-                    <Text style={{ color: avatarColor.text, fontWeight: '800', fontSize: 16 }}>
+                  <View
+                    style={[
+                      styles.userChipAvatar,
+                      {
+                        backgroundColor: avatarColor.bg,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        color: avatarColor.text,
+                        fontWeight: '700',
+                        fontSize: 13,
+                      }}
+                    >
                       {displayName.charAt(0).toUpperCase()}
                     </Text>
                   </View>
                 )}
-                <View style={styles.userChipTextCol}>
-                  <Text style={styles.userChipName} numberOfLines={1}>
-                    {displayName}
-                  </Text>
-                  <Text style={styles.userChipRole}>
-                    {language === 'vi' ? 'Monett Steward' : 'Mindful Saver'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* Logout button */}
-              <TouchableOpacity
-                style={styles.logoutIconButton}
-                onPress={logout}
-                accessibilityLabel="Đăng xuất"
-              >
-                <Text style={styles.logoutIconText}>🚪</Text>
+                <Text style={styles.userChipName} numberOfLines={1}>
+                  {displayName}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -224,12 +189,18 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
               style={styles.mobileNavLogo}
               resizeMode="contain"
             />
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <LanguageToggle />
-              <TouchableOpacity onPress={logout} style={styles.mobileLogoutBtn}>
-                <Text style={{ fontSize: 16 }}>🚪</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={styles.bellBtn}
+              activeOpacity={0.7}
+              accessibilityLabel="Thông báo"
+            >
+              <Ionicons
+                name="notifications-outline"
+                size={19}
+                color={isDark ? '#94A3B8' : '#64748B'}
+              />
+              <View style={styles.bellBadge} />
+            </TouchableOpacity>
           </View>
         )}
 
@@ -241,7 +212,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
         {/* ==================== BOTTOM TAB BAR CHO MOBILE ==================== */}
         {!isDesktop && (
           <View style={styles.bottomBar}>
-            {tabs.slice(0, 5).map((tab) => {
+            {tabs.map((tab) => {
               const isActive = activeTab === tab.key;
               const label = language === 'vi' ? tab.labelVi : tab.labelEn;
               return (
@@ -250,7 +221,11 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
                   style={styles.bottomBarItem}
                   onPress={() => onSelectTab(tab.key)}
                 >
-                  <Text style={styles.bottomBarIcon}>{tab.icon}</Text>
+                  <Ionicons
+                    name={tab.icon}
+                    size={20}
+                    color={isActive ? '#047857' : (isDark ? '#94A3B8' : '#64748B')}
+                  />
                   <Text
                     style={[
                       styles.bottomBarText,
@@ -267,7 +242,11 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
               style={styles.bottomBarItem}
               onPress={() => onSelectTab('profile')}
             >
-              <Text style={styles.bottomBarIcon}>👤</Text>
+              <Ionicons
+                name="person-outline"
+                size={20}
+                color={activeTab === 'profile' ? '#047857' : (isDark ? '#94A3B8' : '#64748B')}
+              />
               <Text
                 style={[
                   styles.bottomBarText,
@@ -297,93 +276,52 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
 
   // ==================== TOP NAVBAR DESKTOP ====================
   topNavbar: {
-    height: 82,
+    height: 64,
     backgroundColor: colors.header,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: isDark ? 0.15 : 0.03,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: isDark ? 0.2 : 0.04,
+    shadowRadius: 6,
     elevation: 2,
-    zIndex: 10,
+    zIndex: 20,
   },
   navLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
   navLogo: {
-    width: 140,
-    height: 52,
-  },
-  navSearchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    maxWidth: 240,
-  },
-  navSearchIcon: {
-    fontSize: 12,
-    color: '#64748B',
-  },
-  navSearchPlaceholder: {
-    fontSize: 11,
-    color: '#64748B',
-    fontStyle: 'italic',
+    width: 130,
+    height: 42,
   },
   navCenter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    flex: 1,
-    justifyContent: 'center',
-    marginHorizontal: 10,
+    gap: 4,
   },
   navTabBtn: {
-    flexDirection: 'column',
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
     paddingVertical: 7,
-    paddingHorizontal: 8,
-    borderRadius: 10,
-    minWidth: 72,
+    paddingHorizontal: 12,
+    borderRadius: 8,
   },
   navTabBtnActive: {
-    backgroundColor: '#047857',
-    shadowColor: '#047857',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-    elevation: 2,
-  },
-  navTabIcon: {
-    fontSize: 18,
-    marginBottom: 3,
-    color: colors.textMuted,
-  },
-  navTabIconActive: {
-    color: '#FFFFFF',
+    backgroundColor: isDark ? 'rgba(4, 120, 87, 0.16)' : '#ECFDF5',
   },
   navTabText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 14,
+    fontSize: 13.5,
+    fontWeight: '500',
+    color: isDark ? '#94A3B8' : '#475569',
   },
   navTabTextActive: {
-    color: '#FFFFFF',
+    color: '#047857',
     fontWeight: '700',
   },
   navRight: {
@@ -391,127 +329,60 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  dateChip: {
-    backgroundColor: isDark ? '#334155' : '#F1F5F9',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dateChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  quickCaptureBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#047857',
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    shadowColor: '#047857',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  quickCaptureIcon: {
-    fontSize: 13,
-    color: '#FFFFFF',
-  },
-  quickCaptureText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
   bellBtn: {
     width: 36,
     height: 36,
-    borderRadius: 10,
-    backgroundColor: isDark ? '#334155' : '#F8FAFC',
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: 18,
+    backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
-  },
-  bellIcon: {
-    fontSize: 16,
   },
   bellBadge: {
     position: 'absolute',
     top: 7,
     right: 7,
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: '#EF4444',
   },
-
 
   // User chip
   userChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     paddingVertical: 4,
     paddingHorizontal: 8,
-    borderRadius: 12,
-    backgroundColor: isDark ? '#334155' : '#F8FAFC',
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: 20,
   },
   userChipAvatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-  },
-  userChipTextCol: {
-    gap: 1,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   userChipName: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '600',
     color: colors.textPrimary,
-    maxWidth: 110,
-  },
-  userChipRole: {
-    fontSize: 10,
-    color: colors.textMuted,
-  },
-  logoutIconButton: {
-    padding: 6,
-    borderRadius: 8,
-    backgroundColor: isDark ? '#2D0A0A' : '#FEF2F2',
-    borderWidth: 1,
-    borderColor: isDark ? '#7F1D1D' : '#FEE2E2',
-  },
-  logoutIconText: {
-    fontSize: 14,
+    maxWidth: 130,
   },
 
   // ==================== MOBILE HEADER ====================
   mobileHeader: {
-    height: 60,
+    height: 58,
     backgroundColor: colors.header,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0',
   },
   mobileNavLogo: {
     width: 105,
-    height: 40,
-  },
-  mobileLogoutBtn: {
-    padding: 6,
-    borderRadius: 8,
-    backgroundColor: isDark ? '#2D0A0A' : '#FEF2F2',
+    height: 38,
   },
 
   // ==================== MAIN CONTENT ====================

@@ -16,6 +16,9 @@ export interface IUser {
   reminderTime?: string;
   isPro?: boolean;
   streak?: number;
+  totalActiveDays?: number;
+  longestStreak?: number;
+  lastActiveAt?: string | Date;
   createdAt?: string | Date;
   updatedAt?: string | Date;
 }

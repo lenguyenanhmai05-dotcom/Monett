@@ -24,9 +24,11 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
 import QRCode from 'react-qr-code';
+import { Audio } from 'expo-av';
 import {
   getMomentsFeedApi,
   reactMomentApi,
+  getMomentReactionsApi,
   createMomentApi,
   updateMomentApi,
   deleteMomentApi,
@@ -94,13 +96,14 @@ const Avatar = ({ uri, name, size = 40 }: { uri?: string | null; name: string; s
 };
 
 // ─── Moment Card with Edit/Delete ─────────────────────────────────────────────
-const MomentCard = ({
+export const MomentCard = ({
   item,
   currentUserId,
   onReact,
   onEdit,
   onDelete,
   onOpenChat,
+  onViewReactions,
 }: {
   item: MomentItem;
   currentUserId: string;
@@ -108,6 +111,7 @@ const MomentCard = ({
   onEdit: (item: MomentItem) => void;
   onDelete: (id: string) => void;
   onOpenChat: (item: MomentItem) => void;
+  onViewReactions?: (id: string) => void;
 }) => {
   const [showEmojis, setShowEmojis] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -145,7 +149,7 @@ const MomentCard = ({
 
       {/* Photo */}
       <TouchableOpacity onPress={toggleEmojis} activeOpacity={0.95}>
-        <Image source={{ uri: normalizeAvatarUrl(item.photo) || item.photo }} style={cardStyles.photo} resizeMode="cover" />
+        <Image source={{ uri: normalizeAvatarUrl(item.photo) || item.photo }} style={[cardStyles.photo]} resizeMode="cover" />
         {item.caption ? (
           <View style={cardStyles.captionOverlay}>
             <Text style={cardStyles.caption}>{item.caption}</Text>
@@ -156,7 +160,11 @@ const MomentCard = ({
       {/* Reaction & Chat Bar */}
       <View style={cardStyles.reactionBar}>
         {/* Summary */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+        <TouchableOpacity 
+          style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+          activeOpacity={0.7}
+          onPress={() => totalReactions > 0 && onViewReactions && onViewReactions(item.id)}
+        >
           {Object.entries(item.reactions || {})
             .filter(([, count]) => count > 0)
             .map(([emoji, count]) => (
@@ -168,7 +176,7 @@ const MomentCard = ({
           {totalReactions === 0 && (
             <Text style={cardStyles.noReactionText}>Chạm để thả cảm xúc ✨</Text>
           )}
-        </View>
+        </TouchableOpacity>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           {/* React Button */}
@@ -257,10 +265,18 @@ const MomentCard = ({
               style={cardStyles.menuSheetItem}
               onPress={() => {
                 setShowMenu(false);
-                Alert.alert('Xóa bài đăng', 'Bạn chắc chắn muốn xóa khoảnh khắc này?', [
-                  { text: 'Hủy', style: 'cancel' },
-                  { text: 'Xóa', style: 'destructive', onPress: () => onDelete(item.id) },
-                ]);
+                setTimeout(() => {
+                  if (Platform.OS === 'web') {
+                    if (window.confirm('Bạn chắc chắn muốn xóa khoảnh khắc này?')) {
+                      onDelete(item.id);
+                    }
+                  } else {
+                    Alert.alert('Xóa bài đăng', 'Bạn chắc chắn muốn xóa khoảnh khắc này?', [
+                      { text: 'Hủy', style: 'cancel' },
+                      { text: 'Xóa', style: 'destructive', onPress: () => onDelete(item.id) },
+                    ]);
+                  }
+                }, 300);
               }}
             >
               <Ionicons name="trash-outline" size={20} color="#EF4444" />
@@ -313,8 +329,8 @@ const cardStyles = StyleSheet.create({
   },
   photo: {
     width: '100%',
-    height: SCREEN_WIDTH - 32,
-    backgroundColor: '#F1F5F9',
+    aspectRatio: 4 / 3,
+    backgroundColor: '#000',
   },
   captionOverlay: {
     position: 'absolute',
@@ -571,18 +587,21 @@ const DEFAULT_SAMPLE_CAPTIONS = [
 ];
 
 // ─── Modal Tạo / Chỉnh Sửa Khoảnh Khắc ──────────────────────────────────────
-const MomentFormModal = ({
+export const MomentFormModal = ({
   visible,
   onClose,
   onDone,
   editingItem,
+  initialAction,
 }: {
   visible: boolean;
   onClose: () => void;
   onDone: (updatedOrNew: any) => void;
   editingItem?: MomentItem | null;
+  initialAction?: 'photo' | 'tag' | 'text';
 }) => {
   const isEdit = !!editingItem;
+  const inputRef = useRef<TextInput>(null);
   const [caption, setCaption] = useState(editingItem?.caption || '');
   const [category, setCategory] = useState(editingItem?.category || CATEGORIES[0]);
   const [submitting, setSubmitting] = useState(false);
@@ -595,8 +614,20 @@ const MomentFormModal = ({
       setCaption(editingItem?.caption || '');
       setCategory(editingItem?.category || CATEGORIES[0]);
       setSelectedPhoto(editingItem?.photo || samplePhotos[0]);
+      
+      if (!editingItem) {
+        if (initialAction === 'photo') {
+          setTimeout(() => {
+            handlePickPhoto();
+          }, 400);
+        } else if (initialAction === 'text') {
+          setTimeout(() => {
+            inputRef.current?.focus();
+          }, 400);
+        }
+      }
     }
-  }, [visible, editingItem]);
+  }, [visible, editingItem, initialAction]);
 
   // Mẫu ảnh Unsplash đẹp
   const samplePhotos = [
@@ -777,6 +808,7 @@ const MomentFormModal = ({
             </ScrollView>
 
             <TextInput
+              ref={inputRef}
               style={createStyles.input}
               placeholder="VD: Cà phê sáng cùng bạn thân ☕... (hoặc tự nhập nội dung)"
               value={caption}
@@ -970,7 +1002,7 @@ const createStyles = StyleSheet.create({
 });
 
 // ─── Modal Trò chuyện / Chat về Khoảnh khắc ──────────────────────────────────
-const MomentChatModal = ({
+export const MomentChatModal = ({
   visible,
   onClose,
   moment,
@@ -988,10 +1020,31 @@ const MomentChatModal = ({
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+  const previousCommentsLength = useRef(0);
+
+  const comments = moment?.comments || [];
+
+  useEffect(() => {
+    if (visible && comments.length > previousCommentsLength.current && previousCommentsLength.current > 0) {
+      // Play a "ting" sound when new messages arrive
+      (async () => {
+        try {
+          await Audio.setAudioModeAsync({
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: false,
+            shouldDuckAndroid: false,
+          });
+          const { sound } = await Audio.Sound.createAsync(
+            { uri: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3' },
+            { shouldPlay: true, volume: 1.0 }
+          );
+        } catch(e) {}
+      })();
+    }
+    previousCommentsLength.current = comments.length;
+  }, [comments.length, visible]);
 
   if (!moment) return null;
-
-  const comments = moment.comments || [];
 
   const handleSend = async () => {
     const trimmed = text.trim();
@@ -1094,7 +1147,12 @@ const MomentChatModal = ({
                         {c.text}
                       </Text>
                       <Text style={[chatStyles.bubbleTime, isMe && chatStyles.bubbleTimeMe]}>
-                        {c.time}
+                        {c.createdAt ? (() => {
+                          const d = new Date(c.createdAt);
+                          const dd = d.getDate().toString().padStart(2, '0');
+                          const mm = (d.getMonth() + 1).toString().padStart(2, '0');
+                          return `${dd}/${mm} · ${c.time}`;
+                        })() : c.time}
                       </Text>
                     </View>
                   </View>
@@ -1658,6 +1716,11 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void }> = ({ onBack })
   const [chatMoment, setChatMoment] = useState<MomentItem | null>(null);
   const [activeTab, setActiveTab] = useState<'feed' | 'friends'>('feed');
 
+  // Reaction Details State
+  const [showReactionsModal, setShowReactionsModal] = useState(false);
+  const [reactedUsers, setReactedUsers] = useState<any[]>([]);
+  const [isLoadingReactions, setIsLoadingReactions] = useState(false);
+
   const myId = (user as any)?._id || (user as any)?.id || '';
 
   // Tải dữ liệu từ Backend API
@@ -1729,6 +1792,22 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void }> = ({ onBack })
     }
   };
 
+  // Xem danh sách người thả cảm xúc
+  const handleViewReactions = async (momentId: string) => {
+    setShowReactionsModal(true);
+    setIsLoadingReactions(true);
+    setReactedUsers([]);
+    try {
+      const res = await getMomentReactionsApi(momentId);
+      const data = (res as any)?.data || res;
+      setReactedUsers(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.warn('Lỗi tải danh sách reaction:', e);
+    } finally {
+      setIsLoadingReactions(false);
+    }
+  };
+
   // Xử lý Thả / Đổi / Bỏ Reaction với API
   const handleReact = async (momentId: string, emoji: string) => {
     // 1. Optimistic UI update
@@ -1790,16 +1869,12 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void }> = ({ onBack })
           )}
           <View>
             <Text style={styles.headerTitle}>{isVi ? 'Bảng tin Monett' : 'Monett Feed'}</Text>
-            <Text style={styles.headerSub}>{isVi ? 'Khoảnh khắc vui vẻ & trò chuyện cùng bạn bè' : 'Fun moments & chat with friends'}</Text>
           </View>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity style={styles.createBtn} onPress={() => { setEditingMoment(null); setShowCreate(true); }}>
+          <TouchableOpacity style={[styles.createBtn, { paddingHorizontal: 16, paddingVertical: 8, marginRight: 8 }]} onPress={() => { setEditingMoment(null); setShowCreate(true); }}>
             <Ionicons name="camera" size={16} color="#fff" />
             <Text style={styles.createBtnText}>{isVi ? 'Đăng tin' : 'Post'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.inviteBtn} onPress={() => setShowInvite(true)}>
-            <Ionicons name="person-add-outline" size={16} color="#059669" />
           </TouchableOpacity>
         </View>
       </View>
@@ -1875,6 +1950,7 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void }> = ({ onBack })
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onOpenChat={(item) => setChatMoment(item)}
+                onViewReactions={handleViewReactions}
               />
             ))
           )}
@@ -1945,12 +2021,46 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void }> = ({ onBack })
             ))
           )}
 
-          <TouchableOpacity style={styles.addFriendBtn} onPress={() => setShowInvite(true)}>
-            <Ionicons name="person-add-outline" size={20} color="#059669" />
-            <Text style={styles.addFriendBtnText}>{isVi ? '➕ Thêm / Mời bạn bè' : '➕ Add / Invite Friends'}</Text>
+          <TouchableOpacity style={styles.addFriendBtn} onPress={() => setShowInvite(true)} activeOpacity={0.85}>
+            <View style={styles.addFriendIconWrap}>
+              <Ionicons name="person-add" size={16} color="#FFFFFF" />
+            </View>
+            <Text style={styles.addFriendBtnText}>{isVi ? 'Thêm / Mời bạn bè' : 'Add / Invite Friends'}</Text>
           </TouchableOpacity>
         </ScrollView>
       )}
+
+      {/* Modal Danh sách thả cảm xúc */}
+      <Modal visible={showReactionsModal} transparent animationType="slide" onRequestClose={() => setShowReactionsModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.reactionsModalContent}>
+            <View style={styles.reactionsModalHeader}>
+              <Text style={styles.reactionsModalTitle}>{isVi ? 'Người đã bày tỏ cảm xúc' : 'Reactions'}</Text>
+              <TouchableOpacity onPress={() => setShowReactionsModal(false)} style={{ padding: 4 }}>
+                <Ionicons name="close" size={24} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+              {isLoadingReactions ? (
+                <Text style={{ textAlign: 'center', marginVertical: 20, color: '#94A3B8' }}>{isVi ? 'Đang tải...' : 'Loading...'}</Text>
+              ) : reactedUsers.length === 0 ? (
+                <Text style={{ textAlign: 'center', marginVertical: 20, color: '#94A3B8' }}>{isVi ? 'Chưa có ai bày tỏ cảm xúc' : 'No reactions yet'}</Text>
+              ) : (
+                reactedUsers.map((u, i) => (
+                  <View key={i} style={styles.reactionUserRow}>
+                    <Avatar uri={u.avatarUrl} name={u.fullName} size={40} />
+                    <Text style={styles.reactionUserName} numberOfLines={1}>{u.fullName}</Text>
+                    <View style={styles.reactionUserEmoji}>
+                      <Text style={{ fontSize: 16 }}>{u.emoji}</Text>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal Mời & Kết bạn */}
       <InviteModal
@@ -1993,6 +2103,60 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reactionsModalContent: {
+    width: '90%',
+    maxWidth: 400,
+    maxHeight: '60%',
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  reactionsModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: isDark ? '#334155' : '#F1F5F9',
+    paddingBottom: 12,
+  },
+  reactionsModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: isDark ? '#F1F5F9' : '#1E293B',
+  },
+  reactionUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: isDark ? '#334155' : '#F8FAFC',
+  },
+  reactionUserName: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 15,
+    fontWeight: '600',
+    color: isDark ? '#F1F5F9' : '#1E293B',
+  },
+  reactionUserEmoji: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: isDark ? '#334155' : '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -2144,16 +2308,25 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: isDark ? '#064E3B' : '#F0FDF4',
-    borderWidth: 1.5,
-    borderColor: isDark ? '#065F46' : '#BBF7D0',
-    borderStyle: 'dashed',
-    borderRadius: 16,
-    paddingVertical: 16,
-    marginTop: 8,
+    backgroundColor: '#059669',
+    borderRadius: 100,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 32,
+    alignSelf: 'center',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  addFriendIconWrap: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   addFriendBtnText: {
-    color: '#059669',
+    color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 15,
   },
