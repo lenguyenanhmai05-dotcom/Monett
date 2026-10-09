@@ -11,7 +11,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { uploadReceiptApi, scanReceiptOcrApi } from '../../services/api';
+import {
+  createTransactionApi,
+  updateTransactionApi,
+  uploadReceiptApi,
+  scanReceiptOcrApi,
+} from '../../services/api';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface AddExpenseScreenProps {
   initialDate?: string;
@@ -32,11 +38,13 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   onBack,
   onSaveSuccess,
 }) => {
+  const { language } = useLanguage();
+  const isVi = language === 'vi';
   const [photoUrl, setPhotoUrl] = useState<string | undefined>(initialPhotoUrl);
   const [amountStr, setAmountStr] = useState('0');
   const [title, setTitle] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('Ăn uống');
-  const [selectedWallet, setSelectedWallet] = useState('Tiền mặt');
+  const [selectedCategory, setSelectedCategory] = useState(isVi ? 'Ăn uống' : 'Food');
+  const [selectedWallet, setSelectedWallet] = useState(isVi ? 'Tiền mặt' : 'Cash');
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState('');
 
@@ -45,12 +53,12 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
       if (!initialPhotoUrl) return;
 
       setIsScanning(true);
-      setScanMessage('Đang tải ảnh lên đám mây...');
+      setScanMessage(isVi ? 'Đang tải ảnh lên đám mây...' : 'Uploading photo to cloud...');
 
       try {
         const uploadResponse = await uploadReceiptApi(initialPhotoUrl, 'image/jpeg', 'receipt.jpg');
         if (uploadResponse) {
-          setScanMessage('AI đang phân tích hóa đơn...');
+          setScanMessage(isVi ? 'AI đang phân tích hóa đơn...' : 'AI is analyzing receipt...');
           const ocrData = await scanReceiptOcrApi(uploadResponse);
 
           if (ocrData.amount) {
@@ -71,16 +79,16 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   }, [initialPhotoUrl]);
 
   const categories = [
-    { id: '1', name: 'Ăn uống', icon: '🍜' },
-    { id: '2', name: 'Cà phê', icon: '☕' },
-    { id: '3', name: 'Mua sắm', icon: '🛍️' },
-    { id: '4', name: 'Di chuyển', icon: '🚗' },
-    { id: '5', name: 'Hóa đơn', icon: '🧾' },
-    { id: '6', name: 'Khác', icon: '📦' },
+    { id: '1', name: isVi ? 'Ăn uống' : 'Food', icon: '🍜' },
+    { id: '2', name: isVi ? 'Cà phê' : 'Coffee', icon: '☕' },
+    { id: '3', name: isVi ? 'Mua sắm' : 'Shopping', icon: '🛍️' },
+    { id: '4', name: isVi ? 'Di chuyển' : 'Transport', icon: '🚗' },
+    { id: '5', name: isVi ? 'Hóa đơn' : 'Bills', icon: '🧾' },
+    { id: '6', name: isVi ? 'Khác' : 'Other', icon: '📦' },
   ];
 
   const wallets = [
-    { id: 'w1', name: 'Tiền mặt', icon: '💵' },
+    { id: 'w1', name: isVi ? 'Tiền mặt' : 'Cash', icon: '💵' },
     { id: 'w2', name: 'TPBank', icon: '💳' },
     { id: 'w3', name: 'MoMo', icon: '📱' },
   ];
@@ -99,8 +107,45 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   // Định dạng hiển thị tiền tệ VND
   const formattedAmount = Number(amountStr || '0').toLocaleString('vi-VN') + ' đ';
 
+  // Lưu giao dịch
+  const handleSaveTransaction = async () => {
+    const parsedAmount = parseInt(amountStr, 10);
+    if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
+      if (onSaveSuccess) onSaveSuccess();
+      return;
+    }
+
+    try {
+      const catIcon = categories.find((c) => c.name === selectedCategory)?.icon || '🍜';
+      const payload = {
+        title: title.trim() || selectedCategory,
+        amount: -Math.abs(parsedAmount),
+        type: 'expense' as const,
+        category: selectedCategory,
+        categoryIcon: catIcon,
+        photoUri: photoUrl,
+        date: initialDate ? new Date(initialDate).toISOString() : new Date().toISOString(),
+      };
+
+      if (editingTransactionId && !editingTransactionId.startsWith('tx_')) {
+        await updateTransactionApi(editingTransactionId, payload);
+      } else {
+        await createTransactionApi(payload);
+      }
+
+      if (onSaveSuccess) {
+        onSaveSuccess();
+      }
+    } catch (err: any) {
+      console.warn('Lỗi lưu giao dịch backend:', err);
+      if (onSaveSuccess) {
+        onSaveSuccess();
+      }
+    }
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {isScanning && (
         <View style={scanningStyles.scanningOverlay}>
           <View style={scanningStyles.scanningBox}>
@@ -115,21 +160,23 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
         <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={22} color="#1E293B" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Thêm Chi Tiêu</Text>
+        <Text style={styles.headerTitle}>
+          {editingTransactionId ? (isVi ? 'Chỉnh Sửa Chi Tiêu' : 'Edit Expense') : (isVi ? 'Thêm Chi Tiêu' : 'Add Expense')}
+        </Text>
         <TouchableOpacity
           style={styles.saveHeaderBtn}
-          onPress={onSaveSuccess}
+          onPress={handleSaveTransaction}
           activeOpacity={0.8}
         >
-          <Text style={styles.saveHeaderBtnText}>Lưu</Text>
+          <Text style={styles.saveHeaderBtnText}>{isVi ? 'Lưu' : 'Save'}</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 2. Hiển thị số tiền & ảnh thumbnail */}
         <View style={styles.amountHeroCard}>
           <View style={styles.amountWrapper}>
-            <Text style={styles.amountLabel}>Số tiền chi</Text>
+            <Text style={styles.amountLabel}>{isVi ? 'Số tiền chi' : 'Expense Amount'}</Text>
             <Text style={styles.amountText}>{formattedAmount}</Text>
           </View>
 
@@ -149,20 +196,20 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
               onPress={() => {}}
             >
               <Ionicons name="camera-outline" size={24} color="#6B7280" />
-              <Text style={styles.addPhotoText}>Thêm ảnh</Text>
+              <Text style={styles.addPhotoText}>{isVi ? 'Thêm ảnh' : 'Add Photo'}</Text>
             </TouchableOpacity>
           )}
         </View>
 
         {/* 3. Tên món / Ghi chú */}
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Tên khoản chi</Text>
+          <Text style={styles.inputLabel}>{isVi ? 'Tên khoản chi' : 'Expense Title'}</Text>
           <View style={styles.inputWrapper}>
             <Ionicons name="pencil-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
             <TextInput
               value={title}
               onChangeText={setTitle}
-              placeholder="VD: Bún bò, Cà phê sáng..."
+              placeholder={isVi ? 'VD: Bún bò, Cà phê sáng...' : 'e.g. Lunch, Morning coffee...'}
               placeholderTextColor="#9CA3AF"
               style={styles.textInput}
             />
@@ -171,7 +218,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
 
         {/* 4. Chọn Danh Mục */}
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Danh mục</Text>
+          <Text style={styles.inputLabel}>{isVi ? 'Danh mục' : 'Category'}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
             {categories.map((cat) => {
               const isSelected = selectedCategory === cat.name;
@@ -196,7 +243,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
 
         {/* 5. Chọn Nguồn Ví */}
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Nguồn tiền</Text>
+          <Text style={styles.inputLabel}>{isVi ? 'Nguồn tiền' : 'Payment Source'}</Text>
           <View style={styles.walletsRow}>
             {wallets.map((w) => {
               const isSelected = selectedWallet === w.name;
@@ -260,10 +307,10 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
         {/* 7. Nút Xác nhận lưu */}
         <TouchableOpacity
           style={styles.submitBtn}
-          onPress={onSaveSuccess}
+          onPress={handleSaveTransaction}
           activeOpacity={0.85}
         >
-          <Text style={styles.submitBtnText}>Xác nhận lưu khoản chi</Text>
+          <Text style={styles.submitBtnText}>{isVi ? 'Xác nhận lưu khoản chi' : 'Confirm & Save Expense'}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -273,6 +320,10 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  scrollView: {
+    flex: 1,
     backgroundColor: '#FAFAF9',
   },
   header: {
@@ -280,7 +331,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 6,
+    paddingBottom: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',

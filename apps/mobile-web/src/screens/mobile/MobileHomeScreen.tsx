@@ -338,37 +338,39 @@ export const MobileHomeScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            {/* THE SIGNATURE EMERALD BUDGET CARD */}
+            {/* THE SIGNATURE EMERALD BUDGET CARD (Bản xanh đậm #064E3B + Ếch ôm lịch 3D) */}
             <View style={styles.budgetCard}>
-              <View style={styles.cardHeaderRow}>
-                <View style={styles.cardHeaderLeft}>
-                  <Text style={styles.cardHeaderIcon}>💳</Text>
-                  <Text style={styles.cardHeaderTag}>
-                    {isVi ? 'HẠN MỨC THÁNG 10' : 'OCTOBER BUDGET'}
-                  </Text>
+              <View style={styles.cardLeftContent}>
+                <View style={styles.cardHeaderRow}>
+                  <View style={styles.cardHeaderLeft}>
+                    <Ionicons name="wallet-outline" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Text style={styles.cardSubLabel}>{isVi ? 'Khả dụng' : 'Available'}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.cardEditBtn}
+                    onPress={() => setShowAddModal(true)}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="pencil" size={11} color="#FFFFFF" />
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.cardTotalLimit}>{formatVND(budgetLimit)}</Text>
+
+                <Text style={styles.cardMainBalance}>{formatVND(remainingBudget)}</Text>
               </View>
 
-              <Text style={styles.cardSubLabel}>
-                {isVi ? 'Số dư khả dụng tháng' : 'Monthly Available Balance'}
-              </Text>
-              <Text style={styles.cardMainBalance}>{formatVND(remainingBudget)}</Text>
-
-              {/* Progress Bar */}
-              <View style={styles.progressContainer}>
-                <View style={styles.progressBarBg}>
-                  <View style={[styles.progressBarFill, { width: `${remainingPercent}%` as any }]} />
-                </View>
-                <View style={styles.progressTextRow}>
-                  <Text style={styles.progressTextLeft}>
-                    {isVi
-                      ? `Đã chi: ${formatVND(totalSpent)} (${(100 - parseFloat(remainingPercent)).toFixed(1)}%)`
-                      : `Spent: ${formatVND(totalSpent)}`}
-                  </Text>
-                  <Text style={styles.progressTextRight}>{remainingPercent}% còn lại</Text>
-                </View>
-              </View>
+              {/* Chú ếch 3D ôm lịch dễ thương nhô nhẹ lên mép thẻ */}
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => setShowAddModal(true)}
+                style={styles.cardMascotWrapper}
+              >
+                <Image
+                  source={require('../../../assets/frogs/frog-calendar-mascot.png')}
+                  style={styles.cardMascotImage}
+                  resizeMode="contain"
+                />
+              </TouchableOpacity>
             </View>
 
             {/* WEEKLY CALENDAR STRIP */}
@@ -838,50 +840,74 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // BUDGET CARD
+  // BUDGET CARD (MINIMALIST - Tone xanh đậm #064E3B, chiều cao thu gọn, ếch 3D ôm lịch)
   budgetCard: {
-    backgroundColor: '#064E3B',
-    borderRadius: 22,
-    padding: 20,
-    marginBottom: 18,
+    backgroundColor: '#064E3B', // Xanh đậm bản cũ sang trọng, uy tín
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10, // Thu gọn chiều cao cho đỡ chiếm diện tích
+    marginBottom: 14,
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#064E3B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 211, 153, 0.25)',
+    overflow: 'visible',
+    position: 'relative',
+  },
+  cardLeftContent: {
+    flex: 1,
+    justifyContent: 'center',
   },
   cardHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
   },
   cardHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  cardHeaderIcon: {
-    fontSize: 14,
-    marginRight: 6,
-  },
-  cardHeaderTag: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#A7F3D0',
-    letterSpacing: 0.5,
-  },
-  cardTotalLimit: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#D1FAE5',
-  },
   cardSubLabel: {
     fontSize: 13,
-    color: '#A7F3D0',
-    fontWeight: '600',
+    color: '#FFFFFF', // Chữ Khả dụng màu trắng
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  cardEditBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
   cardMainBalance: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '900',
     color: '#FFFFFF',
     marginTop: 4,
-    marginBottom: 16,
     letterSpacing: -0.5,
+  },
+  cardMascotWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -26, // Chú ếch nhô cao hơn khung xanh theo yêu cầu
+    marginBottom: -10,
+    marginRight: -4,
+    marginLeft: 6,
+  },
+  cardMascotImage: {
+    width: 96,
+    height: 96,
   },
   progressContainer: {
     marginTop: 4,

@@ -7,11 +7,13 @@ import {
   Image,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { getTransactionDetailApi, deleteTransactionApi } from '../../services/api';
 import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface TransactionDetailProps {
   transactionId?: string;
@@ -63,6 +65,8 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
   onEdit,
   onDelete,
 }) => {
+  const { language } = useLanguage();
+  const isVi = language === 'vi';
   const [loading, setLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -141,13 +145,13 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* 1. Header Bar */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerBtn} onPress={onBack} activeOpacity={0.7}>
           <Ionicons name="chevron-back" size={22} color="#1E293B" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Chi Tiết Giao Dịch</Text>
+        <Text style={styles.headerTitle}>{isVi ? 'Chi Tiết Giao Dịch' : 'Transaction Details'}</Text>
         <TouchableOpacity
           style={styles.headerBtn}
           onPress={() => {
@@ -170,13 +174,13 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 2. Hero Image */}
         <View style={styles.imageContainer}>
           <Image source={{ uri: detail.imageUrl }} style={styles.heroImage} />
           <View style={styles.imageBadge}>
             <Ionicons name="camera-outline" size={14} color="#FFFFFF" style={{ marginRight: 5 }} />
-            <Text style={styles.imageBadgeText}>Khoảnh khắc chi tiêu</Text>
+            <Text style={styles.imageBadgeText}>{isVi ? 'Khoảnh khắc chi tiêu' : 'Spending moment'}</Text>
           </View>
         </View>
 
@@ -194,7 +198,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
               <Ionicons name="sparkles" size={12} color="#FFFFFF" />
             </View>
             <Text style={styles.gamifyText}>
-              Đã ghi nhận khoảnh khắc • Nhận <Text style={{ fontWeight: '800' }}>{detail.xpReward}</Text>
+              {isVi ? 'Đã ghi nhận khoảnh khắc • Nhận ' : 'Moment recorded • Earned '}<Text style={{ fontWeight: '800' }}>{detail.xpReward}</Text>
             </Text>
           </View>
         </View>
@@ -204,7 +208,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
           <View style={styles.detailRow}>
             <View style={styles.rowLabelContainer}>
               <Ionicons name="pricetag-outline" size={16} color="#047857" style={{ marginRight: 8 }} />
-              <Text style={styles.rowLabel}>Danh mục</Text>
+              <Text style={styles.rowLabel}>{isVi ? 'Danh mục' : 'Category'}</Text>
             </View>
             {(() => {
               const meta = getCategoryMeta(detail.category);
@@ -220,7 +224,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
           <View style={styles.detailRow}>
             <View style={styles.rowLabelContainer}>
               <Ionicons name="wallet-outline" size={16} color="#047857" style={{ marginRight: 8 }} />
-              <Text style={styles.rowLabel}>Nguồn tiền</Text>
+              <Text style={styles.rowLabel}>{isVi ? 'Nguồn tiền' : 'Payment Source'}</Text>
             </View>
             {(() => {
               const wMeta = getWalletMeta(detail.wallet);
@@ -236,7 +240,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
           <View style={styles.detailRow}>
             <View style={styles.rowLabelContainer}>
               <Ionicons name="location-outline" size={16} color="#047857" style={{ marginRight: 8 }} />
-              <Text style={styles.rowLabel}>Địa điểm</Text>
+              <Text style={styles.rowLabel}>{isVi ? 'Địa điểm' : 'Location'}</Text>
             </View>
             <Text style={styles.rowValue}>{detail.location}</Text>
           </View>
@@ -244,7 +248,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
           <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
             <View style={styles.rowLabelContainer}>
               <Ionicons name="document-text-outline" size={16} color="#047857" style={{ marginRight: 8 }} />
-              <Text style={styles.rowLabel}>Ghi chú</Text>
+              <Text style={styles.rowLabel}>{isVi ? 'Ghi chú' : 'Note'}</Text>
             </View>
             <Text style={styles.rowValue}>{detail.note}</Text>
           </View>
@@ -253,7 +257,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
         {/* 5. Nút xóa giao dịch */}
         <TouchableOpacity style={styles.deleteBtn} onPress={() => setShowDeleteModal(true)} activeOpacity={0.8}>
           <Ionicons name="trash-outline" size={16} color="#DC2626" style={{ marginRight: 6 }} />
-          <Text style={styles.deleteBtnText}>Xóa giao dịch này</Text>
+          <Text style={styles.deleteBtnText}>{isVi ? 'Xóa giao dịch này' : 'Delete this transaction'}</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -275,6 +279,10 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  scrollView: {
+    flex: 1,
     backgroundColor: '#FAFAF9',
   },
   header: {
@@ -282,7 +290,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 6,
+    paddingBottom: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',

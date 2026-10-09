@@ -24,7 +24,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import * as ImagePicker from 'expo-image-picker';
 import QRCode from 'react-qr-code';
-import { Audio } from 'expo-av';
+import { playNotificationSound } from '../../utils/soundUtils';
 import {
   getMomentsFeedApi,
   reactMomentApi,
@@ -1026,20 +1026,7 @@ export const MomentChatModal = ({
 
   useEffect(() => {
     if (visible && comments.length > previousCommentsLength.current && previousCommentsLength.current > 0) {
-      // Play a "ting" sound when new messages arrive
-      (async () => {
-        try {
-          await Audio.setAudioModeAsync({
-            playsInSilentModeIOS: true,
-            staysActiveInBackground: false,
-            shouldDuckAndroid: false,
-          });
-          const { sound } = await Audio.Sound.createAsync(
-            { uri: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3' },
-            { shouldPlay: true, volume: 1.0 }
-          );
-        } catch(e) {}
-      })();
+      playNotificationSound();
     }
     previousCommentsLength.current = comments.length;
   }, [comments.length, visible]);
@@ -1858,7 +1845,7 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void }> = ({ onBack })
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -2163,8 +2150,8 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 18,
-    paddingTop: 14,
-    paddingBottom: 12,
+    paddingTop: 6,
+    paddingBottom: 10,
     backgroundColor: colors.header,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderLight,

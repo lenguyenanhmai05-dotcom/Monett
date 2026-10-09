@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface CategoriesScreenProps {
   onBack?: () => void;
@@ -18,6 +19,8 @@ export const CategoriesScreen: React.FC<CategoriesScreenProps> = ({
   onBack,
   onAddCategory,
 }) => {
+  const { language } = useLanguage();
+  const isVi = language === 'vi';
   const [tab, setTab] = useState<'expense' | 'income'>('expense');
 
   const expenseCategories: {
@@ -29,12 +32,12 @@ export const CategoriesScreen: React.FC<CategoriesScreenProps> = ({
     color: string;
     bg: string;
   }[] = [
-    { id: 'c1', name: 'Ăn uống', iconName: 'restaurant-outline', spent: '520.000 đ', limit: '1.500.000 đ', color: '#10B981', bg: '#ECFDF5' },
-    { id: 'c2', name: 'Cà phê & Đồ uống', iconName: 'cafe-outline', spent: '145.000 đ', limit: '500.000 đ', color: '#F59E0B', bg: '#FEF3C7' },
-    { id: 'c3', name: 'Mua sắm cá nhân', iconName: 'bag-handle-outline', spent: '200.000 đ', limit: '800.000 đ', color: '#3B82F6', bg: '#EFF6FF' },
-    { id: 'c4', name: 'Di chuyển & Xăng xe', iconName: 'car-outline', spent: '180.000 đ', limit: '600.000 đ', color: '#8B5CF6', bg: '#F5F3FF' },
-    { id: 'c5', name: 'Hóa đơn & Tiện ích', iconName: 'receipt-outline', spent: '0 đ', limit: '1.200.000 đ', color: '#EF4444', bg: '#FEF2F2' },
-    { id: 'c6', name: 'Giải trí & Phim ảnh', iconName: 'film-outline', spent: '0 đ', limit: '400.000 đ', color: '#EC4899', bg: '#FDF2F8' },
+    { id: 'c1', name: isVi ? 'Ăn uống' : 'Food & Dining', iconName: 'restaurant-outline', spent: '520.000 đ', limit: '1.500.000 đ', color: '#10B981', bg: '#ECFDF5' },
+    { id: 'c2', name: isVi ? 'Cà phê & Đồ uống' : 'Coffee & Drinks', iconName: 'cafe-outline', spent: '145.000 đ', limit: '500.000 đ', color: '#F59E0B', bg: '#FEF3C7' },
+    { id: 'c3', name: isVi ? 'Mua sắm cá nhân' : 'Shopping', iconName: 'bag-handle-outline', spent: '200.000 đ', limit: '800.000 đ', color: '#3B82F6', bg: '#EFF6FF' },
+    { id: 'c4', name: isVi ? 'Di chuyển & Xăng xe' : 'Transportation', iconName: 'car-outline', spent: '180.000 đ', limit: '600.000 đ', color: '#8B5CF6', bg: '#F5F3FF' },
+    { id: 'c5', name: isVi ? 'Hóa đơn & Tiện ích' : 'Bills & Utilities', iconName: 'receipt-outline', spent: '0 đ', limit: '1.200.000 đ', color: '#EF4444', bg: '#FEF2F2' },
+    { id: 'c6', name: isVi ? 'Giải trí & Phim ảnh' : 'Entertainment', iconName: 'film-outline', spent: '0 đ', limit: '400.000 đ', color: '#EC4899', bg: '#FDF2F8' },
   ];
 
   const incomeCategories: {
@@ -46,15 +49,15 @@ export const CategoriesScreen: React.FC<CategoriesScreenProps> = ({
     color: string;
     bg: string;
   }[] = [
-    { id: 'i1', name: 'Tiền lương', iconName: 'cash-outline', spent: '15.000.000 đ', limit: 'Định kỳ', color: '#10B981', bg: '#ECFDF5' },
-    { id: 'i2', name: 'Thưởng & Tip', iconName: 'gift-outline', spent: '1.200.000 đ', limit: 'Phát sinh', color: '#F59E0B', bg: '#FEF3C7' },
-    { id: 'i3', name: 'Freelance & Dự án', iconName: 'laptop-outline', spent: '3.500.000 đ', limit: 'Linh hoạt', color: '#3B82F6', bg: '#EFF6FF' },
+    { id: 'i1', name: isVi ? 'Tiền lương' : 'Salary', iconName: 'cash-outline', spent: '15.000.000 đ', limit: isVi ? 'Định kỳ' : 'Regular', color: '#10B981', bg: '#ECFDF5' },
+    { id: 'i2', name: isVi ? 'Thưởng & Tip' : 'Bonus & Tips', iconName: 'gift-outline', spent: '1.200.000 đ', limit: isVi ? 'Phát sinh' : 'Occasional', color: '#F59E0B', bg: '#FEF3C7' },
+    { id: 'i3', name: isVi ? 'Freelance & Dự án' : 'Freelance & Projects', iconName: 'laptop-outline', spent: '3.500.000 đ', limit: isVi ? 'Linh hoạt' : 'Flexible', color: '#3B82F6', bg: '#EFF6FF' },
   ];
 
   const list = tab === 'expense' ? expenseCategories : incomeCategories;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* 1. Header Bar */}
       <View style={styles.header}>
         {onBack && (
@@ -62,13 +65,13 @@ export const CategoriesScreen: React.FC<CategoriesScreenProps> = ({
             <Ionicons name="chevron-back" size={24} color="#1E293B" />
           </TouchableOpacity>
         )}
-        <Text style={styles.headerTitle}>Quản Lý Danh Mục</Text>
+        <Text style={styles.headerTitle}>{isVi ? 'Quản Lý Danh Mục' : 'Category Management'}</Text>
         <TouchableOpacity style={styles.addBtn} onPress={onAddCategory} activeOpacity={0.8}>
-          <Text style={styles.addBtnText}>+ Thêm</Text>
+          <Text style={styles.addBtnText}>{isVi ? '+ Thêm' : '+ Add'}</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 2. Tabs Chi tiêu / Thu nhập */}
         <View style={styles.typeTabs}>
           <TouchableOpacity
@@ -76,7 +79,7 @@ export const CategoriesScreen: React.FC<CategoriesScreenProps> = ({
             onPress={() => setTab('expense')}
           >
             <Text style={[styles.typeTabText, tab === 'expense' && styles.typeTabTextActive]}>
-              Chi tiêu ({expenseCategories.length})
+              {isVi ? `Chi tiêu (${expenseCategories.length})` : `Expenses (${expenseCategories.length})`}
             </Text>
           </TouchableOpacity>
 
@@ -85,7 +88,7 @@ export const CategoriesScreen: React.FC<CategoriesScreenProps> = ({
             onPress={() => setTab('income')}
           >
             <Text style={[styles.typeTabText, tab === 'income' && styles.typeTabTextActive]}>
-              Thu nhập ({incomeCategories.length})
+              {isVi ? `Thu nhập (${incomeCategories.length})` : `Income (${incomeCategories.length})`}
             </Text>
           </TouchableOpacity>
         </View>
@@ -100,7 +103,9 @@ export const CategoriesScreen: React.FC<CategoriesScreenProps> = ({
             <View style={styles.catDetails}>
               <Text style={styles.catName}>{cat.name}</Text>
               <Text style={styles.catSub}>
-                {tab === 'expense' ? `Hạn mức: ${cat.limit}` : `Loại: ${cat.limit}`}
+                {tab === 'expense'
+                  ? (isVi ? `Hạn mức: ${cat.limit}` : `Budget: ${cat.limit}`)
+                  : (isVi ? `Loại: ${cat.limit}` : `Type: ${cat.limit}`)}
               </Text>
             </View>
 
@@ -125,6 +130,10 @@ export const CategoriesScreen: React.FC<CategoriesScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  scrollView: {
+    flex: 1,
     backgroundColor: '#FAFAF9',
   },
   header: {
@@ -132,7 +141,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 6,
+    paddingBottom: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',

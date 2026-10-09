@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getMessagesApi, sendMessageApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { Audio } from 'expo-av';
+import { playNotificationSound } from '../utils/soundUtils';
 
 interface Message {
   _id: string;
@@ -60,19 +60,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ visible, onClose, friend }
 
   useEffect(() => {
     if (visible && messages.length > prevMsgCount.current && prevMsgCount.current > 0) {
-      (async () => {
-        try {
-          await Audio.setAudioModeAsync({
-            playsInSilentModeIOS: true,
-            staysActiveInBackground: false,
-            shouldDuckAndroid: false,
-          });
-          const { sound } = await Audio.Sound.createAsync(
-            { uri: 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3' },
-            { shouldPlay: true, volume: 1.0 }
-          );
-        } catch(e) {}
-      })();
+      playNotificationSound();
     }
     prevMsgCount.current = messages.length;
   }, [messages.length, visible]);

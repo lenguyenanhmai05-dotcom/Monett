@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, CameraType, FlashMode, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface CameraScreenProps {
   onClose?: () => void;
@@ -22,6 +23,8 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
   onClose,
   onPhotoCaptured,
 }) => {
+  const { language } = useLanguage();
+  const isVi = language === 'vi';
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<CameraType>('back');
   const [flash, setFlash] = useState<FlashMode>('off');
@@ -125,17 +128,17 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
         <Text style={{ color: 'white', fontSize: 18, textAlign: 'center', marginBottom: 20 }}>
-          Monett cần quyền Camera để chụp ảnh.
+          {isVi ? 'Monett cần quyền Camera để chụp ảnh.' : 'Monett needs camera permission to take photos.'}
         </Text>
         <TouchableOpacity style={{ backgroundColor: '#10B981', padding: 12, borderRadius: 20 }} onPress={requestPermission}>
-          <Text style={{ color: 'white', fontWeight: 'bold' }}>Cấp quyền Camera</Text>
+          <Text style={{ color: 'white', fontWeight: 'bold' }}>{isVi ? 'Cấp quyền Camera' : 'Grant Camera Permission'}</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
 
       {/* 1. Header Bar trên kính ngắm */}
@@ -151,7 +154,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
             onPress={() => setMode('food')}
           >
             <Ionicons name="restaurant-outline" size={13} color={mode === 'food' ? '#FFFFFF' : '#D1D5DB'} style={{ marginRight: 4 }} />
-            <Text style={[styles.modeText, mode === 'food' && styles.modeTextActive]}>Món ăn</Text>
+            <Text style={[styles.modeText, mode === 'food' && styles.modeTextActive]}>{isVi ? 'Món ăn' : 'Food'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -159,7 +162,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
             onPress={() => setMode('bill')}
           >
             <Ionicons name="receipt-outline" size={13} color={mode === 'bill' ? '#FFFFFF' : '#D1D5DB'} style={{ marginRight: 4 }} />
-            <Text style={[styles.modeText, mode === 'bill' && styles.modeTextActive]}>Hóa đơn</Text>
+            <Text style={[styles.modeText, mode === 'bill' && styles.modeTextActive]}>{isVi ? 'Hóa đơn' : 'Bill'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -167,7 +170,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
             onPress={() => setMode('auto')}
           >
             <Ionicons name="sparkles-outline" size={13} color={mode === 'auto' ? '#FFFFFF' : '#D1D5DB'} style={{ marginRight: 4 }} />
-            <Text style={[styles.modeText, mode === 'auto' && styles.modeTextActive]}>Tự động</Text>
+            <Text style={[styles.modeText, mode === 'auto' && styles.modeTextActive]}>{isVi ? 'Tự động' : 'Auto'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -230,7 +233,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
             <View style={styles.galleryPreview}>
               <Ionicons name="images-outline" size={28} color="#FFFFFF" />
             </View>
-            <Text style={styles.subBtnLabel}>Thư viện</Text>
+            <Text style={styles.subBtnLabel}>{isVi ? 'Thư viện' : 'Gallery'}</Text>
           </TouchableOpacity>
 
           {/* Nút chụp to tròn chính giữa */}
@@ -250,7 +253,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
             <View style={styles.flipBtn}>
               <Ionicons name="camera-reverse-outline" size={28} color="#FFFFFF" />
             </View>
-            <Text style={styles.subBtnLabel}>Đổi chiều</Text>
+            <Text style={styles.subBtnLabel}>{isVi ? 'Đổi chiều' : 'Flip'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -268,7 +271,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 6,
+    paddingBottom: 10,
     zIndex: 10,
   },
   topBtn: {

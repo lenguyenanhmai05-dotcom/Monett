@@ -16,6 +16,8 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { MessagesModule } from './messages/messages.module';
 import { StorageModule } from './storage/storage.module';
 import { OcrModule } from './ocr/ocr.module';
+import { RemindersModule } from './reminders/reminders.module';
+import { BillsAndDebtsModule } from './bills-and-debts/bills-and-debts.module';
 
 import * as dotenv from 'dotenv';
 import * as path from 'path';
@@ -73,6 +75,8 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
     MessagesModule,
     StorageModule,
     OcrModule,
+    RemindersModule,
+    BillsAndDebtsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -11,10 +11,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { getBudgetApi, BudgetData, getTransactionsByDateApi, deleteTransactionApi } from '../../services/api';
-import { WeeklyCalendarWidget, WeekDayItem } from '../../components/WeeklyCalendarWidget';
+import { FinancialCalendarWidget } from '../../components/FinancialCalendarWidget';
+import { RemindersWidget } from '../../components/RemindersWidget';
+import { BillsAndDebtsWidget } from '../../components/BillsAndDebtsWidget';
 
 import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
+import { BudgetModal } from '../../components/BudgetModal';
 import { formatYMD } from '../../utils/dateUtils';
 
 interface HomeScreenProps {
@@ -79,6 +83,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToProfile,
 }) => {
   const { user: authUser } = useAuth();
+  const { language } = useLanguage();
+  const isVi = language === 'vi';
   const avatarUri = authUser?.avatarUrl;
 
   const displayName = authUser?.fullName || (authUser?.email ? authUser.email.split('@')[0] : 'Min');
@@ -128,13 +134,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [refreshing, setRefreshing] = React.useState<boolean>(false);
   const [deletingExpense, setDeletingExpense] = React.useState<ExpenseCardItem | null>(null);
   const [isDeletingTx, setIsDeletingTx] = React.useState<boolean>(false);
+  const [isBudgetModalVisible, setIsBudgetModalVisible] = React.useState<boolean>(false);
 
   const greetingSub = React.useMemo(() => {
     const h = new Date().getHours();
-    if (h < 12) return 'Chào buổi sáng,';
-    if (h < 18) return 'Chào buổi chiều,';
-    return 'Chào buổi tối,';
-  }, []);
+    if (h < 12) return isVi ? 'Chào buổi sáng,' : 'Good morning,';
+    if (h < 18) return isVi ? 'Chào buổi chiều,' : 'Good afternoon,';
+    return isVi ? 'Chào buổi tối,' : 'Good evening,';
+  }, [isVi]);
 
   // Tính số ngày còn lại trong tháng và gợi ý chi an toàn hàng ngày
   const remainingDaysInMonth = useMemo(() => {
@@ -222,7 +229,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   }, [fetchHomeData, refreshTrigger]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* 1. Header Bar */}
       <View style={styles.header}>
         <View style={styles.brandContainer}>
@@ -241,14 +248,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             activeOpacity={0.8}
           >
             <Ionicons name="flash" size={13} color="#047857" style={{ marginRight: 3 }} />
-            <Text style={styles.quickSaveBtnText}>Lưu nhanh</Text>
+            <Text style={styles.quickSaveBtnText}>{isVi ? 'Lưu nhanh' : 'Quick Save'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.iconButton}
             onPress={() => {
               if (typeof alert !== 'undefined') {
-                alert('Bạn không có thông báo mới nào.');
+                alert(isVi ? 'Bạn không có thông báo mới nào.' : 'You have no new notifications.');
               }
             }}
           >
@@ -279,6 +286,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
@@ -297,242 +305,70 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
 
 
-        {/* 3. THE SIGNATURE EMERALD BUDGET CARD */}
-        <TouchableOpacity
-          style={styles.budgetCard}
-          activeOpacity={0.9}
-          onPress={onNavigateToAnalytics}
-        >
-          <View style={styles.cardHeaderRow}>
-            <View style={styles.cardHeaderLeft}>
-              <Ionicons name="card-outline" size={15} color="#A7F3D0" style={{ marginRight: 6 }} />
-              <Text style={styles.cardHeaderTag}>
-                {`HẠN MỨC THÁNG ${budget.month}`}
-              </Text>
+        {/* 3. MINIMALIST EMERALD BUDGET CARD (Bản xanh đậm #064E3B + Ếch ôm lịch 3D siêu cute) */}
+        <View style={styles.budgetCard}>
+          <View style={styles.cardLeftContent}>
+            <View style={styles.cardHeaderRow}>
+              <View style={styles.cardHeaderLeft}>
+                <Ionicons name="wallet-outline" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.cardSubLabel}>{isVi ? 'Khả dụng' : 'Available'}</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.cardEditBtn}
+                onPress={() => setIsBudgetModalVisible(true)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="pencil" size={11} color="#FFFFFF" />
+              </TouchableOpacity>
             </View>
 
-            {/* Status Chip Tone-on-Tone chuẩn Fintech */}
-            <View style={styles.budgetStatusPill}>
-              <View
-                style={[
-                  styles.budgetStatusDot,
-                  {
-                    backgroundColor:
-                      budget.status === 'danger'
-                        ? '#F87171'
-                        : budget.status === 'warning'
-                        ? '#FBBF24'
-                        : '#34D399',
-                  },
-                ]}
-              />
-              <Ionicons
-                name={
-                  budget.status === 'danger'
-                    ? 'alert-circle'
-                    : budget.status === 'warning'
-                    ? 'warning-outline'
-                    : 'shield-checkmark'
-                }
-                size={11}
-                color="#A7F3D0"
-                style={{ marginRight: 4 }}
-              />
-              <Text style={styles.budgetStatusText}>
-                {budget.status === 'danger'
-                  ? 'CẢNH BÁO'
-                  : budget.status === 'warning'
-                  ? 'CHI NHANH'
-                  : 'ỔN ĐỊNH'}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={onNavigateToAnalytics}
+            >
+              <Text style={styles.cardMainBalance}>
+                {budget.remaining.toLocaleString('vi-VN')} đ
               </Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
-          <Text style={styles.cardSubLabel}>Số dư khả dụng tháng</Text>
-          <Text style={styles.cardMainBalance}>{budget.remaining.toLocaleString('vi-VN')} đ</Text>
+          {/* Chú ếch 3D ôm lịch dễ thương nhô nhẹ lên mép thẻ */}
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => setIsBudgetModalVisible(true)}
+            style={styles.cardMascotWrapper}
+          >
+            <Image
+              source={require('../../../assets/frogs/frog-calendar-mascot.png')}
+              style={styles.cardMascotImage}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+        </View>
 
-          {/* Thanh Tiến Độ Ngân Sách */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBarBg}>
-              <View
-                style={[
-                  styles.progressBarFill,
-                  {
-                    width: `${Math.min(100, Math.max(0, budget.remainingPercent))}%`,
-                    backgroundColor:
-                      budget.status === 'danger'
-                        ? '#EF4444'
-                        : budget.status === 'warning'
-                        ? '#F59E0B'
-                        : '#34D399',
-                  },
-                ]}
-              />
-            </View>
-            <View style={styles.progressTextRow}>
-              <Text style={styles.progressTextLeft}>
-                Đã chi: {budget.spent.toLocaleString('vi-VN')} đ ({budget.spentPercent}%)
-              </Text>
-              <Text style={styles.progressTextRight}>{budget.remainingPercent}% còn lại</Text>
-            </View>
-          </View>
-
-          {/* Gợi ý chi tiêu an toàn hàng ngày (Insight Pill chuẩn Apple HIG) */}
-          <View style={styles.safeDailyContainer}>
-            <View style={styles.safeDailyIconCircle}>
-              <Ionicons name="sparkles" size={11} color="#F59E0B" />
-            </View>
-            <Text style={styles.safeDailyText}>
-              Gợi ý chi hôm nay an toàn: ~{safeDailySpend.toLocaleString('vi-VN')} đ ({remainingDaysInMonth} ngày còn lại)
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* 4. Tổng quan tuần (Weekly Overview 7 ngày) */}
-        <WeeklyCalendarWidget
+        {/* 4. LỊCH TÀI CHÍNH (Thay thế cho bảng Tuần này) */}
+        <FinancialCalendarWidget
           selectedDay={selectedWeekDay}
-          onSelectDay={(item: WeekDayItem) => {
-            setSelectedWeekDay(item.dayNum);
-            setSelectedDateStr(item.fullDateStr);
-            setSelectedDateLabel(item.fullDateStr === todayStr ? 'Hôm nay' : `${item.day}, ${item.date}`);
-            fetchHomeData(item.fullDateStr);
+          onSelectDay={(dayNum, fullDateStr, dateLabel) => {
+            setSelectedWeekDay(dayNum);
+            setSelectedDateStr(fullDateStr);
+            setSelectedDateLabel(fullDateStr === todayStr ? 'Hôm nay' : dateLabel);
+            fetchHomeData(fullDateStr);
           }}
           onViewAll={onNavigateToCalendar}
         />
 
-        {/* 5. Giao dịch theo ngày đã chọn */}
-        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={styles.sectionTitle}>
-              {selectedDateStr === todayStr
-                ? 'HÔM NAY'
-                : `NGÀY ${selectedDateLabel.toUpperCase()}`}
-            </Text>
-            {selectedDateStr !== todayStr && (
-              <TouchableOpacity
-                style={styles.backTodayBtn}
-                onPress={handleResetToToday}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="arrow-undo-outline" size={12} color="#047857" style={{ marginRight: 3 }} />
-                <Text style={styles.backTodayText}>Về hôm nay</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          <TouchableOpacity onPress={() => onNavigateToAddExpense && onNavigateToAddExpense(selectedDateStr)}>
-            <Text style={styles.viewAllText}>+ Thêm khoản chi</Text>
-          </TouchableOpacity>
-        </View>
+        {/* 4.5. MỤC NHẮC NHỞ (Dưới Lịch tài chính, trên HÔM NAY) */}
+        <RemindersWidget currentDateStr={selectedDateStr} />
 
-        {/* Danh sách các món chi tiêu */}
-        {todayExpenses.length > 0 ? (
-          <>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.todayScroll}>
-              {todayExpenses.map((exp) => (
-                <TouchableOpacity
-                  key={exp.id}
-                  style={styles.expenseCard}
-                  activeOpacity={0.8}
-                  onPress={() => onNavigateToDetail && onNavigateToDetail(exp.id)}
-                  onLongPress={() => setDeletingExpense(exp)}
-                >
-                  <View style={styles.expenseImageWrap}>
-                    <Image source={{ uri: exp.image }} style={styles.expenseThumb} />
-                    {/* Nút xóa nhanh 1 chạm */}
-                    <TouchableOpacity
-                      style={styles.cardDeleteQuickBtn}
-                      activeOpacity={0.7}
-                      onPress={(e) => {
-                        e.stopPropagation();
-                        setDeletingExpense(exp);
-                      }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    >
-                      <Ionicons name="close" size={11} color="#0F172A" />
-                    </TouchableOpacity>
+        {/* 4.6. HÓA ĐƠN ĐỊNH KỲ & SỔ GHI NỢ (Dưới Mục nhắc nhở) */}
+        <BillsAndDebtsWidget />
 
-                    {/* Badge danh mục tinh tế */}
-                    {exp.category && (
-                      <View style={styles.cardCategoryBadge}>
-                        <Text style={styles.cardCategoryText} numberOfLines={1}>
-                          {exp.category}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-
-                  <Text style={styles.expenseTitle} numberOfLines={1}>{exp.title}</Text>
-                  <Text style={styles.expenseAmount}>{exp.amount}</Text>
-                  <Text style={styles.expenseTime}>{exp.time}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-
-            {/* Tổng kết ngày */}
-            <View style={styles.todaySummary}>
-              <Text style={styles.todaySummaryLabel}>
-                Tổng {selectedDateStr === todayStr ? 'hôm nay' : selectedDateLabel}
-              </Text>
-              <Text style={styles.todaySummaryAmount}>-{todayTotal.toLocaleString('vi-VN')} đ</Text>
-            </View>
-          </>
-        ) : (
-          /* Empty State thân thiện với Mascot chú ếch Monett */
-          <View style={styles.emptyContainer}>
-            <Image
-              source={require('../../../assets/frog-hat-coin.png')}
-              style={styles.emptyFrogImage}
-              resizeMode="contain"
-            />
-            <Text style={styles.emptyTitle}>
-              Chưa có khoản chi nào {selectedDateStr === todayStr ? 'hôm nay' : 'trong ngày này'}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {selectedDateStr === todayStr
-                ? 'Chụp ảnh món ăn hoặc ghi chép nhanh để lưu giữ khoảnh khắc và kiểm soát chi tiêu nhé!'
-                : 'Không có giao dịch nào được ghi nhận cho ngày này.'}
-            </Text>
-            <View style={styles.emptyActionsRow}>
-              <TouchableOpacity
-                style={styles.emptyPrimaryBtn}
-                activeOpacity={0.85}
-                onPress={() => onNavigateToCamera && onNavigateToCamera(selectedDateStr)}
-              >
-                <Ionicons name="camera" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.emptyPrimaryBtnText}>Chụp ảnh món</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.emptySecondaryBtn}
-                activeOpacity={0.8}
-                onPress={() => onNavigateToAddExpense && onNavigateToAddExpense(selectedDateStr)}
-              >
-                <Ionicons name="create-outline" size={15} color="#047857" style={{ marginRight: 6 }} />
-                <Text style={styles.emptySecondaryBtnText}>Nhập tay</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* Nút hành động nhanh Camera */}
-        <TouchableOpacity
-          style={styles.cameraBannerBtn}
-          activeOpacity={0.85}
-          onPress={() => onNavigateToCamera && onNavigateToCamera(selectedDateStr)}
-        >
-          <View style={styles.cameraBannerIconWrap}>
-            <Ionicons name="camera" size={20} color="#FFFFFF" />
-          </View>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.cameraBannerTitle}>Chụp ảnh món ăn & Hóa đơn</Text>
-            <Text style={styles.cameraBannerDesc}>Lưu giữ khoảnh khắc chi tiêu trong 1 chạm</Text>
-          </View>
-          <View style={styles.cameraBannerArrowWrap}>
-            <Ionicons name="arrow-forward" size={16} color="#047857" />
-          </View>
-        </TouchableOpacity>
+        {/* Khoảng cách đáy cuộn */}
+        <View style={{ height: 28 }} />
       </ScrollView>
 
-      {/* Modal xác nhận xóa giao dịch chuẩn Fintech */}
       <ConfirmDeleteModal
         visible={Boolean(deletingExpense)}
         itemTitle={deletingExpense?.title}
@@ -543,12 +379,28 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         onConfirm={handleConfirmDeleteExpense}
         onCancel={() => setDeletingExpense(null)}
       />
+
+      {/* Modal chỉnh sửa hạn mức ngân sách */}
+      <BudgetModal
+        visible={isBudgetModalVisible}
+        onClose={() => setIsBudgetModalVisible(false)}
+        currentLimit={budget.limit}
+        currentSpent={budget.spent}
+        onSaved={(updatedBudget) => {
+          setBudget(updatedBudget);
+          setIsBudgetModalVisible(false);
+        }}
+      />
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  scrollView: {
     flex: 1,
     backgroundColor: '#FAFAF9',
   },
@@ -557,8 +409,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 12,
+    paddingTop: 6,
+    paddingBottom: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
@@ -624,21 +476,21 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 8,
     paddingBottom: 100,
   },
   greetingSection: {
-    marginBottom: 16,
+    marginBottom: 6,
   },
   greetingSub: {
-    fontSize: 13,
+    fontSize: 12.5,
     color: '#6B7280',
   },
   greetingName: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: '#111827',
-    marginTop: 2,
+    marginTop: 1,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -754,171 +606,74 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#E11D48',
   },
-  cameraBannerBtn: {
+  // MINIMALIST EMERALD BUDGET CARD (Tone xanh đậm #064E3B, chiều cao thu gọn, ếch 3D ôm lịch)
+  budgetCard: {
+    backgroundColor: '#064E3B', // Xanh đậm bản cũ sang trọng, uy tín
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10, // Thu gọn chiều cao cho đỡ chiếm diện tích
+    marginBottom: 14,
+    marginTop: 6,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1.5,
-    borderColor: '#A7F3D0',
-    borderRadius: 20,
-    padding: 12,
-    marginTop: 20,
-  },
-  cameraBannerIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#047857',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  cameraBannerTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#065F46',
-  },
-  cameraBannerDesc: {
-    fontSize: 11,
-    color: '#047857',
-    marginTop: 2,
-  },
-  cameraBannerArrowWrap: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  // EMERALD BUDGET CARD
-  budgetCard: {
-    backgroundColor: '#064E3B',
-    borderRadius: 24,
-    padding: 18,
-    marginBottom: 16,
+    justifyContent: 'space-between',
     shadowColor: '#064E3B',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
     borderWidth: 1,
     borderColor: 'rgba(52, 211, 153, 0.25)',
+    overflow: 'visible',
+    position: 'relative',
+  },
+  cardLeftContent: {
+    flex: 1,
+    justifyContent: 'center',
   },
   cardHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
   },
   cardHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  cardHeaderTag: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#A7F3D0',
-    letterSpacing: 0.5,
-  },
-  budgetStatusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  budgetStatusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 5,
-  },
-  budgetStatusText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#D1FAE5',
-    letterSpacing: 0.4,
-  },
-  cardTotalLimit: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#D1FAE5',
-  },
   cardSubLabel: {
-    fontSize: 12,
-    color: '#A7F3D0',
-    fontWeight: '600',
+    fontSize: 13,
+    color: '#FFFFFF', // Chữ Khả dụng màu trắng
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
-  cardMainBalance: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginTop: 4,
-    marginBottom: 14,
-    letterSpacing: -0.5,
-  },
-  progressContainer: {
-    marginTop: 2,
-  },
-  progressBarBg: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  progressTextRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  progressTextLeft: {
-    fontSize: 11,
-    color: '#D1FAE5',
-    fontWeight: '600',
-  },
-  progressTextRight: {
-    fontSize: 11,
-    color: '#6EE7B7',
-    fontWeight: '800',
-  },
-  safeDailyContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+  cardEditBtn: {
+    width: 24,
+    height: 24,
     borderRadius: 12,
-    marginTop: 12,
-  },
-  safeDailyIconCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 6,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
-  safeDailyText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#ECFDF5',
+  cardMainBalance: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginTop: 4,
+    letterSpacing: -0.5,
+  },
+  cardMascotWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -26, // Chú ếch nhô cao hơn khung xanh theo yêu cầu
+    marginBottom: -10,
+    marginRight: -4,
+    marginLeft: 6,
+  },
+  cardMascotImage: {
+    width: 96,
+    height: 96,
   },
   backTodayBtn: {
     flexDirection: 'row',

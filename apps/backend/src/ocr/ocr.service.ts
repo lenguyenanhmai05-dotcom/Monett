@@ -11,9 +11,9 @@ export class OcrService {
         throw new Error('GEMINI_API_KEY chưa được cấu hình trong file .env');
       }
 
-      // Khởi tạo Gemini
+      // Khởi tạo Gemini (dùng model chuẩn gemini-1.5-flash của Google)
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: 'gemini-3.5-flash' });
+      const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-1.5-flash' });
 
       // Fetch ảnh từ Cloudinary về dạng ArrayBuffer
       const imageResp = await fetch(dto.imageUrl);

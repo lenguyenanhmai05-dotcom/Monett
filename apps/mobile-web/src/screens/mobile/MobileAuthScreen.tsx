@@ -1155,7 +1155,7 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   tabTextActive: {
-    color: '#059669',
+    color: '#064E3B',
     fontWeight: '800',
   },
 
@@ -1258,8 +1258,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkboxActive: {
-    backgroundColor: '#059669',
-    borderColor: '#059669',
+    backgroundColor: '#064E3B',
+    borderColor: '#064E3B',
   },
   checkmark: {
     color: '#FFFFFF',
@@ -1273,18 +1273,18 @@ const styles = StyleSheet.create({
   },
   forgotText: {
     fontSize: 12,
-    color: '#059669',
+    color: '#064E3B',
     fontWeight: '700',
   },
 
   // PRIMARY BUTTON
   primaryBtn: {
-    backgroundColor: '#059669',
+    backgroundColor: '#064E3B',
     borderRadius: 12,
     height: 46,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#059669',
+    shadowColor: '#064E3B',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
@@ -1328,7 +1328,7 @@ const styles = StyleSheet.create({
   },
   resendBtnText: {
     fontSize: 12.5,
-    color: '#059669',
+    color: '#064E3B',
     fontWeight: '700',
   },
   resendOtpRow: {
@@ -1428,7 +1428,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   legalLink: {
-    color: '#059669',
+    color: '#064E3B',
     fontWeight: '600',
   },
 });

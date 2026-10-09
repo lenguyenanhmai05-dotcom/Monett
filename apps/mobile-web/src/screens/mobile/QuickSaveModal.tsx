@@ -8,6 +8,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface QuickSaveModalProps {
   visible: boolean;
@@ -24,23 +25,26 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
   onOpenFullCamera,
   targetDate,
 }) => {
+  const { language } = useLanguage();
+  const isVi = language === 'vi';
   const [selectedAmount, setSelectedAmount] = useState<number>(35000);
   const [selectedCategory, setSelectedCategory] = useState<string>('Cà phê');
 
   const presetAmounts = [20000, 35000, 50000, 80000, 100000, 150000];
 
   const quickCategories: {
+    id: string;
     name: string;
     icon: keyof typeof Ionicons.glyphMap;
     color: string;
     bg: string;
   }[] = [
-    { name: 'Cà phê', icon: 'cafe-outline', color: '#7C3AED', bg: '#F5F3FF' },
-    { name: 'Ăn sáng', icon: 'sunny-outline', color: '#D97706', bg: '#FEF3C7' },
-    { name: 'Ăn trưa', icon: 'restaurant-outline', color: '#059669', bg: '#ECFDF5' },
-    { name: 'Đổ xăng', icon: 'car-outline', color: '#2563EB', bg: '#EFF6FF' },
-    { name: 'Đi chợ', icon: 'cart-outline', color: '#0D9488', bg: '#F0FDFA' },
-    { name: 'Trà sữa', icon: 'ice-cream-outline', color: '#DB2777', bg: '#FDF2F8' },
+    { id: 'coffee', name: isVi ? 'Cà phê' : 'Coffee', icon: 'cafe-outline', color: '#7C3AED', bg: '#F5F3FF' },
+    { id: 'breakfast', name: isVi ? 'Ăn sáng' : 'Breakfast', icon: 'sunny-outline', color: '#D97706', bg: '#FEF3C7' },
+    { id: 'lunch', name: isVi ? 'Ăn trưa' : 'Lunch', icon: 'restaurant-outline', color: '#059669', bg: '#ECFDF5' },
+    { id: 'gas', name: isVi ? 'Đổ xăng' : 'Gas/Fuel', icon: 'car-outline', color: '#2563EB', bg: '#EFF6FF' },
+    { id: 'groceries', name: isVi ? 'Đi chợ' : 'Groceries', icon: 'cart-outline', color: '#0D9488', bg: '#F0FDFA' },
+    { id: 'milktea', name: isVi ? 'Trà sữa' : 'Milk Tea', icon: 'ice-cream-outline', color: '#DB2777', bg: '#FDF2F8' },
   ];
 
   return (
@@ -55,8 +59,8 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
           {/* Header */}
           <View style={styles.sheetHeader}>
             <View>
-              <Text style={styles.sheetTitle}>Bạn vừa chi?</Text>
-              <Text style={styles.sheetSubtitle}>Ghi chép nhanh 1 chạm chỉ trong 3 giây</Text>
+              <Text style={styles.sheetTitle}>{isVi ? 'Bạn vừa chi?' : 'What did you spend?'}</Text>
+              <Text style={styles.sheetSubtitle}>{isVi ? 'Ghi chép nhanh 1 chạm chỉ trong 3 giây' : 'Quick 1-tap logging in 3 seconds'}</Text>
             </View>
             <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="close" size={20} color="#64748B" />
@@ -64,7 +68,7 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
           </View>
 
           {/* 1. Mức tiền gợi ý */}
-          <Text style={styles.sectionHeading}>Chọn nhanh số tiền</Text>
+          <Text style={styles.sectionHeading}>{isVi ? 'Chọn nhanh số tiền' : 'Quick amount'}</Text>
           <View style={styles.presetsGrid}>
             {presetAmounts.map((amt) => {
               const isSelected = selectedAmount === amt;
@@ -89,13 +93,13 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
           </View>
 
           {/* 2. Danh mục 1-chạm */}
-          <Text style={[styles.sectionHeading, { marginTop: 16 }]}>Khoản chi này cho?</Text>
+          <Text style={[styles.sectionHeading, { marginTop: 16 }]}>{isVi ? 'Khoản chi này cho?' : 'What is this for?'}</Text>
           <View style={styles.catGrid}>
             {quickCategories.map((item) => {
-              const isSelected = selectedCategory === item.name;
+              const isSelected = selectedCategory === item.name || selectedCategory === item.id;
               return (
                 <TouchableOpacity
-                  key={item.name}
+                  key={item.id}
                   style={[styles.catCard, isSelected && styles.catCardActive]}
                   onPress={() => setSelectedCategory(item.name)}
                   activeOpacity={0.7}
@@ -127,7 +131,7 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
               activeOpacity={0.8}
             >
               <Ionicons name="camera-outline" size={18} color="#374151" />
-              <Text style={styles.cameraActionText}>Chụp ảnh</Text>
+              <Text style={styles.cameraActionText}>{isVi ? 'Chụp ảnh' : 'Photo'}</Text>
             </TouchableOpacity>
 
             {/* Nút Lưu ngay */}
@@ -140,7 +144,7 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
               activeOpacity={0.85}
             >
               <Text style={styles.saveNowBtnText}>
-                Lưu ngay ({selectedAmount.toLocaleString('vi-VN')} đ)
+                {isVi ? `Lưu ngay (${selectedAmount.toLocaleString('vi-VN')} đ)` : `Save now (${selectedAmount.toLocaleString('vi-VN')} đ)`}
               </Text>
             </TouchableOpacity>
           </View>

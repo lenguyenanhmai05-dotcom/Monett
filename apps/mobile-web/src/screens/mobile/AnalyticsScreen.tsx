@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '../../contexts/LanguageContext';
 import {
   getAnalyticsOverviewApi,
   getCategoryBreakdownApi,
@@ -93,6 +94,8 @@ const DEFAULT_TOP_EXPENSES = [
 ];
 
 export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refreshTrigger }) => {
+  const { language } = useLanguage();
+  const isVi = language === 'vi';
   const [period, setPeriod] = useState<'week' | 'month'>('week');
   const [totalSpent, setTotalSpent] = useState<number>(1045000);
   const [dailyAvg, setDailyAvg] = useState<number>(149000);
@@ -100,6 +103,12 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
   const [topExpenses, setTopExpenses] = useState(DEFAULT_TOP_EXPENSES);
   const [chartData, setChartData] = useState(getInitialChartData());
   const currentWeekStr = useMemo(() => getCurrentWeekRange(), []);
+
+  const getDisplayDay = (day: string) => {
+    if (isVi) return day;
+    const map: Record<string, string> = { T2: 'Mon', T3: 'Tue', T4: 'Wed', T5: 'Thu', T6: 'Fri', T7: 'Sat', CN: 'Sun' };
+    return map[day] || day;
+  };
 
   const fetchAnalyticsData = useCallback(async () => {
     try {
@@ -160,30 +169,30 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
   }, [fetchAnalyticsData, refreshTrigger]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* 1. Header Bar Chuẩn Fintech */}
       <View style={styles.header}>
-        {onBack ? (
-          <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
-            <Ionicons name="chevron-back" size={20} color="#0F172A" />
-          </TouchableOpacity>
-        ) : (
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Image
-              source={require('../../../assets/adaptive-icon.png')}
-              style={{ width: 38, height: 38, borderRadius: 8, marginRight: 10 }}
-              resizeMode="contain"
-            />
-            <Text style={{ fontSize: 18, fontWeight: '800', color: '#047857' }}>Monett</Text>
+        <View style={styles.headerTitleRow}>
+          {onBack && (
+            <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
+              <Ionicons name="chevron-back" size={20} color="#0F172A" />
+            </TouchableOpacity>
+          )}
+          <View style={styles.brandBadgeIcon}>
+            <Ionicons name="stats-chart" size={20} color="#047857" />
           </View>
-        )}
-        <Text style={styles.headerTitle}>Báo Cáo Thống Kê</Text>
+          <View>
+            <Text style={styles.headerTitle}>{isVi ? 'Báo cáo thống kê' : 'Analytics Report'}</Text>
+            <Text style={styles.headerSubtitle}>{isVi ? 'Phân tích & Tối ưu chi tiêu' : 'Expense Analytics & Insights'}</Text>
+          </View>
+        </View>
+
         <TouchableOpacity style={styles.infoBtn} activeOpacity={0.7}>
           <Ionicons name="sparkles" size={17} color="#047857" />
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 2. Bộ lọc Tuần / Tháng: Segmented Control iOS Cao Cấp */}
         <View style={styles.segmentedWrapper}>
           <TouchableOpacity
@@ -198,7 +207,7 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
               style={{ marginRight: 6 }}
             />
             <Text style={[styles.segmentText, period === 'week' && styles.segmentTextActive]}>
-              Tuần này ({currentWeekStr})
+              {isVi ? `Tuần này (${currentWeekStr})` : `This Week (${currentWeekStr})`}
             </Text>
           </TouchableOpacity>
 
@@ -214,7 +223,7 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
               style={{ marginRight: 6 }}
             />
             <Text style={[styles.segmentText, period === 'month' && styles.segmentTextActive]}>
-              Tháng {new Date().getMonth() + 1}
+              {isVi ? `Tháng ${new Date().getMonth() + 1}` : `Month ${new Date().getMonth() + 1}`}
             </Text>
           </TouchableOpacity>
         </View>
@@ -223,14 +232,14 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
         <View style={styles.summaryCard}>
           <View style={styles.summaryTopRow}>
             <View>
-              <Text style={styles.summaryLabel}>TỔNG CHI TIÊU KỲ NÀY</Text>
+              <Text style={styles.summaryLabel}>{isVi ? 'TỔNG CHI TIÊU KỲ NÀY' : 'TOTAL SPENT THIS PERIOD'}</Text>
               <Text style={styles.summaryTotal}>{totalSpent.toLocaleString('vi-VN')} đ</Text>
             </View>
 
             {/* Trend Badge Tone-on-Tone */}
             <View style={styles.trendBadge}>
               <Ionicons name="trending-down" size={13} color="#059669" style={{ marginRight: 4 }} />
-              <Text style={styles.trendBadgeText}>Ổn định</Text>
+              <Text style={styles.trendBadgeText}>{isVi ? 'Ổn định' : 'Stable'}</Text>
             </View>
           </View>
 
@@ -238,12 +247,12 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
 
           <View style={styles.summaryBottomRow}>
             <View style={styles.subMetricCol}>
-              <Text style={styles.subMetricLabel}>Trung bình / ngày</Text>
+              <Text style={styles.subMetricLabel}>{isVi ? 'Trung bình / ngày' : 'Daily Average'}</Text>
               <Text style={styles.subMetricValue}>{dailyAvg.toLocaleString('vi-VN')} đ</Text>
             </View>
             <View style={styles.subMetricCol}>
-              <Text style={styles.subMetricLabel}>Đánh giá kỳ</Text>
-              <Text style={[styles.subMetricValue, { color: '#6EE7B7' }]}>Dưới hạn mức 🛡️</Text>
+              <Text style={styles.subMetricLabel}>{isVi ? 'Đánh giá kỳ' : 'Period Status'}</Text>
+              <Text style={[styles.subMetricValue, { color: '#6EE7B7' }]}>{isVi ? 'Dưới hạn mức 🛡️' : 'Under Limit 🛡️'}</Text>
             </View>
           </View>
         </View>
@@ -255,8 +264,8 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
               <Ionicons name="shield-checkmark" size={18} color="#059669" />
             </View>
             <View style={{ marginLeft: 12 }}>
-              <Text style={styles.healthScoreTitle}>Kỷ luật ngân sách</Text>
-              <Text style={styles.healthScoreSubtitle}>Chi tiêu đúng kế hoạch, không thâm hụt</Text>
+              <Text style={styles.healthScoreTitle}>{isVi ? 'Kỷ luật ngân sách' : 'Budget Discipline'}</Text>
+              <Text style={styles.healthScoreSubtitle}>{isVi ? 'Chi tiêu đúng kế hoạch, không thâm hụt' : 'On-track with plan, no deficit'}</Text>
             </View>
           </View>
           <View style={styles.healthScoreBadge}>
@@ -267,10 +276,10 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
         {/* 4. Biểu đồ cột tuần: Capsule Bars Hiện Đại */}
         <View style={styles.chartCard}>
           <View style={styles.cardHeaderRow}>
-            <Text style={styles.cardHeading}>BIỂU ĐỒ CHI THEO NGÀY</Text>
+            <Text style={styles.cardHeading}>{isVi ? 'BIỂU ĐỒ CHI THEO NGÀY' : 'DAILY SPENDING CHART'}</Text>
             <View style={styles.chartLegend}>
               <View style={[styles.chartLegendDot, { backgroundColor: '#10B981' }]} />
-              <Text style={styles.chartLegendText}>Hôm nay</Text>
+              <Text style={styles.chartLegendText}>{isVi ? 'Hôm nay' : 'Today'}</Text>
             </View>
           </View>
 
@@ -293,11 +302,11 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
                 <Text
                   style={[
                     styles.barDayLabel,
-                    item.day === 'CN' && styles.barDayLabelSunday,
+                    (item.day === 'CN' || item.day === 'Sun') && styles.barDayLabelSunday,
                     item.current && styles.barDayLabelCurrent,
                   ]}
                 >
-                  {item.day}
+                  {getDisplayDay(item.day)}
                 </Text>
               </View>
             ))}
@@ -307,8 +316,8 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
         {/* 5. Phân bổ theo Danh Mục: Vector Icon Box Tone-on-Tone */}
         <View style={styles.breakdownCard}>
           <View style={styles.cardHeaderRow}>
-            <Text style={styles.cardHeading}>CƠ CẤU DANH MỤC</Text>
-            <Text style={styles.cardSubCount}>{categoryBreakdown.length} nhóm chi tiêu</Text>
+            <Text style={styles.cardHeading}>{isVi ? 'CƠ CẤU DANH MỤC' : 'CATEGORY BREAKDOWN'}</Text>
+            <Text style={styles.cardSubCount}>{categoryBreakdown.length} {isVi ? 'nhóm chi tiêu' : 'categories'}</Text>
           </View>
 
           {categoryBreakdown.map((cat, i) => (
@@ -344,7 +353,7 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
         {/* 6. Top chi tiêu cao nhất */}
         <View style={[styles.breakdownCard, { marginBottom: 24 }]}>
           <View style={styles.cardHeaderRow}>
-            <Text style={styles.cardHeading}>KHOẢN CHI LỚN TRONG TUẦN</Text>
+            <Text style={styles.cardHeading}>{isVi ? 'KHOẢN CHI LỚN TRONG TUẦN' : 'TOP EXPENSES THIS WEEK'}</Text>
             <Ionicons name="sparkles-outline" size={14} color="#D97706" />
           </View>
 
@@ -367,6 +376,10 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  scrollView: {
+    flex: 1,
     backgroundColor: '#F8FAFC',
   },
   header: {
@@ -374,10 +387,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 6,
+    paddingBottom: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  brandBadgeIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#064E3B',
+    letterSpacing: -0.4,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
   },
   backBtn: {
     width: 36,
@@ -396,12 +434,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#ECFDF5',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-    letterSpacing: -0.3,
   },
   scrollContent: {
     padding: 16,

@@ -8,9 +8,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { setBudgetApi, BudgetData } from '../services/api';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface BudgetModalProps {
   visible: boolean;
@@ -29,30 +31,25 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
   currentPayday = 5,
   currentSpent = 6180000,
 }) => {
+  const { language } = useLanguage();
+  const isVi = language === 'vi';
   const [limitStr, setLimitStr] = useState<string>(String(currentLimit));
-  const [paydayStr, setPaydayStr] = useState<string>(String(currentPayday));
+  const [isFocused, setIsFocused] = useState<boolean>(false);
+  const [isHovered, setIsHovered] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
 
   React.useEffect(() => {
     if (visible) {
       setLimitStr(String(currentLimit));
-      setPaydayStr(String(currentPayday));
     }
-  }, [visible, currentLimit, currentPayday]);
+  }, [visible, currentLimit]);
 
   const numLimit = Math.max(0, parseInt(limitStr.replace(/\D/g, '') || '0', 10));
-  const numPayday = Math.min(31, Math.max(1, parseInt(paydayStr.replace(/\D/g, '') || '5', 10)));
-
   const presetLimits = [10000000, 15000000, 20000000, 25000000, 30000000];
-
-  // Dự tính tỷ lệ chi tiêu nếu đổi hạn mức
-  const previewSpentPercent = numLimit > 0 ? Number(((currentSpent / numLimit) * 100).toFixed(1)) : 0;
-  const isDanger = previewSpentPercent > 100;
-  const isWarning = previewSpentPercent >= 80 && !isDanger;
 
   const handleSave = async () => {
     if (numLimit <= 0) {
-      Alert.alert('Lỗi', 'Vui lòng nhập hạn mức lớn hơn 0 đ');
+      Alert.alert(isVi ? 'Lỗi' : 'Error', isVi ? 'Vui lòng nhập hạn mức lớn hơn 0 đ' : 'Please enter a budget greater than 0 VND');
       return;
     }
 
@@ -60,7 +57,7 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
       setLoading(true);
       const res = await setBudgetApi({
         limit: numLimit,
-        payday: numPayday,
+        payday: currentPayday || 5,
       });
       if (onSaved) onSaved(res);
       onClose();
@@ -73,10 +70,10 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
           limit: numLimit,
           spent: currentSpent,
           remaining: Math.max(0, numLimit - currentSpent),
-          spentPercent: previewSpentPercent,
-          remainingPercent: Math.max(0, Number((100 - previewSpentPercent).toFixed(1))),
-          status: isDanger ? 'danger' : isWarning ? 'warning' : 'safe',
-          payday: numPayday,
+          spentPercent: numLimit > 0 ? Number(((currentSpent / numLimit) * 100).toFixed(1)) : 0,
+          remainingPercent: numLimit > 0 ? Math.max(0, Number((100 - (currentSpent / numLimit) * 100).toFixed(1))) : 100,
+          status: 'safe',
+          payday: currentPayday || 5,
           daysUntilPayday: 12,
           currency: 'VND',
         });
@@ -95,11 +92,11 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
           <View style={styles.header}>
             <View style={styles.headerLeft}>
               <View style={styles.headerIconWrap}>
-                <Ionicons name="wallet-outline" size={20} color="#059669" />
+                <Ionicons name="wallet-outline" size={20} color="#064E3B" />
               </View>
               <View>
-                <Text style={styles.modalTitle}>Thiết Lập Ngân Sách Tháng</Text>
-                <Text style={styles.modalSubtitle}>Kiểm soát hạn mức và cảnh báo chi tiêu</Text>
+                <Text style={styles.modalTitle}>{isVi ? 'Thiết Lập Ngân Sách Tháng' : 'Monthly Budget Setup'}</Text>
+                <Text style={styles.modalSubtitle}>{isVi ? 'Nhập số tiền chi tiêu tối đa trong tháng' : 'Set your maximum monthly spending'}</Text>
               </View>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
@@ -110,14 +107,38 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
           {/* Form Content */}
           <View style={styles.body}>
             {/* 1. Hạn mức chi tiêu */}
-            <Text style={styles.inputLabel}>Hạn mức chi tiêu mong muốn (VND):</Text>
-            <View style={styles.inputWrapper}>
-              <Text style={styles.currencyPrefix}>₫</Text>
+            <Text style={styles.inputLabel}>{isVi ? 'Hạn mức chi tiêu mong muốn (VND):' : 'Target budget limit (VND):'}</Text>
+            <View
+              style={[
+                styles.inputWrapper,
+                (isFocused || isHovered) && styles.inputWrapperActive,
+              ]}
+              {...(Platform.OS === 'web'
+                ? {
+                    onMouseEnter: () => setIsHovered(true),
+                    onMouseLeave: () => setIsHovered(false),
+                  }
+                : {})}
+            >
+              <Text style={[styles.currencyPrefix, (isFocused || isHovered) && styles.currencyPrefixActive]}>₫</Text>
               <TextInput
-                style={styles.textInput}
+                style={[
+                  styles.textInput,
+                  Platform.OS === 'web' && ({
+                    outline: 'none',
+                    outlineStyle: 'none',
+                    outlineWidth: 0,
+                    outlineColor: 'transparent',
+                    boxShadow: 'none',
+                    border: 'none',
+                    borderWidth: 0,
+                  } as any),
+                ]}
                 keyboardType="numeric"
                 value={numLimit > 0 ? numLimit.toLocaleString('vi-VN') : ''}
                 onChangeText={(text) => setLimitStr(text.replace(/\D/g, ''))}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
                 placeholder="20.000.000"
                 placeholderTextColor="#94A3B8"
               />
@@ -137,77 +158,19 @@ export const BudgetModal: React.FC<BudgetModalProps> = ({
                 </TouchableOpacity>
               ))}
             </View>
-
-            {/* 2. Ngày trả lương định kỳ */}
-            <Text style={[styles.inputLabel, { marginTop: 14 }]}>Ngày nhận lương định kỳ (1 - 31):</Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="calendar-outline" size={18} color="#64748B" style={{ marginLeft: 4, marginRight: 8 }} />
-              <TextInput
-                style={styles.textInput}
-                keyboardType="numeric"
-                value={paydayStr}
-                onChangeText={setPaydayStr}
-                placeholder="05"
-                placeholderTextColor="#94A3B8"
-                maxLength={2}
-              />
-            </View>
-
-            {/* 3. Xem trước trạng thái tiến độ & Cảnh báo màu */}
-            <View style={styles.previewCard}>
-              <View style={styles.previewHeader}>
-                <Text style={styles.previewLabel}>Mô phỏng tỷ lệ chi hiện tại:</Text>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    {
-                      backgroundColor: isDanger ? '#FEF2F2' : isWarning ? '#FFFBEB' : '#ECFDF5',
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusBadgeText,
-                      { color: isDanger ? '#DC2626' : isWarning ? '#D97706' : '#059669' },
-                    ]}
-                  >
-                    {isDanger ? '🚨 Vượt ngân sách' : isWarning ? '⚠️ Trên 80% (Cảnh báo)' : '✅ An toàn'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.progressBarTrack}>
-                <View
-                  style={[
-                    styles.progressBarFill,
-                    {
-                      width: `${Math.min(100, previewSpentPercent)}%`,
-                      backgroundColor: isDanger ? '#EF4444' : isWarning ? '#F59E0B' : '#10B981',
-                    },
-                  ]}
-                />
-              </View>
-
-              <View style={styles.previewFooterRow}>
-                <Text style={styles.previewFooterText}>
-                  Đã tiêu: {currentSpent.toLocaleString('vi-VN')} đ
-                </Text>
-                <Text style={styles.previewFooterPercent}>{previewSpentPercent}%</Text>
-              </View>
-            </View>
           </View>
 
           {/* Footer Actions */}
           <View style={styles.footer}>
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={loading}>
-              <Text style={styles.cancelBtnText}>Hủy</Text>
+              <Text style={styles.cancelBtnText}>{isVi ? 'Hủy' : 'Cancel'}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={loading} activeOpacity={0.85}>
               {loading ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.saveBtnText}>Lưu ngân sách</Text>
+                <Text style={styles.saveBtnText}>{isVi ? 'Lưu ngân sách' : 'Save Budget'}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -296,38 +259,51 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
     borderRadius: 12,
     paddingHorizontal: 12,
-    height: 44,
+    height: 48,
     backgroundColor: '#F8FAFC',
-  },
+    transition: 'all 0.2s ease',
+  } as any,
+  inputWrapperActive: {
+    borderColor: '#064E3B',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    boxShadow: '0 0 0 3px rgba(6, 78, 59, 0.12)',
+  } as any,
   currencyPrefix: {
     fontSize: 18,
     fontWeight: '800',
     color: '#059669',
     marginRight: 6,
   },
+  currencyPrefixActive: {
+    color: '#064E3B',
+  },
   textInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
     color: '#0F172A',
     height: '100%',
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    padding: 0,
   },
   presetsRow: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 8,
+    marginTop: 10,
   },
   presetChip: {
-    paddingVertical: 5,
-    paddingHorizontal: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 13,
     borderRadius: 8,
     backgroundColor: '#F1F5F9',
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
   presetChipActive: {
-    backgroundColor: '#059669',
-    borderColor: '#047857',
+    backgroundColor: '#064E3B',
+    borderColor: '#064E3B',
   },
   presetChipText: {
     fontSize: 12,
@@ -336,58 +312,6 @@ const styles = StyleSheet.create({
   },
   presetChipTextActive: {
     color: '#FFFFFF',
-  },
-  previewCard: {
-    marginTop: 18,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  previewHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  previewLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  statusBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  progressBarTrack: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#E2E8F0',
-    overflow: 'hidden',
-  },
-  progressBarFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  previewFooterRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 6,
-  },
-  previewFooterText: {
-    fontSize: 11,
-    color: '#64748B',
-  },
-  previewFooterPercent: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#0F172A',
   },
   footer: {
     flexDirection: 'row',
@@ -412,15 +336,15 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   saveBtn: {
-    backgroundColor: '#059669',
+    backgroundColor: '#064E3B',
     paddingHorizontal: 22,
     paddingVertical: 10,
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#059669',
+    shadowColor: '#064E3B',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 2,
   },
