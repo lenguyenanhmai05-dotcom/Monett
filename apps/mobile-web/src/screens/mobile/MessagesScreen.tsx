@@ -286,6 +286,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isAiTyping, setIsAiTyping] = useState(false);
+  const [isSampleTyping, setIsSampleTyping] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 
   // ── State Modals ──
@@ -564,8 +565,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
     );
   }, [lastMessage, activeChat?.friendId, currentUserId, isVi]);
 
-  // Kiểm tra đối phương trong phòng chat hiện tại có đang gõ không
-  const isFriendTyping = activeChat?.friendId ? isUserTyping(activeChat.friendId) : false;
+  // Kiểm tra đối phương trong phòng chat hiện tại có đang gõ không (qua Socket.io hoặc khi test 1 mình)
+  const isFriendTyping = activeChat?.friendId ? isUserTyping(activeChat.friendId) : isSampleTyping;
 
   // Cuộn xuống cuối khi có tin nhắn mới hoặc đang gõ
   useEffect(() => {
@@ -625,17 +626,27 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
         console.log('[MessagesScreen] sendMessage error:', err);
       }
     } else {
-      // Phản hồi mẫu tự động cho sinh động
+      // Phản hồi mẫu tự động có cả hiệu ứng typing sinh động khi test 1 mình
+      setIsSampleTyping(true);
       setTimeout(() => {
+        setIsSampleTyping(false);
+        const replyText = getRandomReply(text);
         const autoReply: ChatMessage = {
           _id: `reply-${Date.now()}`,
           sender: 'other',
-          text: getRandomReply(text),
+          text: replyText,
           createdAt: new Date().toISOString(),
           type: 'text',
         };
         setChatMessages((prev) => [...prev, autoReply]);
-      }, 1200);
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === activeChat.id
+              ? { ...c, lastMessage: replyText, lastMessageTime: isVi ? 'Vừa xong' : 'Just now' }
+              : c
+          )
+        );
+      }, 1500);
     }
   };
 

@@ -79,7 +79,9 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
       // Send the current list of online user IDs to the connected user
       const onlineList = Array.from(this.onlineUsers.keys());
       client.emit('initial_online_users', onlineList);
-    } catch (err) {
+      console.log(`[Socket] ✅ User connected: ${userIdStr} (Socket ID: ${client.id})`);
+    } catch (err: any) {
+      console.warn('[Socket Gateway] ⚠️ Connection rejected:', err?.message || err);
       client.disconnect();
     }
   }

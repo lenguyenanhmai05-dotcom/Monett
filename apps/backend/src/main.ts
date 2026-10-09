@@ -4,9 +4,12 @@ import * as dns from 'dns';
 dns.setDefaultResultOrder('ipv4first');
 
 import { ValidationPipe } from '@nestjs/common';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   // Kích hoạt xác thực dữ liệu đầu vào tự động (DTO Validation)
   app.useGlobalPipes(
