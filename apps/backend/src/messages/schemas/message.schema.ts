@@ -15,6 +15,12 @@ export class Message {
 
   @Prop({ required: true })
   text: string;
+
+  @Prop({ default: 'text' })
+  type: string;
+
+  @Prop({ type: Object, required: false })
+  billData?: Record<string, any>;
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);

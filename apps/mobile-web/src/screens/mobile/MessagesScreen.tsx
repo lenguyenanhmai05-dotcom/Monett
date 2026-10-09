@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import QRCode from 'react-qr-code';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useSocket } from '../../contexts/SocketContext';
 import {
   getFriendsApi,
   getFriendRequestsApi,
@@ -208,11 +209,71 @@ const SAMPLE_MESSAGES_MAP: Record<string, ChatMessage[]> = {
   ],
 };
 
+// ── Hiệu ứng 3 dấu chấm nhấp nháy mượt mà khi đối phương đang gõ ──
+const TypingDots: React.FC = () => {
+  const anim1 = useRef(new Animated.Value(0)).current;
+  const anim2 = useRef(new Animated.Value(0)).current;
+  const anim3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const createPulse = (val: Animated.Value, delay: number) => {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(val, {
+            toValue: -4,
+            duration: 280,
+            useNativeDriver: true,
+          }),
+          Animated.timing(val, {
+            toValue: 0,
+            duration: 280,
+            useNativeDriver: true,
+          }),
+          Animated.delay(560 - delay),
+        ])
+      );
+    };
+
+    const a1 = createPulse(anim1, 0);
+    const a2 = createPulse(anim2, 160);
+    const a3 = createPulse(anim3, 320);
+
+    a1.start();
+    a2.start();
+    a3.start();
+
+    return () => {
+      a1.stop();
+      a2.stop();
+      a3.stop();
+    };
+  }, [anim1, anim2, anim3]);
+
+  return (
+    <View style={styles.typingDotsContainer}>
+      <Animated.View style={[styles.typingDot, { transform: [{ translateY: anim1 }] }]} />
+      <Animated.View style={[styles.typingDot, { transform: [{ translateY: anim2 }] }]} />
+      <Animated.View style={[styles.typingDot, { transform: [{ translateY: anim3 }] }]} />
+    </View>
+  );
+};
+
 export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
   const { user } = useAuth();
   const { language } = useLanguage();
   const isVi = language === 'vi';
   const currentUserId = user?.id || (user as any)?._id || 'me';
+
+  // ── Socket.io Context ──
+  const {
+    isConnected,
+    isUserOnline,
+    isUserTyping,
+    sendTyping,
+    sendMessage: sendSocketMessage,
+    lastMessage,
+  } = useSocket();
 
   // ── State Danh sách ──
   const [conversations, setConversations] = useState<ConversationItem[]>(INITIAL_CONVERSATIONS);
@@ -411,6 +472,15 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
     // Nếu là bạn bè thực tế có friendId trong DB
     if (activeChat.friendId) {
       setIsLoadingMessages(true);
+      // Xóa badge chưa đọc khi đã mở cuộc trò chuyện
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.friendId === activeChat.friendId || c.id === activeChat.id
+            ? { ...c, unreadCount: 0 }
+            : c
+        )
+      );
+
       getMessagesApi(activeChat.friendId)
         .then((data) => {
           if (Array.isArray(data) && data.length > 0) {
@@ -421,7 +491,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
                 receiver: m.receiver,
                 text: m.text,
                 createdAt: m.createdAt || new Date().toISOString(),
-                type: 'text',
+                type: m.type || 'text',
+                billData: m.billData,
               }))
             );
           } else {
@@ -436,43 +507,74 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
         .finally(() => {
           setIsLoadingMessages(false);
         });
-
-      // Polling nhẹ mỗi 3.5 giây để cập nhật tin nhắn bạn bè realtime
-      const timer = setInterval(() => {
-        if (!activeChat?.friendId) return;
-        getMessagesApi(activeChat.friendId)
-          .then((data) => {
-            if (Array.isArray(data) && data.length > 0) {
-              setChatMessages(
-                data.map((m: any) => ({
-                  _id: m._id || String(Math.random()),
-                  sender: String(m.sender) === String(currentUserId) ? 'me' : 'other',
-                  receiver: m.receiver,
-                  text: m.text,
-                  createdAt: m.createdAt || new Date().toISOString(),
-                  type: 'text',
-                }))
-              );
-            }
-          })
-          .catch(() => {});
-      }, 3500);
-
-      return () => clearInterval(timer);
     } else {
       // Tin nhắn mẫu offline
       setChatMessages(SAMPLE_MESSAGES_MAP[activeChat.id] || []);
     }
   }, [activeChat, currentUserId]);
 
-  // Cuộn xuống cuối khi có tin nhắn mới
+  // ── Lắng nghe tin nhắn mới Realtime qua Socket.io ──
   useEffect(() => {
-    if (chatMessages.length > 0) {
+    if (!lastMessage) return;
+
+    const senderStr = String(lastMessage.sender);
+    const receiverStr = String(lastMessage.receiver);
+    const activeFriendIdStr = activeChat?.friendId ? String(activeChat.friendId) : '';
+
+    // 1. Nếu đang mở đúng phòng chat với người gửi hoặc người nhận
+    if (activeFriendIdStr && (senderStr === activeFriendIdStr || receiverStr === activeFriendIdStr)) {
+      setChatMessages((prev) => {
+        if (prev.some((m) => m._id === lastMessage._id)) return prev;
+        return [
+          ...prev,
+          {
+            _id: lastMessage._id,
+            sender: senderStr === String(currentUserId) ? 'me' : 'other',
+            receiver: lastMessage.receiver,
+            text: lastMessage.text,
+            createdAt: lastMessage.createdAt || new Date().toISOString(),
+            type: lastMessage.type || 'text',
+            billData: lastMessage.billData,
+          },
+        ];
+      });
+    }
+
+    // 2. Cập nhật preview tin nhắn mới nhất ngoài danh sách cuộc trò chuyện
+    setConversations((prev) =>
+      prev.map((c) => {
+        const isMatch =
+          c.friendId === senderStr ||
+          c.friendId === receiverStr ||
+          c.id === `real-${senderStr}` ||
+          c.id === `real-${receiverStr}`;
+
+        if (isMatch) {
+          const isFromMe = senderStr === String(currentUserId);
+          const isCurrentActive = activeFriendIdStr === senderStr;
+          return {
+            ...c,
+            lastMessage: isFromMe ? (isVi ? `Bạn: ${lastMessage.text}` : `You: ${lastMessage.text}`) : lastMessage.text,
+            lastMessageTime: isVi ? 'Vừa xong' : 'Just now',
+            unreadCount: isCurrentActive || isFromMe ? 0 : (c.unreadCount || 0) + 1,
+          };
+        }
+        return c;
+      })
+    );
+  }, [lastMessage, activeChat?.friendId, currentUserId, isVi]);
+
+  // Kiểm tra đối phương trong phòng chat hiện tại có đang gõ không
+  const isFriendTyping = activeChat?.friendId ? isUserTyping(activeChat.friendId) : false;
+
+  // Cuộn xuống cuối khi có tin nhắn mới hoặc đang gõ
+  useEffect(() => {
+    if (chatMessages.length > 0 || isFriendTyping || isAiTyping) {
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-  }, [chatMessages, isAiTyping]);
+  }, [chatMessages, isAiTyping, isFriendTyping]);
 
   // ── Xử lý gửi tin nhắn ──
   const handleSendMessage = async (textToSend?: string) => {
@@ -512,10 +614,15 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
 
     // 2. Nếu là Bạn bè thật có friendId
     if (activeChat.friendId) {
+      sendTyping(activeChat.friendId, false);
       try {
-        await sendMessageApi(activeChat.friendId, text);
+        if (isConnected) {
+          await sendSocketMessage(activeChat.friendId, text);
+        } else {
+          await sendMessageApi(activeChat.friendId, text);
+        }
       } catch (err) {
-        console.log('[MessagesScreen] sendMessageApi error:', err);
+        console.log('[MessagesScreen] sendMessage error:', err);
       }
     } else {
       // Phản hồi mẫu tự động cho sinh động
@@ -641,13 +748,25 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
   // GIAO DIỆN 1: MÀN HÌNH KHUNG CHAT CHI TIẾT (KHI ĐANG TRÒ CHUYỆN)
   // ─────────────────────────────────────────────────────────────────────────
   if (activeChat) {
+    const isFriendOnline = activeChat.isAi
+      ? true
+      : activeChat.friendId
+      ? isUserOnline(activeChat.friendId)
+      : !!activeChat.isOnline;
+    const isFriendTyping = activeChat.friendId ? isUserTyping(activeChat.friendId) : false;
+
     return (
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
         {/* Chat Room Header */}
         <View style={styles.chatRoomHeader}>
           <TouchableOpacity
             style={styles.chatBackBtn}
-            onPress={() => setActiveChat(null)}
+            onPress={() => {
+              if (activeChat.friendId) {
+                sendTyping(activeChat.friendId, false);
+              }
+              setActiveChat(null);
+            }}
             activeOpacity={0.7}
           >
             <Ionicons name="chevron-back" size={24} color="#064E3B" />
@@ -658,7 +777,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
               source={{ uri: activeChat.avatarUrl || FROG_MASCOT_URI }}
               style={styles.chatHeaderAvatar}
             />
-            {activeChat.isOnline && <View style={styles.onlineBadgeDot} />}
+            {isFriendOnline && <View style={styles.onlineBadgeDot} />}
           </View>
 
           <View style={styles.chatHeaderInfo}>
@@ -672,11 +791,18 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
                 </View>
               )}
             </View>
-            <Text style={styles.chatHeaderStatus}>
+            <Text
+              style={[
+                styles.chatHeaderStatus,
+                isFriendTyping && { color: '#059669', fontWeight: '700' },
+              ]}
+            >
               {activeChat.isAi
                 ? (isVi ? 'Trợ lý tài chính Monett 24/7' : 'Monett Financial AI 24/7')
-                : activeChat.isOnline
-                ? (isVi ? 'Đang trực tuyến' : 'Online')
+                : isFriendTyping
+                ? (isVi ? '💬 Đang soạn tin...' : '💬 Typing...')
+                : isFriendOnline
+                ? (isVi ? '🟢 Đang trực tuyến' : '🟢 Online')
                 : (isVi ? 'Hoạt động gần đây' : 'Recently active')}
             </Text>
           </View>
@@ -826,6 +952,19 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
                       <Text style={styles.aiTypingText}>{isVi ? 'Ếch Monett đang suy nghĩ...' : 'Monett Frog is thinking...'}</Text>
                     </View>
                   </View>
+                ) : isFriendTyping ? (
+                  <View style={[styles.messageRow, styles.messageRowOther]}>
+                    <Image
+                      source={{ uri: activeChat?.avatarUrl || FROG_MASCOT_URI }}
+                      style={styles.messageSenderAvatar}
+                    />
+                    <View style={styles.typingBubble}>
+                      <TypingDots />
+                      <Text style={styles.typingText}>
+                        {isVi ? `${activeChat?.name || 'Bạn bè'} đang soạn tin...` : `${activeChat?.name || 'Friend'} is typing...`}
+                      </Text>
+                    </View>
+                  </View>
                 ) : (
                   <View style={{ height: 12 }} />
                 )
@@ -909,7 +1048,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
               placeholder={activeChat.isAi ? (isVi ? 'Hỏi Ếch Monett về tài chính...' : 'Ask Frog Monett about finance...') : (isVi ? 'Nhập tin nhắn...' : 'Type a message...')}
               placeholderTextColor="#94A3B8"
               value={inputText}
-              onChangeText={setInputText}
+              onChangeText={(text) => {
+                setInputText(text);
+                if (activeChat.friendId) {
+                  sendTyping(activeChat.friendId, text.trim().length > 0);
+                }
+              }}
               multiline
               maxLength={500}
             />
@@ -1115,25 +1259,28 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
           {/* Các bạn bè đang online */}
           {conversations
             .filter((c) => !c.isAi)
-            .map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.storyItem}
-                onPress={() => setActiveChat(item)}
-                activeOpacity={0.75}
-              >
-                <View style={styles.storyAvatarRing}>
-                  <Image
-                    source={{ uri: item.avatarUrl || FROG_MASCOT_URI }}
-                    style={styles.storyAvatar}
-                  />
-                  {item.isOnline && <View style={styles.storyOnlineDot} />}
-                </View>
-                <Text style={styles.storyNameText} numberOfLines={1}>
-                  {item.name.split(' ')[0]}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            .map((item) => {
+              const isOnline = item.friendId ? isUserOnline(item.friendId) : !!item.isOnline;
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={styles.storyItem}
+                  onPress={() => setActiveChat(item)}
+                  activeOpacity={0.75}
+                >
+                  <View style={styles.storyAvatarRing}>
+                    <Image
+                      source={{ uri: item.avatarUrl || FROG_MASCOT_URI }}
+                      style={styles.storyAvatar}
+                    />
+                    {isOnline && <View style={styles.storyOnlineDot} />}
+                  </View>
+                  <Text style={styles.storyNameText} numberOfLines={1}>
+                    {item.name.split(' ')[0]}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
         </ScrollView>
       </View>
 
@@ -1212,6 +1359,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
           </View>
         ) : (
           filteredConversations.map((item) => {
+            const isOnline = item.isAi
+              ? true
+              : item.friendId
+              ? isUserOnline(item.friendId)
+              : !!item.isOnline;
+            const isTyping = item.friendId ? isUserTyping(item.friendId) : false;
+
             return (
               <TouchableOpacity
                 key={item.id}
@@ -1228,7 +1382,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
                     source={{ uri: item.avatarUrl || FROG_MASCOT_URI }}
                     style={styles.convAvatar}
                   />
-                  {item.isOnline && <View style={styles.convOnlineDot} />}
+                  {isOnline && <View style={styles.convOnlineDot} />}
                   {item.isAi && (
                     <View style={styles.convAiPinIcon}>
                       <Ionicons name="sparkles" size={10} color="#FFFFFF" />
@@ -1267,15 +1421,27 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
                     )}
                   </View>
 
-                  <Text
-                    style={[
-                      styles.convLastMessageText,
-                      item.unreadCount > 0 && styles.convLastMessageUnread,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {item.lastMessage}
-                  </Text>
+                  {isTyping ? (
+                    <Text
+                      style={[
+                        styles.convLastMessageText,
+                        { color: '#059669', fontStyle: 'italic', fontWeight: '600' },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {isVi ? '💬 Đang soạn tin...' : '💬 Typing...'}
+                    </Text>
+                  ) : (
+                    <Text
+                      style={[
+                        styles.convLastMessageText,
+                        item.unreadCount > 0 && styles.convLastMessageUnread,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {item.lastMessage}
+                    </Text>
+                  )}
                 </View>
 
                 {/* Cột phải: Thời gian & Unread Badge */}
@@ -1574,7 +1740,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
                         <View style={{ flex: 1 }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                             <Text style={styles.friendListName}>{friend.fullName}</Text>
-                            <View style={styles.onlineStatusDot} />
+                            {isUserOnline(friend._id) && <View style={styles.onlineStatusDot} />}
                           </View>
                           <Text style={styles.friendListEmail}>{friend.email || (isVi ? 'Bạn bè Monett' : 'Monett Friend')}</Text>
                         </View>
@@ -2774,5 +2940,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#047857',
+  },
+  typingBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    gap: 8,
+  },
+  typingDotsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#059669',
+  },
+  typingText: {
+    fontSize: 12,
+    color: '#059669',
+    fontWeight: '600',
   },
 });

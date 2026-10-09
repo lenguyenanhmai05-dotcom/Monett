@@ -18,6 +18,7 @@ import { MobileAuthScreen } from './src/screens/mobile/MobileAuthScreen';
 import { MobileNavigator } from './src/screens/mobile/MobileNavigator';
 import { TransactionProvider } from './src/contexts/TransactionContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { SocketProvider } from './src/contexts/SocketContext';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 
@@ -127,10 +128,12 @@ export default function App() {
     <SafeAreaProvider>
       <LanguageProvider>
         <AuthProvider>
-          <ThemeProvider>
-            <StatusBar style="dark" />
-            <MainApp />
-          </ThemeProvider>
+          <SocketProvider>
+            <ThemeProvider>
+              <StatusBar style="dark" />
+              <MainApp />
+            </ThemeProvider>
+          </SocketProvider>
         </AuthProvider>
       </LanguageProvider>
     </SafeAreaProvider>
