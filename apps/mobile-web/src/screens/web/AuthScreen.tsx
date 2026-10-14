@@ -1988,8 +1988,8 @@ const styles = StyleSheet.create({
     borderRadius: 9,
   },
   segmentBtnActive: {
-    backgroundColor: '#059669', // Nút tab ngọc lục bảo nổi bật
-    shadowColor: '#059669',
+    backgroundColor: '#064E3B', // Nút tab xanh đậm bản cũ
+    shadowColor: '#064E3B',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 6,
@@ -2314,8 +2314,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   checkboxBoxChecked: {
-    backgroundColor: '#059669',
-    borderColor: '#059669',
+    backgroundColor: '#064E3B',
+    borderColor: '#064E3B',
   },
   checkMark: {
     color: '#FFFFFF',
@@ -2327,16 +2327,16 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
 
-  // Nút CTA Chính (Nút Xanh Ngọc Lục Bảo Sang Trọng)
+  // Nút CTA Chính (Tone xanh đậm bản cũ #064E3B)
   submitBtn: {
-    backgroundColor: '#059669', // Nút xanh ngọc bích rực rỡ, uy tín và hiện đại
+    backgroundColor: '#064E3B', // Nút xanh đậm bản cũ sang trọng, uy tín
     paddingVertical: 13,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#059669',
+    shadowColor: '#064E3B',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.35,
     shadowRadius: 10,
     elevation: 4,
     marginTop: 6,

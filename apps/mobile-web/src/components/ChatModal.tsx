@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getMessagesApi, sendMessageApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { playNotificationSound } from '../utils/soundUtils';
 
 interface Message {
   _id: string;
@@ -40,6 +41,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({ visible, onClose, friend }
     }
   };
 
+  const prevMsgCount = useRef(0);
+
   useEffect(() => {
     const friendId = friend?._id || friend?.id;
     if (visible && friendId) {
@@ -50,8 +53,17 @@ export const ChatModal: React.FC<ChatModalProps> = ({ visible, onClose, friend }
         loadMessages();
       }, 3000);
       return () => clearInterval(interval);
+    } else {
+      prevMsgCount.current = 0;
     }
   }, [visible, friend]);
+
+  useEffect(() => {
+    if (visible && messages.length > prevMsgCount.current && prevMsgCount.current > 0) {
+      playNotificationSound();
+    }
+    prevMsgCount.current = messages.length;
+  }, [messages.length, visible]);
 
   const handleSend = async () => {
     const friendId = friend?._id || friend?.id;

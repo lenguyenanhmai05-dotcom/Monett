@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,10 +20,6 @@ import {
   updateProfileApi,
   changePasswordApi,
   exportDataApi,
-  sendFriendRequestApi,
-  getFriendsApi,
-  getFriendRequestsApi,
-  respondFriendRequestApi,
   normalizeAvatarUrl,
   getStreakApi,
   checkInStreakApi,
@@ -32,8 +29,6 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTransactions } from '../../contexts/TransactionContext';
 import { FROGS } from '../../../assets/frogIndex';
 import * as ImagePicker from 'expo-image-picker';
-import QRCode from 'react-qr-code';
-import { ChatModal } from '../../components/ChatModal';
 
 interface ProfileScreenProps {
   onBack?: () => void;
@@ -95,19 +90,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [showExportModal, setShowExportModal] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
-  // QR / Add Friend State
-  const [showQRModal, setShowQRModal] = useState(false);
-  const [friendIdInput, setFriendIdInput] = useState('');
-  const [isSendingFriendReq, setIsSendingFriendReq] = useState(false);
-  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
-
-  // Friends Modal State (List + Requests tabs - like web)
-  const [showFriendsModal, setShowFriendsModal] = useState(false);
-  const [friendsTab, setFriendsTab] = useState<'list' | 'requests'>('list');
-  const [friendsList, setFriendsList] = useState<any[]>([]);
-  const [friendsLoading, setFriendsLoading] = useState(false);
-  const [activeChatFriend, setActiveChatFriend] = useState<any | null>(null);
-
   // Streak & Gamification State (Interactive)
   const [streakCount, setStreakCount] = useState<number>(authUser?.streak || 1);
   const [activeToday, setActiveToday] = useState<boolean>(false);
@@ -116,8 +98,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [shieldAvailable, setShieldAvailable] = useState<boolean>(true);
   const [shieldUsedToday, setShieldUsedToday] = useState<boolean>(false);
   const [streakLoading, setStreakLoading] = useState<boolean>(false);
-  const [showStreakModal, setShowStreakModal] = useState<boolean>(false);
   const [showFrogModal, setShowFrogModal] = useState<boolean>(false);
+
 
   // Feedback State
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -128,6 +110,19 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const loadStreakData = async () => {
     try {
+      // Tự động kiểm tra điểm danh ngày mới khi người dùng vào trang
+      try {
+        const checkRes: any = await checkInStreakApi();
+        if (checkRes && checkRes.streak !== undefined) {
+          setStreakCount(checkRes.streak);
+          if (checkRes.activeToday !== undefined) {
+            setActiveToday(Boolean(checkRes.activeToday));
+          } else {
+            setActiveToday(true);
+          }
+        }
+      } catch (_) {}
+
       const data: any = await getStreakApi();
       if (data) {
         if (data.streak !== undefined) setStreakCount(data.streak);
@@ -192,72 +187,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   ];
   const currentStage = frogStages.find(s => currentLevel >= s.minLvl && currentLevel <= s.maxLvl) || frogStages[2];
 
-  const loadFriendsData = async () => {
-    try {
-      setFriendsLoading(true);
-      const [friends, requests] = await Promise.all([
-        getFriendsApi().catch(() => []),
-        getFriendRequestsApi().catch(() => []),
-      ]);
-      // Normalize friends list
-      const myId = authUser?.id || (authUser as any)?._id || '';
-      const normalized = ((friends as any[]) || []).map((f: any) => {
-        const friend = (f.requester || f.recipient)
-          ? ((f.requester?._id === myId || f.requester?.id === myId) ? f.recipient : f.requester)
-          : f;
-        return {
-          _id: friend?._id || friend?.id || f._id,
-          fullName: friend?.fullName || f.fullName || 'User',
-          email: friend?.email || f.email || '',
-          avatarUrl: normalizeAvatarUrl(friend?.avatarUrl || f.avatarUrl),
-          lastActiveDate: friend?.lastActiveDate || f.lastActiveDate || '',
-          updatedAt: friend?.updatedAt || f.updatedAt || '',
-        };
-      }).filter((f: any) => f._id && f._id !== myId);
-      setFriendsList(normalized);
-      setPendingRequests((requests as any[]) || []);
-    } catch (e) {
-      console.warn('Error loading friends data:', e);
-    } finally {
-      setFriendsLoading(false);
-    }
-  };
 
-  const loadPendingRequests = async () => {
-    try {
-      const reqs = await getFriendRequestsApi();
-      setPendingRequests(reqs || []);
-    } catch (e) {
-      console.warn('Error loading friend requests:', e);
-    }
-  };
-
-  const handleRespondRequest = async (requestId: string, status: 'accepted' | 'rejected') => {
-    try {
-      await respondFriendRequestApi(requestId, status);
-      Alert.alert('✅', status === 'accepted' ? (isVi ? 'Đã đồng ý kết bạn!' : 'Friend request accepted!') : (isVi ? 'Đã từ chối' : 'Declined'));
-      loadPendingRequests();
-    } catch (e: any) {
-      Alert.alert(isVi ? 'Lỗi' : 'Error', e.message || (isVi ? 'Lỗi xử lý yêu cầu' : 'Error handling request'));
-    }
-  };
-
-  const handleAddFriend = async () => {
-    let cleanId = friendIdInput.trim();
-    if (cleanId.startsWith('#')) cleanId = cleanId.slice(1);
-    if (!cleanId) { Alert.alert(isVi ? 'Lỗi' : 'Error', isVi ? 'Vui lòng nhập ID bạn bè' : 'Please enter friend ID'); return; }
-    try {
-      setIsSendingFriendReq(true);
-      await sendFriendRequestApi(cleanId);
-      Alert.alert('✅ ' + (isVi ? 'Thành công' : 'Success'), isVi ? 'Đã gửi lời mời kết bạn!' : 'Friend request sent!');
-      setFriendIdInput('');
-      loadPendingRequests();
-    } catch (e: any) {
-      Alert.alert('❌ ' + (isVi ? 'Lỗi' : 'Error'), e.message || (isVi ? 'Không thể gửi lời mời kết bạn' : 'Failed to send friend request'));
-    } finally {
-      setIsSendingFriendReq(false);
-    }
-  };
 
   const handleExportData = async (format: 'csv' | 'json') => {
     try {
@@ -421,17 +351,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }
   };
 
-  const handleCopyId = async () => {
-    const myId = authUser?.id || (authUser as any)?._id || '';
-    if (myId) {
-      if (typeof navigator !== 'undefined' && navigator.clipboard) {
-        try {
-          await navigator.clipboard.writeText(myId);
-        } catch (e) {}
-      }
-      Alert.alert('✅', isVi ? `Đã sao chép ID: ${myId}` : `Copied ID: ${myId}`);
-    }
-  };
+
+
 
   const handleLogout = () => {
     if (onLogout) onLogout();
@@ -449,58 +370,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   };
 
   const menuItems: MenuItem[] = [
-    ...(onNavigateToWallets ? [{
-      iconName: 'wallet-outline' as const,
-      iconBg: '#ECFDF5',
-      iconColor: '#059669',
-      title: isVi ? 'Ví của tôi' : 'My Wallets',
-      subtitle: isVi ? 'Quản lý tài khoản ngân hàng & nguồn tiền' : 'Manage bank accounts & wallets',
-      onPress: onNavigateToWallets,
-    }] : []),
-    ...(onNavigateToCategories ? [{
-      iconName: 'grid-outline' as const,
-      iconBg: '#EFF6FF',
-      iconColor: '#2563EB',
-      title: isVi ? 'Danh mục chi tiêu' : 'Categories',
-      subtitle: isVi ? 'Quản lý danh mục & hạn mức ngân sách' : 'Manage expense categories & limits',
-      onPress: onNavigateToCategories,
-    }] : []),
-    ...(onNavigateToFeed ? [{
-      iconName: 'people-outline' as const,
-      iconBg: '#FEF3C7',
-      iconColor: '#D97706',
-      title: isVi ? 'Bảng tin bạn bè' : 'Friends Feed',
-      subtitle: undefined,
-      onPress: onNavigateToFeed,
-    }] : []),
-    {
-      iconName: 'people-outline' as const,
-      iconBg: '#ECFDF5',
-      iconColor: '#059669',
-      title: isVi ? 'Bạn bè' : 'Friends',
-      subtitle: isVi ? 'Quản lý mạng lưới bạn bè' : 'Manage your network',
-      onPress: () => {
-        setFriendsTab('list');
-        setShowFriendsModal(true);
-        loadFriendsData();
-      },
-    },
-    {
-      iconName: 'qr-code-outline' as const,
-      iconBg: '#EFF6FF',
-      iconColor: '#2563EB',
-      title: isVi ? 'Kết bạn & QR Code' : 'Add Friends & QR Code',
-      subtitle: isVi ? 'Chia sẻ mã & kết bạn' : 'Share QR code & add friends',
-      onPress: () => {
-        setShowQRModal(true);
-        loadPendingRequests();
-      },
-    },
     { 
       iconName: 'alarm-outline' as const, 
       iconBg: '#FEF3C7',
       iconColor: '#D97706',
-      title: isVi ? 'Nhắc nhở giữ chuỗi Streak' : 'Daily Streak Reminder', 
+      title: isVi ? 'Nhắc nhở ghi chép chi tiêu' : 'Daily Expense Reminder', 
       subtitle: (authUser as any)?.reminderTime
         ? (isVi ? `Hằng ngày lúc ${(authUser as any).reminderTime}` : `Daily at ${(authUser as any).reminderTime}`)
         : (isVi ? 'Đang tắt' : 'Disabled'),
@@ -534,14 +408,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       ),
       onPress: () => setShowCurrencyModal(true),
     },
-    {
-      iconName: 'document-text-outline' as const,
-      iconBg: '#EFF6FF',
-      iconColor: '#2563EB',
-      title: isVi ? 'Xuất dữ liệu thu chi' : 'Export Financial Data',
-      subtitle: isVi ? 'Tải báo cáo Excel (CSV) hoặc file JSON' : 'Download Excel (CSV) or JSON report',
-      onPress: () => setShowExportModal(true),
-    },
+
     { 
       iconName: 'help-circle-outline' as const,
       iconBg: '#F1F5F9',
@@ -558,26 +425,22 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* 1. Header Bar */}
-      <View style={[styles.header, !onBack && { justifyContent: 'space-between' }]}>
-        {onBack ? (
-          <TouchableOpacity style={styles.headerBtn} onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <Ionicons name="chevron-back" size={24} color="#1E293B" />
-          </TouchableOpacity>
-        ) : (
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Image
-              source={require('../../../assets/adaptive-icon.png')}
-              style={{ width: 38, height: 38, borderRadius: 8, marginRight: 10 }}
-              resizeMode="contain"
-            />
-            <Text style={{ fontSize: 18, fontWeight: '800', color: '#047857' }}>Monett</Text>
+      <View style={styles.header}>
+        <View style={styles.headerTitleRow}>
+          {onBack && (
+            <TouchableOpacity style={styles.headerBtn} onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="chevron-back" size={22} color="#1E293B" />
+            </TouchableOpacity>
+          )}
+          <View style={styles.brandBadgeIcon}>
+            <Ionicons name="person" size={20} color="#047857" />
           </View>
-        )}
-        
-        <View style={{ position: 'absolute', left: 0, right: 0, alignItems: 'center', pointerEvents: 'none' }}>
-          <Text style={styles.headerTitle}>{isVi ? 'Hồ Sơ Cá Nhân' : 'My Profile'}</Text>
+          <View>
+            <Text style={styles.headerTitle}>{isVi ? 'Hồ sơ cá nhân' : 'My Profile'}</Text>
+            <Text style={styles.headerSubtitle}>{isVi ? 'Tài khoản & Thiết lập' : 'Account & Settings'}</Text>
+          </View>
         </View>
 
         <TouchableOpacity style={styles.headerBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -585,7 +448,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 2. User Hero Card */}
         <View style={styles.profileHeroCard}>
           <TouchableOpacity style={styles.avatarContainer} onPress={handlePickImage} disabled={isUploading} activeOpacity={0.8}>
@@ -622,71 +485,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <Ionicons name="pencil" size={14} color="#059669" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
           <Text style={styles.userEmail}>{displayEmail}</Text>
-
-          {authUser?.isPro && (
-            <View style={{
-              backgroundColor: '#111827',
-              paddingHorizontal: 16,
-              paddingVertical: 8,
-              borderRadius: 20,
-              marginTop: 12,
-              flexDirection: 'row',
-              alignItems: 'center',
-              shadowColor: '#FDE047',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.2,
-              shadowRadius: 4,
-              elevation: 3,
-            }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#FDE047' }}>
-                ✨ PRO • {isVi ? 'Thành viên Tinh Hoa' : 'Elite Member'}
-              </Text>
-            </View>
-          )}
-
         </View>
-
-        {/* 3. Streak Card (Interactive) */}
-        <TouchableOpacity
-          style={styles.streakCard}
-          activeOpacity={0.85}
-          onPress={() => setShowStreakModal(true)}
-        >
-          <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#FFF7ED', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#FFEDD5', shadowColor: '#EA580C', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 }}>
-            <Ionicons name="flame" size={26} color="#EA580C" />
-          </View>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={styles.streakTitle}>
-                {isVi
-                  ? `Chuỗi ${currentStreak} ngày bùng cháy`
-                  : `${currentStreak}-Day Blazing Streak`}
-              </Text>
-              {activeToday ? (
-                <View style={{ backgroundColor: '#DCFCE7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#16A34A' }}>
-                    {isVi ? 'ĐÃ GIỮ CHUỖI' : 'ACTIVE'}
-                  </Text>
-                </View>
-              ) : (
-                <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#D97706' }}>
-                    {isVi ? 'CHƯA ĐIỂM DANH' : 'PENDING'}
-                  </Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.streakSub}>
-              {activeToday
-                ? (isVi
-                    ? 'Đã ghi nhận khoảnh khắc hôm nay. Chạm để xem chi tiết & mốc thưởng!'
-                    : 'Continuous moments recorded. Tap to view perks & milestones!')
-                : (isVi
-                    ? 'Chưa duy trì hôm nay. Nhấn để điểm danh ngay trước 23:00!'
-                    : 'Not maintained today. Tap to check-in before 23:00!')}
-            </Text>
-          </View>
-        </TouchableOpacity>
 
 
 
@@ -739,317 +538,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </TouchableOpacity>
       </ScrollView>
 
-      {/* MODAL: BẠN BÈ (List + Requests tabs - giống web) */}
-      <Modal visible={showFriendsModal} transparent animationType="slide" onRequestClose={() => setShowFriendsModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '85%', paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, overflow: 'hidden' }]}>
-            {/* Header */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 12 }}>
-              <Text style={styles.modalTitle}>{isVi ? '👥 Bạn bè' : '👥 Friends'}</Text>
-              <TouchableOpacity onPress={() => setShowFriendsModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <View style={{ width: 28, height: 28, borderRadius: 8, borderWidth: 1.5, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center' }}>
-                  <Ionicons name="close" size={18} color="#64748B" />
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            {/* Tabs */}
-            <View style={{ flexDirection: 'row', borderBottomWidth: 1.5, borderBottomColor: '#F1F5F9', paddingHorizontal: 20 }}>
-              <TouchableOpacity
-                style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderBottomWidth: 2.5, borderBottomColor: friendsTab === 'list' ? '#059669' : 'transparent' }}
-                onPress={() => setFriendsTab('list')}
-              >
-                <Text style={{ fontSize: 14, fontWeight: '700', color: friendsTab === 'list' ? '#059669' : '#94A3B8' }}>
-                  {isVi ? 'Danh sách' : 'List'}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderBottomWidth: 2.5, borderBottomColor: friendsTab === 'requests' ? '#059669' : 'transparent' }}
-                onPress={() => setFriendsTab('requests')}
-              >
-                <Text style={{ fontSize: 14, fontWeight: '700', color: friendsTab === 'requests' ? '#059669' : '#94A3B8' }}>
-                  {isVi ? 'Lời mời' : 'Requests'}
-                  {pendingRequests.length > 0 && (
-                    <Text style={{ fontSize: 11, color: '#EF4444', fontWeight: '800' }}> ({pendingRequests.length})</Text>
-                  )}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Content */}
-            {friendsLoading ? (
-              <View style={{ padding: 40, alignItems: 'center' }}>
-                <ActivityIndicator size="large" color="#059669" />
-                <Text style={{ marginTop: 10, color: '#94A3B8', fontSize: 13 }}>{isVi ? 'Đang tải...' : 'Loading...'}</Text>
-              </View>
-            ) : friendsTab === 'list' ? (
-              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
-                {friendsList.length === 0 ? (
-                  <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                    <Text style={{ fontSize: 40, marginBottom: 12 }}>👥</Text>
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#0F172A', marginBottom: 6 }}>
-                      {isVi ? 'Chưa có bạn bè nào' : 'No friends yet'}
-                    </Text>
-                    <Text style={{ fontSize: 13, color: '#94A3B8', textAlign: 'center' }}>
-                      {isVi ? 'Hãy kết bạn để cùng theo dõi chi tiêu!' : 'Add friends to track expenses together!'}
-                    </Text>
-                  </View>
-                ) : (
-                  friendsList.map((friend, i) => {
-                    // Generate Genshin style background colors
-                    const bgColors = [
-                      ['#FFF5F5', '#FED7D7'],
-                      ['#F0FFF4', '#C6F6D5'],
-                      ['#EBF8FF', '#BEE3F8'],
-                      ['#FAF5FF', '#E9D8FD'],
-                      ['#FFFFF0', '#FEFCBF']
-                    ];
-                    const cardBg = bgColors[i % 5][0];
-                    
-                    let isOnline = false;
-                    let offlineString = '';
-                    if (friend.updatedAt || friend.lastActiveDate) {
-                      const now = new Date();
-                      // Try to use updatedAt for accurate time difference
-                      if (friend.updatedAt) {
-                        const lastActive = new Date(friend.updatedAt);
-                        const diffMs = Math.abs(now.getTime() - lastActive.getTime());
-                        const diffMins = Math.floor(diffMs / (1000 * 60));
-                        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-                        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-                        
-                        // Consider online if active within last 10 minutes
-                        if (diffMins < 10) {
-                          isOnline = true;
-                        } else if (diffHours < 1) {
-                          offlineString = isVi ? `Đăng nhập lần cuối ${diffMins} phút` : `Last login ${diffMins} mins`;
-                        } else if (diffHours < 24) {
-                          offlineString = isVi ? `Đăng nhập lần cuối ${diffHours} giờ` : `Last login ${diffHours} hrs`;
-                        } else {
-                          offlineString = isVi ? `Đăng nhập lần cuối ${diffDays} ngày` : `Last login ${diffDays} days`;
-                        }
-                      } else {
-                        // Fallback to lastActiveDate (YYYY-MM-DD)
-                        const vnTime = new Date(now.getTime() + 7 * 60 * 60 * 1000);
-                        const todayStr = vnTime.toISOString().split('T')[0];
-                        if (friend.lastActiveDate === todayStr) {
-                          isOnline = true;
-                        } else {
-                          const lastActive = new Date(friend.lastActiveDate);
-                          const diffTime = Math.abs(vnTime.getTime() - lastActive.getTime());
-                          const daysOffline = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-                          offlineString = isVi ? `Đăng nhập lần cuối ${daysOffline} ngày` : `Last login ${daysOffline} days`;
-                        }
-                      }
-                    } else {
-                      offlineString = isVi ? 'Đăng nhập lần cuối > 30 ngày' : 'Last login > 30 days';
-                    }
-                    
-                    const initial = (friend.fullName || '?').charAt(0).toUpperCase();
-                    return (
-                      <View key={friend._id || i} style={{ 
-                        flexDirection: 'row', 
-                        alignItems: 'center', 
-                        paddingVertical: 12, 
-                        paddingHorizontal: 16,
-                        borderRadius: 24,
-                        marginBottom: 10,
-                        backgroundColor: cardBg,
-                        borderWidth: 1,
-                        borderColor: 'rgba(0,0,0,0.05)',
-                        justifyContent: 'space-between'
-                      }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                          {/* Avatar */}
-                          {friend.avatarUrl ? (
-                            <Image source={{ uri: friend.avatarUrl }} style={{ width: 44, height: 44, borderRadius: 22, borderWidth: 2, borderColor: '#FFFFFF' }} />
-                          ) : (
-                            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#059669', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFFFFF' }}>
-                              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>{initial}</Text>
-                            </View>
-                          )}
-                          <View style={{ marginLeft: 12 }}>
-                            <Text style={{ fontSize: 15, fontWeight: '700', color: '#0F172A' }}>{friend.fullName || 'Người dùng'}</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                              <View style={{ width: 6, height: 6, borderRadius: 3, marginRight: 6, backgroundColor: isOnline ? '#4ADE80' : '#94A3B8' }} />
-                              <Text style={{ fontSize: 12, fontWeight: '500', color: isOnline ? '#4ADE80' : '#64748B' }}>
-                                {isOnline ? (isVi ? 'Trực tuyến' : 'Online') : offlineString}
-                              </Text>
-                            </View>
-                          </View>
-                        </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'flex-end', marginLeft: 16 }}>
-                          <TouchableOpacity 
-                            style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.05)', justifyContent: 'center', alignItems: 'center' }}
-                            onPress={() => setActiveChatFriend(friend)}
-                          >
-                            <Ionicons name="chatbubble-ellipses" size={18} color="#475569" />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    );
-                  })
-                )}
-              </ScrollView>
-            ) : (
-              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
-                {pendingRequests.length === 0 ? (
-                  <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                    <Text style={{ fontSize: 40, marginBottom: 12 }}>📩</Text>
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#0F172A', marginBottom: 6 }}>
-                      {isVi ? 'Không có lời mời nào' : 'No pending requests'}
-                    </Text>
-                    <Text style={{ fontSize: 13, color: '#94A3B8', textAlign: 'center' }}>
-                      {isVi ? 'Các lời mời kết bạn sẽ hiện ở đây' : 'Friend requests will appear here'}
-                    </Text>
-                  </View>
-                ) : (
-                  pendingRequests.map((req) => {
-                    const colors = ['#059669', '#8B5CF6', '#F59E0B', '#EF4444', '#0EA5E9'];
-                    const name = req.requester?.fullName || 'User';
-                    let hash = 0;
-                    for (let j = 0; j < name.length; j++) hash = name.charCodeAt(j) + ((hash << 5) - hash);
-                    const bg = colors[Math.abs(hash) % colors.length];
-                    const initial = name.charAt(0).toUpperCase();
-                    const avatarUrl = normalizeAvatarUrl(req.requester?.avatarUrl);
-                    return (
-                      <View key={req._id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 14, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: '#E2E8F0' }}>
-                        {avatarUrl ? (
-                          <Image source={{ uri: avatarUrl }} style={{ width: 44, height: 44, borderRadius: 22 }} />
-                        ) : (
-                          <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: bg, justifyContent: 'center', alignItems: 'center' }}>
-                            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 18 }}>{initial}</Text>
-                          </View>
-                        )}
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '700', color: '#0F172A' }}>{name}</Text>
-                          <Text style={{ fontSize: 11, color: '#64748B', marginTop: 1 }}>{req.requester?.email || ''}</Text>
-                        </View>
-                        <View style={{ flexDirection: 'row', gap: 6 }}>
-                          <TouchableOpacity
-                            style={{ backgroundColor: '#059669', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 }}
-                            onPress={async () => {
-                              await handleRespondRequest(req._id, 'accepted');
-                              loadFriendsData();
-                            }}
-                          >
-                            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{isVi ? 'Đồng ý' : 'Accept'}</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={{ backgroundColor: '#F1F5F9', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1' }}
-                            onPress={async () => {
-                              await handleRespondRequest(req._id, 'rejected');
-                              loadFriendsData();
-                            }}
-                          >
-                            <Text style={{ color: '#64748B', fontSize: 12, fontWeight: '700' }}>{isVi ? 'Từ chối' : 'Decline'}</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    );
-                  })
-                )}
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* MODAL: KẾT BẠN & QR CODE */}
-      <Modal visible={showQRModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '90%' }]}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <Text style={styles.modalTitle}>{isVi ? '🤝 Kết bạn & QR Code' : '🤝 Friends & QR Code'}</Text>
-              <TouchableOpacity onPress={() => setShowQRModal(false)}>
-                <Text style={{ fontSize: 26, color: '#94A3B8' }}>×</Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {/* Thêm bạn bằng ID */}
-              <Text style={{ fontSize: 14, fontWeight: '700', color: '#1E293B', marginBottom: 8 }}>
-                {isVi ? 'Thêm bạn mới bằng ID:' : 'Add friend by ID:'}
-              </Text>
-              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-                <TextInput
-                  style={[styles.textInput, { flex: 1 }]}
-                  placeholder={isVi ? 'Dán hoặc nhập ID bạn bè...' : 'Paste or enter friend ID...'}
-                  placeholderTextColor="#94A3B8"
-                  value={friendIdInput}
-                  onChangeText={setFriendIdInput}
-                  autoCapitalize="none"
-                />
-                <TouchableOpacity
-                  style={[styles.btnSave, { paddingHorizontal: 16, opacity: isSendingFriendReq ? 0.6 : 1 }]}
-                  onPress={handleAddFriend}
-                  disabled={isSendingFriendReq}
-                >
-                  <Text style={styles.btnSaveText}>{isSendingFriendReq ? '...' : (isVi ? 'Kết bạn' : 'Add')}</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Lời mời kết bạn đang chờ (nếu có) */}
-              {pendingRequests.length > 0 && (
-                <View style={{ backgroundColor: '#EFF6FF', borderRadius: 14, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: '#BFDBFE' }}>
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#1E40AF', marginBottom: 8 }}>
-                    {isVi ? `📩 Lời mời kết bạn (${pendingRequests.length}):` : `📩 Friend Requests (${pendingRequests.length}):`}
-                  </Text>
-                  {pendingRequests.map((req) => (
-                    <View key={req._id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 10, borderRadius: 10, marginBottom: 6 }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: '700', fontSize: 13, color: '#0F172A' }}>{req.requester?.fullName || (isVi ? 'Người dùng' : 'User')}</Text>
-                        <Text style={{ fontSize: 11, color: '#64748B' }}>{req.requester?.email || ''}</Text>
-                      </View>
-                      <View style={{ flexDirection: 'row', gap: 6 }}>
-                        <TouchableOpacity
-                          style={{ backgroundColor: '#059669', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}
-                          onPress={() => handleRespondRequest(req._id, 'accepted')}
-                        >
-                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{isVi ? 'Đồng ý' : 'Accept'}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={{ backgroundColor: '#F1F5F9', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1' }}
-                          onPress={() => handleRespondRequest(req._id, 'rejected')}
-                        >
-                          <Text style={{ color: '#64748B', fontSize: 12, fontWeight: '700' }}>{isVi ? 'Từ chối' : 'Decline'}</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
-
-              {/* Divider */}
-              <View style={{ height: 1, backgroundColor: '#F1F5F9', marginBottom: 16 }} />
-
-              {/* QR Code của user */}
-              <View style={{ alignItems: 'center', marginBottom: 20 }}>
-                <Text style={{ fontSize: 13, color: '#64748B', marginBottom: 12, textAlign: 'center' }}>
-                  {isVi ? 'Chia sẻ mã QR hoặc ID của bạn để kết bạn:' : 'Share your QR code or ID to connect:'}
-                </Text>
-                <View style={{ padding: 16, backgroundColor: '#FFFFFF', borderRadius: 20, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 12 }}>
-                  <QRCode
-                    value={authUser?.id || (authUser as any)?._id || 'monett-user'}
-                    size={160}
-                    fgColor="#047857"
-                  />
-                </View>
-                <Text style={{ fontSize: 12, color: '#94A3B8', marginBottom: 4 }}>{isVi ? 'ID của bạn:' : 'Your ID:'}</Text>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: '#0F172A', fontFamily: 'monospace', textAlign: 'center', marginBottom: 10, marginHorizontal: 8 }}>
-                  {authUser?.id || (authUser as any)?._id || '...'}
-                </Text>
-                <TouchableOpacity
-                  style={{ backgroundColor: '#F1F5F9', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 20, borderWidth: 1, borderColor: '#E2E8F0' }}
-                  onPress={handleCopyId}
-                >
-                  <Text style={{ fontSize: 13, fontWeight: '700', color: '#475569' }}>{isVi ? '📋 Sao chép ID' : '📋 Copy ID'}</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
 
       {/* MODAL: SỬA THÔNG TIN */}
       <Modal visible={showProfileModal} transparent animationType="fade" onRequestClose={() => setShowProfileModal(false)}>
@@ -1505,217 +993,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </View>
       </Modal>
 
-      {/* PREMIUM STREAK MODAL */}
-      <Modal visible={showStreakModal} transparent animationType="fade" onRequestClose={() => setShowStreakModal(false)}>
-        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(15, 23, 42, 0.7)' }]}>
-          <View style={[styles.modalContent, { maxHeight: '95%', width: '92%', paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, overflow: 'hidden', backgroundColor: '#F8FAFC', borderRadius: 28, borderWidth: 1, borderColor: '#E2E8F0' }]}>
-            
-            {/* Header: Premium Style */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 24, paddingBottom: 16, backgroundColor: '#FFFFFF', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', zIndex: 10 }}>
-              <View style={{ flex: 1, paddingRight: 16 }}>
-                <Text style={{ fontSize: 22, fontWeight: '900', color: '#047857', marginBottom: 4 }}>
-                  {isVi ? '✨ Hành Trình Kỷ Luật' : '✨ Mindful Journey'}
-                </Text>
-
-              </View>
-              <TouchableOpacity onPress={() => setShowStreakModal(false)} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}>
-                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' }}>
-                  <Ionicons name="close" size={20} color="#64748B" />
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
-              
-              {/* Flame Hero Card with Decorative Elements */}
-              <View style={{ backgroundColor: '#059669', borderRadius: 24, padding: 24, alignItems: 'center', marginBottom: 24, overflow: 'hidden', shadowColor: '#059669', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8 }}>
-                {/* Decorative Circles */}
-                <View style={{ position: 'absolute', top: -30, right: -20, width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(255,255,255,0.1)' }} />
-                <View style={{ position: 'absolute', bottom: -40, left: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.05)' }} />
-
-                <View style={{ width: 86, height: 86, borderRadius: 43, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', marginBottom: 16, shadowColor: '#EA580C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 }}>
-                  <Ionicons name="flame" size={48} color="#EA580C" style={{ textShadowColor: "rgba(234, 88, 12, 0.5)", textShadowOffset: {width: 0, height: 4}, textShadowRadius: 8 }} />
-                </View>
-                <Text style={{ fontSize: 36, fontWeight: '900', color: '#FFFFFF', marginBottom: 4 }}>
-                  {isVi ? `${currentStreak} Ngày` : `${currentStreak} Days`}
-                </Text>
-                
-                <View style={{ backgroundColor: activeToday ? 'rgba(255,255,255,0.2)' : 'rgba(252, 165, 165, 0.3)', paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, marginBottom: 24 }}>
-                  <Text style={{ fontSize: 13, color: activeToday ? '#FFFFFF' : '#FEE2E2', fontWeight: '800' }}>
-                    {activeToday
-                      ? (isVi ? '✨ ĐÃ THẮP SÁNG HÔM NAY' : '✨ ILLUMINATED TODAY')
-                      : (isVi ? '⚡ ĐANG TÀN! THẮP SÁNG NGAY' : '⚡ FADING! IGNITE NOW')}
-                  </Text>
-                </View>
-
-                {/* Check-in CTA Button */}
-                <TouchableOpacity
-                  style={{
-                    backgroundColor: activeToday ? 'rgba(255,255,255,0.9)' : '#FCD34D',
-                    paddingVertical: 16,
-                    paddingHorizontal: 24,
-                    borderRadius: 16,
-                    width: '100%',
-                    alignItems: 'center',
-                    flexDirection: 'row',
-                    justifyContent: 'center',
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.15,
-                    shadowRadius: 6,
-                    elevation: 4,
-                  }}
-                  onPress={handleCheckInStreak}
-                  disabled={activeToday || streakLoading}
-                  activeOpacity={0.8}
-                >
-                  {streakLoading ? (
-                    <ActivityIndicator size="small" color="#059669" />
-                  ) : (
-                    <Text style={{ color: activeToday ? '#047857' : '#92400E', fontSize: 16, fontWeight: '900', textTransform: 'uppercase' }}>
-                      {activeToday
-                        ? (isVi ? '✓ Lửa Đang Cháy' : '✓ Flame is Alive')
-                        : (isVi ? 'Thắp Lửa Ngay ✦' : 'Ignite Flame ✦')}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-
-              {/* Progress to next milestone (New feature visually) */}
-              <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, marginBottom: 24, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#0F172A' }}>{isVi ? 'Tiến độ Cột Mốc' : 'Milestone Progress'}</Text>
-                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#059669' }}>
-                    {currentStreak} / {currentStreak < 3 ? 3 : currentStreak < 7 ? 7 : currentStreak < 14 ? 14 : 30}
-                  </Text>
-                </View>
-                <View style={{ height: 12, backgroundColor: '#F1F5F9', borderRadius: 6, overflow: 'hidden' }}>
-                  <View style={{ 
-                    height: '100%', 
-                    width: `${Math.min(100, (currentStreak / (currentStreak < 3 ? 3 : currentStreak < 7 ? 7 : currentStreak < 14 ? 14 : 30)) * 100)}%`, 
-                    backgroundColor: '#10B981', 
-                    borderRadius: 6 
-                  }} />
-                </View>
-                <Text style={{ fontSize: 12, color: '#64748B', marginTop: 10, textAlign: 'center', fontWeight: '500' }}>
-                  {isVi ? 'Duy trì thêm để nhận Thưởng Đột Phá' : 'Keep going for Breakthrough Rewards!'}
-                </Text>
-              </View>
-
-                            {/* Stats Box with Skill Icons */}
-              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
-                <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3, alignItems: 'center' }}>
-                  <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: '#F0FDF4', justifyContent: 'center', alignItems: 'center', marginBottom: 12, borderWidth: 1, borderColor: '#DCFCE7', shadowColor: '#22C55E', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 2 }}>
-                    <Text style={{ fontSize: 26 }}>🗺️</Text>
-                  </View>
-                  <Text style={{ fontSize: 28, fontWeight: '900', color: '#0F172A', marginBottom: 2 }}>
-                    {Math.max(totalActiveDays, currentStreak)}
-                  </Text>
-                  <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '800', textAlign: 'center', letterSpacing: 0.5 }}>
-                    {isVi ? 'TỔNG HÀNH TRÌNH' : 'TOTAL DAYS'}
-                  </Text>
-                </View>
-
-                <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#FFFBEB', shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 3, alignItems: 'center' }}>
-                  <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center', marginBottom: 12, borderWidth: 1, borderColor: '#FDE68A', shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 2 }}>
-                    <Text style={{ fontSize: 26 }}>🏆</Text>
-                  </View>
-                  <Text style={{ fontSize: 28, fontWeight: '900', color: '#D97706', marginBottom: 2 }}>
-                    {Math.max(longestStreak, currentStreak)}
-                  </Text>
-                  <Text style={{ fontSize: 11, color: '#B45309', fontWeight: '800', textAlign: 'center', letterSpacing: 0.5 }}>
-                    {isVi ? 'HẠNG CAO NHẤT' : 'HIGHEST RANK'}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Streak Shield */}
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#EFF6FF', borderRadius: 16, padding: 20, marginBottom: 32, borderWidth: 1, borderColor: '#BFDBFE' }}>
-                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: shieldAvailable ? '#DBEAFE' : '#F1F5F9', justifyContent: 'center', alignItems: 'center', marginRight: 16, opacity: shieldAvailable ? 1 : 0.5, borderWidth: 2, borderColor: shieldAvailable ? '#93C5FD' : '#E2E8F0' }}>
-                  <Text style={{ fontSize: 24 }}>🛡️</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '900', color: shieldAvailable ? '#1D4ED8' : '#64748B', marginBottom: 6 }}>
-                    {shieldUsedToday
-                      ? (isVi ? 'Khiên đã kích hoạt ✨' : 'Shield Activated ✨')
-                      : shieldAvailable
-                        ? (isVi ? 'Khiên Hộ Thể (1/tuần)' : 'Aegis Shield (1 left)')
-                        : (isVi ? 'Khiên Hộ Thể (Đã vỡ)' : 'Aegis Shield (Shattered)')}
-                  </Text>
-                  <Text style={{ fontSize: 13, color: '#475569', lineHeight: 20, fontWeight: '500' }}>
-                    {shieldAvailable
-                      ? (isVi ? 'Kỹ năng nội tại: Tự động bảo vệ chuỗi nếu bạn quên thắp sáng 1 ngày.' : 'Passive: Auto-protects your streak if you miss 1 day.')
-                      : (isVi ? 'Hồi phục vào Thứ 2. Tránh bỏ lỡ để không rớt hạng.' : 'Refills on Monday. Don\'t miss a day to keep your rank.')}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Milestones */}
-              <Text style={{ fontSize: 16, fontWeight: '900', color: '#0F172A', marginBottom: 16 }}>
-                {isVi ? '🎁 Phần Thưởng Đột Phá' : '🎁 Breakthrough Rewards'}
-              </Text>
-              <View style={{ gap: 12, marginBottom: 24 }}>
-                {[
-                  { days: 3, icon: '🌟', titleVi: 'Ngôi Sao Sơ Khởi', titleEn: 'Initial Star', rewardVi: 'MỞ KHÓA BẢN PRO', rewardEn: 'UNLOCK PRO', highlight: true },
-                  { days: 7, icon: '💎', titleVi: 'Tuần Lễ Khai Sáng', titleEn: 'Enlightened Week', rewardVi: 'Huy hiệu Streak Đồng', rewardEn: 'Bronze Badge' },
-                  { days: 14, icon: '⚡', titleVi: 'Dấu Ấn Kiên Định', titleEn: 'Mark of Resolve', rewardVi: 'Huy hiệu Bạc + 300 XP', rewardEn: 'Silver Badge + 300 XP' },
-                ].map((m, idx) => {
-                  const reached = currentStreak >= m.days;
-                  return (
-                    <View
-                      key={idx}
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        backgroundColor: '#FFFFFF',
-                        borderRadius: 16,
-                        padding: 16,
-                        borderWidth: 1,
-                        borderColor: (m.highlight && !reached) ? '#FCD34D' : (reached ? '#10B981' : '#E2E8F0'),
-                        shadowColor: m.highlight ? '#FBBF24' : '#000',
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: m.highlight ? 0.2 : 0.03,
-                        shadowRadius: 4,
-                        elevation: m.highlight ? 3 : 1,
-                      }}
-                    >
-                      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: reached ? '#ECFDF5' : '#F8FAFC', justifyContent: 'center', alignItems: 'center', marginRight: 16, borderWidth: 1, borderColor: reached ? '#A7F3D0' : '#E2E8F0' }}>
-                        <Text style={{ fontSize: 20 }}>{m.icon}</Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '900', color: '#0F172A' }}>
-                            {m.days} {isVi ? 'ngày' : 'days'}
-                          </Text>
-                          {m.highlight && (
-                            <View style={{ marginLeft: 8, backgroundColor: '#FEF2F2', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#FECACA' }}>
-                              <Text style={{ color: '#DC2626', fontSize: 10, fontWeight: '800' }}>HOT</Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text style={{ fontSize: 13, fontWeight: m.highlight ? '700' : '600', color: m.highlight ? '#D97706' : (reached ? '#059669' : '#64748B') }}>
-                          {isVi ? m.rewardVi : m.rewardEn}
-                        </Text>
-                      </View>
-                      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: reached ? '#10B981' : '#F1F5F9', justifyContent: 'center', alignItems: 'center' }}>
-                        {reached ? <Ionicons name="checkmark-sharp" size={18} color="#FFFFFF" /> : <Ionicons name="lock-closed" size={14} color="#94A3B8" />}
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-
-              <TouchableOpacity
-                style={{ width: '100%', paddingVertical: 18, alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0' }}
-                onPress={() => setShowStreakModal(false)}
-              >
-                <Text style={{ color: '#475569', fontSize: 15, fontWeight: '800' }}>{isVi ? 'Đóng cửa sổ' : 'Close window'}</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
       {/* 💬 FEEDBACK MODAL */}
       <Modal visible={showFeedbackModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -1822,17 +1099,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </View>
       </Modal>
 
-      <ChatModal 
-        visible={!!activeChatFriend}
-        onClose={() => setActiveChatFriend(null)}
-        friend={activeChatFriend}
-      />
+
+
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  scrollView: {
     flex: 1,
     backgroundColor: '#FAFAF9',
   },
@@ -1841,10 +1119,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 6,
+    paddingBottom: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
+  },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  brandBadgeIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#064E3B',
+    letterSpacing: -0.4,
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '500',
   },
   headerBtn: {
     width: 36,
@@ -1858,11 +1161,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: '#374151',
     marginTop: -2,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#111827',
   },
   scrollContent: {
     padding: 16,
@@ -1954,30 +1252,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#047857',
     marginTop: 6,
-  },
-  streakCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF7ED',
-    borderWidth: 1,
-    borderColor: '#FED7AA',
-    borderRadius: 18,
-    padding: 14,
-    marginBottom: 16,
-  },
-  streakFlame: {
-    fontSize: 32,
-  },
-  streakTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#C2410C',
-  },
-  streakSub: {
-    fontSize: 11,
-    color: '#EA580C',
-    marginTop: 2,
-    lineHeight: 16,
   },
   sectionTitle: {
     fontSize: 12,

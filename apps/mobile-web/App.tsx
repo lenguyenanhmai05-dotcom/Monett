@@ -12,10 +12,13 @@ import { TransactionsScreen } from './src/screens/web/TransactionsScreen';
 import { BudgetScreen } from './src/screens/web/BudgetScreen';
 import { CalendarScreen } from './src/screens/mobile/CalendarScreen';
 import { WebCalendarScreen } from './src/screens/web/CalendarScreen';
+import { FriendsFeedScreen } from './src/screens/mobile/FriendsFeedScreen';
+import { WebFeedScreen } from './src/screens/web/WebFeedScreen';
 import { MobileAuthScreen } from './src/screens/mobile/MobileAuthScreen';
 import { MobileNavigator } from './src/screens/mobile/MobileNavigator';
 import { TransactionProvider } from './src/contexts/TransactionContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { SocketProvider } from './src/contexts/SocketContext';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 
@@ -96,6 +99,8 @@ function MainApp() {
     switch (activeTab) {
       case 'home':
         return <HomeScreen onNavigateToTab={setActiveTab} />;
+      case 'feed':
+        return <WebFeedScreen />;
       case 'profile':
         return <ProfileScreen />;
       case 'moments':
@@ -123,10 +128,12 @@ export default function App() {
     <SafeAreaProvider>
       <LanguageProvider>
         <AuthProvider>
-          <ThemeProvider>
-            <StatusBar style="dark" />
-            <MainApp />
-          </ThemeProvider>
+          <SocketProvider>
+            <ThemeProvider>
+              <StatusBar style="dark" />
+              <MainApp />
+            </ThemeProvider>
+          </SocketProvider>
         </AuthProvider>
       </LanguageProvider>
     </SafeAreaProvider>

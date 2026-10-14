@@ -9,26 +9,41 @@ export class MessagesService {
     @InjectModel(Message.name) private messageModel: Model<MessageDocument>,
   ) {}
 
-  async sendMessage(senderId: string, receiverId: string, text: string) {
+  async sendMessage(
+    senderId: string,
+    receiverId: string,
+    text: string,
+    type: string = 'text',
+    billData?: any,
+  ) {
     const newMessage = new this.messageModel({
       sender: new Types.ObjectId(senderId),
       receiver: new Types.ObjectId(receiverId),
       text,
+      type,
+      billData,
     });
     return newMessage.save();
   }
 
   async getMessages(userId: string, friendId: string) {
-    const userObjId = new Types.ObjectId(userId);
-    const friendObjId = new Types.ObjectId(friendId);
+    let userObjId: Types.ObjectId;
+    let friendObjId: Types.ObjectId;
+    try {
+      userObjId = new Types.ObjectId(userId);
+      friendObjId = new Types.ObjectId(friendId);
+    } catch {
+      return [];
+    }
 
-    return this.messageModel.find({
-      $or: [
-        { sender: userObjId, receiver: friendObjId },
-        { sender: friendObjId, receiver: userObjId },
-      ],
-    })
-    .sort({ createdAt: 1 })
-    .exec();
+    return this.messageModel
+      .find({
+        $or: [
+          { sender: userObjId, receiver: friendObjId },
+          { sender: friendObjId, receiver: userObjId },
+        ],
+      })
+      .sort({ createdAt: 1 })
+      .exec();
   }
 }

@@ -15,6 +15,7 @@ import { useTheme } from '../contexts/ThemeContext';
 
 export type TabKey =
   | 'home'
+  | 'feed'
   | 'moments'
   | 'analytics'
   | 'transactions'
@@ -67,6 +68,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
     icon: keyof typeof Ionicons.glyphMap;
   }[] = [
     { key: 'home', labelVi: 'Tổng quan', labelEn: 'Overview', icon: 'grid-outline' },
+    { key: 'feed', labelVi: 'Bảng tin', labelEn: 'News Feed', icon: 'newspaper-outline' },
     { key: 'moments', labelVi: 'Khoảnh khắc', labelEn: 'Moments', icon: 'images-outline' },
     { key: 'analytics', labelVi: 'Báo cáo', labelEn: 'Analytics', icon: 'bar-chart-outline' },
     { key: 'transactions', labelVi: 'Chi tiêu', labelEn: 'Expenses', icon: 'receipt-outline' },

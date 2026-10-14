@@ -10,6 +10,7 @@ import {
   TouchableWithoutFeedback,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '../contexts/LanguageContext';
 
 export interface ConfirmDeleteModalProps {
   visible: boolean;
@@ -26,8 +27,8 @@ export interface ConfirmDeleteModalProps {
 
 export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
   visible,
-  title = 'Xác nhận xóa giao dịch?',
-  message = 'Khoản chi này sẽ bị xóa vĩnh viễn khỏi ngân sách và lịch của bạn. Hành động này không thể hoàn tác.',
+  title,
+  message,
   itemTitle,
   itemAmount,
   itemImage,
@@ -36,6 +37,14 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  const { language } = useLanguage();
+  const isVi = language === 'vi';
+
+  const finalTitle = title || (isVi ? 'Xác nhận xóa giao dịch?' : 'Confirm delete transaction?');
+  const finalMessage = message || (isVi
+    ? 'Khoản chi này sẽ bị xóa vĩnh viễn khỏi ngân sách và lịch của bạn. Hành động này không thể hoàn tác.'
+    : 'This expense will be permanently deleted from your budget and calendar. This action cannot be undone.');
+
   return (
     <Modal
       visible={visible}
@@ -55,8 +64,8 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
               </View>
 
               {/* 2. Tiêu đề & Mô tả */}
-              <Text style={styles.dialogTitle}>{title}</Text>
-              <Text style={styles.dialogMessage}>{message}</Text>
+              <Text style={styles.dialogTitle}>{finalTitle}</Text>
+              <Text style={styles.dialogMessage}>{finalMessage}</Text>
 
               {/* 3. Card tóm tắt giao dịch sắp xóa */}
               {(itemTitle || itemAmount) && (
@@ -70,7 +79,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
                   )}
                   <View style={styles.previewInfo}>
                     <Text style={styles.previewTitle} numberOfLines={1}>
-                      {itemTitle || 'Giao dịch'}
+                      {itemTitle || (isVi ? 'Giao dịch' : 'Transaction')}
                     </Text>
                     {itemCategory && (
                       <Text style={styles.previewCategory}>
@@ -94,7 +103,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
                   disabled={isDeleting}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.cancelBtnText}>Hủy bỏ</Text>
+                  <Text style={styles.cancelBtnText}>{isVi ? 'Hủy bỏ' : 'Cancel'}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -108,7 +117,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
                   ) : (
                     <>
                       <Ionicons name="trash-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                      <Text style={styles.deleteBtnText}>Xóa vĩnh viễn</Text>
+                      <Text style={styles.deleteBtnText}>{isVi ? 'Xóa vĩnh viễn' : 'Delete Permanently'}</Text>
                     </>
                   )}
                 </TouchableOpacity>

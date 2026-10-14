@@ -6,8 +6,12 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface QuickSaveModalProps {
   visible: boolean;
@@ -24,28 +28,42 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
   onOpenFullCamera,
   targetDate,
 }) => {
-  const [selectedAmount, setSelectedAmount] = useState<number>(35000);
-  const [selectedCategory, setSelectedCategory] = useState<string>('Cà phê');
+  const { language } = useLanguage();
+  const isVi = language === 'vi';
+  const [amountStr, setAmountStr] = useState<string>('50000');
+  const [selectedCategory, setSelectedCategory] = useState<string>('Ăn uống');
 
-  const presetAmounts = [20000, 35000, 50000, 80000, 100000, 150000];
+  const selectedAmount = parseInt(amountStr, 10) || 0;
+
+  const presetAmounts = [20000, 35000, 50000, 80000, 100000, 150000, 200000];
 
   const quickCategories: {
+    id: string;
     name: string;
     icon: keyof typeof Ionicons.glyphMap;
     color: string;
     bg: string;
   }[] = [
-    { name: 'Cà phê', icon: 'cafe-outline', color: '#7C3AED', bg: '#F5F3FF' },
-    { name: 'Ăn sáng', icon: 'sunny-outline', color: '#D97706', bg: '#FEF3C7' },
-    { name: 'Ăn trưa', icon: 'restaurant-outline', color: '#059669', bg: '#ECFDF5' },
-    { name: 'Đổ xăng', icon: 'car-outline', color: '#2563EB', bg: '#EFF6FF' },
-    { name: 'Đi chợ', icon: 'cart-outline', color: '#0D9488', bg: '#F0FDFA' },
-    { name: 'Trà sữa', icon: 'ice-cream-outline', color: '#DB2777', bg: '#FDF2F8' },
+    { id: 'food', name: isVi ? 'Ăn uống' : 'Food', icon: 'restaurant-outline', color: '#059669', bg: '#ECFDF5' },
+    { id: 'coffee', name: isVi ? 'Cà phê' : 'Coffee', icon: 'cafe-outline', color: '#7C3AED', bg: '#F5F3FF' },
+    { id: 'milktea', name: isVi ? 'Trà sữa' : 'Milk Tea', icon: 'ice-cream-outline', color: '#DB2777', bg: '#FDF2F8' },
+    { id: 'breakfast', name: isVi ? 'Ăn sáng' : 'Breakfast', icon: 'sunny-outline', color: '#D97706', bg: '#FEF3C7' },
+    { id: 'lunch', name: isVi ? 'Ăn trưa' : 'Lunch', icon: 'fast-food-outline', color: '#10B981', bg: '#ECFDF5' },
+    { id: 'dinner', name: isVi ? 'Ăn tối' : 'Dinner', icon: 'pizza-outline', color: '#DC2626', bg: '#FEF2F2' },
+    { id: 'gas', name: isVi ? 'Đổ xăng' : 'Gas/Fuel', icon: 'car-outline', color: '#2563EB', bg: '#EFF6FF' },
+    { id: 'groceries', name: isVi ? 'Đi chợ' : 'Groceries', icon: 'cart-outline', color: '#0D9488', bg: '#F0FDFA' },
+    { id: 'shopping', name: isVi ? 'Mua sắm' : 'Shopping', icon: 'bag-handle-outline', color: '#4F46E5', bg: '#EEF2FF' },
+    { id: 'entertainment', name: isVi ? 'Giải trí' : 'Entertainment', icon: 'game-controller-outline', color: '#8B5CF6', bg: '#F5F3FF' },
+    { id: 'bills', name: isVi ? 'Hóa đơn' : 'Bills', icon: 'flash-outline', color: '#EA580C', bg: '#FFF7ED' },
+    { id: 'other', name: isVi ? 'Khác' : 'Other', icon: 'cube-outline', color: '#64748B', bg: '#F1F5F9' },
   ];
 
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
 
         <View style={styles.sheetContainer}>
@@ -55,67 +73,89 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
           {/* Header */}
           <View style={styles.sheetHeader}>
             <View>
-              <Text style={styles.sheetTitle}>Bạn vừa chi?</Text>
-              <Text style={styles.sheetSubtitle}>Ghi chép nhanh 1 chạm chỉ trong 3 giây</Text>
+              <Text style={styles.sheetTitle}>{isVi ? 'Lưu nhanh khoản chi tiêu' : 'Quick Save Expense'}</Text>
+              <Text style={styles.sheetSubtitle}>{isVi ? 'Nhập số tiền hoặc chạm chọn nhanh trong 3 giây' : 'Enter amount or tap quick select'}</Text>
             </View>
             <TouchableOpacity style={styles.closeBtn} onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Ionicons name="close" size={20} color="#64748B" />
             </TouchableOpacity>
           </View>
 
-          {/* 1. Mức tiền gợi ý */}
-          <Text style={styles.sectionHeading}>Chọn nhanh số tiền</Text>
-          <View style={styles.presetsGrid}>
-            {presetAmounts.map((amt) => {
-              const isSelected = selectedAmount === amt;
-              return (
-                <TouchableOpacity
-                  key={amt}
-                  style={[styles.presetChip, isSelected && styles.presetChipActive]}
-                  onPress={() => setSelectedAmount(amt)}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.presetChipText,
-                      isSelected && styles.presetChipTextActive,
-                    ]}
+          <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 480 }}>
+            {/* 1. Ô nhập số tiền trực tiếp */}
+            <View style={styles.amountInputContainer}>
+              <Text style={styles.sectionHeading}>{isVi ? 'Nhập số tiền chi' : 'Enter amount'}</Text>
+              <View style={styles.amountInputBox}>
+                <TextInput
+                  value={amountStr === '0' ? '' : Number(amountStr).toLocaleString('vi-VN')}
+                  onChangeText={(val) => {
+                    const raw = val.replace(/[^0-9]/g, '');
+                    setAmountStr(raw || '0');
+                  }}
+                  placeholder="0"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="numeric"
+                  style={styles.amountInput}
+                  selectTextOnFocus
+                />
+                <Text style={styles.currencyBadge}>đ</Text>
+              </View>
+            </View>
+
+            {/* 2. Mức tiền gợi ý nhanh */}
+            <Text style={[styles.sectionHeading, { marginTop: 12 }]}>{isVi ? 'Gợi ý số tiền nhanh' : 'Quick amount presets'}</Text>
+            <View style={styles.presetsGrid}>
+              {presetAmounts.map((amt) => {
+                const isSelected = selectedAmount === amt;
+                return (
+                  <TouchableOpacity
+                    key={amt}
+                    style={[styles.presetChip, isSelected && styles.presetChipActive]}
+                    onPress={() => setAmountStr(String(amt))}
+                    activeOpacity={0.7}
                   >
-                    {amt.toLocaleString('vi-VN')} đ
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+                    <Text
+                      style={[
+                        styles.presetChipText,
+                        isSelected && styles.presetChipTextActive,
+                      ]}
+                    >
+                      {amt.toLocaleString('vi-VN')} đ
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-          {/* 2. Danh mục 1-chạm */}
-          <Text style={[styles.sectionHeading, { marginTop: 16 }]}>Khoản chi này cho?</Text>
-          <View style={styles.catGrid}>
-            {quickCategories.map((item) => {
-              const isSelected = selectedCategory === item.name;
-              return (
-                <TouchableOpacity
-                  key={item.name}
-                  style={[styles.catCard, isSelected && styles.catCardActive]}
-                  onPress={() => setSelectedCategory(item.name)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.catIconBox, { backgroundColor: isSelected ? '#ECFDF5' : item.bg }]}>
-                    <Ionicons
-                      name={item.icon}
-                      size={20}
-                      color={isSelected ? '#047857' : item.color}
-                    />
-                  </View>
-                  <Text style={[styles.catName, isSelected && styles.catNameActive]}>
-                    {item.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+            {/* 3. Danh mục 1-chạm phong phú */}
+            <Text style={[styles.sectionHeading, { marginTop: 16 }]}>{isVi ? 'Khoản chi này cho?' : 'What is this for?'}</Text>
+            <View style={styles.catGrid}>
+              {quickCategories.map((item) => {
+                const isSelected = selectedCategory === item.name;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.catCard, isSelected && styles.catCardActive]}
+                    onPress={() => setSelectedCategory(item.name)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.catIconBox, { backgroundColor: isSelected ? '#ECFDF5' : item.bg }]}>
+                      <Ionicons
+                        name={item.icon}
+                        size={20}
+                        color={isSelected ? '#047857' : item.color}
+                      />
+                    </View>
+                    <Text style={[styles.catName, isSelected && styles.catNameActive]} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
 
-          {/* 3. Action Buttons */}
+          {/* 4. Action Buttons */}
           <View style={styles.actionsRow}>
             {/* Nút chụp ảnh kèm theo */}
             <TouchableOpacity
@@ -127,25 +167,28 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
               activeOpacity={0.8}
             >
               <Ionicons name="camera-outline" size={18} color="#374151" />
-              <Text style={styles.cameraActionText}>Chụp ảnh</Text>
+              <Text style={styles.cameraActionText}>{isVi ? 'Chụp ảnh' : 'Photo'}</Text>
             </TouchableOpacity>
 
             {/* Nút Lưu ngay */}
             <TouchableOpacity
-              style={styles.saveNowBtn}
+              style={[styles.saveNowBtn, selectedAmount <= 0 && styles.saveNowBtnDisabled]}
               onPress={() => {
-                onSaveQuick(selectedAmount, selectedCategory, targetDate);
-                onClose();
+                if (selectedAmount > 0) {
+                  onSaveQuick(selectedAmount, selectedCategory, targetDate);
+                  onClose();
+                }
               }}
+              disabled={selectedAmount <= 0}
               activeOpacity={0.85}
             >
               <Text style={styles.saveNowBtnText}>
-                Lưu ngay ({selectedAmount.toLocaleString('vi-VN')} đ)
+                {isVi ? `Lưu ngay (${selectedAmount.toLocaleString('vi-VN')} đ)` : `Save now (${selectedAmount.toLocaleString('vi-VN')} đ)`}
               </Text>
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };
@@ -208,9 +251,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#4B5563',
-    marginBottom: 10,
+    marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  amountInputContainer: {
+    marginBottom: 6,
+  },
+  amountInputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  amountInput: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#047857',
+    padding: 0,
+  },
+  currencyBadge: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#059669',
+    marginLeft: 6,
   },
   presetsGrid: {
     flexDirection: 'row',
@@ -308,6 +377,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 3,
+  },
+  saveNowBtnDisabled: {
+    backgroundColor: '#94A3B8',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   saveNowBtnText: {
     color: '#FFFFFF',

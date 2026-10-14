@@ -93,12 +93,20 @@ export const normalizeAvatarUrl = (url: string | undefined | null): string | und
   if (url.startsWith('uploads/')) {
     return `${base}/${url}`;
   }
-  // Nếu URL chứa localhost hoặc 127.0.0.1
-  if (url.includes('localhost') || url.includes('127.0.0.1')) {
-    const pathMatch = url.match(/(?:localhost|127\.0\.0\.1)(?::\d+)?(\/.*)?$/);
-    const path = pathMatch?.[1] || '';
-    return `${base}${path}`;
+  // Trích xuất path từ URL (VD: từ https://old-ngrok.app/uploads/123.jpg -> /uploads/123.jpg)
+  try {
+    const urlObj = new URL(url);
+    if (urlObj.pathname.startsWith('/uploads')) {
+      return `${base}${urlObj.pathname}`;
+    }
+  } catch (e) {
+    // Nếu không phải URL hợp lệ mà chỉ là path dạng localhost/uploads/...
+    const pathMatch = url.match(/(?:\/\/[^\/]+)?(\/uploads\/.*)$/);
+    if (pathMatch && pathMatch[1]) {
+      return `${base}${pathMatch[1]}`;
+    }
   }
+
   return url;
 };
 
@@ -470,6 +478,11 @@ export const reactMomentApi = async (momentId: string, emoji: string) => {
   return res;
 };
 
+export const getMomentReactionsApi = async (momentId: string) => {
+  const res = await request<any>(`/api/moments/${momentId}/reactions`);
+  return res;
+};
+
 export const addMomentCommentApi = async (momentId: string, text: string): Promise<any> => {
   const res = await request<any>(`/api/moments/${momentId}/comments`, {
     method: 'POST',
@@ -546,6 +559,17 @@ export const submitRatingApi = async (stars: number, comment?: string): Promise<
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.message || 'Lỗi gửi đánh giá');
+  return data;
+};
+
+export const removeFriendApi = async (friendId: string) => {
+  const token = getAuthToken();
+  const response = await fetch(`${getBaseUrl()}/api/friends/${friendId}`, {
+    method: 'DELETE',
+    headers: { Authorization: token ? `Bearer ${token}` : '' }
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || 'Lỗi xóa bạn bè');
   return data;
 };
 

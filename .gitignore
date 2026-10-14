@@ -45,10 +45,9 @@ Thumbs.db
 uploads/
 **/uploads/
 
-# Task tracking
-tasksdn_mma.md
-plan_member_1_status_and_fixes.md
-
+# Local Overrides
+monett.bat
+apps/mobile-web/src/services/googleAuth.ts
 # Local scripts, executables, and scratch
 *.bat
 scripts/

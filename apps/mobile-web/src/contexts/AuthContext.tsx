@@ -58,9 +58,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (savedToken) {
         setTokenState(savedToken);
         if (savedToken === 'mock_admin_token') {
-          setUser(MOCK_ADMIN_USER);
-          setIsLoading(false);
-          return;
+          try {
+            const res = await loginApi({ email: 'admin@monett.vn', password: 'admin' });
+            setAuthToken(res.accessToken);
+            setTokenState(res.accessToken);
+            setUser(res.user);
+            setIsLoading(false);
+            return;
+          } catch (_) {
+            setUser(MOCK_ADMIN_USER);
+            setIsLoading(false);
+            return;
+          }
         }
         try {
           const profile = await getMeApi();
@@ -87,12 +96,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const login = async (dto: LoginDto) => {
     const cleanEmail = dto.email?.trim().toLowerCase();
-    // Bypass nhanh cho dev: tài khoản admin và mật khẩu admin
+    // Bypass nhanh cho dev: lấy token JWT thật từ backend
     if ((cleanEmail === 'admin' || cleanEmail === 'admin@monett.vn') && dto.password === 'admin') {
-      setAuthToken('mock_admin_token');
-      setTokenState('mock_admin_token');
-      setUser(MOCK_ADMIN_USER);
-      return;
+      try {
+        const res = await loginApi({ email: 'admin@monett.vn', password: 'admin' });
+        setAuthToken(res.accessToken);
+        setTokenState(res.accessToken);
+        setUser(res.user);
+        return;
+      } catch (_) {
+        setAuthToken('mock_admin_token');
+        setTokenState('mock_admin_token');
+        setUser(MOCK_ADMIN_USER);
+        return;
+      }
     }
 
     const res = await loginApi(dto);

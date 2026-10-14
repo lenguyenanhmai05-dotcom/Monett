@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,19 +18,26 @@ import { AnalyticsScreen } from './AnalyticsScreen';
 import { WalletsScreen } from './WalletsScreen';
 import { CategoriesScreen } from './CategoriesScreen';
 import { ProfileScreen } from './ProfileScreen';
-import { CalendarScreen } from './CalendarScreen';
 import { FriendsFeedScreen } from './FriendsFeedScreen';
+import { MessagesScreen } from './MessagesScreen';
+import { DayExpensesScreen } from './DayExpensesScreen';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { createTransactionApi } from '../../services/api';
 
 export type MobileTab = 'home' | 'calendar' | 'analytics' | 'feed' | 'wallets' | 'categories' | 'profile';
-export type ActiveModal = 'none' | 'camera' | 'add_expense' | 'quick_save' | 'detail';
+export type ActiveModal = 'none' | 'camera' | 'add_expense' | 'quick_save' | 'detail' | 'day_expenses';
 
 export const MobileNavigator: React.FC = () => {
+  const { language } = useLanguage();
+  const isVi = language === 'vi';
   const [currentTab, setCurrentTab] = useState<MobileTab>('home');
+  const [hoveredTab, setHoveredTab] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<ActiveModal>('none');
   const [capturedPhoto, setCapturedPhoto] = useState<string | undefined>();
+  const [capturedMode, setCapturedMode] = useState<'bill' | 'food' | 'auto'>('food');
   const [targetExpenseDate, setTargetExpenseDate] = useState<string | undefined>();
+  const [selectedDayExpensesDate, setSelectedDayExpensesDate] = useState<string | undefined>();
+  const [selectedDayExpensesLabel, setSelectedDayExpensesLabel] = useState<string | undefined>();
   const [selectedTxId, setSelectedTxId] = useState<string | undefined>();
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [refreshKey, setRefreshKey] = useState<number>(0);
@@ -38,8 +46,9 @@ export const MobileNavigator: React.FC = () => {
     setRefreshKey((prev) => prev + 1);
   };
 
-  const handlePhotoCaptured = (photoUrl: string) => {
+  const handlePhotoCaptured = (photoUrl: string, mode?: 'bill' | 'food' | 'auto') => {
     setCapturedPhoto(photoUrl);
+    if (mode) setCapturedMode(mode);
     setActiveModal('add_expense');
   };
 
@@ -69,12 +78,18 @@ export const MobileNavigator: React.FC = () => {
             onNavigateToAnalytics={() => setCurrentTab('analytics')}
             onNavigateToCalendar={() => setCurrentTab('calendar')}
             onNavigateToProfile={() => setCurrentTab('profile')}
+            onNavigateToDayExpenses={(dateStr, label) => {
+              setSelectedDayExpensesDate(dateStr);
+              setSelectedDayExpensesLabel(label);
+              setActiveModal('day_expenses');
+            }}
           />
         );
       case 'calendar':
         return (
-          <CalendarScreen
+          <MessagesScreen
             refreshTrigger={refreshKey}
+            onNavigateToHome={() => setCurrentTab('home')}
             onNavigateToCamera={(dateStr) => {
               setTargetExpenseDate(dateStr);
               setActiveModal('camera');
@@ -107,104 +122,159 @@ export const MobileNavigator: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.rootContainer}>
+    <View style={styles.rootContainer}>
       {/* 1. Màn hình Tab chính */}
       <View style={styles.mainContent}>{renderCurrentTabScreen()}</View>
 
-      {/* 2. Thanh Bottom Navigation chuẩn theo Stitch */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setCurrentTab('home')}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={currentTab === 'home' ? 'home' : 'home-outline'}
-            size={22}
-            color="#FFFFFF"
-            style={{ opacity: currentTab === 'home' ? 1 : 0.65 }}
-          />
-          <Text style={[styles.navLabel, currentTab === 'home' && styles.navLabelActive]}>
-            Trang chủ
-          </Text>
-        </TouchableOpacity>
-
-
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setCurrentTab('calendar')}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={currentTab === 'calendar' ? 'calendar' : 'calendar-outline'}
-            size={22}
-            color="#FFFFFF"
-            style={{ opacity: currentTab === 'calendar' ? 1 : 0.65 }}
-          />
-          <Text
-            style={[
-              styles.navLabel,
-              currentTab === 'calendar' && styles.navLabelActive,
-            ]}
-          >
-            Lịch
-          </Text>
-        </TouchableOpacity>
-
-        {/* Nút tròn nổi chính giữa: Chụp ảnh mở camera luôn, bỏ qua lưu nhanh */}
-        <View style={styles.centerFabContainer}>
+      {/* 2. Thanh Bottom Navigation (Nền trắng, hover & active xanh pastel nhẹ nhàng) */}
+      <SafeAreaView edges={['bottom']} style={styles.bottomNavWrapper}>
+        <View style={styles.bottomNav}>
+          {/* 1. Trang chủ */}
           <TouchableOpacity
-            style={styles.fabBtn}
-            onPress={() => setActiveModal('camera')}
-            activeOpacity={0.85}
+            style={[
+              styles.navItem,
+              currentTab === 'home' && styles.navItemActive,
+              hoveredTab === 'home' && currentTab !== 'home' && styles.navItemHovered,
+            ]}
+            onPress={() => setCurrentTab('home')}
+            activeOpacity={0.75}
+            {...(Platform.OS === 'web'
+              ? {
+                  onMouseEnter: () => setHoveredTab('home'),
+                  onMouseLeave: () => setHoveredTab(null),
+                }
+              : {})}
           >
-            <Ionicons name="camera-outline" size={26} color="#FFFFFF" />
+            <Ionicons
+              name={currentTab === 'home' ? 'home' : 'home-outline'}
+              size={20}
+              color={currentTab === 'home' || hoveredTab === 'home' ? '#064E3B' : '#475569'}
+            />
+            <Text
+              style={[
+                styles.navLabel,
+                currentTab === 'home' && styles.navLabelActive,
+                hoveredTab === 'home' && currentTab !== 'home' && styles.navLabelHovered,
+              ]}
+            >
+              {isVi ? 'Trang chủ' : 'Home'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* 2. Nhắn tin */}
+          <TouchableOpacity
+            style={[
+              styles.navItem,
+              currentTab === 'calendar' && styles.navItemActive,
+              hoveredTab === 'calendar' && currentTab !== 'calendar' && styles.navItemHovered,
+            ]}
+            onPress={() => setCurrentTab('calendar')}
+            activeOpacity={0.75}
+            {...(Platform.OS === 'web'
+              ? {
+                  onMouseEnter: () => setHoveredTab('calendar'),
+                  onMouseLeave: () => setHoveredTab(null),
+                }
+              : {})}
+          >
+            <Ionicons
+              name={currentTab === 'calendar' ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'}
+              size={20}
+              color={currentTab === 'calendar' || hoveredTab === 'calendar' ? '#064E3B' : '#475569'}
+            />
+            <Text
+              style={[
+                styles.navLabel,
+                currentTab === 'calendar' && styles.navLabelActive,
+                hoveredTab === 'calendar' && currentTab !== 'calendar' && styles.navLabelHovered,
+              ]}
+            >
+              {isVi ? 'Nhắn tin' : 'Messages'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* 3. Nút tròn nổi chính giữa: Camera */}
+          <View style={styles.centerFabContainer}>
+            <TouchableOpacity
+              style={[styles.fabBtn, hoveredTab === 'camera' && styles.fabBtnHovered]}
+              onPress={() => setActiveModal('camera')}
+              activeOpacity={0.85}
+              {...(Platform.OS === 'web'
+                ? {
+                    onMouseEnter: () => setHoveredTab('camera'),
+                    onMouseLeave: () => setHoveredTab(null),
+                  }
+                : {})}
+            >
+              <Ionicons name="camera" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+
+          {/* 4. Thống kê */}
+          <TouchableOpacity
+            style={[
+              styles.navItem,
+              currentTab === 'analytics' && styles.navItemActive,
+              hoveredTab === 'analytics' && currentTab !== 'analytics' && styles.navItemHovered,
+            ]}
+            onPress={() => setCurrentTab('analytics')}
+            activeOpacity={0.75}
+            {...(Platform.OS === 'web'
+              ? {
+                  onMouseEnter: () => setHoveredTab('analytics'),
+                  onMouseLeave: () => setHoveredTab(null),
+                }
+              : {})}
+          >
+            <Ionicons
+              name={currentTab === 'analytics' ? 'bar-chart' : 'bar-chart-outline'}
+              size={20}
+              color={currentTab === 'analytics' || hoveredTab === 'analytics' ? '#064E3B' : '#475569'}
+            />
+            <Text
+              style={[
+                styles.navLabel,
+                currentTab === 'analytics' && styles.navLabelActive,
+                hoveredTab === 'analytics' && currentTab !== 'analytics' && styles.navLabelHovered,
+              ]}
+            >
+              {isVi ? 'Thống kê' : 'Analytics'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* 5. Cá nhân */}
+          <TouchableOpacity
+            style={[
+              styles.navItem,
+              currentTab === 'profile' && styles.navItemActive,
+              hoveredTab === 'profile' && currentTab !== 'profile' && styles.navItemHovered,
+            ]}
+            onPress={() => setCurrentTab('profile')}
+            activeOpacity={0.75}
+            {...(Platform.OS === 'web'
+              ? {
+                  onMouseEnter: () => setHoveredTab('profile'),
+                  onMouseLeave: () => setHoveredTab(null),
+                }
+              : {})}
+          >
+            <Ionicons
+              name={currentTab === 'profile' ? 'person' : 'person-outline'}
+              size={20}
+              color={currentTab === 'profile' || hoveredTab === 'profile' ? '#064E3B' : '#475569'}
+            />
+            <Text
+              style={[
+                styles.navLabel,
+                currentTab === 'profile' && styles.navLabelActive,
+                hoveredTab === 'profile' && currentTab !== 'profile' && styles.navLabelHovered,
+              ]}
+            >
+              {isVi ? 'Cá nhân' : 'Profile'}
+            </Text>
           </TouchableOpacity>
         </View>
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setCurrentTab('analytics')}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={currentTab === 'analytics' ? 'bar-chart' : 'bar-chart-outline'}
-            size={22}
-            color="#FFFFFF"
-            style={{ opacity: currentTab === 'analytics' ? 1 : 0.65 }}
-          />
-          <Text
-            style={[
-              styles.navLabel,
-              currentTab === 'analytics' && styles.navLabelActive,
-            ]}
-          >
-            Thống kê
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setCurrentTab('profile')}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={currentTab === 'profile' ? 'person' : 'person-outline'}
-            size={22}
-            color="#FFFFFF"
-            style={{ opacity: currentTab === 'profile' ? 1 : 0.65 }}
-          />
-          <Text
-            style={[
-              styles.navLabel,
-              currentTab === 'profile' && styles.navLabelActive,
-            ]}
-          >
-            Cá nhân
-          </Text>
-        </TouchableOpacity>
-      </View>
+      </SafeAreaView>
 
       {/* 3. Màn hình Camera Fullscreen */}
       {activeModal === 'camera' && (
@@ -212,22 +282,6 @@ export const MobileNavigator: React.FC = () => {
           <CameraScreen
             onClose={() => setActiveModal('none')}
             onPhotoCaptured={handlePhotoCaptured}
-            onNavigateToCalendar={() => {
-              setActiveModal('none');
-              setCurrentTab('calendar');
-            }}
-            onNavigateToHome={() => {
-              setActiveModal('none');
-              setCurrentTab('home');
-            }}
-            onNavigateToWallets={() => {
-              setActiveModal('none');
-              setCurrentTab('wallets');
-            }}
-            onNavigateToAnalytics={() => {
-              setActiveModal('none');
-              setCurrentTab('analytics');
-            }}
           />
         </View>
       )}
@@ -237,18 +291,19 @@ export const MobileNavigator: React.FC = () => {
         <View style={StyleSheet.absoluteFill}>
           <AddExpenseScreen
             initialPhotoUrl={capturedPhoto}
+            initialMode={capturedMode}
             initialDate={targetExpenseDate}
             editingTransactionId={editingTransaction?.id}
             initialData={editingTransaction}
             onBack={() => {
               setEditingTransaction(null);
               setTargetExpenseDate(undefined);
-              setActiveModal('none');
+              setActiveModal(selectedDayExpensesDate ? 'day_expenses' : 'none');
             }}
             onSaveSuccess={() => {
               setEditingTransaction(null);
               setTargetExpenseDate(undefined);
-              setActiveModal('none');
+              setActiveModal(selectedDayExpensesDate ? 'day_expenses' : 'none');
               setCapturedPhoto(undefined);
               triggerRefresh();
             }}
@@ -263,7 +318,7 @@ export const MobileNavigator: React.FC = () => {
             transactionId={selectedTxId}
             onBack={() => {
               setSelectedTxId(undefined);
-              setActiveModal('none');
+              setActiveModal(selectedDayExpensesDate ? 'day_expenses' : 'none');
             }}
             onEdit={(txData) => {
               setEditingTransaction(txData);
@@ -271,20 +326,20 @@ export const MobileNavigator: React.FC = () => {
             }}
             onDelete={() => {
               setSelectedTxId(undefined);
-              setActiveModal('none');
+              setActiveModal(selectedDayExpensesDate ? 'day_expenses' : 'none');
               triggerRefresh();
             }}
           />
         </View>
       )}
 
-      {/* 6. Modal QuickSave (Bạn vừa chi?) */}
+      {/* 6. Modal QuickSave (Lưu nhanh khoản chi tiêu) */}
       <QuickSaveModal
         visible={activeModal === 'quick_save'}
         targetDate={targetExpenseDate}
         onClose={() => {
           setTargetExpenseDate(undefined);
-          setActiveModal('none');
+          setActiveModal(selectedDayExpensesDate ? 'day_expenses' : 'none');
         }}
         onSaveQuick={async (amount, category, date) => {
           try {
@@ -300,11 +355,39 @@ export const MobileNavigator: React.FC = () => {
             console.log('Saved quick expense (offline/local fallback):', amount, category);
           }
           setTargetExpenseDate(undefined);
-          setActiveModal('none');
+          setActiveModal(selectedDayExpensesDate ? 'day_expenses' : 'none');
         }}
         onOpenFullCamera={() => setActiveModal('camera')}
       />
-    </SafeAreaView>
+
+      {/* 7. Màn hình Chi Tiết Chi Tiêu Theo Ngày (Khoản lưu chi tiêu + Thời gian chi tiêu lướt lên xem) */}
+      {activeModal === 'day_expenses' && selectedDayExpensesDate && (
+        <View style={StyleSheet.absoluteFill}>
+          <DayExpensesScreen
+            dateStr={selectedDayExpensesDate}
+            dateLabel={selectedDayExpensesLabel}
+            refreshTrigger={refreshKey}
+            onBack={() => {
+              setSelectedDayExpensesDate(undefined);
+              setSelectedDayExpensesLabel(undefined);
+              setActiveModal('none');
+            }}
+            onNavigateToDetail={(id) => {
+              setSelectedTxId(id);
+              setActiveModal('detail');
+            }}
+            onNavigateToQuickSave={(date) => {
+              setTargetExpenseDate(date);
+              setActiveModal('quick_save');
+            }}
+            onNavigateToCamera={(date) => {
+              setTargetExpenseDate(date);
+              setActiveModal('camera');
+            }}
+          />
+        </View>
+      )}
+    </View>
   );
 };
 
@@ -316,55 +399,79 @@ const styles = StyleSheet.create({
   mainContent: {
     flex: 1,
   },
+  bottomNavWrapper: {
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 8,
+  },
   bottomNav: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    height: 64,
-    backgroundColor: '#0F172A',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    height: 62,
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 8,
     position: 'relative',
   },
   navItem: {
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
-    paddingVertical: 6,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+  } as any,
+  navItemActive: {
+    backgroundColor: '#D1E7DD', // Nền xanh pastel nhẹ nhàng chuẩn như ảnh mẫu của bạn
+  },
+  navItemHovered: {
+    backgroundColor: '#EAF4EE', // Hover xanh nhẹ nhàng êm ái
   },
   navLabel: {
-    fontSize: 10,
+    fontSize: 10.5,
     fontWeight: '600',
-    color: '#94A3B8',
+    color: '#475569',
     marginTop: 2,
   },
   navLabelActive: {
-    color: '#34D399',
+    color: '#064E3B',
     fontWeight: '800',
+  },
+  navLabelHovered: {
+    color: '#064E3B',
+    fontWeight: '700',
   },
   centerFabContainer: {
     position: 'relative',
-    top: -18,
-    width: 64,
+    top: -16,
+    width: 60,
     alignItems: 'center',
+    zIndex: 10,
   },
   fabBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#059669',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#064E3B', // Tone xanh đậm đồng bộ
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3.5,
     borderColor: '#FFFFFF',
-    shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 10,
+    shadowColor: '#064E3B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
     elevation: 8,
-  },
-  fabIcon: {
-    fontSize: 22,
-  },
+    transition: 'all 0.2s ease',
+  } as any,
+  fabBtnHovered: {
+    backgroundColor: '#047857',
+    transform: [{ scale: 1.06 }],
+    shadowOpacity: 0.45,
+  } as any,
 });

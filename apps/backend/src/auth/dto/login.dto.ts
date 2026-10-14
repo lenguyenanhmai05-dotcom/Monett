@@ -7,7 +7,7 @@ export class LoginDto implements ILoginDto {
   email: string;
 
   @IsString()
-  @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
+  @MinLength(4, { message: 'Mật khẩu phải có ít nhất 4 ký tự' })
   @IsNotEmpty({ message: 'Mật khẩu không được để trống' })
   password: string;
 }

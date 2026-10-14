@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 interface WalletsScreenProps {
   onBack?: () => void;
@@ -15,6 +16,9 @@ interface WalletsScreenProps {
 }
 
 export const WalletsScreen: React.FC<WalletsScreenProps> = ({ onBack, onAddWallet }) => {
+  const { language } = useLanguage();
+  const isVi = language === 'vi';
+
   const wallets: {
     id: string;
     name: string;
@@ -27,8 +31,8 @@ export const WalletsScreen: React.FC<WalletsScreenProps> = ({ onBack, onAddWalle
   }[] = [
     {
       id: 'w1',
-      name: 'TPBank (Tài khoản chính)',
-      type: 'Ngân hàng',
+      name: isVi ? 'TPBank (Tài khoản chính)' : 'TPBank (Main Account)',
+      type: isVi ? 'Ngân hàng' : 'Bank',
       iconName: 'card-outline',
       balance: '12.500.000 đ',
       color: '#064E3B',
@@ -37,8 +41,8 @@ export const WalletsScreen: React.FC<WalletsScreenProps> = ({ onBack, onAddWalle
     },
     {
       id: 'w2',
-      name: 'Ví Tiền Mặt',
-      type: 'Tiền mặt mang theo',
+      name: isVi ? 'Ví Tiền Mặt' : 'Cash Wallet',
+      type: isVi ? 'Tiền mặt mang theo' : 'Cash on hand',
       iconName: 'cash-outline',
       balance: '1.850.000 đ',
       color: '#047857',
@@ -47,7 +51,7 @@ export const WalletsScreen: React.FC<WalletsScreenProps> = ({ onBack, onAddWalle
     {
       id: 'w3',
       name: 'Ví MoMo',
-      type: 'Ví điện tử',
+      type: isVi ? 'Ví điện tử' : 'E-wallet',
       iconName: 'phone-portrait-outline',
       balance: '3.200.000 đ',
       color: '#A21CAF',
@@ -56,7 +60,7 @@ export const WalletsScreen: React.FC<WalletsScreenProps> = ({ onBack, onAddWalle
     {
       id: 'w4',
       name: 'Vietcombank',
-      type: 'Tài khoản tiết kiệm',
+      type: isVi ? 'Tài khoản tiết kiệm' : 'Savings Account',
       iconName: 'business-outline',
       balance: '900.000 đ',
       color: '#15803D',
@@ -65,7 +69,7 @@ export const WalletsScreen: React.FC<WalletsScreenProps> = ({ onBack, onAddWalle
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* 1. Header Bar */}
       <View style={styles.header}>
         {onBack && (
@@ -73,25 +77,25 @@ export const WalletsScreen: React.FC<WalletsScreenProps> = ({ onBack, onAddWalle
             <Ionicons name="chevron-back" size={24} color="#1E293B" />
           </TouchableOpacity>
         )}
-        <Text style={styles.headerTitle}>Ví Của Tôi</Text>
+        <Text style={styles.headerTitle}>{isVi ? 'Ví Của Tôi' : 'My Wallets'}</Text>
         <TouchableOpacity style={styles.addBtn} onPress={onAddWallet} activeOpacity={0.8}>
-          <Text style={styles.addBtnText}>+ Thêm ví</Text>
+          <Text style={styles.addBtnText}>{isVi ? '+ Thêm ví' : '+ Add Wallet'}</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 2. Tổng tài sản hiện có */}
         <View style={styles.totalAssetCard}>
-          <Text style={styles.totalAssetLabel}>Tổng số dư khả dụng</Text>
+          <Text style={styles.totalAssetLabel}>{isVi ? 'Tổng số dư khả dụng' : 'Total Available Balance'}</Text>
           <Text style={styles.totalAssetValue}>18.450.000 đ</Text>
           <View style={styles.safetyTag}>
             <Ionicons name="shield-checkmark" size={13} color="#047857" style={{ marginRight: 4 }} />
-            <Text style={styles.safetyTagText}>Ngân sách an toàn 60%</Text>
+            <Text style={styles.safetyTagText}>{isVi ? 'Ngân sách an toàn 60%' : 'Safe Budget 60%'}</Text>
           </View>
         </View>
 
         {/* 3. Danh sách các ví */}
-        <Text style={styles.sectionTitle}>CÁC NGUỒN TIỀN</Text>
+        <Text style={styles.sectionTitle}>{isVi ? 'CÁC NGUỒN TIỀN' : 'PAYMENT SOURCES'}</Text>
         {wallets.map((wallet) => (
           <TouchableOpacity
             key={wallet.id}
@@ -107,7 +111,7 @@ export const WalletsScreen: React.FC<WalletsScreenProps> = ({ onBack, onAddWalle
                 <Text style={styles.walletName}>{wallet.name}</Text>
                 {wallet.isDefault && (
                   <View style={styles.defaultBadge}>
-                    <Text style={styles.defaultBadgeText}>Mặc định</Text>
+                    <Text style={styles.defaultBadgeText}>{isVi ? 'Mặc định' : 'Default'}</Text>
                   </View>
                 )}
               </View>
@@ -125,9 +129,11 @@ export const WalletsScreen: React.FC<WalletsScreenProps> = ({ onBack, onAddWalle
         <View style={styles.tipBox}>
           <Text style={styles.tipIcon}>💡</Text>
           <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={styles.tipTitle}>Mẹo phân bổ 50/30/20</Text>
+            <Text style={styles.tipTitle}>{isVi ? 'Mẹo phân bổ 50/30/20' : '50/30/20 Rule Tip'}</Text>
             <Text style={styles.tipDesc}>
-              Hãy giữ ít nhất 20% thu nhập trong tài khoản tiết kiệm và duy trì hạn mức chi an toàn hàng tuần.
+              {isVi
+                ? 'Hãy giữ ít nhất 20% thu nhập trong tài khoản tiết kiệm và duy trì hạn mức chi an toàn hàng tuần.'
+                : 'Keep at least 20% of your income in savings and maintain a weekly safe spending budget.'}
             </Text>
           </View>
         </View>
@@ -139,6 +145,10 @@ export const WalletsScreen: React.FC<WalletsScreenProps> = ({ onBack, onAddWalle
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  scrollView: {
+    flex: 1,
     backgroundColor: '#FAFAF9',
   },
   header: {
@@ -146,7 +156,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 6,
+    paddingBottom: 10,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',

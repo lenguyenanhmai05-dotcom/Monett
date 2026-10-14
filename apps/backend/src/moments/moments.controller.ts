@@ -97,6 +97,11 @@ export class MomentsController {
     return this.momentsService.reactMoment(momentId, this.getUserId(req), emoji);
   }
 
+  @Get(':id/reactions')
+  async getMomentReactions(@Param('id') momentId: string) {
+    return this.momentsService.getMomentReactions(momentId);
+  }
+
   @Post(':id/comments')
   async addComment(
     @Req() req,

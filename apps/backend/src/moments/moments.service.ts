@@ -183,6 +183,41 @@ export class MomentsService {
   }
 
   /**
+   * Lấy danh sách user đã thả cảm xúc cho khoảnh khắc
+   */
+  async getMomentReactions(momentId: string) {
+    let objId: Types.ObjectId;
+    try {
+      objId = new Types.ObjectId(momentId);
+    } catch {
+      throw new BadRequestException('ID khoảnh khắc không hợp lệ');
+    }
+
+    const moment = await this.momentModel.findById(objId);
+    if (!moment) {
+      throw new NotFoundException('Không tìm thấy khoảnh khắc');
+    }
+
+    const reactionsMap = moment.reactions instanceof Map ? moment.reactions : new Map(Object.entries(moment.reactions || {}));
+    const userIdsStr = Array.from(reactionsMap.keys());
+    
+    // Fetch user details
+    const users = await this.userModel.find({ _id: { $in: userIdsStr.map(id => new Types.ObjectId(id)) } }, 'fullName avatarUrl email');
+
+    const result = users.map((u) => {
+      const emoji = reactionsMap.get(u._id.toString());
+      return {
+        userId: u._id.toString(),
+        fullName: u.fullName || 'Người dùng Monett',
+        avatarUrl: u.avatarUrl || null,
+        emoji,
+      };
+    });
+
+    return result;
+  }
+
+  /**
    * Cập nhật bài đăng khoảnh khắc của chính mình
    */
   async updateMoment(
