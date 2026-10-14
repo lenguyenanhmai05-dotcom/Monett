@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -97,8 +98,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [shieldAvailable, setShieldAvailable] = useState<boolean>(true);
   const [shieldUsedToday, setShieldUsedToday] = useState<boolean>(false);
   const [streakLoading, setStreakLoading] = useState<boolean>(false);
-  const [showStreakModal, setShowStreakModal] = useState<boolean>(false);
   const [showFrogModal, setShowFrogModal] = useState<boolean>(false);
+
 
   // Feedback State
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
@@ -109,6 +110,19 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const loadStreakData = async () => {
     try {
+      // Tự động kiểm tra điểm danh ngày mới khi người dùng vào trang
+      try {
+        const checkRes: any = await checkInStreakApi();
+        if (checkRes && checkRes.streak !== undefined) {
+          setStreakCount(checkRes.streak);
+          if (checkRes.activeToday !== undefined) {
+            setActiveToday(Boolean(checkRes.activeToday));
+          } else {
+            setActiveToday(true);
+          }
+        }
+      } catch (_) {}
+
       const data: any = await getStreakApi();
       if (data) {
         if (data.streak !== undefined) setStreakCount(data.streak);
@@ -356,36 +370,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   };
 
   const menuItems: MenuItem[] = [
-    ...(onNavigateToWallets ? [{
-      iconName: 'wallet-outline' as const,
-      iconBg: '#ECFDF5',
-      iconColor: '#059669',
-      title: isVi ? 'Ví của tôi' : 'My Wallets',
-      subtitle: isVi ? 'Quản lý tài khoản ngân hàng & nguồn tiền' : 'Manage bank accounts & wallets',
-      onPress: onNavigateToWallets,
-    }] : []),
-    ...(onNavigateToCategories ? [{
-      iconName: 'grid-outline' as const,
-      iconBg: '#EFF6FF',
-      iconColor: '#2563EB',
-      title: isVi ? 'Danh mục chi tiêu' : 'Categories',
-      subtitle: isVi ? 'Quản lý danh mục & hạn mức ngân sách' : 'Manage expense categories & limits',
-      onPress: onNavigateToCategories,
-    }] : []),
-    ...(onNavigateToFeed ? [{
-      iconName: 'people-outline' as const,
-      iconBg: '#FEF3C7',
-      iconColor: '#D97706',
-      title: isVi ? 'Bảng tin bạn bè' : 'Friends Feed',
-      subtitle: undefined,
-      onPress: onNavigateToFeed,
-    }] : []),
-
     { 
       iconName: 'alarm-outline' as const, 
       iconBg: '#FEF3C7',
       iconColor: '#D97706',
-      title: isVi ? 'Nhắc nhở giữ chuỗi Streak' : 'Daily Streak Reminder', 
+      title: isVi ? 'Nhắc nhở ghi chép chi tiêu' : 'Daily Expense Reminder', 
       subtitle: (authUser as any)?.reminderTime
         ? (isVi ? `Hằng ngày lúc ${(authUser as any).reminderTime}` : `Daily at ${(authUser as any).reminderTime}`)
         : (isVi ? 'Đang tắt' : 'Disabled'),
@@ -496,78 +485,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <Ionicons name="pencil" size={14} color="#059669" style={{ marginLeft: 6 }} />
           </TouchableOpacity>
           <Text style={styles.userEmail}>{displayEmail}</Text>
-
-          {authUser?.isPro && (
-            <View style={{
-              backgroundColor: '#059669',
-              paddingHorizontal: 16,
-              paddingVertical: 6,
-              borderRadius: 20,
-              marginTop: 12,
-              flexDirection: 'row',
-              alignItems: 'center',
-              shadowColor: '#059669',
-              shadowOffset: { width: 0, height: 3 },
-              shadowOpacity: 0.3,
-              shadowRadius: 6,
-              elevation: 4,
-            }}>
-              <Ionicons name="star" size={14} color="#FDE047" style={{ marginRight: 6 }} />
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
-                PRO • {isVi ? 'Thành viên Tinh Hoa' : 'Elite Member'}
-              </Text>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: '#FDE047', marginLeft: 8 }}>
-                VIP
-              </Text>
-            </View>
-          )}
-
         </View>
-
-        {/* 3. Streak Card (Interactive) */}
-        <TouchableOpacity
-          style={styles.streakCard}
-          activeOpacity={0.85}
-          onPress={() => setShowStreakModal(true)}
-        >
-          <Image 
-            source={require('../../../assets/frogs/frog-3d-m-coin-transparent.png')} 
-            style={{ width: 90, height: 90, marginLeft: -12, marginTop: -24, marginBottom: -24, zIndex: 10 }} 
-            resizeMode="contain"
-          />
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', flexWrap: 'wrap', gap: 6 }}>
-              <Text style={[styles.streakTitle, { fontSize: 16, flexShrink: 1 }]}>
-                {isVi
-                  ? `Chuỗi ${currentStreak} ngày bùng cháy`
-                  : `${currentStreak}-Day Blazing Streak`}
-              </Text>
-              {activeToday ? (
-                <View style={{ backgroundColor: '#D1FAE5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#10B981', marginRight: 4 }}>
-                    {isVi ? 'ĐÃ GIỮ CHUỖI' : 'ACTIVE'}
-                  </Text>
-                  <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-                </View>
-              ) : (
-                <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#D97706' }}>
-                    {isVi ? 'CHƯA ĐIỂM DANH' : 'PENDING'}
-                  </Text>
-                </View>
-              )}
-            </View>
-            <Text style={[styles.streakSub, { marginTop: 4, color: '#475569' }]}>
-              {activeToday
-                ? (isVi
-                    ? 'Đã ghi nhận khoảnh khắc hôm nay. Chạm để xem chi tiết & mốc thưởng!'
-                    : 'Continuous moments recorded. Tap to view perks & milestones!')
-                : (isVi
-                    ? 'Chưa duy trì hôm nay. Nhấn để điểm danh ngay trước 23:00!'
-                    : 'Not maintained today. Tap to check-in before 23:00!')}
-            </Text>
-          </View>
-        </TouchableOpacity>
 
 
 
@@ -1075,222 +993,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </View>
       </Modal>
 
-      {/* PREMIUM STREAK MODAL */}
-      <Modal visible={showStreakModal} transparent animationType="fade" onRequestClose={() => setShowStreakModal(false)}>
-        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(15, 23, 42, 0.7)' }]}>
-          <View style={[styles.modalContent, { maxHeight: '95%', width: '92%', paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, overflow: 'hidden', backgroundColor: '#F8FAFC', borderRadius: 28, borderWidth: 1, borderColor: '#E2E8F0' }]}>
-            
-            {/* Header: Premium Style */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 24, paddingBottom: 16, backgroundColor: '#FFFFFF', borderTopLeftRadius: 28, borderTopRightRadius: 28, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', zIndex: 10 }}>
-              <View style={{ flex: 1, paddingRight: 16 }}>
-                <Text style={{ fontSize: 22, fontWeight: '900', color: '#047857', marginBottom: 4 }}>
-                  {isVi ? '✨ Hành Trình Kỷ Luật' : '✨ Mindful Journey'}
-                </Text>
-
-              </View>
-              <TouchableOpacity onPress={() => setShowStreakModal(false)} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}>
-                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' }}>
-                  <Ionicons name="close" size={20} color="#64748B" />
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
-              
-              {/* Flame Hero Card with Decorative Elements */}
-              <View style={{ backgroundColor: '#059669', borderRadius: 24, padding: 24, alignItems: 'center', marginBottom: 24, overflow: 'hidden', shadowColor: '#059669', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8 }}>
-                {/* Decorative Circles */}
-                <View style={{ position: 'absolute', top: -30, right: -20, width: 100, height: 100, borderRadius: 50, backgroundColor: 'rgba(255,255,255,0.1)' }} />
-                <View style={{ position: 'absolute', bottom: -40, left: -20, width: 120, height: 120, borderRadius: 60, backgroundColor: 'rgba(255,255,255,0.05)' }} />
-
-                <View style={{ width: 86, height: 86, borderRadius: 43, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center', marginBottom: 16, shadowColor: '#EA580C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 }}>
-                  <Image 
-                    source={require('../../../assets/frogs/frog-3d-m-coin-transparent.png')} 
-                    style={{ width: 64, height: 64 }} 
-                    resizeMode="contain"
-                  />
-                </View>
-                <Text style={{ fontSize: 36, fontWeight: '900', color: '#FFFFFF', marginBottom: 4 }}>
-                  {isVi ? `${currentStreak} Ngày` : `${currentStreak} Days`}
-                </Text>
-                
-                <View style={{ backgroundColor: activeToday ? 'rgba(255,255,255,0.2)' : 'rgba(252, 165, 165, 0.3)', paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20, marginBottom: 24 }}>
-                  <Text style={{ fontSize: 13, color: activeToday ? '#FFFFFF' : '#FEE2E2', fontWeight: '800' }}>
-                    {activeToday
-                      ? (isVi ? '✨ ĐÃ THẮP SÁNG HÔM NAY' : '✨ ILLUMINATED TODAY')
-                      : (isVi ? '⚡ ĐANG TÀN! THẮP SÁNG NGAY' : '⚡ FADING! IGNITE NOW')}
-                  </Text>
-                </View>
-
-                {/* Check-in CTA Button & Progress Combined */}
-                <View style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 20, padding: 16 }}>
-                  <TouchableOpacity
-                    style={{
-                      backgroundColor: activeToday ? 'rgba(255,255,255,0.95)' : '#FCD34D',
-                      paddingVertical: 14,
-                      paddingHorizontal: 20,
-                      borderRadius: 14,
-                      width: '100%',
-                      alignItems: 'center',
-                      flexDirection: 'row',
-                      justifyContent: 'center',
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: 0.15,
-                      shadowRadius: 6,
-                      elevation: 4,
-                      marginBottom: 16,
-                    }}
-                    onPress={handleCheckInStreak}
-                    disabled={activeToday || streakLoading}
-                    activeOpacity={0.8}
-                  >
-                    {streakLoading ? (
-                      <ActivityIndicator size="small" color="#059669" />
-                    ) : (
-                      <Text style={{ color: activeToday ? '#047857' : '#92400E', fontSize: 16, fontWeight: '900', textTransform: 'uppercase' }}>
-                        {activeToday && <Text style={{ color: '#F97316' }}>✓ </Text>}
-                        {activeToday
-                          ? (isVi ? 'Lửa Đang Cháy' : 'Flame is Alive')
-                          : (isVi ? 'Thắp Lửa Ngay ✦' : 'Ignite Flame ✦')}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#FFFFFF' }}>{isVi ? 'Tiến độ Cột Mốc' : 'Milestone Progress'}</Text>
-                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#D1FAE5' }}>
-                      {currentStreak} / {currentStreak < 3 ? 3 : currentStreak < 7 ? 7 : currentStreak < 14 ? 14 : 30}
-                    </Text>
-                  </View>
-                  <View style={{ height: 10, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 5, overflow: 'hidden' }}>
-                    <View style={{ 
-                      height: '100%', 
-                      width: `${Math.min(100, (currentStreak / (currentStreak < 3 ? 3 : currentStreak < 7 ? 7 : currentStreak < 14 ? 14 : 30)) * 100)}%`, 
-                      backgroundColor: '#FCD34D', 
-                      borderRadius: 5 
-                    }} />
-                  </View>
-                  <Text style={{ fontSize: 11, color: '#D1FAE5', marginTop: 8, textAlign: 'center', fontWeight: '500' }}>
-                    {isVi ? 'Duy trì thêm để nhận Thưởng Đột Phá' : 'Keep going for Breakthrough Rewards!'}
-                  </Text>
-                </View>
-              </View>
-
-                            {/* Stats Box with Skill Icons */}
-              <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
-                <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#F1F5F9', shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3, alignItems: 'center' }}>
-                  <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: '#F0FDF4', justifyContent: 'center', alignItems: 'center', marginBottom: 12, borderWidth: 1, borderColor: '#DCFCE7', shadowColor: '#22C55E', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 2 }}>
-                    <Text style={{ fontSize: 26 }}>🗺️</Text>
-                  </View>
-                  <Text style={{ fontSize: 28, fontWeight: '900', color: '#0F172A', marginBottom: 2 }}>
-                    {Math.max(totalActiveDays, currentStreak)}
-                  </Text>
-                  <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '800', textAlign: 'center', letterSpacing: 0.5 }}>
-                    {isVi ? 'TỔNG HÀNH TRÌNH' : 'TOTAL DAYS'}
-                  </Text>
-                </View>
-
-                <View style={{ flex: 1, backgroundColor: '#FFFFFF', borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#FFFBEB', shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 3, alignItems: 'center' }}>
-                  <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center', marginBottom: 12, borderWidth: 1, borderColor: '#FDE68A', shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 2 }}>
-                    <Text style={{ fontSize: 26 }}>🏆</Text>
-                  </View>
-                  <Text style={{ fontSize: 28, fontWeight: '900', color: '#D97706', marginBottom: 2 }}>
-                    {Math.max(longestStreak, currentStreak)}
-                  </Text>
-                  <Text style={{ fontSize: 11, color: '#B45309', fontWeight: '800', textAlign: 'center', letterSpacing: 0.5 }}>
-                    {isVi ? 'HẠNG CAO NHẤT' : 'HIGHEST RANK'}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Streak Shield */}
-              <View style={{ flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#EFF6FF', borderRadius: 16, padding: 20, marginBottom: 32, borderWidth: 1, borderColor: '#BFDBFE' }}>
-                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: shieldAvailable ? '#DBEAFE' : '#F1F5F9', justifyContent: 'center', alignItems: 'center', marginRight: 16, opacity: shieldAvailable ? 1 : 0.5, borderWidth: 2, borderColor: shieldAvailable ? '#93C5FD' : '#E2E8F0' }}>
-                  <Text style={{ fontSize: 24 }}>🛡️</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '900', color: shieldAvailable ? '#1D4ED8' : '#64748B', marginBottom: 6 }}>
-                    {shieldUsedToday
-                      ? (isVi ? 'Khiên đã kích hoạt ✨' : 'Shield Activated ✨')
-                      : shieldAvailable
-                        ? (isVi ? 'Khiên Hộ Thể (1/tuần)' : 'Aegis Shield (1 left)')
-                        : (isVi ? 'Khiên Hộ Thể (Đã vỡ)' : 'Aegis Shield (Shattered)')}
-                  </Text>
-                  <Text style={{ fontSize: 13, color: '#475569', lineHeight: 20, fontWeight: '500' }}>
-                    {shieldAvailable
-                      ? (isVi ? 'Kỹ năng nội tại: Tự động bảo vệ chuỗi nếu bạn quên thắp sáng 1 ngày.' : 'Passive: Auto-protects your streak if you miss 1 day.')
-                      : (isVi ? 'Hồi phục vào Thứ 2. Tránh bỏ lỡ để không rớt hạng.' : 'Refills on Monday. Don\'t miss a day to keep your rank.')}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Milestones */}
-              <Text style={{ fontSize: 16, fontWeight: '900', color: '#0F172A', marginBottom: 16 }}>
-                {isVi ? '🎁 Phần Thưởng Đột Phá' : '🎁 Breakthrough Rewards'}
-              </Text>
-              <View style={{ gap: 12, marginBottom: 24 }}>
-                {[
-                  { days: 3, icon: '🌟', titleVi: 'Ngôi Sao Sơ Khởi', titleEn: 'Initial Star', rewardVi: 'MỞ KHÓA BẢN PRO', rewardEn: 'UNLOCK PRO', highlight: true },
-                  { days: 7, icon: '💎', titleVi: 'Tuần Lễ Khai Sáng', titleEn: 'Enlightened Week', rewardVi: 'Huy hiệu Streak Đồng', rewardEn: 'Bronze Badge' },
-                  { days: 14, icon: '⚡', titleVi: 'Dấu Ấn Kiên Định', titleEn: 'Mark of Resolve', rewardVi: 'Huy hiệu Bạc + 300 XP', rewardEn: 'Silver Badge + 300 XP' },
-                ].map((m, idx) => {
-                  const reached = currentStreak >= m.days;
-                  return (
-                    <View
-                      key={idx}
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        backgroundColor: '#FFFFFF',
-                        borderRadius: 16,
-                        padding: 16,
-                        borderWidth: 1,
-                        borderColor: (m.highlight && !reached) ? '#FCD34D' : (reached ? '#10B981' : '#E2E8F0'),
-                        shadowColor: m.highlight ? '#FBBF24' : '#000',
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: m.highlight ? 0.2 : 0.03,
-                        shadowRadius: 4,
-                        elevation: m.highlight ? 3 : 1,
-                      }}
-                    >
-                      <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: reached ? '#ECFDF5' : '#F8FAFC', justifyContent: 'center', alignItems: 'center', marginRight: 16, borderWidth: 1, borderColor: reached ? '#A7F3D0' : '#E2E8F0' }}>
-                        <Text style={{ fontSize: 20 }}>{m.icon}</Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '900', color: '#0F172A' }}>
-                            {m.days} {isVi ? 'ngày' : 'days'}
-                          </Text>
-                          {m.highlight && (
-                            <View style={{ marginLeft: 8, backgroundColor: '#FEF2F2', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, borderColor: '#FECACA' }}>
-                              <Text style={{ color: '#DC2626', fontSize: 10, fontWeight: '800' }}>HOT</Text>
-                            </View>
-                          )}
-                        </View>
-                        <Text style={{ fontSize: 13, fontWeight: m.highlight ? '700' : '600', color: m.highlight ? '#D97706' : (reached ? '#059669' : '#64748B') }}>
-                          {isVi ? m.rewardVi : m.rewardEn}
-                        </Text>
-                      </View>
-                      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: reached ? '#10B981' : '#F1F5F9', justifyContent: 'center', alignItems: 'center' }}>
-                        {reached ? <Ionicons name="checkmark-sharp" size={18} color="#FFFFFF" /> : <Ionicons name="lock-closed" size={14} color="#94A3B8" />}
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-
-              <TouchableOpacity
-                style={{ width: '100%', paddingVertical: 18, alignItems: 'center', backgroundColor: '#F1F5F9', borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0' }}
-                onPress={() => setShowStreakModal(false)}
-              >
-                <Text style={{ color: '#475569', fontSize: 15, fontWeight: '800' }}>{isVi ? 'Đóng cửa sổ' : 'Close window'}</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
       {/* 💬 FEEDBACK MODAL */}
       <Modal visible={showFeedbackModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -1550,37 +1252,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#047857',
     marginTop: 6,
-  },
-  streakCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1.5,
-    borderColor: '#A7F3D0',
-    borderRadius: 20,
-    paddingVertical: 16,
-    paddingHorizontal: 14,
-    marginBottom: 16,
-    shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 4,
-    overflow: 'visible',
-  },
-  streakFlame: {
-    fontSize: 32,
-  },
-  streakTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  streakSub: {
-    fontSize: 12,
-    color: '#047857',
-    marginTop: 4,
-    lineHeight: 18,
   },
   sectionTitle: {
     fontSize: 12,

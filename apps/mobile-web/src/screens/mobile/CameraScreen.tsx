@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,16 @@ import {
   Image,
   StatusBar,
   ActivityIndicator,
+  Animated,
+  PanResponder,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, CameraType, FlashMode, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { FriendsFeedScreen } from './FriendsFeedScreen';
 
 interface CameraScreenProps {
   onClose?: () => void;
@@ -25,12 +29,71 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
 }) => {
   const { language } = useLanguage();
   const isVi = language === 'vi';
+  const { height: screenHeight } = Dimensions.get('window');
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<CameraType>('back');
   const [flash, setFlash] = useState<FlashMode>('off');
   const [displayZoom, setDisplayZoom] = useState<number>(1);
   const [mode, setMode] = useState<'bill' | 'food' | 'auto'>('food');
   const cameraRef = React.useRef<any>(null);
+
+  // Swipe-up Friends Feed state & animation
+  const [showFeed, setShowFeed] = useState(false);
+  const feedSlideY = useRef(new Animated.Value(screenHeight || 800)).current;
+  const bounceY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const bounceAnim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bounceY, {
+          toValue: -5,
+          duration: 650,
+          useNativeDriver: true,
+        }),
+        Animated.timing(bounceY, {
+          toValue: 0,
+          duration: 650,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    bounceAnim.start();
+    return () => bounceAnim.stop();
+  }, []);
+
+  const openFeed = () => {
+    setShowFeed(true);
+    Animated.spring(feedSlideY, {
+      toValue: 0,
+      damping: 24,
+      stiffness: 180,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeFeed = () => {
+    Animated.timing(feedSlideY, {
+      toValue: screenHeight || 800,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowFeed(false);
+    });
+  };
+
+  // PanResponder phát hiện cử chỉ lướt lên (swipe up)
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return gestureState.dy < -20 && Math.abs(gestureState.dx) < 60;
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy < -30) {
+          openFeed();
+        }
+      },
+    })
+  ).current;
 
   const initialPinchDistance = React.useRef<number | null>(null);
   const initialZoomOnPinch = React.useRef<number>(1);
@@ -109,10 +172,13 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
         });
         if (photo?.uri && onPhotoCaptured) {
           onPhotoCaptured(photo.uri, mode);
+          return;
         }
       }
+      await handlePickFromGallery();
     } catch (err) {
-      console.warn('Capture error:', err);
+      console.warn('Capture error, fallback to gallery:', err);
+      await handlePickFromGallery();
     }
   };
 
@@ -126,19 +192,70 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
 
   if (!permission.granted) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 20 }]}>
-        <Text style={{ color: 'white', fontSize: 18, textAlign: 'center', marginBottom: 20 }}>
-          {isVi ? 'Monett cần quyền Camera để chụp ảnh.' : 'Monett needs camera permission to take photos.'}
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+        <TouchableOpacity
+          style={{ position: 'absolute', top: 40, left: 20, zIndex: 10, padding: 8 }}
+          onPress={onClose}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="close" size={26} color="#FFFFFF" />
+        </TouchableOpacity>
+
+        <Ionicons name="camera-outline" size={60} color="#34D399" style={{ marginBottom: 16 }} />
+
+        <Text style={{ color: 'white', fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: 8 }}>
+          {isVi ? 'Monett cần quyền Camera' : 'Camera Permission Needed'}
         </Text>
-        <TouchableOpacity style={{ backgroundColor: '#10B981', padding: 12, borderRadius: 20 }} onPress={requestPermission}>
-          <Text style={{ color: 'white', fontWeight: 'bold' }}>{isVi ? 'Cấp quyền Camera' : 'Grant Camera Permission'}</Text>
+        <Text style={{ color: '#94A3B8', fontSize: 14, textAlign: 'center', marginBottom: 28, maxWidth: 300, lineHeight: 20 }}>
+          {isVi
+            ? 'Vui lòng cấp quyền camera để chụp trực tiếp, hoặc chọn ảnh hóa đơn / món ăn từ thư viện máy của bạn.'
+            : 'Please grant camera access, or choose a photo from your library.'}
+        </Text>
+
+        <TouchableOpacity
+          style={{
+            backgroundColor: '#059669',
+            paddingVertical: 14,
+            paddingHorizontal: 28,
+            borderRadius: 24,
+            marginBottom: 12,
+            width: '100%',
+            maxWidth: 280,
+            alignItems: 'center',
+          }}
+          onPress={requestPermission}
+          activeOpacity={0.8}
+        >
+          <Text style={{ color: 'white', fontWeight: '800', fontSize: 15 }}>
+            {isVi ? 'Cấp quyền Camera' : 'Grant Camera Permission'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={{
+            backgroundColor: 'rgba(255, 255, 255, 0.12)',
+            paddingVertical: 14,
+            paddingHorizontal: 28,
+            borderRadius: 24,
+            width: '100%',
+            maxWidth: 280,
+            alignItems: 'center',
+            borderWidth: 1,
+            borderColor: 'rgba(255, 255, 255, 0.2)',
+          }}
+          onPress={handlePickFromGallery}
+          activeOpacity={0.8}
+        >
+          <Text style={{ color: 'white', fontWeight: '700', fontSize: 15 }}>
+            {isVi ? '🖼️ Chọn ảnh từ thư viện' : '🖼️ Pick from Gallery'}
+          </Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']} {...panResponder.panHandlers}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
 
       {/* 1. Header Bar trên kính ngắm */}
@@ -256,7 +373,31 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
             <Text style={styles.subBtnLabel}>{isVi ? 'Đổi chiều' : 'Flip'}</Text>
           </TouchableOpacity>
         </View>
+
+        {/* 4. Lướt lên xem Bảng tin bạn bè */}
+        <TouchableOpacity
+          style={styles.swipeUpContainer}
+          onPress={openFeed}
+          activeOpacity={0.8}
+        >
+          <Animated.View style={{ transform: [{ translateY: bounceY }] }}>
+            <Ionicons name="chevron-up" size={18} color="#FFFFFF" />
+          </Animated.View>
+          <View style={styles.swipeUpPill}>
+            <Ionicons name="people" size={13} color="#34D399" style={{ marginRight: 6 }} />
+            <Text style={styles.swipeUpText}>
+              {isVi ? 'Lướt lên xem Bảng tin bạn bè' : 'Swipe up for Friends Feed'}
+            </Text>
+          </View>
+        </TouchableOpacity>
       </View>
+
+      {/* 5. Màn hình Bảng tin bạn bè trượt lên khi lướt lên */}
+      {showFeed && (
+        <Animated.View style={[styles.feedOverlay, { transform: [{ translateY: feedSlideY }] }]}>
+          <FriendsFeedScreen onBack={closeFeed} />
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 };
@@ -430,5 +571,37 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     backgroundColor: '#10B981',
+  },
+  swipeUpContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    paddingBottom: 6,
+  },
+  swipeUpPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    marginTop: 2,
+  },
+  swipeUpText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  feedOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#FFFFFF',
+    zIndex: 999,
   },
 });

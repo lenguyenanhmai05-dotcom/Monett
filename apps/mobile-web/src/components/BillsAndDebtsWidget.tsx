@@ -9,7 +9,9 @@ import {
   ScrollView,
   Modal,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
 import {
@@ -96,6 +98,7 @@ export const BillsAndDebtsWidget: React.FC = () => {
   const [debtPerson, setDebtPerson] = useState<string>('');
   const [debtAmount, setDebtAmount] = useState<string>('');
   const [debtDueDate, setDebtDueDate] = useState<string>('');
+  const [debtNote, setDebtNote] = useState<string>('');
   const [isDebtSubmitting, setIsDebtSubmitting] = useState<boolean>(false);
 
   // 1. Tải dữ liệu từ Backend
@@ -284,6 +287,7 @@ export const BillsAndDebtsWidget: React.FC = () => {
     setDebtPerson(item.personName);
     setDebtAmount(String(item.amount || ''));
     setDebtDueDate(item.dueDate || '');
+    setDebtNote(item.note || '');
     setIsDebtFormOpen(true);
   };
 
@@ -305,6 +309,7 @@ export const BillsAndDebtsWidget: React.FC = () => {
                 personName: trimmedPerson,
                 amount: parsedAmount,
                 dueDate: debtDueDate,
+                note: debtNote,
               }
             : d,
         ),
@@ -314,6 +319,7 @@ export const BillsAndDebtsWidget: React.FC = () => {
       setDebtPerson('');
       setDebtAmount('');
       setDebtDueDate('');
+      setDebtNote('');
 
       try {
         if (!targetId.startsWith('sample-')) {
@@ -322,6 +328,7 @@ export const BillsAndDebtsWidget: React.FC = () => {
             personName: trimmedPerson,
             amount: parsedAmount,
             dueDate: debtDueDate,
+            note: debtNote,
           });
         }
       } catch {}
@@ -338,6 +345,7 @@ export const BillsAndDebtsWidget: React.FC = () => {
       personName: trimmedPerson,
       amount: parsedAmount,
       dueDate: debtDueDate,
+      note: debtNote,
       isSettled: false,
     };
 
@@ -346,6 +354,7 @@ export const BillsAndDebtsWidget: React.FC = () => {
     setDebtPerson('');
     setDebtAmount('');
     setDebtDueDate('');
+    setDebtNote('');
 
     try {
       const created = await createDebtApi({
@@ -353,6 +362,7 @@ export const BillsAndDebtsWidget: React.FC = () => {
         personName: trimmedPerson,
         amount: parsedAmount,
         dueDate: debtDueDate,
+        note: debtNote,
       });
       if (created?.id) {
         setDebts((prev) => prev.map((d) => (d.id === optimisticId ? created : d)));
@@ -370,15 +380,15 @@ export const BillsAndDebtsWidget: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* 1. THANH CAPSULE DUY NHẤT Ở TRANG CHỦ (Giữ y hệt 100% ảnh mẫu, không chiếm diện tích) */}
+      {/* 1. THANH CAPSULE DUY NHẤT Ở TRANG CHỦ (Gọn gàng, thoáng đãng) */}
       <View style={styles.tabCapsuleContainer}>
         {/* Nút 1: Hóa đơn định kỳ */}
         <TouchableOpacity
           style={styles.tabCapsule}
           onPress={() => setDetailModal('bills')}
-          activeOpacity={0.7}
+          activeOpacity={0.75}
         >
-          <Ionicons name="time-outline" size={16} color="#1E3A2F" style={{ marginRight: 6 }} />
+          <Ionicons name="receipt-outline" size={15} color="#047857" style={{ marginRight: 6 }} />
           <Text style={styles.tabText}>{isVi ? 'Hóa đơn định kỳ' : 'Recurring Bills'}</Text>
           {unpaidBillsCount > 0 && (
             <View style={styles.pillCountBadge}>
@@ -391,13 +401,13 @@ export const BillsAndDebtsWidget: React.FC = () => {
         <TouchableOpacity
           style={styles.tabCapsule}
           onPress={() => setDetailModal('debts')}
-          activeOpacity={0.7}
+          activeOpacity={0.75}
         >
-          <Ionicons name="people-outline" size={16} color="#1E3A2F" style={{ marginRight: 6 }} />
+          <Ionicons name="people-outline" size={15} color="#047857" style={{ marginRight: 6 }} />
           <Text style={styles.tabText}>{isVi ? 'Sổ ghi nợ' : 'Debt Book'}</Text>
           {(debtSummary.lendCount > 0 || debtSummary.borrowCount > 0) && (
-            <View style={[styles.pillCountBadge, { backgroundColor: '#E0E7FF' }]}>
-              <Text style={[styles.pillCountText, { color: '#3730A3' }]}>
+            <View style={styles.pillCountBadgeGreen}>
+              <Text style={styles.pillCountTextGreen}>
                 {debtSummary.lendCount + debtSummary.borrowCount}
               </Text>
             </View>
@@ -405,625 +415,746 @@ export const BillsAndDebtsWidget: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* ======================= MODAL BOTTOM SHEET CHI TIẾT KHI BẤM VÀO ======================= */}
+      {/* 2. MODAL ĐẨY LÊN NHƯ TRANG LƯU NHANH (BOTTOM SHEET SLIDE-UP) */}
       <Modal
-        visible={detailModal !== null}
-        transparent={true}
+        visible={Boolean(detailModal)}
+        transparent
         animationType="slide"
         onRequestClose={() => setDetailModal(null)}
       >
-        <View style={styles.modalOverlay}>
-          {/* Nền mờ phía sau - bấm vào để đóng */}
+        <KeyboardAvoidingView
+          style={styles.sheetOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          {/* Backdrop mờ phía sau - bấm vào tự đóng */}
           <TouchableOpacity
-            style={styles.modalBackdrop}
-            activeOpacity={1}
+            style={styles.sheetBackdrop}
             onPress={() => setDetailModal(null)}
+            activeOpacity={1}
           />
 
-          {/* Bảng Bottom Sheet chi tiết */}
-          <View style={styles.bottomSheetContainer}>
-            {/* Thanh gạt trang trí ở đầu modal */}
-            <View style={styles.sheetHandle} />
+          {/* Khung Bottom Sheet trượt lên từ dưới y hệt trang lưu nhanh */}
+          <View style={styles.sheetContainer}>
+            {/* Thanh kéo handle indicator */}
+            <View style={styles.handleBar} />
 
-            {/* Header của Modal */}
-            <View style={styles.modalHeaderRow}>
-              <View style={styles.modalHeaderTitleWrap}>
-                <Ionicons
-                  name={detailModal === 'bills' ? 'time' : 'people'}
-                  size={18}
-                  color="#047857"
-                  style={{ marginRight: 7 }}
-                />
-                <Text style={styles.modalHeaderTitle}>
+            {/* Header của Sheet */}
+            <View style={styles.sheetHeader}>
+              <View>
+                <Text style={styles.sheetTitle}>
                   {detailModal === 'bills'
-                    ? (isVi ? 'HÓA ĐƠN ĐỊNH KỲ HÀNG THÁNG' : 'MONTHLY RECURRING BILLS')
-                    : (isVi ? 'SỔ GHI NỢ (CHO VAY & ĐI VAY)' : 'DEBT BOOK (LEND & BORROW)')}
+                    ? (isVi ? 'Hóa đơn định kỳ' : 'Recurring Bills')
+                    : (isVi ? 'Sổ ghi nợ' : 'Debt Book')}
+                </Text>
+                <Text style={styles.sheetSubtitle}>
+                  {detailModal === 'bills'
+                    ? (isVi ? 'Quản lý các khoản chi định kỳ hàng tháng' : 'Manage monthly recurring bills')
+                    : (isVi ? 'Theo dõi tiền cho mượn và các khoản đi vay' : 'Track money lent and borrowed')}
                 </Text>
               </View>
 
               <TouchableOpacity
-                style={styles.modalCloseBtn}
+                style={styles.closeBtn}
                 onPress={() => setDetailModal(null)}
-                activeOpacity={0.7}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Ionicons name="close" size={18} color="#64748B" />
+                <Ionicons name="close" size={20} color="#64748B" />
               </TouchableOpacity>
             </View>
 
-            {/* Thanh chuyển đổi tab nhanh bên trong modal */}
-            <View style={styles.innerTabRow}>
+            {/* Thanh chuyển đổi tab bên trong sheet */}
+            <View style={styles.segmentedControl}>
               <TouchableOpacity
-                style={[styles.innerTabBtn, detailModal === 'bills' && styles.innerTabBtnActive]}
+                style={[styles.segmentBtn, detailModal === 'bills' && styles.segmentBtnActive]}
                 onPress={() => setDetailModal('bills')}
+                activeOpacity={0.8}
               >
-                <Text style={[styles.innerTabText, detailModal === 'bills' && styles.innerTabTextActive]}>
-                  {isVi ? '🕒 Hóa đơn định kỳ' : '🕒 Recurring Bills'}
+                <Ionicons
+                  name="receipt-outline"
+                  size={16}
+                  color={detailModal === 'bills' ? '#047857' : '#64748B'}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.segmentText, detailModal === 'bills' && styles.segmentTextActive]}>
+                  {isVi ? 'Hóa đơn định kỳ' : 'Recurring Bills'}
                 </Text>
+                {unpaidBillsCount > 0 && (
+                  <View style={styles.badgeCount}>
+                    <Text style={styles.badgeCountText}>{unpaidBillsCount}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.innerTabBtn, detailModal === 'debts' && styles.innerTabBtnActive]}
+                style={[styles.segmentBtn, detailModal === 'debts' && styles.segmentBtnActive]}
                 onPress={() => setDetailModal('debts')}
+                activeOpacity={0.8}
               >
-                <Text style={[styles.innerTabText, detailModal === 'debts' && styles.innerTabTextActive]}>
-                  {isVi ? '👥 Sổ ghi nợ' : '👥 Debt Book'}
+                <Ionicons
+                  name="people-outline"
+                  size={16}
+                  color={detailModal === 'debts' ? '#047857' : '#64748B'}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[styles.segmentText, detailModal === 'debts' && styles.segmentTextActive]}>
+                  {isVi ? 'Sổ ghi nợ' : 'Debt Book'}
                 </Text>
+                {(debtSummary.lendCount > 0 || debtSummary.borrowCount > 0) && (
+                  <View style={styles.badgeCount}>
+                    <Text style={styles.badgeCountText}>
+                      {debtSummary.lendCount + debtSummary.borrowCount}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
             </View>
 
-            {/* NỘI DUNG CUỘN CHI TIẾT */}
+            {/* NỘI DUNG CUỘN */}
             <ScrollView
-              style={styles.modalScrollView}
-              contentContainerStyle={styles.modalScrollContent}
+              style={styles.sheetScrollView}
+              contentContainerStyle={styles.sheetScrollContent}
               showsVerticalScrollIndicator={false}
             >
-              {/* === NỘI DUNG 1: HÓA ĐƠN ĐỊNH KỲ === */}
-              {detailModal === 'bills' && (
-                <View>
-                  <View style={styles.subHeader}>
-                    <Text style={styles.subTitle}>DANH SÁCH HÓA ĐƠN</Text>
-                    <TouchableOpacity
-                      style={styles.addBtn}
-                      onPress={() => {
-                        const next = !isBillFormOpen;
-                        setIsBillFormOpen(next);
-                        if (next) {
-                          setEditingBillId(null);
-                          setBillTitle('');
-                          setBillAmount('');
-                        }
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons
-                        name={isBillFormOpen ? 'chevron-up-outline' : 'add-circle-outline'}
-                        size={14}
-                        color="#047857"
-                        style={{ marginRight: 3 }}
-                      />
-                      <Text style={styles.addBtnText}>
-                        {isBillFormOpen ? 'Đóng lại' : 'Thêm hóa đơn'}
+            {/* ============================================================== */}
+            {/* TAB 1: HÓA ĐƠN ĐỊNH KỲ */}
+            {/* ============================================================== */}
+            {detailModal === 'bills' && (
+              <View>
+                {/* Form thêm/sửa hóa đơn to bản, tối giản, sang trọng */}
+                {isBillFormOpen ? (
+                  <View style={styles.formCard}>
+                    <View style={styles.formCardHeader}>
+                      <Text style={styles.formCardTitle}>
+                        {editingBillId
+                          ? (isVi ? '✏️ Chỉnh sửa hóa đơn' : 'Edit Bill')
+                          : (isVi ? 'Thêm hóa đơn mới' : 'New Recurring Bill')}
                       </Text>
-                    </TouchableOpacity>
-                  </View>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setIsBillFormOpen(false);
+                          setEditingBillId(null);
+                        }}
+                      >
+                        <Ionicons name="close" size={20} color="#94A3B8" />
+                      </TouchableOpacity>
+                    </View>
 
-                  {/* Form thêm / sửa hóa đơn */}
-                  {isBillFormOpen && (
-                    <View style={styles.formCard}>
-                      <View style={styles.formTitleRow}>
-                        <Text style={styles.formTitle}>
-                          {editingBillId ? '✏️ Sửa hóa đơn định kỳ' : 'Thêm hóa đơn hàng tháng'}
+                    {/* 1. Tên hóa đơn */}
+                    <Text style={styles.inputLabel}>{isVi ? 'Tên hóa đơn / Khoản phí' : 'Bill Name'}</Text>
+                    <View style={styles.inputBox}>
+                      <Ionicons name="receipt-outline" size={18} color="#94A3B8" style={{ marginRight: 10 }} />
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder={isVi ? 'Ví dụ: Tiền phòng trọ, Điện nước, Wifi...' : 'e.g. Rent, Electricity, Internet...'}
+                        placeholderTextColor="#94A3B8"
+                        value={billTitle}
+                        onChangeText={setBillTitle}
+                      />
+                    </View>
+
+                    {/* 2. Số tiền */}
+                    <Text style={styles.inputLabel}>{isVi ? 'Số tiền định kỳ' : 'Amount'}</Text>
+                    <View style={styles.inputBox}>
+                      <TextInput
+                        style={[styles.textInput, { fontSize: 18, fontWeight: '800', color: '#047857' }]}
+                        placeholder="0"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="numeric"
+                        value={billAmount ? Number(billAmount.replace(/\D/g, '')).toLocaleString('vi-VN') : ''}
+                        onChangeText={(val) => setBillAmount(val.replace(/\D/g, ''))}
+                      />
+                      <Text style={styles.currencyBadge}>đ</Text>
+                    </View>
+
+                    {/* Nút gợi ý tiền nhanh */}
+                    <View style={styles.presetsRow}>
+                      {[200000, 500000, 1000000, 2000000, 3000000, 5000000].map((amt) => (
+                        <TouchableOpacity
+                          key={amt}
+                          style={styles.presetChip}
+                          onPress={() => setBillAmount(String(amt))}
+                        >
+                          <Text style={styles.presetChipText}>{amt >= 1000000 ? `${amt / 1000000}tr` : `${amt / 1000}k`}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {/* 3. Ngày đến hạn hàng tháng */}
+                    <View style={styles.dueDayHeaderRow}>
+                      <Text style={styles.inputLabel}>{isVi ? 'Ngày đến hạn hàng tháng' : 'Due Day Each Month'}</Text>
+                      <View style={styles.selectedDayBadge}>
+                        <Text style={styles.selectedDayBadgeText}>
+                          {isVi ? `Ngày ${billDueDay} hàng tháng` : `Day ${billDueDay}`}
                         </Text>
-                        {editingBillId && (
-                          <View style={styles.badgeEditing}>
-                            <Text style={styles.badgeEditingText}>Đang sửa</Text>
-                          </View>
-                        )}
-                      </View>
-
-                      <View style={styles.inputWrap}>
-                        <Ionicons name="receipt-outline" size={16} color="#64748B" style={{ marginRight: 8 }} />
-                        <TextInput
-                          style={styles.textInput}
-                          placeholder="Ví dụ: Tiền phòng, tiền điện, tiền nước..."
-                          placeholderTextColor="#94A3B8"
-                          value={billTitle}
-                          onChangeText={setBillTitle}
-                          autoFocus
-                        />
-                      </View>
-
-                      <View style={styles.inputWrap}>
-                        <Ionicons name="cash-outline" size={16} color="#64748B" style={{ marginRight: 8 }} />
-                        <TextInput
-                          style={styles.textInput}
-                          placeholder="Số tiền (ví dụ: 1500000)"
-                          placeholderTextColor="#94A3B8"
-                          value={billAmount}
-                          onChangeText={setBillAmount}
-                          keyboardType="numeric"
-                        />
-                      </View>
-
-                      <View style={styles.selectorBlock}>
-                        <View style={styles.selectorHeader}>
-                          <Text style={styles.selectorLabel}>Ngày đến hạn hàng tháng:</Text>
-                          <View style={styles.daySelectedBadge}>
-                            <Text style={styles.daySelectedText}>Ngày {billDueDay} hàng tháng</Text>
-                          </View>
-                        </View>
-
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dayScroll}>
-                          {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
-                            const isSelected = billDueDay === d;
-                            return (
-                              <TouchableOpacity
-                                key={`day-${d}`}
-                                style={[styles.dayChip, isSelected && styles.dayChipActive]}
-                                onPress={() => setBillDueDay(d)}
-                                activeOpacity={0.7}
-                              >
-                                <Text style={[styles.dayChipText, isSelected && styles.dayChipTextActive]}>
-                                  {d}
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </ScrollView>
-                      </View>
-
-                      <View style={styles.selectorBlock}>
-                        <Text style={styles.selectorLabel}>Nhắc bạn trước:</Text>
-                        <View style={styles.chipsRow}>
-                          {[1, 3, 5, 7].map((days) => {
-                            const isSelected = billBeforeDays === days;
-                            return (
-                              <TouchableOpacity
-                                key={`before-${days}`}
-                                style={[styles.beforeDayChip, isSelected && styles.beforeDayChipActive]}
-                                onPress={() => setBillBeforeDays(days)}
-                                activeOpacity={0.7}
-                              >
-                                <Text
-                                  style={[
-                                    styles.beforeDayChipText,
-                                    isSelected && styles.beforeDayChipTextActive,
-                                  ]}
-                                >
-                                  {days} ngày
-                                </Text>
-                              </TouchableOpacity>
-                            );
-                          })}
-                        </View>
-                      </View>
-
-                      <View style={styles.formFooter}>
-                        <TouchableOpacity
-                          style={styles.btnCancel}
-                          onPress={() => {
-                            setIsBillFormOpen(false);
-                            setEditingBillId(null);
-                          }}
-                        >
-                          <Text style={styles.btnCancelText}>Hủy</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.btnSubmit, !billTitle.trim() && styles.btnDisabled]}
-                          onPress={handleSaveBill}
-                          disabled={!billTitle.trim() || isBillSubmitting}
-                        >
-                          {isBillSubmitting ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name={editingBillId ? 'save-outline' : 'checkmark-circle-outline'}
-                                size={15}
-                                color="#FFFFFF"
-                                style={{ marginRight: 4 }}
-                              />
-                              <Text style={styles.btnSubmitText}>
-                                {editingBillId ? 'Cập nhật' : 'Lưu hóa đơn'}
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
                       </View>
                     </View>
-                  )}
 
-                  {/* Danh sách các hóa đơn */}
-                  <View style={styles.itemsList}>
-                    {bills.map((item) => {
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dayScrollRow}>
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => {
+                        const isSelected = billDueDay === d;
+                        return (
+                          <TouchableOpacity
+                            key={`due-${d}`}
+                            style={[styles.daySquare, isSelected && styles.daySquareActive]}
+                            onPress={() => setBillDueDay(d)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[styles.daySquareText, isSelected && styles.daySquareTextActive]}>
+                              {d}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+
+                    {/* 4. Nhắc trước */}
+                    <Text style={[styles.inputLabel, { marginTop: 14 }]}>{isVi ? 'Báo nhắc nhở trước' : 'Remind Before'}</Text>
+                    <View style={styles.remindBeforeRow}>
+                      {[1, 3, 5, 7].map((days) => {
+                        const isSelected = billBeforeDays === days;
+                        return (
+                          <TouchableOpacity
+                            key={`remind-${days}`}
+                            style={[styles.remindChip, isSelected && styles.remindChipActive]}
+                            onPress={() => setBillBeforeDays(days)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[styles.remindChipText, isSelected && styles.remindChipTextActive]}>
+                              {days} {isVi ? 'ngày' : 'days'}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {/* Nút hành động Lưu */}
+                    <View style={styles.formBtnRow}>
+                      <TouchableOpacity
+                        style={styles.btnSecondary}
+                        onPress={() => {
+                          setIsBillFormOpen(false);
+                          setEditingBillId(null);
+                        }}
+                      >
+                        <Text style={styles.btnSecondaryText}>{isVi ? 'Hủy' : 'Cancel'}</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.btnPrimary, !billTitle.trim() && styles.btnPrimaryDisabled]}
+                        onPress={handleSaveBill}
+                        disabled={!billTitle.trim() || isBillSubmitting}
+                      >
+                        {isBillSubmitting ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text style={styles.btnPrimaryText}>
+                            {editingBillId ? (isVi ? 'Cập nhật' : 'Update') : (isVi ? 'Lưu hóa đơn' : 'Save Bill')}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  /* Nút to để mở form thêm hóa đơn */
+                  <TouchableOpacity
+                    style={styles.addNewCardBtn}
+                    onPress={() => {
+                      setIsBillFormOpen(true);
+                      setEditingBillId(null);
+                      setBillTitle('');
+                      setBillAmount('');
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.addNewIconCircle}>
+                      <Ionicons name="add" size={22} color="#FFFFFF" />
+                    </View>
+                    <View>
+                      <Text style={styles.addNewTitle}>{isVi ? 'Thêm hóa đơn hàng tháng' : 'Add Recurring Bill'}</Text>
+                      <Text style={styles.addNewSubtitle}>
+                        {isVi ? 'Tiền phòng trọ, điện, nước, internet...' : 'Rent, bills, subscriptions...'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+
+                {/* Danh sách các hóa đơn */}
+                <View style={styles.listSection}>
+                  <Text style={styles.listSectionTitle}>
+                    {isVi ? 'Danh sách hóa đơn định kỳ' : 'Your Bills'} ({bills.length})
+                  </Text>
+
+                  {bills.length === 0 ? (
+                    <View style={styles.emptyCard}>
+                      <Ionicons name="receipt-outline" size={36} color="#CBD5E1" />
+                      <Text style={styles.emptyCardText}>
+                        {isVi ? 'Chưa có hóa đơn nào được thêm' : 'No recurring bills added yet'}
+                      </Text>
+                    </View>
+                  ) : (
+                    bills.map((item) => {
                       const isPaid = item.isPaidThisMonth;
                       const daysLeft = item.dueDay - todayDay;
                       const isComingSoon = daysLeft >= 0 && daysLeft <= (item.remindBeforeDays || 3) && !isPaid;
 
                       return (
-                        <View
-                          key={item.id}
-                          style={[styles.billCard, isPaid && styles.billCardPaid]}
-                        >
+                        <View key={item.id} style={[styles.cardItem, isPaid && styles.cardItemPaid]}>
                           <TouchableOpacity
-                            style={[styles.tickCircle, isPaid && styles.tickCirclePaid]}
+                            style={[styles.checkboxCircle, isPaid && styles.checkboxCirclePaid]}
                             onPress={() => handleToggleBillPaid(item)}
                             activeOpacity={0.7}
                           >
-                            {isPaid ? (
-                              <Ionicons name="checkmark" size={13} color="#FFFFFF" />
-                            ) : (
-                              <View style={styles.tickDot} />
-                            )}
+                            {isPaid && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
                           </TouchableOpacity>
 
-                          <TouchableOpacity
-                            style={styles.cardContent}
-                            onPress={() => handleToggleBillPaid(item)}
-                            activeOpacity={0.7}
-                          >
-                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <Text
-                                style={[styles.cardTitle, isPaid && styles.cardTitlePaid]}
-                                numberOfLines={1}
-                              >
-                                {item.title}
-                              </Text>
-                              <Text style={[styles.billAmount, isPaid && styles.billAmountPaid]}>
-                                {formatMoney(item.amount)}
-                              </Text>
-                            </View>
+                          <View style={styles.cardItemBody}>
+                            <Text style={[styles.cardItemTitle, isPaid && styles.cardItemTitlePaid]}>
+                              {item.title}
+                            </Text>
 
-                            <View style={styles.cardMetaRow}>
-                              <View style={styles.badgeDate}>
-                                <Ionicons name="calendar-outline" size={10.5} color="#D97706" style={{ marginRight: 3 }} />
-                                <Text style={styles.badgeDateText}>Ngày {item.dueDay} hàng tháng</Text>
-                              </View>
-
-                              <View style={styles.badgeBefore}>
-                                <Ionicons name="notifications-outline" size={10} color="#64748B" style={{ marginRight: 3 }} />
-                                <Text style={styles.badgeBeforeText}>Báo trước {item.remindBeforeDays} ngày</Text>
+                            <View style={styles.cardItemBadgesRow}>
+                              <View style={styles.badgePillAmber}>
+                                <Ionicons name="calendar-outline" size={11} color="#D97706" style={{ marginRight: 3 }} />
+                                <Text style={styles.badgePillAmberText}>
+                                  {isVi ? `Ngày ${item.dueDay} hàng tháng` : `Day ${item.dueDay}`}
+                                </Text>
                               </View>
 
                               {isComingSoon && (
-                                <View style={styles.badgeWarning}>
-                                  <Text style={styles.badgeWarningText}>
-                                    {daysLeft === 0 ? 'Đến hạn hôm nay!' : `Còn ${daysLeft} ngày`}
+                                <View style={styles.badgePillRed}>
+                                  <Text style={styles.badgePillRedText}>
+                                    {daysLeft === 0 ? (isVi ? 'Đến hạn hôm nay!' : 'Due today!') : `${isVi ? 'Còn' : ''} ${daysLeft} ${isVi ? 'ngày' : 'days left'}`}
                                   </Text>
                                 </View>
                               )}
 
                               {isPaid && (
-                                <Text style={styles.statusPaidText}>Đã đóng tháng này ✓</Text>
+                                <View style={styles.badgePillGreen}>
+                                  <Text style={styles.badgePillGreenText}>{isVi ? 'Đã đóng ✓' : 'Paid ✓'}</Text>
+                                </View>
                               )}
                             </View>
-                          </TouchableOpacity>
+                          </View>
 
-                          <TouchableOpacity
-                            style={styles.btnActionEdit}
-                            onPress={() => handleStartEditBill(item)}
-                            activeOpacity={0.6}
-                          >
-                            <Ionicons name="pencil" size={12} color="#047857" />
-                          </TouchableOpacity>
+                          <View style={styles.cardItemRight}>
+                            <Text style={[styles.cardItemAmount, isPaid && styles.cardItemAmountPaid]}>
+                              {formatMoney(item.amount)}
+                            </Text>
 
-                          <TouchableOpacity
-                            style={styles.btnActionDelete}
-                            onPress={() => handleDeleteBill(item.id)}
-                            activeOpacity={0.6}
-                          >
-                            <Ionicons name="close" size={13} color="#94A3B8" />
-                          </TouchableOpacity>
+                            <View style={styles.cardActionsRow}>
+                              <TouchableOpacity
+                                style={styles.actionIconBtn}
+                                onPress={() => handleStartEditBill(item)}
+                                activeOpacity={0.6}
+                              >
+                                <Ionicons name="pencil" size={14} color="#047857" />
+                              </TouchableOpacity>
+
+                              <TouchableOpacity
+                                style={styles.actionIconBtn}
+                                onPress={() => handleDeleteBill(item.id)}
+                                activeOpacity={0.6}
+                              >
+                                <Ionicons name="trash-outline" size={14} color="#94A3B8" />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
                         </View>
                       );
-                    })}
-                  </View>
-                </View>
-              )}
-
-              {/* === NỘI DUNG 2: SỔ GHI NỢ === */}
-              {detailModal === 'debts' && (
-                <View>
-                  {/* 2 Thẻ tổng quan */}
-                  <View style={styles.debtOverviewRow}>
-                    <TouchableOpacity
-                      style={[
-                        styles.overviewCard,
-                        debtFilter === 'lend' && styles.overviewCardFocused,
-                      ]}
-                      onPress={() => setDebtFilter(debtFilter === 'lend' ? 'all' : 'lend')}
-                      activeOpacity={0.85}
-                    >
-                      <View style={styles.overviewTopRow}>
-                        <View style={styles.iconSquareGreen}>
-                          <Ionicons name="arrow-up-outline" size={18} color="#059669" style={{ transform: [{ rotate: '45deg' }] }} />
-                        </View>
-                        <View style={styles.peopleBadgeGreen}>
-                          <Text style={styles.peopleBadgeGreenText}>
-                            {debtSummary.lendCount} người
-                          </Text>
-                        </View>
-                      </View>
-                      <Text style={styles.overviewLabel}>Đang cho mượn</Text>
-                      <Text style={styles.overviewAmountGreen}>
-                        + {formatMoney(debtSummary.lendTotal)}
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[
-                        styles.overviewCard,
-                        debtFilter === 'borrow' && styles.overviewCardFocused,
-                      ]}
-                      onPress={() => setDebtFilter(debtFilter === 'borrow' ? 'all' : 'borrow')}
-                      activeOpacity={0.85}
-                    >
-                      <View style={styles.overviewTopRow}>
-                        <View style={styles.iconSquareRed}>
-                          <Ionicons name="arrow-down-outline" size={18} color="#DC2626" style={{ transform: [{ rotate: '45deg' }] }} />
-                        </View>
-                        <View style={styles.peopleBadgeRed}>
-                          <Text style={styles.peopleBadgeRedText}>
-                            {debtSummary.borrowCount} người
-                          </Text>
-                        </View>
-                      </View>
-                      <Text style={styles.overviewLabel}>Đang đi vay</Text>
-                      <Text style={styles.overviewAmountRed}>
-                        - {formatMoney(debtSummary.borrowTotal)}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Header danh sách */}
-                  <View style={[styles.subHeader, { marginTop: 12 }]}>
-                    <Text style={styles.subTitle}>
-                      {debtFilter === 'all'
-                        ? 'DANH SÁCH GHI NỢ'
-                        : debtFilter === 'lend'
-                        ? 'ĐANG CHO MƯỢN'
-                        : 'ĐANG ĐI VAY'}
-                    </Text>
-
-                    <TouchableOpacity
-                      style={styles.addBtn}
-                      onPress={() => {
-                        const next = !isDebtFormOpen;
-                        setIsDebtFormOpen(next);
-                        if (next) {
-                          setEditingDebtId(null);
-                          setDebtPerson('');
-                          setDebtAmount('');
-                          setDebtDueDate('');
-                        }
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons
-                        name={isDebtFormOpen ? 'chevron-up-outline' : 'add-circle-outline'}
-                        size={14}
-                        color="#047857"
-                        style={{ marginRight: 3 }}
-                      />
-                      <Text style={styles.addBtnText}>
-                        {isDebtFormOpen ? 'Đóng lại' : 'Thêm khoản nợ'}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Form thêm / sửa khoản nợ */}
-                  {isDebtFormOpen && (
-                    <View style={styles.formCard}>
-                      <View style={styles.formTitleRow}>
-                        <Text style={styles.formTitle}>
-                          {editingDebtId ? '✏️ Chỉnh sửa ghi nợ' : 'Thêm khoản nợ / cho vay'}
-                        </Text>
-                        {editingDebtId && (
-                          <View style={styles.badgeEditing}>
-                            <Text style={styles.badgeEditingText}>Đang sửa</Text>
-                          </View>
-                        )}
-                      </View>
-
-                      <View style={styles.typeSelectorRow}>
-                        <TouchableOpacity
-                          style={[styles.typeBtn, debtType === 'lend' && styles.typeBtnLendActive]}
-                          onPress={() => setDebtType('lend')}
-                        >
-                          <Text style={[styles.typeBtnText, debtType === 'lend' && styles.typeBtnTextLendActive]}>
-                            ↗ Đang cho mượn
-                          </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={[styles.typeBtn, debtType === 'borrow' && styles.typeBtnBorrowActive]}
-                          onPress={() => setDebtType('borrow')}
-                        >
-                          <Text style={[styles.typeBtnText, debtType === 'borrow' && styles.typeBtnTextBorrowActive]}>
-                            ↙ Đang đi vay
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-
-                      <View style={styles.inputWrap}>
-                        <Ionicons name="person-outline" size={16} color="#64748B" style={{ marginRight: 8 }} />
-                        <TextInput
-                          style={styles.textInput}
-                          placeholder="Tên người (vd: Anh Nam, Bạn Linh...)"
-                          placeholderTextColor="#94A3B8"
-                          value={debtPerson}
-                          onChangeText={setDebtPerson}
-                        />
-                      </View>
-
-                      <View style={styles.inputWrap}>
-                        <Ionicons name="cash-outline" size={16} color="#64748B" style={{ marginRight: 8 }} />
-                        <TextInput
-                          style={styles.textInput}
-                          placeholder="Số tiền (vd: 500000)"
-                          placeholderTextColor="#94A3B8"
-                          value={debtAmount}
-                          onChangeText={setDebtAmount}
-                          keyboardType="numeric"
-                        />
-                      </View>
-
-                      <View style={styles.inputWrap}>
-                        <Ionicons name="calendar-outline" size={16} color="#64748B" style={{ marginRight: 8 }} />
-                        <TextInput
-                          style={styles.textInput}
-                          placeholder="Hạn trả (vd: 15/10/2026 hoặc cuối tháng)"
-                          placeholderTextColor="#94A3B8"
-                          value={debtDueDate}
-                          onChangeText={setDebtDueDate}
-                        />
-                      </View>
-
-                      <View style={styles.formFooter}>
-                        <TouchableOpacity
-                          style={styles.btnCancel}
-                          onPress={() => {
-                            setIsDebtFormOpen(false);
-                            setEditingDebtId(null);
-                          }}
-                        >
-                          <Text style={styles.btnCancelText}>Hủy</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.btnSubmit, !debtPerson.trim() && styles.btnDisabled]}
-                          onPress={handleSaveDebt}
-                          disabled={!debtPerson.trim() || isDebtSubmitting}
-                        >
-                          {isDebtSubmitting ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name={editingDebtId ? 'save-outline' : 'checkmark-circle-outline'}
-                                size={15}
-                                color="#FFFFFF"
-                                style={{ marginRight: 4 }}
-                              />
-                              <Text style={styles.btnSubmitText}>
-                                {editingDebtId ? 'Cập nhật' : 'Lưu ghi nợ'}
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    </View>
+                    })
                   )}
-
-                  {/* Danh sách items nợ */}
-                  <View style={styles.itemsList}>
-                    {filteredDebts.length === 0 ? (
-                      <View style={styles.emptyCard}>
-                        <Text style={styles.emptyText}>Chưa có khoản nợ nào trong mục này</Text>
-                      </View>
-                    ) : (
-                      filteredDebts.map((item) => {
-                        const isLend = item.type === 'lend';
-                        const isSettled = item.isSettled;
-
-                        return (
-                          <View
-                            key={item.id}
-                            style={[styles.debtItemCard, isSettled && styles.debtItemCardSettled]}
-                          >
-                            <TouchableOpacity
-                              style={[styles.tickCircle, isSettled && styles.tickCirclePaid]}
-                              onPress={() => handleToggleDebtSettled(item)}
-                              activeOpacity={0.7}
-                            >
-                              {isSettled ? (
-                                <Ionicons name="checkmark" size={13} color="#FFFFFF" />
-                              ) : (
-                                <View style={styles.tickDot} />
-                              )}
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                              style={styles.cardContent}
-                              onPress={() => handleToggleDebtSettled(item)}
-                              activeOpacity={0.7}
-                            >
-                              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <Text
-                                  style={[styles.cardTitle, isSettled && styles.cardTitlePaid]}
-                                  numberOfLines={1}
-                                >
-                                  {item.personName}
-                                </Text>
-                                <Text
-                                  style={[
-                                    styles.debtAmountItem,
-                                    isLend ? styles.debtAmountItemLend : styles.debtAmountItemBorrow,
-                                    isSettled && styles.cardTitlePaid,
-                                  ]}
-                                >
-                                  {isLend ? '+' : '-'} {formatMoney(item.amount)}
-                                </Text>
-                              </View>
-
-                              <View style={styles.cardMetaRow}>
-                                <View
-                                  style={[
-                                    styles.badgeType,
-                                    isLend ? styles.badgeTypeLend : styles.badgeTypeBorrow,
-                                  ]}
-                                >
-                                  <Text
-                                    style={[
-                                      styles.badgeTypeText,
-                                      isLend ? styles.badgeTypeTextLend : styles.badgeTypeTextBorrow,
-                                    ]}
-                                  >
-                                    {isLend ? 'Đang cho mượn' : 'Đang đi vay'}
-                                  </Text>
-                                </View>
-
-                                {item.dueDate ? (
-                                  <View style={styles.badgeDate}>
-                                    <Ionicons name="time-outline" size={10} color="#64748B" style={{ marginRight: 3 }} />
-                                    <Text style={styles.badgeBeforeText}>Hạn: {item.dueDate}</Text>
-                                  </View>
-                                ) : null}
-
-                                {isSettled && (
-                                  <Text style={styles.statusPaidText}>Đã thanh toán xong ✓</Text>
-                                )}
-                              </View>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                              style={styles.btnActionEdit}
-                              onPress={() => handleStartEditDebt(item)}
-                              activeOpacity={0.6}
-                            >
-                              <Ionicons name="pencil" size={12} color="#047857" />
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                              style={styles.btnActionDelete}
-                              onPress={() => handleDeleteDebt(item.id)}
-                              activeOpacity={0.6}
-                            >
-                              <Ionicons name="close" size={13} color="#94A3B8" />
-                            </TouchableOpacity>
-                          </View>
-                        );
-                      })
-                    )}
-                  </View>
                 </View>
-              )}
-            </ScrollView>
-          </View>
+              </View>
+            )}
+
+            {/* ============================================================== */}
+            {/* TAB 2: SỔ GHI NỢ (CHO VAY & ĐI VAY) */}
+            {/* ============================================================== */}
+            {detailModal === 'debts' && (
+              <View>
+                {/* 2 Thẻ lớn tổng quan: Cho mượn & Đi vay */}
+                <View style={styles.debtOverviewRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.overviewCard,
+                      styles.overviewCardGreen,
+                      debtFilter === 'lend' && styles.overviewCardFocused,
+                    ]}
+                    onPress={() => setDebtFilter(debtFilter === 'lend' ? 'all' : 'lend')}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.overviewIconBoxGreen}>
+                      <Ionicons name="arrow-up" size={18} color="#059669" />
+                    </View>
+                    <Text style={styles.overviewLabelGreen}>{isVi ? 'ĐANG CHO MƯỢN' : 'YOU LENT'}</Text>
+                    <Text style={styles.overviewAmountGreen}>
+                      +{formatMoney(debtSummary.lendTotal)}
+                    </Text>
+                    <Text style={styles.overviewSubText}>
+                      {debtSummary.lendCount} {isVi ? 'người đang mượn' : 'people'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.overviewCard,
+                      styles.overviewCardRed,
+                      debtFilter === 'borrow' && styles.overviewCardFocused,
+                    ]}
+                    onPress={() => setDebtFilter(debtFilter === 'borrow' ? 'all' : 'borrow')}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.overviewIconBoxRed}>
+                      <Ionicons name="arrow-down" size={18} color="#DC2626" />
+                    </View>
+                    <Text style={styles.overviewLabelRed}>{isVi ? 'ĐANG ĐI VAY' : 'YOU BORROWED'}</Text>
+                    <Text style={styles.overviewAmountRed}>
+                      -{formatMoney(debtSummary.borrowTotal)}
+                    </Text>
+                    <Text style={styles.overviewSubText}>
+                      {debtSummary.borrowCount} {isVi ? 'khoản cần trả' : 'debts'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Form thêm khoản nợ to bản, đẹp, sang trọng */}
+                {isDebtFormOpen ? (
+                  <View style={styles.formCard}>
+                    <View style={styles.formCardHeader}>
+                      <Text style={styles.formCardTitle}>
+                        {editingDebtId
+                          ? (isVi ? '✏️ Chỉnh sửa khoản nợ' : 'Edit Debt')
+                          : (isVi ? 'Thêm khoản nợ mới' : 'Add Debt Record')}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => {
+                          setIsDebtFormOpen(false);
+                          setEditingDebtId(null);
+                        }}
+                      >
+                        <Ionicons name="close" size={20} color="#94A3B8" />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Chọn loại: Cho mượn vs Đi vay */}
+                    <View style={styles.typeToggleRow}>
+                      <TouchableOpacity
+                        style={[styles.typeToggleBtn, debtType === 'lend' && styles.typeToggleBtnLend]}
+                        onPress={() => setDebtType('lend')}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons
+                          name="arrow-up"
+                          size={16}
+                          color={debtType === 'lend' ? '#FFFFFF' : '#059669'}
+                          style={{ marginRight: 6 }}
+                        />
+                        <Text style={[styles.typeToggleText, debtType === 'lend' && styles.typeToggleTextActive]}>
+                          {isVi ? 'Cho người khác mượn' : 'You Lent'}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.typeToggleBtn, debtType === 'borrow' && styles.typeToggleBtnBorrow]}
+                        onPress={() => setDebtType('borrow')}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons
+                          name="arrow-down"
+                          size={16}
+                          color={debtType === 'borrow' ? '#FFFFFF' : '#DC2626'}
+                          style={{ marginRight: 6 }}
+                        />
+                        <Text style={[styles.typeToggleText, debtType === 'borrow' && styles.typeToggleTextActive]}>
+                          {isVi ? 'Mình đi vay tiền' : 'You Borrowed'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* 1. Tên người */}
+                    <Text style={styles.inputLabel}>{isVi ? 'Tên người' : 'Person Name'}</Text>
+                    <View style={styles.inputBox}>
+                      <Ionicons name="person-outline" size={18} color="#94A3B8" style={{ marginRight: 10 }} />
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder={isVi ? 'Ví dụ: Anh Nam, Bạn Linh đồng nghiệp...' : 'e.g. John, Alex...'}
+                        placeholderTextColor="#94A3B8"
+                        value={debtPerson}
+                        onChangeText={setDebtPerson}
+                      />
+                    </View>
+
+                    {/* 2. Số tiền */}
+                    <Text style={styles.inputLabel}>{isVi ? 'Số tiền' : 'Amount'}</Text>
+                    <View style={styles.inputBox}>
+                      <TextInput
+                        style={[
+                          styles.textInput,
+                          {
+                            fontSize: 18,
+                            fontWeight: '800',
+                            color: debtType === 'lend' ? '#059669' : '#DC2626',
+                          },
+                        ]}
+                        placeholder="0"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="numeric"
+                        value={debtAmount ? Number(debtAmount.replace(/\D/g, '')).toLocaleString('vi-VN') : ''}
+                        onChangeText={(val) => setDebtAmount(val.replace(/\D/g, ''))}
+                      />
+                      <Text style={styles.currencyBadge}>đ</Text>
+                    </View>
+
+                    {/* Nút gợi ý tiền nhanh */}
+                    <View style={styles.presetsRow}>
+                      {[100000, 200000, 500000, 1000000, 2000000, 5000000].map((amt) => (
+                        <TouchableOpacity
+                          key={amt}
+                          style={styles.presetChip}
+                          onPress={() => setDebtAmount(String(amt))}
+                        >
+                          <Text style={styles.presetChipText}>{amt >= 1000000 ? `${amt / 1000000}tr` : `${amt / 1000}k`}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    {/* 3. Hạn trả / Ngày hẹn */}
+                    <Text style={styles.inputLabel}>{isVi ? 'Hạn trả / Ngày hẹn' : 'Due Date'}</Text>
+                    <View style={styles.inputBox}>
+                      <Ionicons name="calendar-outline" size={18} color="#94A3B8" style={{ marginRight: 10 }} />
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder={isVi ? 'Ví dụ: 15/10/2026 hoặc Cuối tuần này...' : 'e.g. 15/10/2026 or Next week...'}
+                        placeholderTextColor="#94A3B8"
+                        value={debtDueDate}
+                        onChangeText={setDebtDueDate}
+                      />
+                    </View>
+
+                    {/* 4. Ghi chú */}
+                    <Text style={styles.inputLabel}>{isVi ? 'Ghi chú lý do' : 'Note'}</Text>
+                    <View style={styles.inputBox}>
+                      <Ionicons name="document-text-outline" size={18} color="#94A3B8" style={{ marginRight: 10 }} />
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder={isVi ? 'Ví dụ: Tiền ăn trưa chung, mượn cọc phòng...' : 'e.g. Lunch, Deposit...'}
+                        placeholderTextColor="#94A3B8"
+                        value={debtNote}
+                        onChangeText={setDebtNote}
+                      />
+                    </View>
+
+                    {/* Nút Lưu khoản nợ */}
+                    <View style={styles.formBtnRow}>
+                      <TouchableOpacity
+                        style={styles.btnSecondary}
+                        onPress={() => {
+                          setIsDebtFormOpen(false);
+                          setEditingDebtId(null);
+                        }}
+                      >
+                        <Text style={styles.btnSecondaryText}>{isVi ? 'Hủy' : 'Cancel'}</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.btnPrimary,
+                          debtType === 'borrow' && { backgroundColor: '#DC2626' },
+                          !debtPerson.trim() && styles.btnPrimaryDisabled,
+                        ]}
+                        onPress={handleSaveDebt}
+                        disabled={!debtPerson.trim() || isDebtSubmitting}
+                      >
+                        {isDebtSubmitting ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text style={styles.btnPrimaryText}>
+                            {editingDebtId ? (isVi ? 'Cập nhật' : 'Update') : (isVi ? 'Lưu khoản nợ' : 'Save Record')}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ) : (
+                  /* Nút to để mở form thêm khoản nợ */
+                  <TouchableOpacity
+                    style={styles.addNewCardBtn}
+                    onPress={() => {
+                      setIsDebtFormOpen(true);
+                      setEditingDebtId(null);
+                      setDebtPerson('');
+                      setDebtAmount('');
+                      setDebtDueDate('');
+                      setDebtNote('');
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.addNewIconCircle, { backgroundColor: '#047857' }]}>
+                      <Ionicons name="add" size={22} color="#FFFFFF" />
+                    </View>
+                    <View>
+                      <Text style={styles.addNewTitle}>{isVi ? 'Thêm khoản nợ / cho mượn' : 'Add Debt Record'}</Text>
+                      <Text style={styles.addNewSubtitle}>
+                        {isVi ? 'Ghi lại tiền cho mượn hoặc tiền đi vay' : 'Keep track of who owes you and what you owe'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+
+                {/* Bộ lọc: Tất cả | Cho mượn | Đi vay */}
+                <View style={styles.filterPillsRow}>
+                  <TouchableOpacity
+                    style={[styles.filterPill, debtFilter === 'all' && styles.filterPillActive]}
+                    onPress={() => setDebtFilter('all')}
+                  >
+                    <Text style={[styles.filterPillText, debtFilter === 'all' && styles.filterPillTextActive]}>
+                      {isVi ? 'Tất cả' : 'All'} ({debts.length})
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.filterPill, debtFilter === 'lend' && styles.filterPillActive]}
+                    onPress={() => setDebtFilter('lend')}
+                  >
+                    <Text style={[styles.filterPillText, debtFilter === 'lend' && styles.filterPillTextActive]}>
+                      {isVi ? 'Đang cho mượn' : 'Lent'} ({debts.filter((d) => d.type === 'lend').length})
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.filterPill, debtFilter === 'borrow' && styles.filterPillActive]}
+                    onPress={() => setDebtFilter('borrow')}
+                  >
+                    <Text style={[styles.filterPillText, debtFilter === 'borrow' && styles.filterPillTextActive]}>
+                      {isVi ? 'Đang đi vay' : 'Borrowed'} ({debts.filter((d) => d.type === 'borrow').length})
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Danh sách các khoản nợ */}
+                <View style={styles.listSection}>
+                  {filteredDebts.length === 0 ? (
+                    <View style={styles.emptyCard}>
+                      <Ionicons name="people-outline" size={36} color="#CBD5E1" />
+                      <Text style={styles.emptyCardText}>
+                        {isVi ? 'Không có khoản nợ nào' : 'No records found'}
+                      </Text>
+                    </View>
+                  ) : (
+                    filteredDebts.map((item) => {
+                      const isLend = item.type === 'lend';
+                      const isSettled = item.isSettled;
+
+                      return (
+                        <View key={item.id} style={[styles.cardItem, isSettled && styles.cardItemPaid]}>
+                          {/* Avatar tròn với chữ cái đầu */}
+                          <View
+                            style={[
+                              styles.debtAvatar,
+                              isLend ? styles.debtAvatarLend : styles.debtAvatarBorrow,
+                              isSettled && { backgroundColor: '#E2E8F0' },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.debtAvatarText,
+                                isLend ? styles.debtAvatarTextLend : styles.debtAvatarTextBorrow,
+                                isSettled && { color: '#94A3B8' },
+                              ]}
+                            >
+                              {item.personName ? item.personName.charAt(0).toUpperCase() : '?'}
+                            </Text>
+                          </View>
+
+                          <View style={styles.cardItemBody}>
+                            <Text style={[styles.cardItemTitle, isSettled && styles.cardItemTitlePaid]}>
+                              {item.personName}
+                            </Text>
+
+                            <View style={styles.cardItemBadgesRow}>
+                              <View style={isLend ? styles.badgePillGreen : styles.badgePillRed}>
+                                <Text style={isLend ? styles.badgePillGreenText : styles.badgePillRedText}>
+                                  {isLend ? (isVi ? 'Cho mượn' : 'Lent') : (isVi ? 'Đi vay' : 'Borrowed')}
+                                </Text>
+                              </View>
+
+                              {item.dueDate ? (
+                                <View style={styles.badgePillAmber}>
+                                  <Ionicons name="calendar-outline" size={10} color="#D97706" style={{ marginRight: 3 }} />
+                                  <Text style={styles.badgePillAmberText}>{item.dueDate}</Text>
+                                </View>
+                              ) : null}
+
+                              {isSettled && (
+                                <View style={styles.badgePillGray}>
+                                  <Text style={styles.badgePillGrayText}>{isVi ? 'Đã thanh toán ✓' : 'Settled ✓'}</Text>
+                                </View>
+                              )}
+                            </View>
+
+                            {item.note ? (
+                              <Text style={styles.debtNoteText} numberOfLines={1}>
+                                💬 {item.note}
+                              </Text>
+                            ) : null}
+                          </View>
+
+                          <View style={styles.cardItemRight}>
+                            <Text
+                              style={[
+                                styles.cardItemAmount,
+                                isLend ? styles.amountGreen : styles.amountRed,
+                                isSettled && styles.cardItemAmountPaid,
+                              ]}
+                            >
+                              {isLend ? `+${formatMoney(item.amount)}` : `-${formatMoney(item.amount)}`}
+                            </Text>
+
+                            <View style={styles.cardActionsRow}>
+                              <TouchableOpacity
+                                style={[styles.settleBtn, isSettled && styles.settleBtnSettled]}
+                                onPress={() => handleToggleDebtSettled(item)}
+                                activeOpacity={0.7}
+                              >
+                                <Ionicons
+                                  name={isSettled ? 'checkmark-circle' : 'checkmark-circle-outline'}
+                                  size={18}
+                                  color={isSettled ? '#059669' : '#94A3B8'}
+                                />
+                              </TouchableOpacity>
+
+                              <TouchableOpacity
+                                style={styles.actionIconBtn}
+                                onPress={() => handleStartEditDebt(item)}
+                                activeOpacity={0.6}
+                              >
+                                <Ionicons name="pencil" size={14} color="#047857" />
+                              </TouchableOpacity>
+
+                              <TouchableOpacity
+                                style={styles.actionIconBtn}
+                                onPress={() => handleDeleteDebt(item.id)}
+                                activeOpacity={0.6}
+                              >
+                                <Ionicons name="trash-outline" size={14} color="#94A3B8" />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    })
+                  )}
+                </View>
+              </View>
+            )}
+
+            <View style={{ height: 20 }} />
+          </ScrollView>
         </View>
-      </Modal>
-    </View>
-  );
+      </KeyboardAvoidingView>
+    </Modal>
+  </View>
+);
 };
 
 const styles = StyleSheet.create({
@@ -1031,19 +1162,20 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 6,
   },
-  // THANH CAPSULE DUY NHẤT Ở TRANG CHỦ (Y hệt ảnh bạn gửi, cực kỳ gọn gàng)
+  // THANH CAPSULE TRÊN TRANG CHỦ (Tối giản, đẹp mắt)
   tabCapsuleContainer: {
     flexDirection: 'row',
     backgroundColor: '#EEF2EC',
     borderRadius: 22,
     padding: 4,
+    marginHorizontal: 16,
   },
   tabCapsule: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 9,
+    paddingVertical: 10,
     borderRadius: 18,
   },
   tabText: {
@@ -1053,8 +1185,8 @@ const styles = StyleSheet.create({
   },
   pillCountBadge: {
     backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
     borderRadius: 10,
     marginLeft: 6,
   },
@@ -1063,607 +1195,685 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#B45309',
   },
+  pillCountBadgeGreen: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 6,
+  },
+  pillCountTextGreen: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#047857',
+  },
 
-  // MODAL BOTTOM SHEET
-  modalOverlay: {
+  // MODAL ĐẨY LÊN TỪ DƯỚI (BOTTOM SHEET SLIDE-UP Y HỆT TRANG LƯU NHANH)
+  sheetOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
   },
-  modalBackdrop: {
+  sheetBackdrop: {
     flex: 1,
   },
-  bottomSheetContainer: {
+  sheetContainer: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '86%',
-    minHeight: 400,
-    paddingTop: 10,
-    paddingBottom: Platform.OS === 'ios' ? 32 : 16,
-    paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    elevation: 10,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    maxHeight: '90%',
   },
-  sheetHandle: {
+  handleBar: {
     width: 40,
-    height: 4.5,
-    borderRadius: 3,
-    backgroundColor: '#CBD5E1',
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#E5E7EB',
     alignSelf: 'center',
-    marginBottom: 10,
+    marginBottom: 14,
   },
-  modalHeaderRow: {
+  sheetHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-start',
+    marginBottom: 14,
   },
-  modalHeaderTitleWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  modalHeaderTitle: {
-    fontSize: 13,
+  sheetTitle: {
+    fontSize: 20,
     fontWeight: '800',
     color: '#111827',
-    letterSpacing: 0.5,
   },
-  modalCloseBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#F1F5F9',
+  sheetSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
   },
 
-  // Thanh tab nhỏ bên trong modal
-  innerTabRow: {
+  // Segmented Control to bản, cao cấp
+  segmentedControl: {
     flexDirection: 'row',
     backgroundColor: '#F1F5F9',
-    borderRadius: 12,
-    padding: 3,
+    borderRadius: 16,
+    padding: 4,
     marginBottom: 14,
   },
-  innerTabBtn: {
-    flex: 1,
-    paddingVertical: 7,
-    alignItems: 'center',
-    borderRadius: 9,
+  sheetScrollView: {
+    maxHeight: 520,
   },
-  innerTabBtnActive: {
+  sheetScrollContent: {
+    paddingBottom: 24,
+  },
+  segmentBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 13,
+  },
+  segmentBtnActive: {
     backgroundColor: '#FFFFFF',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  innerTabText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  innerTabTextActive: {
-    color: '#047857',
-    fontWeight: '700',
-  },
-
-  modalScrollView: {
-    flex: 1,
-  },
-  modalScrollContent: {
-    paddingBottom: 20,
-  },
-
-  subHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  subTitle: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: '#374151',
-    letterSpacing: 0.6,
-  },
-  addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-  },
-  addBtnText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: '#047857',
-  },
-
-  // 2 Thẻ lớn tổng quan sổ ghi nợ
-  debtOverviewRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 6,
-  },
-  overviewCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1.5 },
-    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 2,
   },
-  overviewCardFocused: {
-    borderColor: '#059669',
-    backgroundColor: '#F9FDFB',
-  },
-  overviewTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  iconSquareGreen: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: '#E6F4EA',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  peopleBadgeGreen: {
-    backgroundColor: '#E6F4EA',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-  },
-  peopleBadgeGreenText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  iconSquareRed: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: '#FEE2E2',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  peopleBadgeRed: {
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-  },
-  peopleBadgeRedText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#DC2626',
-  },
-  overviewLabel: {
+  segmentText: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#1E293B',
-    marginBottom: 4,
+    fontWeight: '600',
+    color: '#64748B',
   },
-  overviewAmountGreen: {
-    fontSize: 15,
+  segmentTextActive: {
     fontWeight: '800',
-    color: '#059669',
+    color: '#047857',
   },
-  overviewAmountRed: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#DC2626',
-  },
-
-  // Form Card
-  formCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 10,
-  },
-  formTitleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  formTitle: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  badgeEditing: {
+  badgeCount: {
     backgroundColor: '#FEF3C7',
     paddingHorizontal: 6,
     paddingVertical: 1.5,
-    borderRadius: 6,
+    borderRadius: 8,
+    marginLeft: 6,
   },
-  badgeEditingText: {
-    fontSize: 9.5,
-    fontWeight: '700',
+  badgeCountText: {
+    fontSize: 10,
+    fontWeight: '800',
     color: '#B45309',
   },
-  inputWrap: {
+
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+
+  // Nút to bản mở form Thêm mới
+  addNewCardBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: '#D1FAE5',
+    borderStyle: 'dashed',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  addNewIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#047857',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  addNewTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  addNewSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+
+  // Form Card to bản, đẹp, tối giản
+  formCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    padding: 20,
+    marginBottom: 18,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    height: 38,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  formCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  formCardTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 6,
+    marginTop: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  inputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    height: 48,
     marginBottom: 8,
   },
   textInput: {
     flex: 1,
-    fontSize: 12.5,
-    color: '#1E293B',
+    fontSize: 14,
+    color: '#0F172A',
     paddingVertical: 0,
+    outlineWidth: 0,
   },
-  selectorBlock: {
-    backgroundColor: '#FFFFFF',
+  currencyBadge: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#047857',
+    marginLeft: 6,
+  },
+  presetsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12,
+  },
+  presetChip: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 10,
-    padding: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 8,
   },
-  selectorHeader: {
+  presetChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  dueDayHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginTop: 8,
+    marginBottom: 8,
   },
-  selectorLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#334155',
-  },
-  daySelectedBadge: {
+  selectedDayBadge: {
     backgroundColor: '#ECFDF5',
-    paddingHorizontal: 7,
-    paddingVertical: 1.5,
-    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
-  daySelectedText: {
-    fontSize: 10.5,
+  selectedDayBadgeText: {
+    fontSize: 11,
     fontWeight: '800',
     color: '#047857',
   },
-  dayScroll: {
+  dayScrollRow: {
     flexDirection: 'row',
-    paddingVertical: 2,
+    marginBottom: 6,
   },
-  dayChip: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
+  daySquare: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    justifyContent: 'center',
+    borderColor: '#E2E8F0',
     alignItems: 'center',
-    marginRight: 5,
+    justifyContent: 'center',
+    marginRight: 8,
   },
-  dayChipActive: {
+  daySquareActive: {
     backgroundColor: '#047857',
     borderColor: '#047857',
   },
-  dayChipText: {
-    fontSize: 11,
-    fontWeight: '600',
+  daySquareText: {
+    fontSize: 13,
+    fontWeight: '700',
     color: '#475569',
   },
-  dayChipTextActive: {
+  daySquareTextActive: {
     color: '#FFFFFF',
     fontWeight: '800',
   },
-  chipsRow: {
+  remindBeforeRow: {
     flexDirection: 'row',
-    gap: 6,
-    marginTop: 5,
+    gap: 8,
+    marginBottom: 16,
   },
-  beforeDayChip: {
+  remindChip: {
     flex: 1,
-    height: 30,
-    borderRadius: 6,
+    paddingVertical: 9,
+    alignItems: 'center',
+    borderRadius: 12,
     backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderColor: '#E2E8F0',
   },
-  beforeDayChipActive: {
+  remindChipActive: {
     backgroundColor: '#ECFDF5',
-    borderColor: '#059669',
+    borderColor: '#047857',
   },
-  beforeDayChipText: {
-    fontSize: 10.5,
+  remindChipText: {
+    fontSize: 12,
     fontWeight: '600',
     color: '#64748B',
   },
-  beforeDayChipTextActive: {
+  remindChipTextActive: {
     color: '#047857',
     fontWeight: '800',
   },
-  formFooter: {
+  formBtnRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 10,
+  },
+  btnSecondary: {
+    flex: 1,
+    paddingVertical: 12,
     alignItems: 'center',
-    gap: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    paddingTop: 8,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
   },
-  btnCancel: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  btnCancelText: {
-    fontSize: 11.5,
-    fontWeight: '600',
+  btnSecondaryText: {
+    fontSize: 14,
+    fontWeight: '700',
     color: '#64748B',
   },
-  btnSubmit: {
-    flexDirection: 'row',
+  btnPrimary: {
+    flex: 2,
+    paddingVertical: 12,
     alignItems: 'center',
+    borderRadius: 14,
     backgroundColor: '#047857',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 7,
+    shadowColor: '#047857',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  btnDisabled: {
-    backgroundColor: '#94A3B8',
+  btnPrimaryDisabled: {
+    opacity: 0.5,
   },
-  btnSubmitText: {
-    fontSize: 11.5,
-    fontWeight: '700',
+  btnPrimaryText: {
+    fontSize: 14,
+    fontWeight: '800',
     color: '#FFFFFF',
   },
 
-  // Chọn loại Cho mượn vs Đi vay
-  typeSelectorRow: {
+  // Toggle Loại Nợ
+  typeToggleRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  typeBtn: {
+  typeToggleBtn: {
     flex: 1,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 11,
+    borderRadius: 14,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  typeBtnLendActive: {
-    backgroundColor: '#E6F4EA',
-    borderColor: '#059669',
+  typeToggleBtnLend: {
+    backgroundColor: '#047857',
+    borderColor: '#047857',
   },
-  typeBtnBorrowActive: {
-    backgroundColor: '#FEE2E2',
+  typeToggleBtnBorrow: {
+    backgroundColor: '#DC2626',
     borderColor: '#DC2626',
   },
-  typeBtnText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#64748B',
+  typeToggleText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
   },
-  typeBtnTextLendActive: {
-    color: '#059669',
-    fontWeight: '800',
-  },
-  typeBtnTextBorrowActive: {
-    color: '#DC2626',
+  typeToggleTextActive: {
+    color: '#FFFFFF',
     fontWeight: '800',
   },
 
-  // Danh sách items
-  itemsList: {
-    gap: 7,
+  // Danh sách cards
+  listSection: {
+    marginTop: 6,
   },
-  billCard: {
+  listSectionTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 12,
+  },
+  cardItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderRadius: 13,
-    paddingVertical: 9,
-    paddingHorizontal: 11,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#E2E8F0',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.02,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
     elevation: 1,
   },
-  billCardPaid: {
+  cardItemPaid: {
+    opacity: 0.65,
     backgroundColor: '#F8FAFC',
-    opacity: 0.72,
   },
-  tickCircle: {
-    width: 21,
-    height: 21,
-    borderRadius: 10.5,
-    borderWidth: 1.8,
+  checkboxCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
     borderColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 9,
+    marginRight: 12,
   },
-  tickCirclePaid: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
+  checkboxCirclePaid: {
+    backgroundColor: '#047857',
+    borderColor: '#047857',
   },
-  tickDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: 'transparent',
-  },
-  cardContent: {
+  cardItemBody: {
     flex: 1,
-    marginRight: 6,
+    paddingRight: 10,
   },
-  cardTitle: {
-    fontSize: 12.5,
+  cardItemTitle: {
+    fontSize: 15,
     fontWeight: '700',
-    color: '#1E293B',
+    color: '#0F172A',
+    marginBottom: 4,
   },
-  cardTitlePaid: {
-    color: '#94A3B8',
+  cardItemTitlePaid: {
     textDecorationLine: 'line-through',
-  },
-  billAmount: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#047857',
-  },
-  billAmountPaid: {
     color: '#94A3B8',
   },
-  cardMetaRow: {
+  cardItemBadgesRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 3,
-    gap: 5,
     flexWrap: 'wrap',
+    gap: 6,
+    alignItems: 'center',
   },
-  badgeDate: {
+  badgePillAmber: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFBEB',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 5,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
-  badgeDateText: {
-    fontSize: 10,
+  badgePillAmberText: {
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#B45309',
   },
-  badgeBefore: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 5,
-  },
-  badgeBeforeText: {
-    fontSize: 9.5,
-    color: '#475569',
-    fontWeight: '600',
-  },
-  badgeWarning: {
+  badgePillRed: {
     backgroundColor: '#FEE2E2',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
-  badgeWarningText: {
-    fontSize: 9.5,
+  badgePillRedText: {
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#DC2626',
   },
-  statusPaidText: {
-    fontSize: 9.5,
-    fontWeight: '600',
+  badgePillGreen: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  badgePillGreenText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  badgePillGray: {
+    backgroundColor: '#E2E8F0',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  badgePillGrayText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  cardItemRight: {
+    alignItems: 'flex-end',
+  },
+  cardItemAmount: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+  },
+  cardItemAmountPaid: {
+    color: '#94A3B8',
+  },
+  amountGreen: {
     color: '#059669',
   },
-  btnActionEdit: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#ECFDF5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 5,
+  amountRed: {
+    color: '#DC2626',
   },
-  btnActionDelete: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
+  cardActionsRow: {
+    flexDirection: 'row',
+    gap: 6,
     alignItems: 'center',
+  },
+  actionIconBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settleBtn: {
+    padding: 2,
+  },
+  settleBtnSettled: {
+    opacity: 0.8,
   },
 
-  // Debt items
-  debtItemCard: {
+  // Sổ ghi nợ overview cards
+  debtOverviewRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 13,
-    paddingVertical: 9,
-    paddingHorizontal: 11,
+    gap: 12,
+    marginBottom: 16,
+  },
+  overviewCard: {
+    flex: 1,
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
-  debtItemCardSettled: {
-    backgroundColor: '#F8FAFC',
-    opacity: 0.72,
+  overviewCardGreen: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
   },
-  debtAmountItem: {
-    fontSize: 13,
-    fontWeight: '800',
+  overviewCardRed: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
   },
-  debtAmountItemLend: {
-    color: '#059669',
+  overviewCardFocused: {
+    transform: [{ scale: 1.02 }],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  debtAmountItemBorrow: {
-    color: '#DC2626',
-  },
-  badgeType: {
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 5,
-  },
-  badgeTypeLend: {
-    backgroundColor: '#E6F4EA',
-  },
-  badgeTypeBorrow: {
-    backgroundColor: '#FEE2E2',
-  },
-  badgeTypeText: {
-    fontSize: 9.5,
-    fontWeight: '700',
-  },
-  badgeTypeTextLend: {
-    color: '#059669',
-  },
-  badgeTypeTextBorrow: {
-    color: '#DC2626',
-  },
-  emptyCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 14,
+  overviewIconBoxGreen: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#D1FAE5',
     alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  overviewIconBoxRed: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  overviewLabelGreen: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#059669',
+    letterSpacing: 0.5,
+  },
+  overviewLabelRed: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#DC2626',
+    letterSpacing: 0.5,
+  },
+  overviewAmountGreen: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#059669',
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  overviewAmountRed: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#DC2626',
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  overviewSubText: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+
+  // Bộ lọc pills
+  filterPillsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+  },
+  filterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderStyle: 'dashed',
   },
-  emptyText: {
+  filterPillActive: {
+    backgroundColor: '#047857',
+    borderColor: '#047857',
+  },
+  filterPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  filterPillTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // Debt card items
+  debtAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  debtAvatarLend: {
+    backgroundColor: '#ECFDF5',
+  },
+  debtAvatarBorrow: {
+    backgroundColor: '#FEF2F2',
+  },
+  debtAvatarText: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  debtAvatarTextLend: {
+    color: '#059669',
+  },
+  debtAvatarTextBorrow: {
+    color: '#DC2626',
+  },
+  debtNoteText: {
     fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 4,
+  },
+  emptyCard: {
+    alignItems: 'center',
+    paddingVertical: 36,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  emptyCardText: {
+    fontSize: 13,
     color: '#94A3B8',
+    marginTop: 8,
   },
 });

@@ -8,6 +8,8 @@ import {
   ScrollView,
   TextInput,
   ActivityIndicator,
+  Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,69 +42,71 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
 }) => {
   const { language } = useLanguage();
   const isVi = language === 'vi';
-  const [photoUrl, setPhotoUrl] = useState<string | undefined>(initialPhotoUrl);
-  const [amountStr, setAmountStr] = useState('0');
-  const [title, setTitle] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState(isVi ? 'Ăn uống' : 'Food');
-  const [selectedWallet, setSelectedWallet] = useState(isVi ? 'Tiền mặt' : 'Cash');
+  const [photoUrl, setPhotoUrl] = useState<string | undefined>(initialPhotoUrl || initialData?.photoUri);
+  const [amountStr, setAmountStr] = useState(initialData?.amount ? String(Math.abs(initialData.amount)) : '0');
+  const [title, setTitle] = useState(initialData?.title || '');
+  const [selectedCategory, setSelectedCategory] = useState(initialData?.category || (isVi ? 'Ăn uống' : 'Food'));
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
     const processReceipt = async () => {
       if (!initialPhotoUrl) return;
 
       setIsScanning(true);
-      setScanMessage(isVi ? 'Đang tải ảnh lên đám mây...' : 'Uploading photo to cloud...');
+      setScanMessage(isVi ? 'Đang tải ảnh lên máy chủ...' : 'Uploading photo to server...');
 
       try {
         const uploadResponse = await uploadReceiptApi(initialPhotoUrl, 'image/jpeg', 'receipt.jpg');
-        if (uploadResponse) {
+        if (uploadResponse && isMounted) {
+          setPhotoUrl(uploadResponse);
           setScanMessage(isVi ? 'AI đang phân tích hóa đơn...' : 'AI is analyzing receipt...');
-          const ocrData = await scanReceiptOcrApi(uploadResponse);
-
-          if (ocrData.amount) {
-            setAmountStr(String(ocrData.amount));
-          }
-          if (ocrData.supplier) {
-            setTitle(ocrData.supplier);
+          try {
+            const ocrData = await scanReceiptOcrApi(uploadResponse);
+            if (ocrData?.amount && isMounted) {
+              setAmountStr(String(ocrData.amount));
+            }
+            if (ocrData?.supplier && isMounted) {
+              setTitle(ocrData.supplier);
+            }
+          } catch (ocrErr) {
+            console.log('OCR analysis skipped:', ocrErr);
           }
         }
       } catch (e: any) {
-        console.error('OCR Error:', e);
+        console.warn('Upload receipt error:', e);
+        if (isMounted) {
+          setPhotoUrl(initialPhotoUrl);
+        }
       } finally {
-        setIsScanning(false);
+        if (isMounted) {
+          setIsScanning(false);
+        }
       }
     };
 
     processReceipt();
+    return () => {
+      isMounted = false;
+    };
   }, [initialPhotoUrl]);
 
   const categories = [
     { id: '1', name: isVi ? 'Ăn uống' : 'Food', icon: '🍜' },
     { id: '2', name: isVi ? 'Cà phê' : 'Coffee', icon: '☕' },
-    { id: '3', name: isVi ? 'Mua sắm' : 'Shopping', icon: '🛍️' },
-    { id: '4', name: isVi ? 'Di chuyển' : 'Transport', icon: '🚗' },
-    { id: '5', name: isVi ? 'Hóa đơn' : 'Bills', icon: '🧾' },
-    { id: '6', name: isVi ? 'Khác' : 'Other', icon: '📦' },
+    { id: '3', name: isVi ? 'Trà sữa' : 'Milk Tea', icon: '🧋' },
+    { id: '4', name: isVi ? 'Ăn sáng' : 'Breakfast', icon: '🥪' },
+    { id: '5', name: isVi ? 'Ăn trưa' : 'Lunch', icon: '🍱' },
+    { id: '6', name: isVi ? 'Ăn tối' : 'Dinner', icon: '🍲' },
+    { id: '7', name: isVi ? 'Đổ xăng' : 'Gas/Fuel', icon: '🛵' },
+    { id: '8', name: isVi ? 'Đi chợ' : 'Groceries', icon: '🛒' },
+    { id: '9', name: isVi ? 'Mua sắm' : 'Shopping', icon: '🛍️' },
+    { id: '10', name: isVi ? 'Giải trí' : 'Entertainment', icon: '🎮' },
+    { id: '11', name: isVi ? 'Hóa đơn' : 'Bills', icon: '⚡' },
+    { id: '12', name: isVi ? 'Khác' : 'Other', icon: '📦' },
   ];
-
-  const wallets = [
-    { id: 'w1', name: isVi ? 'Tiền mặt' : 'Cash', icon: '💵' },
-    { id: 'w2', name: 'TPBank', icon: '💳' },
-    { id: 'w3', name: 'MoMo', icon: '📱' },
-  ];
-
-  // Xử lý bàn phím số numpad
-  const handleNumPress = (val: string) => {
-    if (val === 'DEL') {
-      setAmountStr((prev) => (prev.length > 1 ? prev.slice(0, -1) : '0'));
-    } else if (val === '000') {
-      if (amountStr !== '0') setAmountStr((prev) => prev + '000');
-    } else {
-      setAmountStr((prev) => (prev === '0' ? val : prev + val));
-    }
-  };
 
   // Định dạng hiển thị tiền tệ VND
   const formattedAmount = Number(amountStr || '0').toLocaleString('vi-VN') + ' đ';
@@ -111,11 +115,35 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   const handleSaveTransaction = async () => {
     const parsedAmount = parseInt(amountStr, 10);
     if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
-      if (onSaveSuccess) onSaveSuccess();
+      const msg = isVi ? 'Vui lòng nhập số tiền chi tiêu lớn hơn 0đ.' : 'Please enter an expense amount greater than 0.';
+      if (Platform.OS === 'web') {
+        window.alert(msg);
+      } else {
+        Alert.alert(isVi ? 'Chưa nhập số tiền' : 'Amount Required', msg);
+      }
       return;
     }
 
     try {
+      setIsSaving(true);
+
+      // Nếu photoUrl là local blob chưa tải lên kịp, tải lên ngay
+      let finalPhotoUri = photoUrl;
+      if (
+        finalPhotoUri &&
+        (finalPhotoUri.startsWith('blob:') ||
+          finalPhotoUri.startsWith('data:') ||
+          finalPhotoUri.startsWith('file:') ||
+          finalPhotoUri.startsWith('ph://'))
+      ) {
+        try {
+          const upRes = await uploadReceiptApi(finalPhotoUri, 'image/jpeg', 'receipt.jpg');
+          if (upRes) finalPhotoUri = upRes;
+        } catch (upErr) {
+          console.warn('Background upload during save warning:', upErr);
+        }
+      }
+
       const catIcon = categories.find((c) => c.name === selectedCategory)?.icon || '🍜';
       const payload = {
         title: title.trim() || selectedCategory,
@@ -123,7 +151,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
         type: 'expense' as const,
         category: selectedCategory,
         categoryIcon: catIcon,
-        photoUri: photoUrl,
+        photoUri: finalPhotoUri,
         date: initialDate ? new Date(initialDate).toISOString() : new Date().toISOString(),
       };
 
@@ -138,9 +166,12 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
       }
     } catch (err: any) {
       console.warn('Lỗi lưu giao dịch backend:', err);
+      // Fallback vẫn cho đóng thành công nếu lỗi mạng để không chặn luồng người dùng
       if (onSaveSuccess) {
         onSaveSuccess();
       }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -167,8 +198,13 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
           style={styles.saveHeaderBtn}
           onPress={handleSaveTransaction}
           activeOpacity={0.8}
+          disabled={isSaving}
         >
-          <Text style={styles.saveHeaderBtnText}>{isVi ? 'Lưu' : 'Save'}</Text>
+          {isSaving ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.saveHeaderBtnText}>{isVi ? 'Lưu' : 'Save'}</Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -176,8 +212,41 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
         {/* 2. Hiển thị số tiền & ảnh thumbnail */}
         <View style={styles.amountHeroCard}>
           <View style={styles.amountWrapper}>
-            <Text style={styles.amountLabel}>{isVi ? 'Số tiền chi' : 'Expense Amount'}</Text>
-            <Text style={styles.amountText}>{formattedAmount}</Text>
+            <Text style={styles.amountLabel}>{isVi ? 'Số tiền chi (chạm để nhập)' : 'Expense Amount (tap to enter)'}</Text>
+            
+            <View style={styles.amountInputRow}>
+              <TextInput
+                value={amountStr === '0' ? '' : Number(amountStr).toLocaleString('vi-VN')}
+                onChangeText={(val) => {
+                  const raw = val.replace(/[^0-9]/g, '');
+                  setAmountStr(raw || '0');
+                }}
+                placeholder="0"
+                placeholderTextColor="#CBD5E1"
+                keyboardType="numeric"
+                style={styles.amountTextInput}
+                selectTextOnFocus
+                autoFocus={!photoUrl}
+              />
+              <Text style={styles.currencySuffix}>đ</Text>
+            </View>
+
+            {/* Các nút cộng nhanh tiền */}
+            <View style={styles.quickAddRow}>
+              {[10000, 20000, 50000, 100000].map((addVal) => (
+                <TouchableOpacity
+                  key={addVal}
+                  style={styles.quickAddBtn}
+                  onPress={() => {
+                    const curr = parseInt(amountStr, 10) || 0;
+                    setAmountStr(String(curr + addVal));
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.quickAddBtnText}>+{addVal / 1000}k</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
           {photoUrl ? (
@@ -190,15 +259,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                 <Ionicons name="close" size={13} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.addPhotoPlaceholder}
-              onPress={() => {}}
-            >
-              <Ionicons name="camera-outline" size={24} color="#6B7280" />
-              <Text style={styles.addPhotoText}>{isVi ? 'Thêm ảnh' : 'Add Photo'}</Text>
-            </TouchableOpacity>
-          )}
+          ) : null}
         </View>
 
         {/* 3. Tên món / Ghi chú */}
@@ -218,7 +279,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
 
         {/* 4. Chọn Danh Mục */}
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>{isVi ? 'Danh mục' : 'Category'}</Text>
+          <Text style={styles.inputLabel}>{isVi ? 'Danh mục chi tiêu' : 'Category'}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
             {categories.map((cat) => {
               const isSelected = selectedCategory === cat.name;
@@ -241,76 +302,15 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
           </ScrollView>
         </View>
 
-        {/* 5. Chọn Nguồn Ví */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>{isVi ? 'Nguồn tiền' : 'Payment Source'}</Text>
-          <View style={styles.walletsRow}>
-            {wallets.map((w) => {
-              const isSelected = selectedWallet === w.name;
-              return (
-                <TouchableOpacity
-                  key={w.id}
-                  style={[styles.walletItem, isSelected && styles.walletItemActive]}
-                  onPress={() => setSelectedWallet(w.name)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.walletIcon}>{w.icon}</Text>
-                  <Text
-                    style={[styles.walletText, isSelected && styles.walletTextActive]}
-                  >
-                    {w.name}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* 6. Bàn phím số NumPad */}
-        <View style={styles.numpadContainer}>
-          {[
-            ['1', '2', '3'],
-            ['4', '5', '6'],
-            ['7', '8', '9'],
-            ['000', '0', 'DEL'],
-          ].map((row, rIdx) => (
-            <View key={rIdx} style={styles.numpadRow}>
-              {row.map((key) => (
-                <TouchableOpacity
-                  key={key}
-                  style={[
-                    styles.numKey,
-                    key === 'DEL' && styles.delKey,
-                    key === '000' && styles.tripleKey,
-                  ]}
-                  onPress={() => handleNumPress(key)}
-                  activeOpacity={0.6}
-                >
-                  {key === 'DEL' ? (
-                    <Ionicons name="backspace-outline" size={22} color="#EF4444" />
-                  ) : (
-                    <Text
-                      style={[
-                        styles.numKeyText,
-                        key === 'DEL' && styles.delKeyText,
-                      ]}
-                    >
-                      {key}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          ))}
-        </View>
-
-        {/* 7. Nút Xác nhận lưu */}
+        {/* 5. Nút Xác nhận lưu */}
         <TouchableOpacity
           style={styles.submitBtn}
           onPress={handleSaveTransaction}
           activeOpacity={0.85}
         >
-          <Text style={styles.submitBtnText}>{isVi ? 'Xác nhận lưu khoản chi' : 'Confirm & Save Expense'}</Text>
+          <Text style={styles.submitBtnText}>
+            {isVi ? `Lưu chi tiêu (${formattedAmount})` : `Save Expense (${formattedAmount})`}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -396,66 +396,68 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '500',
   },
-  amountText: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#E11D48',
+  amountInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 4,
+  },
+  amountTextInput: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#047857',
+    padding: 0,
     letterSpacing: -0.5,
+    minWidth: 80,
+  },
+  currencySuffix: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#059669',
+    marginLeft: 6,
+  },
+  quickAddRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 10,
+  },
+  quickAddBtn: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  quickAddBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#047857',
   },
   photoContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 14,
     position: 'relative',
+    width: 68,
+    height: 68,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   photoThumb: {
     width: '100%',
     height: '100%',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#10B981',
+    borderRadius: 16,
   },
   removePhotoBadge: {
     position: 'absolute',
-    top: -6,
-    right: -6,
-    backgroundColor: '#EF4444',
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  addPhotoPlaceholder: {
-    width: 72,
-    height: 72,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#D1D5DB',
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-  },
-  addPhotoIcon: {
-    fontSize: 22,
-  },
-  addPhotoText: {
-    fontSize: 9,
-    color: '#6B7280',
-    marginTop: 2,
-    fontWeight: '600',
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 18,
   },
   inputLabel: {
     fontSize: 13,
@@ -474,14 +476,13 @@ const styles = StyleSheet.create({
     height: 48,
   },
   inputIcon: {
-    fontSize: 16,
     marginRight: 8,
   },
   textInput: {
     flex: 1,
     fontSize: 14,
-    color: '#111827',
-    fontWeight: '500',
+    color: '#1F2937',
+    paddingVertical: 8,
   },
   chipRow: {
     flexDirection: 'row',
@@ -492,95 +493,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 20,
     marginRight: 8,
   },
   categoryChipActive: {
     backgroundColor: '#ECFDF5',
-    borderColor: '#10B981',
+    borderColor: '#047857',
   },
   chipIcon: {
-    fontSize: 14,
+    fontSize: 16,
     marginRight: 6,
   },
   chipText: {
     fontSize: 13,
+    fontWeight: '600',
     color: '#4B5563',
-    fontWeight: '500',
   },
   chipTextActive: {
-    color: '#065F46',
+    color: '#047857',
     fontWeight: '700',
-  },
-  walletsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  walletItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    paddingVertical: 10,
-    borderRadius: 14,
-    gap: 6,
-  },
-  walletItemActive: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#10B981',
-  },
-  walletIcon: {
-    fontSize: 16,
-  },
-  walletText: {
-    fontSize: 12,
-    color: '#4B5563',
-    fontWeight: '600',
-  },
-  walletTextActive: {
-    color: '#065F46',
-    fontWeight: '700',
-  },
-  numpadContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    marginTop: 8,
-  },
-  numpadRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
-  },
-  numKey: {
-    flex: 1,
-    height: 48,
-    marginHorizontal: 3,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  numKeyText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  delKey: {
-    backgroundColor: '#FEE2E2',
-  },
-  delKeyText: {
-    color: '#DC2626',
-  },
-  tripleKey: {
-    backgroundColor: '#F3F4F6',
   },
   submitBtn: {
     backgroundColor: '#047857',

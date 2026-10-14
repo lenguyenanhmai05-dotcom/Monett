@@ -235,7 +235,31 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto): Promise<AuthResponse> {
-    const user = await this.usersService.findByEmail(loginDto.email);
+    const cleanEmail = loginDto.email?.trim().toLowerCase();
+
+    // Dev Admin bypass: Cho phép đăng nhập tức thì với quyền Admin và cấp JWT thật
+    if ((cleanEmail === 'admin' || cleanEmail === 'admin@monett.vn') && loginDto.password === 'admin') {
+      let adminUser = await this.usersService.findByEmail('admin@monett.vn');
+      if (!adminUser) {
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash('admin', salt);
+        adminUser = await this.usersService.create({
+          email: 'admin@monett.vn',
+          password: hashedPassword,
+          fullName: 'Quản trị viên (Dev)',
+          currency: 'VND',
+          isPro: true,
+        });
+      }
+      const userJson = adminUser.toJSON() as unknown as IUser;
+      const token = this.generateToken(userJson.id, userJson.email);
+      return {
+        user: userJson,
+        accessToken: token,
+      };
+    }
+
+    const user = await this.usersService.findByEmail(cleanEmail);
     if (!user) {
       throw new UnauthorizedException('Email hoặc mật khẩu không chính xác!');
     }

@@ -39,6 +39,7 @@ import {
   respondFriendRequestApi,
   normalizeAvatarUrl,
   addMomentCommentApi,
+  sendMessageApi,
 } from '../../services/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -96,6 +97,9 @@ const Avatar = ({ uri, name, size = 40 }: { uri?: string | null; name: string; s
 };
 
 // ─── Moment Card with Edit/Delete ─────────────────────────────────────────────
+// ─── Locket-style Moment Card ────────────────────────────────────────────────
+const LOCKET_EMOJIS = ['❤️', '🔥', '😂', '😍', '🐸'];
+
 export const MomentCard = ({
   item,
   currentUserId,
@@ -104,6 +108,7 @@ export const MomentCard = ({
   onDelete,
   onOpenChat,
   onViewReactions,
+  onCommentAdded,
 }: {
   item: MomentItem;
   currentUserId: string;
@@ -112,141 +117,206 @@ export const MomentCard = ({
   onDelete: (id: string) => void;
   onOpenChat: (item: MomentItem) => void;
   onViewReactions?: (id: string) => void;
+  onCommentAdded?: (momentId: string, comment: MomentCommentItem) => void;
 }) => {
-  const [showEmojis, setShowEmojis] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
-  const emojiAnim = useRef(new Animated.Value(0)).current;
-
+  const [replyText, setReplyText] = useState('');
+  const [isSendingReply, setIsSendingReply] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastAnim = useRef(new Animated.Value(0)).current;
   const isOwner = item.user?.id === currentUserId;
 
-  const toggleEmojis = () => {
-    if (showEmojis) {
-      Animated.timing(emojiAnim, { toValue: 0, duration: 150, useNativeDriver: true }).start(() => setShowEmojis(false));
-    } else {
-      setShowEmojis(true);
-      Animated.spring(emojiAnim, { toValue: 1, useNativeDriver: true, tension: 100, friction: 8 }).start();
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    Animated.sequence([
+      Animated.timing(toastAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.delay(2200),
+      Animated.timing(toastAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
+    ]).start(() => setToastMessage(null));
+  };
+
+  const handleSendInlineReply = async () => {
+    const trimmed = replyText.trim();
+    if (!trimmed || isSendingReply) return;
+
+    try {
+      setIsSendingReply(true);
+      // 1. Thêm bình luận vào khoảnh khắc
+      const res: any = await addMomentCommentApi(item.id, trimmed);
+      if (res?.comment && onCommentAdded) {
+        onCommentAdded(item.id, res.comment);
+      }
+
+      // 2. Gửi thẳng vào tin nhắn riêng cho bạn bè (đúng chuẩn Locket!)
+      if (item.user?.id && item.user.id !== currentUserId) {
+        const msgPrefix = item.caption ? `📸 [${item.caption}]: ` : '📸 [Khoảnh khắc]: ';
+        await sendMessageApi(item.user.id, `${msgPrefix}${trimmed}`).catch((err) => {
+          console.warn('Lỗi gửi tin nhắn trực tiếp:', err);
+        });
+      }
+
+      setReplyText('');
+      playNotificationSound();
+      showToast(`Đã gửi qua tin nhắn cho ${item.user?.name || 'bạn'}! 💬`);
+    } catch (e: any) {
+      Alert.alert('Lỗi', e.message || 'Không thể gửi phản hồi');
+    } finally {
+      setIsSendingReply(false);
     }
   };
 
   const totalReactions = Object.values(item.reactions || {}).reduce((a, b) => a + b, 0);
 
   return (
-    <View style={cardStyles.card}>
-      {/* Header - Không hiển thị giá tiền, chỉ hiển thị thông tin bạn bè */}
-      <View style={cardStyles.header}>
-        <Avatar uri={item.user?.avatar} name={item.user?.name || 'Bạn'} size={40} />
-        <View style={{ flex: 1, marginLeft: 10 }}>
-          <Text style={cardStyles.userName}>{item.user?.name || 'Bạn bè'}</Text>
-          <Text style={cardStyles.meta}>{item.category || 'Khoảnh khắc'} · {item.time}</Text>
+    <View style={cardStyles.locketCard}>
+      {/* 1. Locket Photo Widget */}
+      <View style={cardStyles.locketPhotoContainer}>
+        <Image
+          source={{ uri: normalizeAvatarUrl(item.photo) || item.photo }}
+          style={cardStyles.locketPhoto}
+          resizeMode="cover"
+        />
+
+        {/* Top Floating Badge: Avatar, Friend Name, Time */}
+        <View style={cardStyles.locketTopOverlay}>
+          <View style={cardStyles.locketAuthorPill}>
+            <Avatar uri={item.user?.avatar} name={item.user?.name || 'Bạn'} size={30} />
+            <Text style={cardStyles.locketAuthorName} numberOfLines={1}>
+              {item.user?.name || 'Bạn bè'}
+            </Text>
+            <Text style={cardStyles.locketDot}>·</Text>
+            <Text style={cardStyles.locketTimeText}>{item.time || 'Vừa xong'}</Text>
+          </View>
+
+          {/* 3-dot Menu for Owner */}
+          {isOwner && (
+            <TouchableOpacity
+              onPress={() => setShowMenu(true)}
+              style={cardStyles.locketMenuBtn}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="ellipsis-horizontal" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
         </View>
-        {/* 3-dot menu for own posts */}
-        {isOwner && (
-          <TouchableOpacity onPress={() => setShowMenu(true)} style={cardStyles.menuBtn}>
-            <Ionicons name="ellipsis-vertical" size={18} color="#94A3B8" />
+
+        {/* Bottom Floating Caption Pill (Locket style) */}
+        {item.caption ? (
+          <View style={cardStyles.locketCaptionPill}>
+            <Text style={cardStyles.locketCaptionText}>{item.caption}</Text>
+          </View>
+        ) : null}
+
+        {/* Floating Toast Notification when replied */}
+        {toastMessage && (
+          <Animated.View
+            style={[
+              cardStyles.locketToast,
+              {
+                opacity: toastAnim,
+                transform: [
+                  {
+                    translateY: toastAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [15, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Ionicons name="chatbubble-ellipses" size={15} color="#10B981" />
+            <Text style={cardStyles.locketToastText}>{toastMessage}</Text>
+          </Animated.View>
+        )}
+      </View>
+
+      {/* 2. Reaction Bar: Quick Emojis like Locket (❤️ 🔥 😂 😍 🐸) */}
+      <View style={cardStyles.locketReactionSection}>
+        <View style={cardStyles.locketEmojisRow}>
+          {LOCKET_EMOJIS.map((emoji) => {
+            const isSelected = item.myReaction === emoji;
+            return (
+              <TouchableOpacity
+                key={emoji}
+                style={[cardStyles.locketEmojiBtn, isSelected && cardStyles.locketEmojiBtnActive]}
+                onPress={() => onReact(item.id, emoji)}
+                activeOpacity={0.65}
+              >
+                <Text style={cardStyles.locketEmojiChar}>{emoji}</Text>
+                {isSelected && <View style={cardStyles.locketActiveDot} />}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Reactions Summary Badges */}
+        {totalReactions > 0 && (
+          <TouchableOpacity
+            style={cardStyles.locketSummaryRow}
+            activeOpacity={0.7}
+            onPress={() => onViewReactions && onViewReactions(item.id)}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              {Object.entries(item.reactions || {})
+                .filter(([, count]) => count > 0)
+                .map(([emoji, count]) => (
+                  <View key={emoji} style={cardStyles.locketBadge}>
+                    <Text style={{ fontSize: 13 }}>{emoji}</Text>
+                    <Text style={cardStyles.locketBadgeCount}>{count}</Text>
+                  </View>
+                ))}
+            </View>
+            <Text style={cardStyles.locketViewReactionsText}>Xem người thả ›</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Photo */}
-      <TouchableOpacity onPress={toggleEmojis} activeOpacity={0.95}>
-        <Image source={{ uri: normalizeAvatarUrl(item.photo) || item.photo }} style={[cardStyles.photo]} resizeMode="cover" />
-        {item.caption ? (
-          <View style={cardStyles.captionOverlay}>
-            <Text style={cardStyles.caption}>{item.caption}</Text>
-          </View>
-        ) : null}
-      </TouchableOpacity>
-
-      {/* Reaction & Chat Bar */}
-      <View style={cardStyles.reactionBar}>
-        {/* Summary */}
-        <TouchableOpacity 
-          style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
-          activeOpacity={0.7}
-          onPress={() => totalReactions > 0 && onViewReactions && onViewReactions(item.id)}
+      {/* 3. Inline Message Input: Type and send as direct message! */}
+      <View style={cardStyles.locketReplyBar}>
+        <TextInput
+          style={cardStyles.locketReplyInput}
+          placeholder={`Nhắn tin cho ${item.user?.name || 'bạn bè'}...`}
+          placeholderTextColor="#94A3B8"
+          value={replyText}
+          onChangeText={setReplyText}
+          onSubmitEditing={handleSendInlineReply}
+          returnKeyType="send"
+        />
+        <TouchableOpacity
+          style={[cardStyles.locketSendBtn, (!replyText.trim() || isSendingReply) && cardStyles.locketSendBtnDisabled]}
+          onPress={handleSendInlineReply}
+          disabled={!replyText.trim() || isSendingReply}
+          activeOpacity={0.8}
         >
-          {Object.entries(item.reactions || {})
-            .filter(([, count]) => count > 0)
-            .map(([emoji, count]) => (
-              <View key={emoji} style={cardStyles.emojiBadge}>
-                <Text style={{ fontSize: 14 }}>{emoji}</Text>
-                <Text style={cardStyles.emojiBadgeCount}>{count}</Text>
-              </View>
-            ))}
-          {totalReactions === 0 && (
-            <Text style={cardStyles.noReactionText}>Chạm để thả cảm xúc ✨</Text>
+          {isSendingReply ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Ionicons name="paper-plane" size={16} color="#FFFFFF" />
           )}
         </TouchableOpacity>
-
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          {/* React Button */}
-          <TouchableOpacity style={[cardStyles.reactBtn, item.myReaction && cardStyles.reactBtnActive]} onPress={toggleEmojis}>
-            <Text style={{ fontSize: 16 }}>{item.myReaction || '😊'}</Text>
-            <Text style={[cardStyles.reactBtnText, item.myReaction && cardStyles.reactBtnTextActive]}>
-              {item.myReaction ? 'Đã thả' : 'Thả cảm xúc'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Chat Button */}
-          <TouchableOpacity style={cardStyles.chatBtn} onPress={() => onOpenChat(item)} activeOpacity={0.75}>
-            <Ionicons name="chatbubble-ellipses" size={16} color="#059669" />
-            <Text style={cardStyles.chatBtnText}>
-              {item.comments && item.comments.length > 0 ? `Chat (${item.comments.length})` : 'Chat'}
-            </Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
-      {/* Recent Comment Preview */}
+      {/* 4. Previous comments preview / Open chat modal button */}
       {item.comments && item.comments.length > 0 && (
         <TouchableOpacity
-          style={cardStyles.commentsPreviewBox}
+          style={cardStyles.locketCommentPreview}
           onPress={() => onOpenChat(item)}
           activeOpacity={0.8}
         >
-          <View style={cardStyles.recentCommentRow}>
-            <Text style={cardStyles.recentCommentUser}>
+          <View style={cardStyles.locketCommentRow}>
+            <Ionicons name="chatbubble-outline" size={13} color="#059669" />
+            <Text style={cardStyles.locketCommentUser}>
               {item.comments[item.comments.length - 1].userName}:
             </Text>
-            <Text style={cardStyles.recentCommentText} numberOfLines={1}>
+            <Text style={cardStyles.locketCommentText} numberOfLines={1}>
               {item.comments[item.comments.length - 1].text}
             </Text>
           </View>
-          {item.comments.length > 1 && (
-            <Text style={cardStyles.viewAllCommentsText}>
-              Xem tất cả {item.comments.length} tin nhắn trò chuyện...
-            </Text>
-          )}
+          <Text style={cardStyles.locketViewThreadText}>
+            Xem cuộc trò chuyện ({item.comments.length}) ›
+          </Text>
         </TouchableOpacity>
-      )}
-
-      {/* Emoji Picker */}
-      {showEmojis && (
-        <Animated.View
-          style={[
-            cardStyles.emojiPicker,
-            {
-              opacity: emojiAnim,
-              transform: [{ scale: emojiAnim }],
-            },
-          ]}
-        >
-          {EMOJIS.map((emoji) => (
-            <TouchableOpacity
-              key={emoji}
-              style={[
-                cardStyles.emojiBtn,
-                item.myReaction === emoji && cardStyles.emojiBtnActive,
-              ]}
-              onPress={() => {
-                onReact(item.id, emoji);
-                toggleEmojis();
-              }}
-            >
-              <Text style={{ fontSize: 26 }}>{emoji}</Text>
-            </TouchableOpacity>
-          ))}
-        </Animated.View>
       )}
 
       {/* Edit/Delete Menu Modal */}
@@ -290,182 +360,238 @@ export const MomentCard = ({
 };
 
 const cardStyles = StyleSheet.create({
-  card: {
+  locketCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 22,
+    borderRadius: 28,
     marginHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
-    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
     borderWidth: 1,
     borderColor: '#F1F5F9',
+    padding: 12,
   },
-  header: {
+  locketPhotoContainer: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 22,
+    overflow: 'hidden',
+    backgroundColor: '#0F172A',
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  locketPhoto: {
+    width: '100%',
+    height: '100%',
+  },
+  locketTopOverlay: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    right: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  locketAuthorPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 6,
+    maxWidth: '82%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
-  userName: {
-    fontSize: 15,
+  locketAuthorName: {
+    color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '700',
-    color: '#0F172A',
   },
-  meta: {
-    fontSize: 12,
+  locketDot: {
     color: '#94A3B8',
-    marginTop: 2,
+    fontSize: 12,
   },
-  amount: {
-    fontSize: 15,
-    fontWeight: '800',
-    marginRight: 4,
+  locketTimeText: {
+    color: '#CBD5E1',
+    fontSize: 11,
+    fontWeight: '500',
   },
-  menuBtn: {
-    padding: 6,
+  locketMenuBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
-  photo: {
-    width: '100%',
-    aspectRatio: 4 / 3,
-    backgroundColor: '#000',
-  },
-  captionOverlay: {
+  locketCaptionPill: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    bottom: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    maxWidth: '88%',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  caption: {
+  locketCaptionText: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
+    textAlign: 'center',
   },
-  reactionBar: {
+  locketToast: {
+    position: 'absolute',
+    bottom: 50,
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.92)',
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#10B981',
+    zIndex: 5,
   },
-  noReactionText: {
+  locketToastText: {
+    color: '#FFFFFF',
     fontSize: 12,
-    color: '#94A3B8',
-    fontStyle: 'italic',
+    fontWeight: '700',
   },
-  emojiBadge: {
+  locketReactionSection: {
+    marginTop: 10,
+    paddingHorizontal: 4,
+  },
+  locketEmojisRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  locketEmojiBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  locketEmojiBtnActive: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+    transform: [{ scale: 1.08 }],
+  },
+  locketEmojiChar: {
+    fontSize: 22,
+  },
+  locketActiveDot: {
+    position: 'absolute',
+    bottom: 2,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#059669',
+  },
+  locketSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 6,
+    paddingBottom: 2,
+  },
+  locketBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F1F5F9',
-    paddingHorizontal: 6,
+    paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 12,
-    marginRight: 6,
-    gap: 2,
+    gap: 3,
   },
-  emojiBadgeCount: {
+  locketBadgeCount: {
     fontSize: 12,
     fontWeight: '700',
     color: '#475569',
   },
-  reactBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  reactBtnActive: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#10B981',
-  },
-  reactBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#475569',
-  },
-  reactBtnTextActive: {
-    color: '#059669',
-    fontWeight: '700',
-  },
-  chatBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#F0FDF4',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
-  },
-  chatBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  commentsPreviewBox: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: '#F8FAFC',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  recentCommentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  recentCommentUser: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  recentCommentText: {
-    fontSize: 13,
-    color: '#475569',
-    flex: 1,
-  },
-  viewAllCommentsText: {
+  locketViewReactionsText: {
     fontSize: 11,
     color: '#059669',
     fontWeight: '600',
-    marginTop: 4,
   },
-  emojiPicker: {
+  locketReplyBar: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    paddingTop: 6,
-    backgroundColor: '#F8FAFC',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  emojiBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 24,
+    paddingLeft: 14,
+    paddingRight: 5,
+    paddingVertical: 4,
+    marginTop: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    gap: 8,
   },
-  emojiBtnActive: {
-    backgroundColor: '#DCFCE7',
-    borderWidth: 2,
-    borderColor: '#059669',
+  locketReplyInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+    paddingVertical: 6,
+  },
+  locketSendBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#059669',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  locketSendBtnDisabled: {
+    backgroundColor: '#CBD5E1',
+  },
+  locketCommentPreview: {
+    marginTop: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  locketCommentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  locketCommentUser: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  locketCommentText: {
+    fontSize: 12,
+    color: '#475569',
+    flex: 1,
+  },
+  locketViewThreadText: {
+    fontSize: 11,
+    color: '#059669',
+    fontWeight: '600',
+    marginTop: 3,
+    textAlign: 'right',
   },
   menuOverlay: {
     flex: 1,
@@ -1043,7 +1169,17 @@ export const MomentChatModal = ({
       if (res?.comment) {
         onCommentAdded(moment.id, res.comment);
       }
+
+      // Gửi thẳng vào tin nhắn riêng cho bạn bè (như Locket!)
+      if (moment.user?.id && moment.user.id !== currentUserId) {
+        const msgPrefix = moment.caption ? `📸 [${moment.caption}]: ` : '📸 [Khoảnh khắc]: ';
+        await sendMessageApi(moment.user.id, `${msgPrefix}${trimmed}`).catch((err) => {
+          console.warn('Lỗi gửi tin nhắn trực tiếp từ chat modal:', err);
+        });
+      }
+
       setText('');
+      playNotificationSound();
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);
@@ -1846,52 +1982,34 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void }> = ({ onBack })
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      {/* Locket-style Top Drag Handle (vuốt hoặc nhấn để trượt xuống camera) */}
+      {onBack && (
+        <TouchableOpacity style={styles.dragHandleTouch} onPress={onBack} activeOpacity={0.7}>
+          <View style={styles.dragHandle} />
+        </TouchableOpacity>
+      )}
+
       {/* Header */}
       <View style={styles.header}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           {onBack && (
-            <TouchableOpacity onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
+            <TouchableOpacity onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.backDownBtn}>
+              <Ionicons name="chevron-down" size={26} color={colors.textPrimary} />
             </TouchableOpacity>
           )}
           <View>
-            <Text style={styles.headerTitle}>{isVi ? 'Bảng tin Monett' : 'Monett Feed'}</Text>
+            <Text style={styles.headerTitle}>{isVi ? 'Bảng tin bạn bè 📸' : 'Friends Feed 📸'}</Text>
+            <Text style={styles.headerSub}>{isVi ? 'Khoảnh khắc Locket của bạn bè' : 'Friends Locket Moments'}</Text>
           </View>
         </View>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity style={[styles.createBtn, { paddingHorizontal: 16, paddingVertical: 8, marginRight: 8 }]} onPress={() => { setEditingMoment(null); setShowCreate(true); }}>
-            <Ionicons name="camera" size={16} color="#fff" />
-            <Text style={styles.createBtnText}>{isVi ? 'Đăng tin' : 'Post'}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'feed' && styles.tabActive]}
-          onPress={() => setActiveTab('feed')}
-        >
-          <Text style={[styles.tabText, activeTab === 'feed' && styles.tabTextActive]}>
-            📸 {isVi ? 'Bảng tin' : 'Feed'} ({moments.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'friends' && styles.tabActive]}
-          onPress={() => setActiveTab('friends')}
-        >
-          <Text style={[styles.tabText, activeTab === 'friends' && styles.tabTextActive]}>
-            👥 {isVi ? 'Bạn bè' : 'Friends'} ({friends.length})
-          </Text>
-        </TouchableOpacity>
       </View>
 
       {loading ? (
         <View style={styles.loadingBox}>
           <ActivityIndicator size="large" color="#059669" />
-          <Text style={styles.loadingText}>{isVi ? 'Đang tải khoảnh khắc bạn bè...' : 'Loading friends feed...'}</Text>
+          <Text style={styles.loadingText}>{isVi ? 'Đang tải bảng tin...' : 'Loading feed...'}</Text>
         </View>
-      ) : activeTab === 'feed' ? (
+      ) : (
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingTop: 14, paddingBottom: 40 }}
@@ -1920,12 +2038,9 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void }> = ({ onBack })
               <Text style={styles.emptyTitle}>{isVi ? 'Chưa có khoảnh khắc nào' : 'No moments yet'}</Text>
               <Text style={styles.emptySub}>
                 {isVi
-                  ? 'Hãy là người đầu tiên đăng tin vui để cùng bạn bè trò chuyện nhé!'
-                  : 'Be the first to share a fun moment and chat with your friends!'}
+                  ? 'Bảng tin hiện chưa có bài đăng nào.'
+                  : 'No posts in the feed yet.'}
               </Text>
-              <TouchableOpacity style={styles.emptyBtn} onPress={() => { setEditingMoment(null); setShowCreate(true); }}>
-                <Text style={styles.emptyBtnText}>{isVi ? '+ Đăng tin vui đầu tiên' : '+ Post First Moment'}</Text>
-              </TouchableOpacity>
             </View>
           ) : (
             moments.map((item) => (
@@ -1938,82 +2053,10 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void }> = ({ onBack })
                 onDelete={handleDelete}
                 onOpenChat={(item) => setChatMoment(item)}
                 onViewReactions={handleViewReactions}
+                onCommentAdded={handleCommentAdded}
               />
             ))
           )}
-        </ScrollView>
-      ) : (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#059669']} />}
-        >
-          {/* LỜI MỜI KẾT BẠN ĐANG CHỜ (PENDING REQUESTS) */}
-          {pendingRequests.length > 0 && (
-            <View style={styles.requestsBox}>
-              <Text style={styles.requestsTitle}>
-                {isVi ? `📩 Lời mời kết bạn (${pendingRequests.length})` : `📩 Friend Requests (${pendingRequests.length})`}
-              </Text>
-              {pendingRequests.map((req) => (
-                <View key={req._id} style={styles.requestRow}>
-                  <Avatar uri={req.requester?.avatarUrl} name={req.requester?.fullName || 'Bạn'} size={44} />
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={styles.friendName}>{req.requester?.fullName || (isVi ? 'Người dùng' : 'User')}</Text>
-                    <Text style={{ fontSize: 12, color: '#64748B' }}>{req.requester?.email || ''}</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    <TouchableOpacity
-                      style={styles.btnAccept}
-                      onPress={() => handleRespondRequest(req._id, 'accepted')}
-                    >
-                      <Text style={styles.btnAcceptText}>{isVi ? 'Đồng ý' : 'Accept'}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.btnDecline}
-                      onPress={() => handleRespondRequest(req._id, 'rejected')}
-                    >
-                      <Text style={styles.btnDeclineText}>{isVi ? 'Từ chối' : 'Decline'}</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {friends.length === 0 && pendingRequests.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={{ fontSize: 52, marginBottom: 16 }}>👥</Text>
-              <Text style={styles.emptyTitle}>{isVi ? 'Chưa có bạn bè nào' : 'No friends yet'}</Text>
-              <Text style={styles.emptySub}>
-                {isVi
-                  ? 'Kết bạn để cùng chia sẻ khoảnh khắc vui vẻ và trò chuyện mỗi ngày!'
-                  : 'Connect with friends to share fun moments and chat everyday!'}
-              </Text>
-              <TouchableOpacity style={styles.emptyBtn} onPress={() => setShowInvite(true)}>
-                <Text style={styles.emptyBtnText}>{isVi ? 'Mời bạn bè ngay' : 'Add Friends Now'}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            friends.map((friend, i) => (
-              <View key={friend._id || i} style={styles.friendRow}>
-                <Avatar uri={friend.avatarUrl} name={friend.fullName || 'Bạn bè'} size={48} />
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.friendName}>{friend.fullName || 'Người dùng'}</Text>
-                  <Text style={styles.friendStreak}>🔥 {isVi ? `Chuỗi ${friend.streak || 1} ngày` : `${friend.streak || 1}-day streak`}</Text>
-                </View>
-                <View style={styles.friendBadge}>
-                  <Ionicons name="checkmark-circle" size={20} color="#059669" />
-                </View>
-              </View>
-            ))
-          )}
-
-          <TouchableOpacity style={styles.addFriendBtn} onPress={() => setShowInvite(true)} activeOpacity={0.85}>
-            <View style={styles.addFriendIconWrap}>
-              <Ionicons name="person-add" size={16} color="#FFFFFF" />
-            </View>
-            <Text style={styles.addFriendBtnText}>{isVi ? 'Thêm / Mời bạn bè' : 'Add / Invite Friends'}</Text>
-          </TouchableOpacity>
         </ScrollView>
       )}
 
@@ -2144,6 +2187,22 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     backgroundColor: isDark ? '#334155' : '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  dragHandleTouch: {
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingBottom: 4,
+    backgroundColor: colors.header,
+  },
+  dragHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: isDark ? '#475569' : '#CBD5E1',
+  },
+  backDownBtn: {
+    padding: 2,
+    marginRight: 4,
   },
   header: {
     flexDirection: 'row',

@@ -8,6 +8,8 @@ import {
   Platform,
   ActivityIndicator,
   ScrollView,
+  Modal,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { IReminder } from '@monett/shared';
@@ -150,6 +152,18 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
   const stepMinute = (delta: number) => {
     const nextM = (selectedMinute + delta + 60) % 60;
     selectMinute(nextM);
+  };
+
+  // Mở form tạo mới nhắc nhở
+  const handleOpenCreateForm = () => {
+    setEditingReminderId(null);
+    setNewTitle('');
+    const d = new Date();
+    d.setMinutes(d.getMinutes() + 30);
+    setSelectedHour(d.getHours());
+    setSelectedMinute(d.getMinutes());
+    setNewBeforeMinutes(10);
+    setIsFormOpen(true);
   };
 
   // Mở chế độ chỉnh sửa lời nhắc
@@ -462,251 +476,301 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
         </View>
 
         <TouchableOpacity
-          onPress={() => {
-            const nextState = !isFormOpen;
-            setIsFormOpen(nextState);
-            if (nextState) {
-              setEditingReminderId(null);
-              setNewTitle('');
-              const d = new Date();
-              d.setMinutes(d.getMinutes() + 30);
-              setSelectedHour(d.getHours());
-              setSelectedMinute(d.getMinutes());
-            }
-          }}
+          onPress={handleOpenCreateForm}
           activeOpacity={0.7}
           style={styles.toggleFormBtn}
         >
           <Ionicons
-            name={isFormOpen ? 'chevron-up-outline' : 'add-circle-outline'}
+            name="add-circle-outline"
             size={14}
             color="#047857"
             style={{ marginRight: 3 }}
           />
-          <Text style={styles.viewAllText}>{isFormOpen ? (isVi ? 'Đóng lại' : 'Close') : (isVi ? 'Thêm lời nhắc' : 'Add reminder')}</Text>
+          <Text style={styles.viewAllText}>{isVi ? 'Thêm lời nhắc' : 'Add reminder'}</Text>
         </TouchableOpacity>
       </View>
 
-      {/* KHUNG TẠO / SỬA NHẮC NHỞ */}
-      {isFormOpen && (
-        <View style={styles.formCard}>
-          <View style={styles.formHeadingRow}>
-            <Text style={styles.formHeading}>
-              {editingReminderId ? (isVi ? '✏️ Chỉnh sửa lời nhắc' : '✏️ Edit Reminder') : (isVi ? 'Đặt lịch nhắc nhở hôm nay' : 'Set a reminder today')}
-            </Text>
-            {editingReminderId && (
-              <View style={styles.editingBadge}>
-                <Text style={styles.editingBadgeText}>{isVi ? 'Đang sửa' : 'Editing'}</Text>
-              </View>
-            )}
-          </View>
+      {/* MODAL TẠO / SỬA NHẮC NHỞ */}
+      <Modal
+        visible={isFormOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancelForm}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          {/* Nền mờ bấm ngoài để đóng */}
+          <TouchableOpacity
+            style={styles.modalBackdropTap}
+            activeOpacity={1}
+            onPress={handleCancelForm}
+          />
 
-          {/* Ô nhập nội dung */}
-          <View style={styles.inputWrap}>
-            <Ionicons name="create-outline" size={17} color="#64748B" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder={isVi ? 'Ví dụ: Xíu nữa đi chợ mua cá, nộp tiền phòng...' : 'e.g. Buy groceries, pay electricity bill...'}
-              placeholderTextColor="#94A3B8"
-              value={newTitle}
-              onChangeText={setNewTitle}
-              autoFocus
-              returnKeyType="done"
-            />
-          </View>
-
-          {/* Bộ chọn giờ & phút dạng nấc ô vuông nhỏ gọn chuyên nghiệp */}
-          <View style={styles.timePickerContainer}>
-            <View style={styles.timePickerHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                <Ionicons name="time" size={14} color="#047857" />
-                <Text style={styles.timePickerLabel}>Giờ hẹn (24h : 60p):</Text>
-              </View>
-              <View style={styles.timePreviewBadge}>
-                <Text style={styles.timePreviewText}>{formattedTime}</Text>
-              </View>
-            </View>
-
-            <View style={styles.compactWheelsCenter}>
-              {/* Cột nấc Giờ (0 - 23h) */}
-              <View style={styles.wheelColCompact}>
-                <TouchableOpacity
-                  style={styles.stepArrowBtn}
-                  onPress={() => stepHour(-1)}
-                  activeOpacity={0.6}
-                  hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
-                >
-                  <Ionicons name="chevron-up" size={13} color="#047857" />
-                </TouchableOpacity>
-
-                <View style={styles.wheelBoxCompact}>
-                  <ScrollView
-                    ref={hourScrollRef}
-                    style={styles.wheelScrollViewCompact}
-                    contentContainerStyle={styles.wheelScrollContentCompact}
-                    showsVerticalScrollIndicator={false}
-                    nestedScrollEnabled={true}
-                    snapToInterval={26}
-                    decelerationRate="fast"
-                    onScroll={(e) => {
-                      const y = e.nativeEvent.contentOffset.y;
-                      const idx = Math.round(y / 26);
-                      if (idx >= 0 && idx < 24 && idx !== selectedHour) {
-                        setSelectedHour(idx);
-                      }
-                    }}
-                    scrollEventThrottle={16}
-                  >
-                    {HOURS.map((h) => {
-                      const isSelected = selectedHour === h;
-                      return (
-                        <TouchableOpacity
-                          key={`hour-${h}`}
-                          style={[styles.notchSquare, isSelected && styles.notchSquareSelected]}
-                          onPress={() => selectHour(h)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={[styles.notchText, isSelected && styles.notchTextSelected]}>
-                            {String(h).padStart(2, '0')}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.stepArrowBtn}
-                  onPress={() => stepHour(1)}
-                  activeOpacity={0.6}
-                  hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
-                >
-                  <Ionicons name="chevron-down" size={13} color="#047857" />
-                </TouchableOpacity>
-                <Text style={styles.unitSmallLabel}>Giờ</Text>
-              </View>
-
-              {/* Phân cách hai chấm */}
-              <View style={styles.colonDividerCompact}>
-                <Text style={styles.colonTextCompact}>:</Text>
-              </View>
-
-              {/* Cột nấc Phút (0 - 59p) */}
-              <View style={styles.wheelColCompact}>
-                <TouchableOpacity
-                  style={styles.stepArrowBtn}
-                  onPress={() => stepMinute(-1)}
-                  activeOpacity={0.6}
-                  hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
-                >
-                  <Ionicons name="chevron-up" size={13} color="#047857" />
-                </TouchableOpacity>
-
-                <View style={styles.wheelBoxCompact}>
-                  <ScrollView
-                    ref={minuteScrollRef}
-                    style={styles.wheelScrollViewCompact}
-                    contentContainerStyle={styles.wheelScrollContentCompact}
-                    showsVerticalScrollIndicator={false}
-                    nestedScrollEnabled={true}
-                    snapToInterval={26}
-                    decelerationRate="fast"
-                    onScroll={(e) => {
-                      const y = e.nativeEvent.contentOffset.y;
-                      const idx = Math.round(y / 26);
-                      if (idx >= 0 && idx < 60 && idx !== selectedMinute) {
-                        setSelectedMinute(idx);
-                      }
-                    }}
-                    scrollEventThrottle={16}
-                  >
-                    {MINUTES.map((m) => {
-                      const isSelected = selectedMinute === m;
-                      return (
-                        <TouchableOpacity
-                          key={`minute-${m}`}
-                          style={[styles.notchSquare, isSelected && styles.notchSquareSelected]}
-                          onPress={() => selectMinute(m)}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={[styles.notchText, isSelected && styles.notchTextSelected]}>
-                            {String(m).padStart(2, '0')}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-
-                <TouchableOpacity
-                  style={styles.stepArrowBtn}
-                  onPress={() => stepMinute(1)}
-                  activeOpacity={0.6}
-                  hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
-                >
-                  <Ionicons name="chevron-down" size={13} color="#047857" />
-                </TouchableOpacity>
-                <Text style={styles.unitSmallLabel}>Phút</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Chọn số phút báo trước */}
-          <View style={styles.beforeRow}>
-            <Text style={styles.formLabel}>Báo trước bạn:</Text>
-            <View style={styles.beforeOptions}>
-              {[5, 10, 15, 30].map((mins) => {
-                const isSelected = newBeforeMinutes === mins;
-                return (
-                  <TouchableOpacity
-                    key={mins}
-                    onPress={() => setNewBeforeMinutes(mins)}
-                    style={[styles.beforeChip, isSelected && styles.beforeChipActive]}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.beforeChipText, isSelected && styles.beforeChipTextActive]}>
-                      {mins} phút
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          {/* Nút lưu */}
-          <View style={styles.formFooter}>
-            <TouchableOpacity
-              style={styles.cancelBtn}
-              onPress={handleCancelForm}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.cancelBtnText}>Hủy bỏ</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.submitBtn, !newTitle.trim() && styles.submitBtnDisabled]}
-              onPress={handleSave}
-              disabled={!newTitle.trim() || isSubmitting}
-              activeOpacity={0.8}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <>
+          {/* Khung nội dung Modal giữa màn hình */}
+          <View style={styles.modalContentCard}>
+            {/* Header Modal */}
+            <View style={styles.modalHeaderRow}>
+              <View style={styles.modalHeaderTitleGroup}>
+                <View style={styles.modalHeaderIconBadge}>
                   <Ionicons
-                    name={editingReminderId ? 'save-outline' : 'checkmark-circle-outline'}
+                    name={editingReminderId ? 'pencil' : 'notifications'}
                     size={16}
-                    color="#FFFFFF"
-                    style={{ marginRight: 5 }}
+                    color="#047857"
                   />
-                  <Text style={styles.submitBtnText}>
-                    {editingReminderId ? 'Cập nhật' : 'Lưu nhắc nhở'}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalTitleText}>
+                    {editingReminderId
+                      ? (isVi ? 'Chỉnh sửa lời nhắc' : 'Edit Reminder')
+                      : (isVi ? 'Đặt lịch nhắc nhở hôm nay' : 'Set a reminder today')}
                   </Text>
-                </>
-              )}
-            </TouchableOpacity>
+                  <Text style={styles.modalSubtitleText}>
+                    {isVi
+                      ? 'Monett sẽ gửi thông báo chuông trước khi đến giờ hẹn'
+                      : 'Monett will alert you before the scheduled time'}
+                  </Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                onPress={handleCancelForm}
+                style={styles.modalCloseCircle}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close" size={18} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Thân Form */}
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              contentContainerStyle={{ paddingBottom: 10 }}
+            >
+              {/* Ô nhập nội dung */}
+              <Text style={styles.modalFieldLabel}>
+                {isVi ? 'Nội dung nhắc việc' : 'Reminder Title'}
+              </Text>
+              <View style={styles.inputWrap}>
+                <Ionicons name="create-outline" size={17} color="#64748B" style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder={
+                    isVi
+                      ? 'Ví dụ: Xíu nữa đi chợ mua cá, nộp tiền phòng...'
+                      : 'e.g. Buy groceries, pay electricity bill...'
+                  }
+                  placeholderTextColor="#94A3B8"
+                  value={newTitle}
+                  onChangeText={setNewTitle}
+                  autoFocus={true}
+                  returnKeyType="done"
+                />
+              </View>
+
+              {/* Bộ chọn giờ & phút */}
+              <View style={styles.timePickerContainer}>
+                <View style={styles.timePickerHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Ionicons name="time" size={14} color="#047857" />
+                    <Text style={styles.timePickerLabel}>
+                      {isVi ? 'Giờ hẹn (24h : 60p):' : 'Scheduled Time (24h : 60m):'}
+                    </Text>
+                  </View>
+                  <View style={styles.timePreviewBadge}>
+                    <Text style={styles.timePreviewText}>{formattedTime}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.compactWheelsCenter}>
+                  {/* Cột nấc Giờ (0 - 23h) */}
+                  <View style={styles.wheelColCompact}>
+                    <TouchableOpacity
+                      style={styles.stepArrowBtn}
+                      onPress={() => stepHour(-1)}
+                      activeOpacity={0.6}
+                      hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="chevron-up" size={13} color="#047857" />
+                    </TouchableOpacity>
+
+                    <View style={styles.wheelBoxCompact}>
+                      <ScrollView
+                        ref={hourScrollRef}
+                        style={styles.wheelScrollViewCompact}
+                        contentContainerStyle={styles.wheelScrollContentCompact}
+                        showsVerticalScrollIndicator={false}
+                        nestedScrollEnabled={true}
+                        snapToInterval={26}
+                        decelerationRate="fast"
+                        onScroll={(e) => {
+                          const y = e.nativeEvent.contentOffset.y;
+                          const idx = Math.round(y / 26);
+                          if (idx >= 0 && idx < 24 && idx !== selectedHour) {
+                            setSelectedHour(idx);
+                          }
+                        }}
+                        scrollEventThrottle={16}
+                      >
+                        {HOURS.map((h) => {
+                          const isSelected = selectedHour === h;
+                          return (
+                            <TouchableOpacity
+                              key={`hour-${h}`}
+                              style={[styles.notchSquare, isSelected && styles.notchSquareSelected]}
+                              onPress={() => selectHour(h)}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={[styles.notchText, isSelected && styles.notchTextSelected]}>
+                                {String(h).padStart(2, '0')}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.stepArrowBtn}
+                      onPress={() => stepHour(1)}
+                      activeOpacity={0.6}
+                      hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="chevron-down" size={13} color="#047857" />
+                    </TouchableOpacity>
+                    <Text style={styles.unitSmallLabel}>{isVi ? 'Giờ' : 'Hour'}</Text>
+                  </View>
+
+                  {/* Phân cách hai chấm */}
+                  <View style={styles.colonDividerCompact}>
+                    <Text style={styles.colonTextCompact}>:</Text>
+                  </View>
+
+                  {/* Cột nấc Phút (0 - 59p) */}
+                  <View style={styles.wheelColCompact}>
+                    <TouchableOpacity
+                      style={styles.stepArrowBtn}
+                      onPress={() => stepMinute(-1)}
+                      activeOpacity={0.6}
+                      hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="chevron-up" size={13} color="#047857" />
+                    </TouchableOpacity>
+
+                    <View style={styles.wheelBoxCompact}>
+                      <ScrollView
+                        ref={minuteScrollRef}
+                        style={styles.wheelScrollViewCompact}
+                        contentContainerStyle={styles.wheelScrollContentCompact}
+                        showsVerticalScrollIndicator={false}
+                        nestedScrollEnabled={true}
+                        snapToInterval={26}
+                        decelerationRate="fast"
+                        onScroll={(e) => {
+                          const y = e.nativeEvent.contentOffset.y;
+                          const idx = Math.round(y / 26);
+                          if (idx >= 0 && idx < 60 && idx !== selectedMinute) {
+                            setSelectedMinute(idx);
+                          }
+                        }}
+                        scrollEventThrottle={16}
+                      >
+                        {MINUTES.map((m) => {
+                          const isSelected = selectedMinute === m;
+                          return (
+                            <TouchableOpacity
+                              key={`minute-${m}`}
+                              style={[styles.notchSquare, isSelected && styles.notchSquareSelected]}
+                              onPress={() => selectMinute(m)}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={[styles.notchText, isSelected && styles.notchTextSelected]}>
+                                {String(m).padStart(2, '0')}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.stepArrowBtn}
+                      onPress={() => stepMinute(1)}
+                      activeOpacity={0.6}
+                      hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="chevron-down" size={13} color="#047857" />
+                    </TouchableOpacity>
+                    <Text style={styles.unitSmallLabel}>{isVi ? 'Phút' : 'Minute'}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Chọn số phút báo trước */}
+              <View style={styles.beforeRow}>
+                <Text style={styles.formLabel}>
+                  {isVi ? 'Báo trước bạn:' : 'Notify before:'}
+                </Text>
+                <View style={styles.beforeOptions}>
+                  {[5, 10, 15, 30].map((mins) => {
+                    const isSelected = newBeforeMinutes === mins;
+                    return (
+                      <TouchableOpacity
+                        key={mins}
+                        onPress={() => setNewBeforeMinutes(mins)}
+                        style={[styles.beforeChip, isSelected && styles.beforeChipActive]}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.beforeChipText, isSelected && styles.beforeChipTextActive]}>
+                          {mins} {isVi ? 'phút' : 'min'}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Nút thao tác dưới Modal */}
+              <View style={styles.modalFormFooter}>
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={handleCancelForm}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.modalCancelBtnText}>{isVi ? 'Hủy bỏ' : 'Cancel'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalSubmitBtn, !newTitle.trim() && styles.modalSubmitBtnDisabled]}
+                  onPress={handleSave}
+                  disabled={!newTitle.trim() || isSubmitting}
+                  activeOpacity={0.8}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons
+                        name={editingReminderId ? 'save-outline' : 'checkmark-circle-outline'}
+                        size={16}
+                        color="#FFFFFF"
+                        style={{ marginRight: 6 }}
+                      />
+                      <Text style={styles.modalSubmitBtnText}>
+                        {editingReminderId
+                          ? (isVi ? 'Cập nhật' : 'Update')
+                          : (isVi ? 'Lưu nhắc nhở' : 'Save Reminder')}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
-        </View>
-      )}
+        </KeyboardAvoidingView>
+      </Modal>
 
 
       {/* DANH SÁCH LỜI NHẮC */}
@@ -716,13 +780,17 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
             <ActivityIndicator size="small" color="#047857" />
           </View>
         ) : reminders.length === 0 ? (
-          <View style={styles.emptyCard}>
+          <TouchableOpacity
+            style={styles.emptyCard}
+            onPress={handleOpenCreateForm}
+            activeOpacity={0.8}
+          >
             <Ionicons name="calendar-outline" size={24} color="#94A3B8" style={{ marginBottom: 4 }} />
             <Text style={styles.emptyTitle}>Chưa có nhắc nhở nào</Text>
             <Text style={styles.emptySub}>
               Nhấn "+ Thêm lời nhắc" để không quên việc mua sắm, trả tiền hay đi chợ nhé!
             </Text>
-          </View>
+          </TouchableOpacity>
         ) : (
           reminders.map((item) => {
             const isDone = item.isCompleted;
@@ -952,25 +1020,132 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  // Form tạo nhắc nhở
-  formCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 5,
-    elevation: 2,
+  // Modal Popup Đặt / Sửa nhắc nhở (Hiện ra giữa màn hình, chống che bàn phím)
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
   },
-  formHeading: {
+  modalBackdropTap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  modalContentCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 18,
+    width: '100%',
+    maxWidth: 420,
+    maxHeight: '88%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 10,
+    overflow: 'hidden',
+  },
+  modalHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  modalHeaderTitleGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    paddingRight: 10,
+  },
+  modalHeaderIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  modalTitleText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  modalSubtitleText: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  modalCloseCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalFieldLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 6,
+  },
+  modalFormFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 10,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelBtnText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0F172A',
-    marginBottom: 10,
+    color: '#64748B',
+  },
+  modalSubmitBtn: {
+    flex: 2,
+    flexDirection: 'row',
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: '#047857',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#047857',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  modalSubmitBtnDisabled: {
+    backgroundColor: '#94A3B8',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  modalSubmitBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   inputWrap: {
     flexDirection: 'row',

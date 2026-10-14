@@ -1458,15 +1458,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
                 {/* Cột phải: Thời gian & Unread Badge */}
                 <View style={styles.convRightColumn}>
                   <Text style={styles.convTimeText}>{item.lastMessageTime}</Text>
-                  {item.unreadCount > 0 ? (
+                  {item.unreadCount > 0 && (
                     <View style={styles.unreadCounterBadge}>
                       <Text style={styles.unreadCounterText}>{item.unreadCount}</Text>
                     </View>
-                  ) : item.streak ? (
-                    <View style={styles.streakSmallBadge}>
-                      <Text style={styles.streakSmallText}>🔥 {item.streak}</Text>
-                    </View>
-                  ) : null}
+                  )}
                 </View>
               </TouchableOpacity>
             );

@@ -9,4 +9,5 @@ export * from './CategoriesScreen';
 export * from './ProfileScreen';
 export * from './CalendarScreen';
 export * from './MessagesScreen';
+export * from './DayExpensesScreen';
 export * from './MobileNavigator';

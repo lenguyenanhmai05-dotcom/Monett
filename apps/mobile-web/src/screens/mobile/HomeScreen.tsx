@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { getBudgetApi, BudgetData, getTransactionsByDateApi, deleteTransactionApi } from '../../services/api';
+import { getBudgetApi, BudgetData, getTransactionsByDateApi, getTransactionsApi, deleteTransactionApi } from '../../services/api';
 import { FinancialCalendarWidget } from '../../components/FinancialCalendarWidget';
 import { RemindersWidget } from '../../components/RemindersWidget';
 import { BillsAndDebtsWidget } from '../../components/BillsAndDebtsWidget';
@@ -30,6 +30,7 @@ interface HomeScreenProps {
   onNavigateToAnalytics?: () => void;
   onNavigateToCalendar?: () => void;
   onNavigateToProfile?: () => void;
+  onNavigateToDayExpenses?: (dateStr: string, dateLabel: string) => void;
 }
 
 interface ExpenseCardItem {
@@ -81,6 +82,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToAnalytics,
   onNavigateToCalendar,
   onNavigateToProfile,
+  onNavigateToDayExpenses,
 }) => {
   const { user: authUser } = useAuth();
   const { language } = useLanguage();
@@ -131,6 +133,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   const [todayExpenses, setTodayExpenses] = React.useState<ExpenseCardItem[]>(DEFAULT_TODAY_EXPENSES);
   const [todayTotal, setTodayTotal] = React.useState<number>(185000);
+  const [monthTransactions, setMonthTransactions] = React.useState<any[]>([]);
   const [refreshing, setRefreshing] = React.useState<boolean>(false);
   const [deletingExpense, setDeletingExpense] = React.useState<ExpenseCardItem | null>(null);
   const [isDeletingTx, setIsDeletingTx] = React.useState<boolean>(false);
@@ -164,9 +167,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       setTodayExpenses((prev) => prev.filter((item) => item.id !== deletingExpense.id));
       setTodayTotal((prev) => Math.max(0, prev - deletingExpense.rawAmount));
       setDeletingExpense(null);
-      // Refresh lại ngân sách
+      // Refresh lại ngân sách & danh sách tháng
       const budgetData = await getBudgetApi();
       if (budgetData && budgetData.limit) setBudget(budgetData);
+      fetchHomeData();
     } catch (e: any) {
       console.log('Error deleting transaction:', e);
       if (typeof alert !== 'undefined') {
@@ -183,6 +187,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       const budgetData = await getBudgetApi();
       if (budgetData && budgetData.limit) {
         setBudget(budgetData);
+      }
+    } catch (e) {}
+
+    // Lấy toàn bộ giao dịch của tháng để hiển thị lên Lịch tài chính
+    try {
+      const monthRes: any = await getTransactionsApi({ limit: 300 });
+      const txList = Array.isArray(monthRes) ? monthRes : monthRes?.data || monthRes?.items || [];
+      if (Array.isArray(txList)) {
+        setMonthTransactions(txList);
       }
     } catch (e) {}
 
@@ -347,14 +360,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* 4. LỊCH TÀI CHÍNH (Thay thế cho bảng Tuần này) */}
+        {/* 4. LỊCH TÀI CHÍNH */}
         <FinancialCalendarWidget
           selectedDay={selectedWeekDay}
+          transactions={monthTransactions}
           onSelectDay={(dayNum, fullDateStr, dateLabel) => {
             setSelectedWeekDay(dayNum);
             setSelectedDateStr(fullDateStr);
-            setSelectedDateLabel(fullDateStr === todayStr ? 'Hôm nay' : dateLabel);
-            fetchHomeData(fullDateStr);
+            const label = fullDateStr === todayStr ? (isVi ? 'Hôm nay' : 'Today') : dateLabel;
+            setSelectedDateLabel(label);
+            if (onNavigateToDayExpenses) {
+              onNavigateToDayExpenses(fullDateStr, label);
+            }
           }}
           onViewAll={onNavigateToCalendar}
         />

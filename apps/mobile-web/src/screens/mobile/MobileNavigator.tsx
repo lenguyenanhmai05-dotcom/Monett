@@ -20,11 +20,12 @@ import { CategoriesScreen } from './CategoriesScreen';
 import { ProfileScreen } from './ProfileScreen';
 import { FriendsFeedScreen } from './FriendsFeedScreen';
 import { MessagesScreen } from './MessagesScreen';
+import { DayExpensesScreen } from './DayExpensesScreen';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { createTransactionApi } from '../../services/api';
 
 export type MobileTab = 'home' | 'calendar' | 'analytics' | 'feed' | 'wallets' | 'categories' | 'profile';
-export type ActiveModal = 'none' | 'camera' | 'add_expense' | 'quick_save' | 'detail';
+export type ActiveModal = 'none' | 'camera' | 'add_expense' | 'quick_save' | 'detail' | 'day_expenses';
 
 export const MobileNavigator: React.FC = () => {
   const { language } = useLanguage();
@@ -35,6 +36,8 @@ export const MobileNavigator: React.FC = () => {
   const [capturedPhoto, setCapturedPhoto] = useState<string | undefined>();
   const [capturedMode, setCapturedMode] = useState<'bill' | 'food' | 'auto'>('food');
   const [targetExpenseDate, setTargetExpenseDate] = useState<string | undefined>();
+  const [selectedDayExpensesDate, setSelectedDayExpensesDate] = useState<string | undefined>();
+  const [selectedDayExpensesLabel, setSelectedDayExpensesLabel] = useState<string | undefined>();
   const [selectedTxId, setSelectedTxId] = useState<string | undefined>();
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [refreshKey, setRefreshKey] = useState<number>(0);
@@ -75,6 +78,11 @@ export const MobileNavigator: React.FC = () => {
             onNavigateToAnalytics={() => setCurrentTab('analytics')}
             onNavigateToCalendar={() => setCurrentTab('calendar')}
             onNavigateToProfile={() => setCurrentTab('profile')}
+            onNavigateToDayExpenses={(dateStr, label) => {
+              setSelectedDayExpensesDate(dateStr);
+              setSelectedDayExpensesLabel(label);
+              setActiveModal('day_expenses');
+            }}
           />
         );
       case 'calendar':
@@ -290,12 +298,12 @@ export const MobileNavigator: React.FC = () => {
             onBack={() => {
               setEditingTransaction(null);
               setTargetExpenseDate(undefined);
-              setActiveModal('none');
+              setActiveModal(selectedDayExpensesDate ? 'day_expenses' : 'none');
             }}
             onSaveSuccess={() => {
               setEditingTransaction(null);
               setTargetExpenseDate(undefined);
-              setActiveModal('none');
+              setActiveModal(selectedDayExpensesDate ? 'day_expenses' : 'none');
               setCapturedPhoto(undefined);
               triggerRefresh();
             }}
@@ -310,7 +318,7 @@ export const MobileNavigator: React.FC = () => {
             transactionId={selectedTxId}
             onBack={() => {
               setSelectedTxId(undefined);
-              setActiveModal('none');
+              setActiveModal(selectedDayExpensesDate ? 'day_expenses' : 'none');
             }}
             onEdit={(txData) => {
               setEditingTransaction(txData);
@@ -318,20 +326,20 @@ export const MobileNavigator: React.FC = () => {
             }}
             onDelete={() => {
               setSelectedTxId(undefined);
-              setActiveModal('none');
+              setActiveModal(selectedDayExpensesDate ? 'day_expenses' : 'none');
               triggerRefresh();
             }}
           />
         </View>
       )}
 
-      {/* 6. Modal QuickSave (Bạn vừa chi?) */}
+      {/* 6. Modal QuickSave (Lưu nhanh khoản chi tiêu) */}
       <QuickSaveModal
         visible={activeModal === 'quick_save'}
         targetDate={targetExpenseDate}
         onClose={() => {
           setTargetExpenseDate(undefined);
-          setActiveModal('none');
+          setActiveModal(selectedDayExpensesDate ? 'day_expenses' : 'none');
         }}
         onSaveQuick={async (amount, category, date) => {
           try {
@@ -347,10 +355,38 @@ export const MobileNavigator: React.FC = () => {
             console.log('Saved quick expense (offline/local fallback):', amount, category);
           }
           setTargetExpenseDate(undefined);
-          setActiveModal('none');
+          setActiveModal(selectedDayExpensesDate ? 'day_expenses' : 'none');
         }}
         onOpenFullCamera={() => setActiveModal('camera')}
       />
+
+      {/* 7. Màn hình Chi Tiết Chi Tiêu Theo Ngày (Khoản lưu chi tiêu + Thời gian chi tiêu lướt lên xem) */}
+      {activeModal === 'day_expenses' && selectedDayExpensesDate && (
+        <View style={StyleSheet.absoluteFill}>
+          <DayExpensesScreen
+            dateStr={selectedDayExpensesDate}
+            dateLabel={selectedDayExpensesLabel}
+            refreshTrigger={refreshKey}
+            onBack={() => {
+              setSelectedDayExpensesDate(undefined);
+              setSelectedDayExpensesLabel(undefined);
+              setActiveModal('none');
+            }}
+            onNavigateToDetail={(id) => {
+              setSelectedTxId(id);
+              setActiveModal('detail');
+            }}
+            onNavigateToQuickSave={(date) => {
+              setTargetExpenseDate(date);
+              setActiveModal('quick_save');
+            }}
+            onNavigateToCamera={(date) => {
+              setTargetExpenseDate(date);
+              setActiveModal('camera');
+            }}
+          />
+        </View>
+      )}
     </View>
   );
 };

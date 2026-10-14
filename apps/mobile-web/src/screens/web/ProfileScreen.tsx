@@ -388,35 +388,6 @@ export const ProfileScreen: React.FC = () => {
         <View style={styles.metaTextContainer}>
           <Text style={styles.userNameText}>{user?.fullName || 'Người dùng Monett'}</Text>
           <Text style={styles.userEmailText}>{user?.email}</Text>
-          {/* Badge conditionally rendered based on user PRO status */}
-          {(user?.isPro || (user as any)?.role === 'ADMIN' || currentStreak >= 7) ? (
-            <View style={{
-              backgroundColor: '#059669',
-              paddingHorizontal: 16,
-              paddingVertical: 6,
-              borderRadius: 20,
-              marginTop: 12,
-              flexDirection: 'row',
-              alignItems: 'center',
-              shadowColor: '#059669',
-              shadowOffset: { width: 0, height: 3 },
-              shadowOpacity: 0.3,
-              shadowRadius: 6,
-              elevation: 4,
-            }}>
-              <Ionicons name="star" size={14} color="#FDE047" style={{ marginRight: 6 }} />
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#FFFFFF' }}>
-                PRO • {language === 'vi' ? 'Thành viên Tinh Hoa' : 'Elite Member'}
-              </Text>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: '#FDE047', marginLeft: 8 }}>
-                VIP
-              </Text>
-            </View>
-          ) : (
-            <TouchableOpacity style={styles.standardBadge} onPress={() => window.alert(language === 'vi' ? `Giữ chuỗi streak ${currentStreak}/3 ngày để mở khóa PRO miễn phí!` : `Keep a ${currentStreak}/3 day streak to unlock PRO for free!`)}>
-              <Text style={styles.standardBadgeText}>🌱 {language === 'vi' ? `Bản Tiêu chuẩn • Streak ${currentStreak}/3` : `Standard • Streak ${currentStreak}/3`}</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
 
@@ -468,61 +439,6 @@ export const ProfileScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* Streak Card */}
-          <View style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            backgroundColor: isDark ? '#064E3B' : '#ECFDF5',
-            borderRadius: 28,
-            paddingVertical: 16,
-            paddingHorizontal: 14,
-            marginBottom: 20,
-            shadowColor: isDark ? '#000000' : '#059669',
-            shadowOffset: { width: 0, height: 12 },
-            shadowOpacity: isDark ? 0.3 : 0.08,
-            shadowRadius: 24,
-            elevation: 6,
-            borderWidth: 1.5,
-            borderColor: isDark ? '#047857' : '#A7F3D0',
-          }}>
-            <Image 
-              source={require('../../../assets/frogs/frog-3d-m-coin-transparent.png')} 
-              style={{ width: 90, height: 90, marginLeft: -12, marginTop: -24, marginBottom: -24, zIndex: 10 }} 
-              resizeMode="contain"
-            />
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', flexWrap: 'wrap', gap: 6 }}>
-                <Text style={{ fontSize: 16, fontWeight: '800', color: isDark ? '#F8FAFC' : '#0F172A', flexShrink: 1 }}>
-                  {language === 'vi'
-                    ? `Chuỗi ${currentStreak} ngày bùng cháy`
-                    : `${currentStreak}-Day Blazing Streak`}
-                </Text>
-                {activeToday ? (
-                  <View style={{ backgroundColor: '#D1FAE5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, flexDirection: 'row', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#10B981', marginRight: 4 }}>
-                      {language === 'vi' ? 'ĐÃ GIỮ CHUỖI' : 'ACTIVE'}
-                    </Text>
-                    <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-                  </View>
-                ) : (
-                  <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 }}>
-                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#D97706' }}>
-                      {language === 'vi' ? 'CHƯA ĐIỂM DANH' : 'PENDING'}
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <Text style={{ fontSize: 12, color: isDark ? '#A7F3D0' : '#047857', marginTop: 4, lineHeight: 18 }}>
-                {activeToday
-                  ? (language === 'vi'
-                      ? 'Đã ghi nhận khoảnh khắc hôm nay. Chạm để xem chi tiết & mốc thưởng!'
-                      : 'Continuous moments recorded. Tap to view perks & milestones!')
-                  : (language === 'vi'
-                      ? 'Chưa duy trì hôm nay. Hãy ghi chép hoặc tham gia cùng bạn bè!'
-                      : 'Not active today. Add a transaction or join a friend!')}
-              </Text>
-            </View>
-          </View>
         </View>
 
         {/* ================= RIGHT COLUMN ================= */}

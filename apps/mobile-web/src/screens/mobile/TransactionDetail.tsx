@@ -82,7 +82,6 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
     wallet: 'Tiền mặt',
     walletIcon: 'cash-outline',
     note: 'Bát đặc biệt thêm chả cua. Ăn trưa cùng bạn.',
-    location: 'Số 18 Ngõ Huyện, Hoàn Kiếm, Hà Nội',
     xpReward: '+15 XP',
     imageUrl:
       'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=800&auto=format&fit=crop&q=80',
@@ -110,7 +109,6 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
             wallet: tx.walletName || 'Tiền mặt',
             walletIcon: tx.walletIcon || 'cash-outline',
             note: tx.note || 'Khoảnh khắc chi tiêu đã được ghi nhận',
-            location: tx.location || 'Hà Nội, Việt Nam',
             xpReward: '+15 XP',
             imageUrl: tx.photoUri || 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=800&auto=format&fit=crop&q=80',
           });
@@ -235,14 +233,6 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
                 </View>
               );
             })()}
-          </View>
-
-          <View style={styles.detailRow}>
-            <View style={styles.rowLabelContainer}>
-              <Ionicons name="location-outline" size={16} color="#047857" style={{ marginRight: 8 }} />
-              <Text style={styles.rowLabel}>{isVi ? 'Địa điểm' : 'Location'}</Text>
-            </View>
-            <Text style={styles.rowValue}>{detail.location}</Text>
           </View>
 
           <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
