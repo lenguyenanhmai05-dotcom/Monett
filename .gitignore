@@ -51,6 +51,8 @@ apps/mobile-web/src/services/googleAuth.ts
 # Local scripts, executables, and scratch
 *.bat
 scripts/
+tools/
+*.log
 cloudflared.exe
 *.exe
 scratch/
