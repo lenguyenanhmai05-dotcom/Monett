@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 interface QuickSaveModalProps {
   visible: boolean;
@@ -29,6 +30,7 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
   targetDate,
 }) => {
   const { language } = useLanguage();
+  const { addNotification } = useNotifications();
   const isVi = language === 'vi';
   const [amountStr, setAmountStr] = useState<string>('50000');
   const [selectedCategory, setSelectedCategory] = useState<string>('Ăn uống');
@@ -135,18 +137,39 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
                 return (
                   <TouchableOpacity
                     key={item.id}
-                    style={[styles.catCard, isSelected && styles.catCardActive]}
+                    style={[
+                      styles.catCard,
+                      isSelected && {
+                        borderColor: item.color,
+                        borderWidth: 2,
+                        backgroundColor: item.bg,
+                        shadowColor: item.color,
+                        shadowOffset: { width: 0, height: 3 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 6,
+                        elevation: 3,
+                      },
+                    ]}
                     onPress={() => setSelectedCategory(item.name)}
                     activeOpacity={0.7}
                   >
-                    <View style={[styles.catIconBox, { backgroundColor: isSelected ? '#ECFDF5' : item.bg }]}>
+                    <View style={[styles.catIconBox, { backgroundColor: item.bg }]}>
                       <Ionicons
                         name={item.icon}
                         size={20}
-                        color={isSelected ? '#047857' : item.color}
+                        color={item.color}
                       />
                     </View>
-                    <Text style={[styles.catName, isSelected && styles.catNameActive]} numberOfLines={1}>
+                    <Text
+                      style={[
+                        styles.catName,
+                        isSelected && {
+                          color: item.color,
+                          fontWeight: '800',
+                        },
+                      ]}
+                      numberOfLines={1}
+                    >
                       {item.name}
                     </Text>
                   </TouchableOpacity>
@@ -176,6 +199,14 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
               onPress={() => {
                 if (selectedAmount > 0) {
                   onSaveQuick(selectedAmount, selectedCategory, targetDate);
+                  addNotification({
+                    type: 'expense',
+                    title: 'Đã lưu chi tiêu nhanh 💸',
+                    message: `Khoản chi "${selectedCategory}" (${selectedAmount.toLocaleString('vi-VN')} đ) đã được ghi nhận thành công.`,
+                    iconBg: '#ECFDF5',
+                    iconColor: '#059669',
+                    metadata: { targetTab: 'home', amount: selectedAmount, category: selectedCategory },
+                  });
                   onClose();
                 }
               }}
