@@ -1,8 +1,8 @@
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../contexts/ThemeContext';
 import { BudgetData } from '../services/api';
+import { BudgetModal } from './BudgetModal';
 
 interface IntegratedBudgetBarProps {
   budget: BudgetData;
@@ -15,209 +15,210 @@ export const IntegratedBudgetBar: React.FC<IntegratedBudgetBarProps> = ({
   onBudgetUpdated,
   language,
 }) => {
-  const { isDark, colors } = useTheme();
-  const styles = getStyles(isDark, colors);
-
-  const remainingDaysInMonth = useMemo(() => {
-    const now = new Date();
-    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    return Math.max(1, lastDayOfMonth - now.getDate() + 1);
-  }, []);
-
-  const safeDailySpend = useMemo(() => {
-    return Math.max(0, Math.round(budget.remaining / remainingDaysInMonth));
-  }, [budget.remaining, remainingDaysInMonth]);
+  const isVi = language === 'vi';
+  const [isModalVisible, setIsModalVisible] = useState(false);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <View style={styles.titleWrapper}>
-          <View style={styles.iconCircle}>
-            <Ionicons name="wallet" size={18} color="#059669" />
+    <>
+      <View style={styles.card}>
+        {/* Hàng trên: Nhãn & Badge ngày lương */}
+        <View style={styles.topRow}>
+          <View style={styles.labelRow}>
+            <Ionicons name="wallet-outline" size={16} color="#A7F3D0" style={{ marginRight: 6 }} />
+            <Text style={styles.labelTitle}>
+              {isVi ? 'Số dư khả dụng' : 'Available Balance'}
+            </Text>
+            <TouchableOpacity
+              style={styles.editBtn}
+              onPress={() => setIsModalVisible(true)}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="pencil" size={12} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
-          <Text style={styles.mainTitle}>
-            {language === 'vi' ? 'Tổng Tài Sản & Hạn Mức' : 'Total Assets & Budget'}
-          </Text>
         </View>
-        <TouchableOpacity style={styles.paydayBadge}>
-          <Text style={styles.paydayText}>
-            {language === 'vi' ? `Còn ${budget.daysUntilPayday} ngày đến kỳ lương` : `${budget.daysUntilPayday} days until payday`}
-          </Text>
-        </TouchableOpacity>
+
+        {/* Hàng giữa: Số dư nổi bật & Mascot ếch Monett */}
+        <View style={styles.mainRow}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => setIsModalVisible(true)}
+            style={styles.amountTouchable}
+          >
+            <Text style={styles.mainAmount}>
+              {budget.remaining.toLocaleString('vi-VN')}{' '}
+              <Text style={styles.currencyText}>{budget.currency || 'VND'}</Text>
+            </Text>
+          </TouchableOpacity>
+
+          {/* Linh vật ếch Monett 3D tinh tế */}
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => setIsModalVisible(true)}
+            style={styles.mascotWrapper}
+          >
+            <Image
+              source={require('../../assets/frogs/frog-calendar-mascot.png')}
+              style={styles.mascotImage}
+              resizeMode="contain"
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* Thanh tiến độ tối giản siêu mảnh */}
+        <View style={styles.progressSection}>
+          <View style={styles.progressTrack}>
+            <View
+              style={[
+                styles.progressFill,
+                {
+                  width: `${Math.min(100, Math.max(0, budget.spentPercent || 0))}%`,
+                  backgroundColor:
+                    budget.status === 'danger'
+                      ? '#F87171'
+                      : budget.status === 'warning'
+                      ? '#FBBF24'
+                      : '#34D399',
+                },
+              ]}
+            />
+          </View>
+
+          {/* Thông số phụ tối giản 2 đầu */}
+          <View style={styles.statsRow}>
+            <Text style={styles.statText}>
+              {isVi ? 'Đã chi' : 'Spent'}:{' '}
+              <Text style={styles.statHighlight}>
+                {budget.spent.toLocaleString('vi-VN')} {budget.currency || 'VND'}
+              </Text>{' '}
+              ({budget.spentPercent || 0}%)
+            </Text>
+
+            <Text style={styles.statText}>
+              {isVi ? 'Hạn mức tháng' : 'Limit'}:{' '}
+              <Text style={styles.statHighlight}>
+                {budget.limit.toLocaleString('vi-VN')} {budget.currency || 'VND'}
+              </Text>
+            </Text>
+          </View>
+        </View>
       </View>
 
-      <View style={styles.balanceRow}>
-        <View>
-          <Text style={styles.label}>
-            {language === 'vi' ? 'Số dư khả dụng' : 'Available Balance'}
-          </Text>
-          <Text style={styles.balanceAmount}>
-            {budget.remaining.toLocaleString('vi-VN')} {budget.currency}
-          </Text>
-        </View>
-        <View style={styles.alignRight}>
-          <Text style={styles.label}>
-            {language === 'vi' ? 'Hạn mức tháng' : 'Monthly Limit'}
-          </Text>
-          <Text style={styles.limitAmount}>
-            {budget.limit.toLocaleString('vi-VN')} {budget.currency}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.progressContainer}>
-        <View style={styles.progressBarTrack}>
-          <View
-            style={[
-              styles.progressBarFill,
-              {
-                width: `${Math.min(100, Math.max(0, budget.spentPercent))}%`,
-                backgroundColor:
-                  budget.status === 'danger'
-                    ? '#EF4444'
-                    : budget.status === 'warning'
-                    ? '#F59E0B'
-                    : '#10B981',
-              },
-            ]}
-          />
-        </View>
-        <View style={styles.progressTextRow}>
-          <Text style={styles.progressTextLeft}>
-            {language === 'vi' ? 'Đã chi' : 'Spent'}: {budget.spent.toLocaleString('vi-VN')} {budget.currency} ({budget.spentPercent}%)
-          </Text>
-          <Text style={styles.progressTextRight}>
-            {budget.remainingPercent}% {language === 'vi' ? 'còn lại' : 'left'}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.insightBox}>
-        <Ionicons name="bulb-outline" size={16} color="#D97706" style={{ marginRight: 8 }} />
-        <Text style={styles.insightText}>
-          {language === 'vi'
-            ? `Gợi ý chi tiêu an toàn hôm nay: ~${safeDailySpend.toLocaleString('vi-VN')} ${budget.currency}`
-            : `Safe daily spending today: ~${safeDailySpend.toLocaleString('vi-VN')} ${budget.currency}`}
-        </Text>
-      </View>
-    </View>
+      {/* Modal chỉnh sửa hạn mức ngân sách */}
+      <BudgetModal
+        visible={isModalVisible}
+        onClose={() => setIsModalVisible(false)}
+        onSaved={(updated) => {
+          onBudgetUpdated?.(updated);
+        }}
+        currentLimit={budget.limit}
+        currentPayday={budget.payday}
+        currentSpent={budget.spent}
+      />
+    </>
   );
 };
 
-const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
-  container: {
-    backgroundColor: colors.card,
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: '#064E3B', // Tone xanh lục bảo sang trọng, đậm nét Monett
     borderRadius: 20,
-    padding: 20,
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 16,
     borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: isDark ? '#000000' : '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: isDark ? 0.2 : 0.04,
-    shadowRadius: 14,
-    elevation: 3,
+    borderColor: 'rgba(52, 211, 153, 0.25)',
+    shadowColor: '#064E3B',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 4,
+    position: 'relative',
+    overflow: 'visible',
   },
-  headerRow: {
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 6,
   },
-  titleWrapper: {
+  labelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
   },
-  iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#D1FAE5',
+  labelTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#A7F3D0',
+    letterSpacing: 0.2,
+  },
+  editBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  mainTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  paydayBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  paydayText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#B45309',
-  },
-  balanceRow: {
+  mainRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: 16,
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  label: {
-    fontSize: 13,
-    color: colors.textMuted,
-    marginBottom: 4,
-    fontWeight: '500',
+  amountTouchable: {
+    flex: 1,
   },
-  balanceAmount: {
-    fontSize: 28,
+  mainAmount: {
+    fontSize: 34,
     fontWeight: '900',
-    color: '#059669',
+    color: '#FFFFFF',
     letterSpacing: -0.5,
   },
-  alignRight: {
-    alignItems: 'flex-end',
-  },
-  limitAmount: {
-    fontSize: 16,
+  currencyText: {
+    fontSize: 18,
     fontWeight: '700',
-    color: colors.textPrimary,
+    color: '#A7F3D0',
   },
-  progressContainer: {
-    marginBottom: 16,
+  mascotWrapper: {
+    marginTop: -28,
+    marginBottom: -10,
+    marginRight: 6,
   },
-  progressBarTrack: {
-    height: 12,
-    backgroundColor: isDark ? '#334155' : '#E2E8F0',
-    borderRadius: 6,
+  mascotImage: {
+    width: 104,
+    height: 104,
+  },
+  progressSection: {
+    marginBottom: 0,
+  },
+  progressTrack: {
+    height: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 3,
     overflow: 'hidden',
     marginBottom: 8,
   },
-  progressBarFill: {
+  progressFill: {
     height: '100%',
-    borderRadius: 6,
+    borderRadius: 3,
   },
-  progressTextRow: {
+  statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-  },
-  progressTextLeft: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  progressTextRight: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  insightBox: {
-    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: isDark ? '#334155' : '#F8FAFC',
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: isDark ? '#475569' : '#E2E8F0',
   },
-  insightText: {
-    fontSize: 13,
-    color: colors.textPrimary,
+  statText: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.75)',
     fontWeight: '500',
+  },
+  statHighlight: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 });

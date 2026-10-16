@@ -1008,7 +1008,7 @@ export const WebCalendarScreen: React.FC = () => {
 const styles = StyleSheet.create({
   scrollWrapper: {
     flex: 1,
-    backgroundColor: '#F8FAFD',
+    backgroundColor: '#F5F0E8',
   },
   scrollContent: {
     padding: 24,
@@ -1076,9 +1076,9 @@ const styles = StyleSheet.create({
   monthNavBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E8',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E8E0D5',
     borderRadius: 10,
     paddingHorizontal: 6,
     paddingVertical: 4,
@@ -1141,10 +1141,10 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     minWidth: 230,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E8',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E8E0D5',
     padding: 16,
     gap: 8,
     shadowColor: '#000',
@@ -1268,10 +1268,10 @@ const styles = StyleSheet.create({
   // LEFT COLUMN: BẢN ĐỒ THỊ GIÁC CHI TIÊU (~65%)
   leftCalendarCol: {
     flex: 6.5,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E8',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E8E0D5',
     padding: 20,
     shadowColor: '#000',
     shadowOpacity: 0.03,
@@ -1522,10 +1522,10 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   detailCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E8',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E8E0D5',
     padding: 16,
     gap: 12,
     shadowColor: '#000',
@@ -1648,10 +1648,10 @@ const styles = StyleSheet.create({
 
   // Upload Dropzone Card
   uploadDropCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E8',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E8E0D5',
     padding: 16,
     gap: 10,
   },
@@ -1705,10 +1705,10 @@ const styles = StyleSheet.create({
 
   // Items List Card
   itemsListCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E8',
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E8E0D5',
     padding: 16,
     gap: 12,
   },

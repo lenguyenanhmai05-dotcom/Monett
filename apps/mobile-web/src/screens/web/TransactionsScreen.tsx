@@ -108,68 +108,65 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({ onNaviga
 
       {/* ================= KPI STATS CARDS ================= */}
       <View style={[styles.kpiRow, isDesktop ? styles.kpiDesktop : styles.kpiMobile]}>
-        {/* Card 1: Tổng Thu */}
+        {/* Card 1: Thu nhập */}
         <View style={[styles.kpiCard, styles.kpiCardIncome]}>
           <View style={styles.kpiHeader}>
-            <Text style={styles.kpiLabel}>{isVi ? 'Tổng thu nhập' : 'Total Income'}</Text>
-            <View style={[styles.kpiIconWrap, { backgroundColor: '#DCFCE7' }]}>
-              <Ionicons name="trending-up" size={16} color="#059669" />
+            <View style={styles.kpiIconWrap}>
+              <Ionicons
+                name="arrow-down-outline"
+                size={18}
+                color={isDark ? '#F8FAFC' : '#1E293B'}
+                style={{ transform: [{ rotate: '45deg' }] }}
+              />
             </View>
+            <Text style={styles.kpiLabel}>{isVi ? 'Thu nhập' : 'Income'}</Text>
           </View>
-          <Text style={[styles.kpiValue, { color: '#059669' }]}>
-            +{stats.totalIncome.toLocaleString('vi-VN')} đ
+          <Text style={styles.kpiValue}>
+            {stats.totalIncome.toLocaleString('vi-VN')}
           </Text>
           <Text style={styles.kpiNote}>
-            {isVi ? 'Bao gồm lương, thưởng & hoàn tiền' : 'Includes salary, bonus & cashback'}
+            {isVi ? 'tháng này' : 'this month'}
           </Text>
         </View>
 
-        {/* Card 2: Tổng Chi */}
+        {/* Card 2: Chi tiêu */}
         <View style={[styles.kpiCard, styles.kpiCardExpense]}>
           <View style={styles.kpiHeader}>
-            <Text style={styles.kpiLabel}>{isVi ? 'Tổng chi tiêu' : 'Total Expenses'}</Text>
-            <View style={[styles.kpiIconWrap, { backgroundColor: '#FEE2E2' }]}>
-              <Ionicons name="trending-down" size={16} color="#E11D48" />
+            <View style={styles.kpiIconWrap}>
+              <Ionicons
+                name="arrow-up-outline"
+                size={18}
+                color={isDark ? '#F8FAFC' : '#1E293B'}
+                style={{ transform: [{ rotate: '45deg' }] }}
+              />
             </View>
+            <Text style={styles.kpiLabel}>{isVi ? 'Chi tiêu' : 'Expenses'}</Text>
           </View>
-          <Text style={[styles.kpiValue, { color: '#E11D48' }]}>
-            -{stats.totalExpense.toLocaleString('vi-VN')} đ
+          <Text style={styles.kpiValue}>
+            {stats.totalExpense.toLocaleString('vi-VN')}
           </Text>
           <Text style={styles.kpiNote}>
-            {isVi ? 'Chi phí sinh hoạt & ăn uống' : 'Living expenses & daily dining'}
+            {isVi ? 'tháng này' : 'this month'}
           </Text>
         </View>
 
-        {/* Card 3: Số Dư Ròng */}
-        <View style={[styles.kpiCard, styles.kpiCardNet]}>
-          <View style={styles.kpiHeader}>
-            <Text style={styles.kpiLabel}>{isVi ? 'Dòng tiền ròng' : 'Net Cashflow'}</Text>
-            <View style={[styles.kpiIconWrap, { backgroundColor: '#ECFDF5' }]}>
-              <Ionicons name="wallet-outline" size={16} color="#047857" />
-            </View>
-          </View>
-          <Text style={[styles.kpiValue, { color: stats.netBalance >= 0 ? '#047857' : '#DC2626' }]}>
-            {stats.netBalance >= 0 ? '+' : ''}
-            {stats.netBalance.toLocaleString('vi-VN')} đ
-          </Text>
-          <Text style={styles.kpiNote}>
-            {isVi ? 'Chênh lệch Thu - Chi thực tế' : 'Actual Income minus Expenses'}
-          </Text>
-        </View>
-
-        {/* Card 4: Tổng giao dịch */}
+        {/* Card 3: Số lượng mục */}
         <View style={[styles.kpiCard, styles.kpiCardCount]}>
           <View style={styles.kpiHeader}>
-            <Text style={styles.kpiLabel}>{isVi ? 'Số lượng mục' : 'Transactions'}</Text>
-            <View style={[styles.kpiIconWrap, { backgroundColor: '#F1F5F9' }]}>
-              <Ionicons name="documents-outline" size={16} color="#475569" />
+            <View style={styles.kpiIconWrap}>
+              <Ionicons
+                name="documents-outline"
+                size={18}
+                color={isDark ? '#F8FAFC' : '#1E293B'}
+              />
             </View>
+            <Text style={styles.kpiLabel}>{isVi ? 'Số lượng mục' : 'Transactions'}</Text>
           </View>
-          <Text style={[styles.kpiValue, { color: '#0F172A' }]}>
-            {stats.txCount} {isVi ? 'khoản' : 'entries'}
+          <Text style={styles.kpiValue}>
+            {stats.txCount} {isVi ? 'khoản' : 'items'}
           </Text>
           <Text style={styles.kpiNote}>
-            {isVi ? 'Được ghi chép trong kỳ' : 'Recorded in period'}
+            {isVi ? 'tháng này' : 'this month'}
           </Text>
         </View>
       </View>
@@ -186,7 +183,7 @@ const getStyles = (isDark: boolean, colors: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: isDark ? '#0B131E' : '#F8FAFC',
+      backgroundColor: isDark ? '#0B131E' : '#F5F0E8',
     },
     contentContainer: {
       padding: 24,
@@ -237,9 +234,9 @@ const getStyles = (isDark: boolean, colors: any) =>
       paddingHorizontal: 14,
       paddingVertical: 9,
       borderRadius: 12,
-      backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+      backgroundColor: isDark ? '#1E293B' : '#F5F0E8',
       borderWidth: 1,
-      borderColor: isDark ? '#334155' : '#E2E8F0',
+      borderColor: isDark ? '#334155' : '#E8E0D5',
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.05,
@@ -263,61 +260,56 @@ const getStyles = (isDark: boolean, colors: any) =>
     },
     kpiCard: {
       flex: 1,
-      backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
-      borderRadius: 18,
-      padding: 18,
+      borderRadius: 24,
+      padding: 22,
       borderWidth: 1,
-      borderColor: isDark ? '#334155' : '#E2E8F0',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
       shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.03,
-      shadowRadius: 6,
-      elevation: 1,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.04,
+      shadowRadius: 10,
+      elevation: 2,
     },
     kpiCardIncome: {
-      borderLeftWidth: 4,
-      borderLeftColor: '#059669',
+      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.22)' : '#BEE3C2',
     },
     kpiCardExpense: {
-      borderLeftWidth: 4,
-      borderLeftColor: '#E11D48',
-    },
-    kpiCardNet: {
-      borderLeftWidth: 4,
-      borderLeftColor: '#047857',
+      backgroundColor: isDark ? 'rgba(244, 63, 94, 0.22)' : '#F5C3CB',
     },
     kpiCardCount: {
-      borderLeftWidth: 4,
-      borderLeftColor: '#64748B',
+      backgroundColor: isDark ? 'rgba(100, 116, 139, 0.3)' : '#CBD5E1',
+      borderColor: isDark ? '#64748B' : 'rgba(100, 116, 139, 0.25)',
     },
     kpiHeader: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: 10,
+      marginBottom: 16,
     },
     kpiLabel: {
-      fontSize: 12,
+      fontSize: 16,
       fontWeight: '700',
-      color: isDark ? '#94A3B8' : '#64748B',
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
+      color: isDark ? '#F1F5F9' : '#1E293B',
+      marginLeft: 10,
     },
     kpiIconWrap: {
-      width: 28,
-      height: 28,
-      borderRadius: 8,
+      width: 38,
+      height: 38,
+      borderRadius: 14,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.65)',
       justifyContent: 'center',
       alignItems: 'center',
     },
     kpiValue: {
-      fontSize: 20,
+      fontSize: 28,
       fontWeight: '900',
+      color: isDark ? '#FFFFFF' : '#18181B',
       marginBottom: 4,
+      letterSpacing: -0.5,
     },
     kpiNote: {
-      fontSize: 11,
-      color: isDark ? '#64748B' : '#94A3B8',
+      fontSize: 13,
+      fontWeight: '500',
+      color: isDark ? '#94A3B8' : '#52525B',
     },
     tableSection: {
       marginTop: 4,

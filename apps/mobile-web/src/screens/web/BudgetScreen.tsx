@@ -251,7 +251,7 @@ const getStyles = (isDark: boolean, colors: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: isDark ? '#0B131E' : '#F8FAFC',
+      backgroundColor: isDark ? '#0B131E' : '#F5F0E8',
     },
     contentContainer: {
       padding: 24,
@@ -325,9 +325,9 @@ const getStyles = (isDark: boolean, colors: any) =>
       paddingHorizontal: 14,
       paddingVertical: 9,
       borderRadius: 12,
-      backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+      backgroundColor: isDark ? '#1E293B' : '#F5F0E8',
       borderWidth: 1,
-      borderColor: isDark ? '#334155' : '#E2E8F0',
+      borderColor: isDark ? '#334155' : '#E8E0D5',
     },
     backBtnText: {
       fontSize: 13,
@@ -358,11 +358,11 @@ const getStyles = (isDark: boolean, colors: any) =>
       justifyContent: 'center',
     },
     adviceCard: {
-      backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+      backgroundColor: isDark ? '#1E293B' : '#F5F0E8',
       borderRadius: 20,
       padding: 22,
       borderWidth: 1,
-      borderColor: isDark ? '#334155' : '#E2E8F0',
+      borderColor: isDark ? '#334155' : '#E8E0D5',
       justifyContent: 'space-between',
     },
     adviceHeader: {
@@ -412,11 +412,11 @@ const getStyles = (isDark: boolean, colors: any) =>
       fontStyle: 'italic',
     },
     categoryCard: {
-      backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+      backgroundColor: isDark ? '#1E293B' : '#F5F0E8',
       borderRadius: 20,
       padding: 22,
       borderWidth: 1,
-      borderColor: isDark ? '#334155' : '#E2E8F0',
+      borderColor: isDark ? '#334155' : '#E8E0D5',
     },
     catHeader: {
       flexDirection: 'row',

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -36,7 +36,15 @@ import {
   getAnalyticsFullReportApi,
   getAnalyticsOverviewApi,
   exportDataApi,
+  getBudgetApi,
+  BudgetData,
 } from '../../services/api';
+import {
+  idbLoadRecords,
+  getInitialDayRecordsFromLocalStorage,
+  DayExpenseRecord,
+  ExpenseItem,
+} from '../../services/calendarStorage';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { TabKey } from '../../layouts/ResponsiveLayout';
@@ -54,39 +62,98 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
   const { user } = useAuth();
   const { language } = useLanguage();
 
-  // State
-  const [period, setPeriod] = useState<AnalyticsPeriod>('month');
-  const [selectedMonth, setSelectedMonth] = useState<number>(10);
-  const [selectedYear, setSelectedYear] = useState<number>(2024);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [report, setReport] = useState<IFullAnalyticsReport | null>(null);
+  // Real calendar and storage state
+  const now = new Date();
+  const currentRealMonth = now.getMonth() + 1;
+  const currentRealYear = now.getFullYear();
+
+  // Load dayRecords from calendarStorage (both localStorage and IndexedDB)
+  const [dayRecords, setDayRecords] = useState<Record<string, DayExpenseRecord>>(() => {
+    return getInitialDayRecordsFromLocalStorage();
+  });
+
+  const [selectedMonth, setSelectedMonth] = useState<number>(() => {
+    return currentRealMonth;
+  });
+
+  const [selectedYear, setSelectedYear] = useState<number>(() => {
+    const raw = getInitialDayRecordsFromLocalStorage();
+    const keys = Object.keys(raw);
+    if (keys.length > 0) {
+      const yearCounts: Record<number, number> = {};
+      keys.forEach((k) => {
+        const y = parseInt(k.split('-')[0], 10);
+        if (!isNaN(y)) yearCounts[y] = (yearCounts[y] || 0) + 1;
+      });
+      const topYear = Object.entries(yearCounts).sort((a, b) => b[1] - a[1])[0];
+      if (topYear) return Number(topYear[0]);
+    }
+    return currentRealYear;
+  });
+
+  const [budget, setBudget] = useState<BudgetData>({
+    month: currentRealMonth,
+    year: currentRealYear,
+    limit: 22000000,
+    spent: 0,
+    remaining: 22000000,
+    spentPercent: 0,
+    remainingPercent: 100,
+    status: 'safe',
+    payday: 5,
+    daysUntilPayday: 12,
+    currency: 'VND',
+  });
 
   // Modals & Popovers
+  const [period, setPeriod] = useState<AnalyticsPeriod>('month');
   const [showExportMenu, setShowExportMenu] = useState<boolean>(false);
   const [showMonthPicker, setShowMonthPicker] = useState<boolean>(false);
-  const [selectedMoment, setSelectedMoment] = useState<IFeaturedMoment | null>(null);
   const [hoveredPoint, setHoveredPoint] = useState<IDailySpendingTrend | null>(null);
   const [compRange, setCompRange] = useState<'3m' | '6m'>('6m');
   const [showDualBars, setShowDualBars] = useState<boolean>(true);
 
-  // Load report data
-  const loadReportData = async () => {
-    try {
-      setLoading(true);
-      const data = await getAnalyticsFullReportApi(period, selectedMonth, selectedYear);
-      if (data && data.overview) {
-        setReport(data);
-      }
-    } catch (err) {
-      console.warn('[FinancialReport] Error loading report, using mock data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Hydrate dayRecords from IndexedDB, localStorage & budget from API
   useEffect(() => {
-    loadReportData();
-  }, [period, selectedMonth, selectedYear]);
+    let isMounted = true;
+
+    const reloadData = () => {
+      const latest = getInitialDayRecordsFromLocalStorage();
+      if (isMounted && Object.keys(latest).length > 0) {
+        setDayRecords((prev) => ({ ...prev, ...latest }));
+      }
+      idbLoadRecords<Record<string, DayExpenseRecord>>()
+        .then((stored) => {
+          if (isMounted && stored && Object.keys(stored).length > 0) {
+            setDayRecords((prev) => ({ ...prev, ...stored }));
+          }
+        })
+        .catch(() => {});
+    };
+
+    reloadData();
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('storage', reloadData);
+      window.addEventListener('focus', reloadData);
+    }
+
+    getBudgetApi()
+      .then((b) => {
+        if (isMounted && b && b.limit) {
+          setBudget(b);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('storage', reloadData);
+        window.removeEventListener('focus', reloadData);
+      }
+    };
+  }, []);
 
   // Formatters
   const formatMoney = (val?: number) => {
@@ -94,55 +161,227 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
     return Math.abs(val).toLocaleString('vi-VN');
   };
 
+  // Days in selected month
+  const daysInSelectedMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+
+  // Aggregate real financial data from calendar dayRecords
+  const realMonthData = useMemo(() => {
+    let totalSpending = 0;
+    let totalTransactionsCount = 0;
+    let momentsPhotosCount = 0;
+    const dailyMap: Record<number, { amount: number; photoUri?: string; note?: string; category?: string; items: ExpenseItem[] }> = {};
+    const catMap: Record<string, { id: string; name: string; amount: number; count: number; color: string; icon: string }> = {};
+    const allMoments: IFeaturedMoment[] = [];
+
+    const categoryColorMap: Record<string, string> = {
+      'Ăn uống': '#047857',
+      'Cà phê & Nước': '#8B5CF6',
+      'Đi chợ & Siêu thị': '#10B981',
+      'Mua sắm': '#EC4899',
+      'Di chuyển & Xăng': '#3B82F6',
+      'Hóa đơn': '#EF4444',
+      'Giải trí': '#F59E0B',
+      'Khác': '#64748B',
+    };
+
+    const categoryIconMap: Record<string, string> = {
+      'Ăn uống': '🍜',
+      'Cà phê & Nước': '☕',
+      'Đi chợ & Siêu thị': '🛒',
+      'Mua sắm': '🛍️',
+      'Di chuyển & Xăng': '🛵',
+      'Hóa đơn': '🧾',
+      'Giải trí': '🎬',
+      'Khác': '✨',
+    };
+
+    for (let d = 1; d <= daysInSelectedMonth; d++) {
+      const primaryKey = `${selectedYear}-${selectedMonth}-${d}`;
+      const paddedKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      let rec = dayRecords[primaryKey] || dayRecords[paddedKey];
+
+      // Fallback: check if record exists under another year (e.g. 2024 vs 2026)
+      if (!rec) {
+        const altKey = Object.keys(dayRecords).find((k) => {
+          const parts = k.split('-');
+          return Number(parts[1]) === selectedMonth && Number(parts[2]) === d;
+        });
+        if (altKey) rec = dayRecords[altKey];
+      }
+
+      if (rec) {
+        const items = rec.items || [];
+        const computedAmount = items.length > 0
+          ? items.reduce((s, it) => s + (it.amount || 0), 0)
+          : (rec.amount || 0);
+        const dayAmount = computedAmount;
+
+        if (dayAmount > 0 || rec.photoUri || items.length > 0) {
+          totalSpending += dayAmount;
+          dailyMap[d] = {
+            amount: dayAmount,
+            photoUri: rec.photoUri,
+            note: rec.note,
+            category: rec.category,
+            items,
+          };
+
+          if (rec.photoUri) {
+            momentsPhotosCount++;
+            allMoments.push({
+              id: `moment-${selectedYear}-${selectedMonth}-${d}-cover`,
+              badge: rec.category || 'Khoảnh khắc',
+              badgeColor: categoryColorMap[rec.category || 'Ăn uống'] || '#047857',
+              amount: dayAmount,
+              title: rec.note || `${rec.category || 'Chi tiêu'} ngày ${d < 10 ? '0' + d : d}/${selectedMonth}`,
+              subtitle: `${d < 10 ? '0' + d : d} Th${selectedMonth} • ${selectedYear}`,
+              photoUri: rec.photoUri,
+            });
+          }
+
+          if (items.length > 0) {
+            totalTransactionsCount += items.length;
+            items.forEach((it, itIdx) => {
+              if (it.photoUri && it.photoUri !== rec.photoUri) {
+                momentsPhotosCount++;
+                allMoments.push({
+                  id: `moment-${selectedYear}-${selectedMonth}-${d}-it-${it.id || itIdx}`,
+                  badge: it.category || 'Khoảnh khắc',
+                  badgeColor: categoryColorMap[it.category || 'Ăn uống'] || '#047857',
+                  amount: it.amount || 0,
+                  title: it.note || `${it.category || 'Chi tiêu'} (${it.time || '12:00'})`,
+                  subtitle: `${d < 10 ? '0' + d : d} Th${selectedMonth} • ${selectedYear}`,
+                  photoUri: it.photoUri,
+                });
+              }
+              const cName = it.category || 'Ăn uống';
+              if (!catMap[cName]) {
+                catMap[cName] = {
+                  id: `cat-${cName}`,
+                  name: cName,
+                  amount: 0,
+                  count: 0,
+                  color: categoryColorMap[cName] || '#059669',
+                  icon: it.categoryIcon || categoryIconMap[cName] || '🍜',
+                };
+              }
+              catMap[cName].amount += it.amount || 0;
+              catMap[cName].count += 1;
+            });
+          } else if (dayAmount > 0) {
+            totalTransactionsCount += 1;
+            const cName = rec.category || 'Ăn uống';
+            if (!catMap[cName]) {
+              catMap[cName] = {
+                id: `cat-${cName}`,
+                name: cName,
+                amount: 0,
+                count: 0,
+                color: categoryColorMap[cName] || '#059669',
+                icon: rec.categoryIcon || categoryIconMap[cName] || '🍜',
+              };
+            }
+            catMap[cName].amount += dayAmount;
+            catMap[cName].count += 1;
+          }
+        }
+      }
+    }
+
+    return {
+      totalSpending,
+      totalTransactionsCount,
+      momentsPhotosCount,
+      dailyMap,
+      catMap,
+      allMoments,
+    };
+  }, [dayRecords, selectedYear, selectedMonth, daysInSelectedMonth]);
+
+  // Real KPI Overview calculations
+  const budgetLimit = budget.limit || 22000000;
+  const totalExpense = realMonthData.totalSpending;
+  const savings = Math.max(0, budgetLimit - totalExpense);
+  const daysWithSpending = Object.keys(realMonthData.dailyMap).length;
+  const dailyAverage = daysWithSpending > 0 ? Math.round(totalExpense / daysWithSpending) : 0;
+  const expensePercent = budgetLimit > 0 ? Math.round((totalExpense / budgetLimit) * 100 * 10) / 10 : 0;
+  const savingsPercent = budgetLimit > 0 ? Math.round((savings / budgetLimit) * 100 * 10) / 10 : 100;
+  const totalTransactions = realMonthData.totalTransactionsCount;
+  const momentsCount = realMonthData.momentsPhotosCount;
+  const momentsRatio = totalTransactions > 0
+    ? Math.min(100, Math.round((momentsCount / totalTransactions) * 100))
+    : (momentsCount > 0 ? 100 : 0);
+
+  const overview: IAnalyticsOverview = {
+    totalIncome: budgetLimit,
+    totalExpense,
+    savings,
+    dailyAverage,
+    savingsPercent,
+    expensePercent,
+    savingsTargetDiffPercent: savingsPercent >= 50 ? 15 : 5,
+    incomeFixedPercent: 100,
+    budgetLimit,
+    isSafe: totalExpense <= budgetLimit,
+    safetyStatus: totalExpense <= budgetLimit ? 'safe' : 'danger',
+    streakDays: daysWithSpending > 0 ? daysWithSpending : 1,
+    momentsCount,
+    totalTransactions,
+    momentsRatio,
+    banner: {
+      streakDays: daysWithSpending > 0 ? daysWithSpending : 1,
+      title: 'Tuyệt vời! Bạn đang kiểm soát chi tiêu rất xuất sắc',
+      subtitle: `Chi tiêu Tháng ${selectedMonth} đang nằm gọn trong ngưỡng an toàn ${expensePercent}% ngân sách.`,
+    },
+  };
+
   // Export handlers
   const handleExportCSV = async () => {
     setShowExportMenu(false);
     try {
       if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        const blob = await exportDataApi('csv');
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Bao_Cao_Tai_Chinh_Monett_Thang_${selectedMonth}_${selectedYear}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-      }
-    } catch (e) {
-      console.warn('Export CSV fallback error:', e);
-      // Fallback CSV download directly
-      if (Platform.OS === 'web' && typeof window !== 'undefined') {
-        const csvContent =
-          'data:text/csv;charset=utf-8,Danh mục,Số tiền,Tỷ trọng\n' +
-          'Ăn uống & Cà phê,5643000,38%\n' +
-          'Nhà cửa & Tiền phòng,3861000,26%\n' +
-          'Mua sắm đồ dùng,2673000,18%\n' +
-          'Di chuyển & Học tập,2673000,18%\n' +
-          'Tổng chi tiêu,14850000,100%\n';
-        const encodedUri = encodeURI(csvContent);
+        const rows = ['Ngày,Danh mục,Số tiền,Ghi chú,Có ảnh'];
+        Object.entries(realMonthData.dailyMap).forEach(([dStr, val]) => {
+          if (val.items && val.items.length > 0) {
+            val.items.forEach((it) => {
+              rows.push(
+                `${dStr}/${selectedMonth}/${selectedYear},"${it.category || ''}",${it.amount || 0},"${it.note || ''}",${it.photoUri ? 'Có' : 'Không'}`
+              );
+            });
+          } else {
+            rows.push(
+              `${dStr}/${selectedMonth}/${selectedYear},"${val.category || ''}",${val.amount || 0},"${val.note || ''}",${val.photoUri ? 'Có' : 'Không'}`
+            );
+          }
+        });
+        rows.push(`Tổng chi tiêu Tháng ${selectedMonth},,${totalExpense},,`);
+        const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(rows.join('\n'));
         const link = document.createElement('a');
-        link.setAttribute('href', encodedUri);
+        link.setAttribute('href', csvContent);
         link.setAttribute('download', `Bao_Cao_Thang_${selectedMonth}_${selectedYear}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
       }
+    } catch (e) {
+      console.warn('Export CSV error:', e);
     }
   };
 
   const handleExportJSON = async () => {
     setShowExportMenu(false);
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const dataStr =
-        'data:text/json;charset=utf-8,' +
-        encodeURIComponent(JSON.stringify(report || {}, null, 2));
+      const exportPayload = {
+        month: selectedMonth,
+        year: selectedYear,
+        overview,
+        categories: Object.values(realMonthData.catMap),
+        dailySpending: realMonthData.dailyMap,
+      };
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportPayload, null, 2));
       const downloadAnchor = document.createElement('a');
       downloadAnchor.setAttribute('href', dataStr);
-      downloadAnchor.setAttribute(
-        'download',
-        `Telemetry_Report_Thang_${selectedMonth}_${selectedYear}.json`
-      );
+      downloadAnchor.setAttribute('download', `Bao_Cao_Thang_${selectedMonth}_${selectedYear}.json`);
       document.body.appendChild(downloadAnchor);
       downloadAnchor.click();
       downloadAnchor.removeChild(downloadAnchor);
@@ -156,190 +395,185 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
     }
   };
 
-  // Default fallback data if API is still syncing
-  const overview: IAnalyticsOverview = report?.overview || {
-    totalIncome: 22000000,
-    totalExpense: 14850000,
-    savings: 7150000,
-    dailyAverage: 495000,
-    savingsPercent: 32.5,
-    expensePercent: 67.5,
-    savingsTargetDiffPercent: 15,
-    incomeFixedPercent: 100,
-    budgetLimit: 22000000,
-    isSafe: true,
-    safetyStatus: 'safe',
-    streakDays: 24,
-    momentsCount: 38,
-    totalTransactions: 48,
-    momentsRatio: 82,
-    banner: {
-      streakDays: 24,
-      title: 'Tuyệt vời! Bạn đang kiểm soát chi tiêu rất xuất sắc',
-      subtitle: `Chi tiêu Tháng ${selectedMonth} đang nằm gọn trong ngưỡng an toàn 67.5% tổng thu nhập.`,
-    },
-  };
+  // Real Daily Spending Trend Curve
+  const daysWithSpendingArray = Object.entries(realMonthData.dailyMap).map(([dStr, val]) => ({
+    dayNum: Number(dStr),
+    ...val,
+  }));
+  const maxDayItem = daysWithSpendingArray.reduce(
+    (max, it) => (it.amount > (max?.amount || 0) ? it : max),
+    null as any
+  );
 
-  const dailyTrend: IDailySpendingTrend[] = report?.dailyTrend || [
-    { day: '01', label: '01 Th10', amount: 220000, benchmark: 480000 },
-    { day: '03', label: '03 Th10', amount: 320000, benchmark: 480000 },
-    {
-      day: '05',
-      label: '05 Th10',
-      amount: 750000,
-      benchmark: 480000,
-      highlightTitle: 'Ngày 05: 750k (Tiệc gia đình)',
-    },
-    { day: '07', label: '07 Th10', amount: 820000, benchmark: 480000 },
-    { day: '10', label: '10 Th10', amount: 350000, benchmark: 480000 },
-    { day: '12', label: '12 Th10', amount: 490000, benchmark: 480000 },
-    { day: '15', label: '15 Th10', amount: 310000, benchmark: 480000 },
-    {
-      day: '18',
-      label: '18 Th10',
-      amount: 1180000,
-      benchmark: 480000,
-      isPeak: true,
-      highlightTitle: 'Đỉnh chi: Ngày 18 (1.180k)',
-    },
-    { day: '20', label: '20 Th10', amount: 880000, benchmark: 480000 },
-    { day: '23', label: '23 Th10', amount: 510000, benchmark: 480000 },
-    { day: '25', label: '25 Th10', amount: 420000, benchmark: 480000 },
-    { day: '28', label: '28 Th10', amount: 630000, benchmark: 480000 },
-    { day: '31', label: '31 Th10', amount: 590000, benchmark: 480000 },
-  ];
+  const sampleDaysSet = new Set<number>([1, 5, 10, 15, 20, 25, daysInSelectedMonth]);
+  daysWithSpendingArray.forEach((it) => sampleDaysSet.add(it.dayNum));
+  const sortedDays = Array.from(sampleDaysSet).sort((a, b) => a - b);
+  const dailyBenchmark = Math.round(budgetLimit / daysInSelectedMonth);
 
-  const categories: ICategoryBreakdown[] = report?.categories || [
-    {
-      id: 'cat-1',
-      name: 'Ăn uống & Cà phê',
-      amount: 5643000,
-      percent: 38,
-      color: '#047857',
-      icon: '🍜',
-    },
-    {
-      id: 'cat-2',
-      name: 'Nhà cửa & Tiền phòng',
-      amount: 3861000,
-      percent: 26,
-      color: '#4F46E5',
-      icon: '🏠',
-    },
-    {
-      id: 'cat-3',
-      name: 'Mua sắm đồ dùng',
-      amount: 2673000,
-      percent: 18,
-      color: '#F59E0B',
-      icon: '🛍️',
-    },
-    {
-      id: 'cat-4',
-      name: 'Di chuyển & Học tập',
-      amount: 2673000,
-      percent: 18,
-      color: '#94A3B8',
-      icon: '🚗',
-    },
-  ];
+  const dailyTrend: IDailySpendingTrend[] = sortedDays.map((d) => {
+    const dayData = realMonthData.dailyMap[d];
+    const amount = dayData?.amount || 0;
+    const isPeak = !!(maxDayItem && maxDayItem.dayNum === d && amount > 0);
+    const dayStr = d < 10 ? `0${d}` : `${d}`;
+    let highlightTitle: string | undefined = undefined;
 
-  const comparison: IMonthlyComparison = report?.comparison || {
-    months: [
-      { monthName: 'Tháng 8', amount: 16400000, displayAmount: '16.4M' },
-      { monthName: 'Tháng 9', amount: 15900000, displayAmount: '15.9M' },
-      {
-        monthName: 'Tháng 10',
-        amount: 14850000,
-        displayAmount: '14.8M',
-        isCurrent: true,
-        deltaPercent: -6.6,
+    if (isPeak) {
+      highlightTitle = `Đỉnh chi: Ngày ${dayStr} (${formatMoney(amount)}đ)`;
+    } else if (amount > 0 && dayData?.note) {
+      highlightTitle = `Ngày ${dayStr}: ${formatMoney(amount)}đ (${dayData.note})`;
+    }
+
+    return {
+      day: dayStr,
+      label: `${dayStr} Th${selectedMonth}`,
+      amount,
+      benchmark: dailyBenchmark,
+      isPeak,
+      highlightTitle,
+    };
+  });
+
+  // Real Category Breakdown
+  const categories: ICategoryBreakdown[] = useMemo(() => {
+    const list = Object.values(realMonthData.catMap);
+    if (list.length === 0) {
+      if (totalExpense > 0) {
+        return [
+          {
+            id: 'cat-default',
+            name: 'Chi tiêu tổng hợp',
+            amount: totalExpense,
+            percent: 100,
+            color: '#047857',
+            icon: '🍜',
+          },
+        ];
+      }
+      return [];
+    }
+    return list
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        amount: c.amount,
+        percent: totalExpense > 0 ? Math.round((c.amount / totalExpense) * 100) : 0,
+        color: c.color,
+        icon: c.icon,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [realMonthData.catMap, totalExpense]);
+
+  const topCategory = categories[0];
+
+  // Real Cashflow comparison
+  const comparison: IMonthlyComparison = useMemo(() => {
+    const monthsList: any[] = [];
+    for (let offset = 5; offset >= 0; offset--) {
+      let m = selectedMonth - offset;
+      let y = selectedYear;
+      if (m <= 0) {
+        m += 12;
+        y -= 1;
+      }
+      const isCurr = offset === 0;
+      let exp = 0;
+      if (isCurr) {
+        exp = totalExpense;
+      } else {
+        for (let d = 1; d <= 31; d++) {
+          const rec = dayRecords[`${y}-${m}-${d}`];
+          if (rec?.amount) exp += rec.amount;
+        }
+      }
+
+      const displayAmount =
+        exp >= 1000000
+          ? `${(exp / 1000000).toFixed(1)}M`
+          : exp > 0
+          ? `${Math.round(exp / 1000)}k`
+          : '0đ';
+
+      monthsList.push({
+        monthName: `Tháng ${m}`,
+        amount: exp,
+        income: budgetLimit,
+        expense: exp,
+        displayAmount,
+        isCurrent: isCurr,
+      });
+    }
+
+    const isPositive = totalExpense <= budgetLimit;
+    return {
+      months: monthsList,
+      insight: {
+        title: isPositive ? 'Kiểm soát tài chính rất tốt' : 'Cần cân đối lại chi tiêu',
+        description: isPositive
+          ? `Chi tiêu Tháng ${selectedMonth} đang là ${formatMoney(totalExpense)}đ, nằm gọn trong hạn mức ${formatMoney(budgetLimit)}đ.`
+          : `Chi tiêu Tháng ${selectedMonth} đang là ${formatMoney(totalExpense)}đ, hãy chú ý tiết kiệm nhé.`,
+        isPositive,
       },
-    ],
-    insight: {
-      title: 'Xu hướng tích cực',
-      description:
-        'Chi tiêu Tháng 10 giảm 1.050.000đ so với Tháng 9 nhờ tiết giảm chi phí mua sắm bốc đồng.',
-      isPositive: true,
-    },
-  };
+    };
+  }, [selectedMonth, selectedYear, totalExpense, budgetLimit, dayRecords]);
 
-  const emotions: IEmoMindfulness = report?.emotions || {
-    items: [
-      {
-        key: 'happy',
-        title: 'Hạnh phúc / Đầu tư cho bản thân',
-        percent: 74,
-        amount: 11000000,
-        color: '#10B981',
-        emoji: '😊',
-        description: '11.000.000đ đóng góp vào niềm vui lâu dài & sức khỏe.',
-      },
-      {
-        key: 'essential',
-        title: 'Bắt buộc / Sinh hoạt thiết yếu',
-        percent: 19,
-        amount: 2821500,
-        color: '#64748B',
-        emoji: '😐',
-        description: 'Các hóa đơn sinh hoạt định kỳ, xăng xe.',
-      },
-      {
-        key: 'impulse',
-        title: 'Bốc đồng / Nuối tiếc (Impulse)',
-        percent: 7,
-        amount: 1050000,
-        color: '#EF4444',
-        emoji: '😡',
-        description: 'Chi -1.050.000đ (đã giảm một nửa so với Tháng 9).',
-      },
-    ],
-    suggestion:
-      'Gợi ý Monett: Bạn cảm thấy hạnh phúc nhất khi chi cho các buổi hẹn cuối tuần và lớp yoga. Tiếp tục duy trì nhé!',
-  };
+  // Real Emotion Mindfulness Analysis
+  const emotions: IEmoMindfulness = useMemo(() => {
+    let happyAmt = 0;
+    let essentialAmt = 0;
+    let impulseAmt = 0;
 
-  const moments: IFeaturedMoment[] = report?.moments || [
-    {
-      id: 'moment-1',
-      badge: '+ Thư giãn',
-      badgeColor: '#047857',
-      amount: -65000,
-      title: 'Cà phê sáng làm việc tuần mới',
-      subtitle: '24 Th10 • The Workshop Coffee',
-      photoUri:
-        'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=700&q=80',
-    },
-    {
-      id: 'moment-2',
-      badge: 'Đầu tư tri thức',
-      badgeColor: '#2563EB',
-      amount: -340000,
-      title: 'Bộ sách Tư Duy Tài Chính Tinh Gọn',
-      subtitle: '20 Th10 • Nhã Nam Bookstore',
-      photoUri:
-        'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=700&q=80',
-    },
-    {
-      id: 'moment-3',
-      badge: 'Healthy Life',
-      badgeColor: '#16A34A',
-      amount: -420000,
-      title: 'Thực phẩm tươi sạch cả tuần',
-      subtitle: '17 Th10 • Annam Gourmet',
-      photoUri:
-        'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=700&q=80',
-    },
-    {
-      id: 'moment-4',
-      badge: 'Sống khỏe',
-      badgeColor: '#D97706',
-      amount: -1180000,
-      title: 'Máy lọc không khí phòng ngủ',
-      subtitle: '18 Th10 • Xiaomi Mall',
-      photoUri:
-        'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=700&q=80',
-    },
-  ];
+    categories.forEach((cat) => {
+      const n = cat.name;
+      if (n.includes('Ăn uống') || n.includes('Cà phê') || n.includes('Giải trí')) {
+        happyAmt += cat.amount;
+      } else if (n.includes('Đi chợ') || n.includes('Hóa đơn') || n.includes('Di chuyển')) {
+        essentialAmt += cat.amount;
+      } else {
+        impulseAmt += cat.amount;
+      }
+    });
+
+    const tot = totalExpense > 0 ? totalExpense : 1;
+    const happyPct = totalExpense > 0 ? Math.round((happyAmt / tot) * 100) : 0;
+    const essentialPct = totalExpense > 0 ? Math.round((essentialAmt / tot) * 100) : 0;
+    const impulsePct = totalExpense > 0 ? Math.max(0, 100 - happyPct - essentialPct) : 0;
+
+    return {
+      items: [
+        {
+          key: 'happy',
+          title: 'Hạnh phúc / Đầu tư cho bản thân',
+          percent: happyPct,
+          amount: happyAmt,
+          color: '#10B981',
+          emoji: '😊',
+          description: `${formatMoney(happyAmt)}đ đóng góp vào niềm vui và tinh thần sống tích cực.`,
+        },
+        {
+          key: 'essential',
+          title: 'Bắt buộc / Sinh hoạt thiết yếu',
+          percent: essentialPct,
+          amount: essentialAmt,
+          color: '#64748B',
+          emoji: '😐',
+          description: `${formatMoney(essentialAmt)}đ cho các nhu cầu thiết yếu định kỳ.`,
+        },
+        {
+          key: 'impulse',
+          title: 'Bốc đồng / Nuối tiếc (Impulse)',
+          percent: impulsePct,
+          amount: impulseAmt,
+          color: '#EF4444',
+          emoji: '🛍️',
+          description: `${formatMoney(impulseAmt)}đ cho mua sắm và các khoản phát sinh khác.`,
+        },
+      ],
+      suggestion:
+        totalExpense === 0
+          ? 'Gợi ý Monett: Hãy ghi chép các khoản chi tiêu mỗi ngày ở Trang Chủ để theo dõi biểu đồ cảm xúc tiền bạc.'
+          : `Gợi ý Monett: Chi tiêu Tháng ${selectedMonth} của bạn tập trung nhiều nhất vào ${topCategory?.name || 'các danh mục thiết yếu'} (${topCategory?.percent || 0}%). Tiếp tục duy trì phong độ chi tiêu hợp lý nhé!`,
+    };
+  }, [categories, totalExpense, topCategory, selectedMonth]);
 
   // SVG Chart Geometry Calculations for Daily Spending Spline
   const chartW = 920;
@@ -350,10 +584,38 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
   const padB = 30;
   const plotW = chartW - padL - padR;
   const plotH = chartH - padT - padB;
-  const maxY = 1200000;
-  const benchmarkY = padT + plotH * (1 - 480000 / maxY);
 
-  const getPtX = (idx: number, total: number) => padL + (idx / (total - 1)) * plotW;
+  const actualMaxAmount = Math.max(...dailyTrend.map((d) => d.amount), 0);
+  let maxY = 500000;
+  if (actualMaxAmount > 0) {
+    if (actualMaxAmount <= 150000) maxY = 200000;
+    else if (actualMaxAmount <= 350000) maxY = 500000;
+    else if (actualMaxAmount <= 750000) maxY = 1000000;
+    else if (actualMaxAmount <= 1500000) maxY = 2000000;
+    else maxY = Math.ceil((actualMaxAmount * 1.25) / 500000) * 500000;
+  }
+  const benchmarkY = padT + plotH * (1 - Math.min(dailyBenchmark, maxY) / maxY);
+
+  const formatGridVal = (val: number) => {
+    if (val >= 1000000) {
+      const v = val / 1000000;
+      return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}M`;
+    }
+    if (val >= 1000) {
+      return `${Math.round(val / 1000)}k`;
+    }
+    return `${val}`;
+  };
+
+  const gridSteps = [
+    { val: formatGridVal(maxY), y: padT },
+    { val: formatGridVal(maxY * 0.75), y: padT + plotH * 0.25 },
+    { val: formatGridVal(maxY * 0.5), y: padT + plotH * 0.5 },
+    { val: formatGridVal(maxY * 0.25), y: padT + plotH * 0.75 },
+    { val: '0', y: padT + plotH },
+  ];
+
+  const getPtX = (idx: number, total: number) => padL + (idx / Math.max(1, total - 1)) * plotW;
   const getPtY = (amt: number) => padT + plotH * (1 - Math.min(amt, maxY) / maxY);
 
   const points = dailyTrend.map((d, i) => ({
@@ -397,75 +659,12 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
       contentContainerStyle={styles.scrollContent}
       showsVerticalScrollIndicator={false}
     >
-      {/* ==================== 1. TOP NOTICE / STREAK BANNER ==================== */}
-      <View style={styles.bannerCard}>
-        <View style={styles.bannerLeft}>
-          {/* Frog Badge Icon with golden ring */}
-          <View style={styles.bannerFrogBadge}>
-            <Image
-              source={require('../../../assets/frog-explorer.png')}
-              style={styles.bannerFrogImg}
-              resizeMode="contain"
-            />
-          </View>
-
-          <View style={styles.bannerTextCol}>
-            {/* Streak Chip */}
-            <View style={styles.streakPill}>
-              <View style={styles.streakDot} />
-              <Text style={styles.streakPillText}>
-                STREAK {overview.streakDays > 1 ? overview.streakDays : 24} NGÀY • Ghi chép tài chính liên tục
-              </Text>
-            </View>
-
-            {/* Title & Subtitle */}
-            <Text style={styles.bannerTitle}>{overview.banner.title}</Text>
-            <Text style={styles.bannerSubtitle}>{overview.banner.subtitle}</Text>
-          </View>
-        </View>
-
-        {/* Right Export Button */}
-        <View style={styles.bannerRight}>
-          <TouchableOpacity
-            style={styles.exportBtn}
-            onPress={() => setShowExportMenu(!showExportMenu)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.exportBtnIcon}>📥</Text>
-            <Text style={styles.exportBtnText}>Xuất báo cáo</Text>
-            <Text style={styles.exportBtnChevron}>▾</Text>
-          </TouchableOpacity>
-
-          {/* Export Dropdown Menu */}
-          {showExportMenu && (
-            <View style={styles.dropdownMenu}>
-              <TouchableOpacity style={styles.dropdownItem} onPress={handleExportCSV}>
-                <Text style={styles.dropdownItemIcon}>📊</Text>
-                <Text style={styles.dropdownItemText}>Xuất file CSV (.csv)</Text>
-              </TouchableOpacity>
-              <View style={styles.dropdownDivider} />
-              <TouchableOpacity style={styles.dropdownItem} onPress={handleExportJSON}>
-                <Text style={styles.dropdownItemIcon}>📋</Text>
-                <Text style={styles.dropdownItemText}>Xuất dữ liệu Telemetry (.json)</Text>
-              </TouchableOpacity>
-              <View style={styles.dropdownDivider} />
-              <TouchableOpacity style={styles.dropdownItem} onPress={handlePrint}>
-                <Text style={styles.dropdownItemIcon}>🖨️</Text>
-                <Text style={styles.dropdownItemText}>In / Lưu Báo cáo (PDF)</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      </View>
 
       {/* ==================== 2. PAGE HEADER & FILTER SECTION ==================== */}
       <View style={styles.headerSection}>
         <View style={styles.headerTitlesCol}>
-          <Text style={styles.subHeaderTag}>
-            BÁO CÁO TÀI CHÍNH HÀNH VI & TELEMETRY
-          </Text>
           <Text style={styles.mainTitle}>
-            Báo Cáo & Thống Kê Chi Tiêu Chuyên Sâu
+            Báo Cáo & Thống Kê Chi Tiêu
           </Text>
         </View>
 
@@ -522,31 +721,33 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
             {/* Month Picker Dropdown */}
             {showMonthPicker && (
               <View style={styles.monthPickerDropdown}>
-                {[8, 9, 10, 11, 12].map((m) => (
-                  <TouchableOpacity
-                    key={m}
-                    style={[
-                      styles.monthPickerItem,
-                      selectedMonth === m && styles.monthPickerItemActive,
-                    ]}
-                    onPress={() => {
-                      setSelectedMonth(m);
-                      setShowMonthPicker(false);
-                    }}
-                  >
-                    <Text
+                <ScrollView style={{ maxHeight: 240 }} showsVerticalScrollIndicator={false}>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => (
+                    <TouchableOpacity
+                      key={m}
                       style={[
-                        styles.monthPickerItemText,
-                        selectedMonth === m && styles.monthPickerItemTextActive,
+                        styles.monthPickerItem,
+                        selectedMonth === m && styles.monthPickerItemActive,
                       ]}
+                      onPress={() => {
+                        setSelectedMonth(m);
+                        setShowMonthPicker(false);
+                      }}
                     >
-                      Tháng {m} / 2024
-                    </Text>
-                    {selectedMonth === m && (
-                      <Text style={{ color: '#047857', fontWeight: '800' }}>✓</Text>
-                    )}
-                  </TouchableOpacity>
-                ))}
+                      <Text
+                        style={[
+                          styles.monthPickerItemText,
+                          selectedMonth === m && styles.monthPickerItemTextActive,
+                        ]}
+                      >
+                        Tháng {m} / {selectedYear}
+                      </Text>
+                      {selectedMonth === m && (
+                        <Text style={{ color: '#047857', fontWeight: '800' }}>✓</Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
             )}
           </View>
@@ -559,17 +760,54 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
           >
             <Text style={{ fontSize: 16 }}>🎛️</Text>
           </TouchableOpacity>
+
+          {/* Export Button */}
+          <View style={{ position: 'relative' }}>
+            <TouchableOpacity
+              style={styles.exportBtn}
+              onPress={() => setShowExportMenu(!showExportMenu)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.exportBtnIcon}>📥</Text>
+              <Text style={styles.exportBtnText}>Xuất báo cáo</Text>
+              <Text style={styles.exportBtnChevron}>▾</Text>
+            </TouchableOpacity>
+
+            {/* Export Dropdown Menu */}
+            {showExportMenu && (
+              <View style={[styles.dropdownMenu, { right: 0, top: 44 }]}>
+                <TouchableOpacity style={styles.dropdownItem} onPress={handleExportCSV}>
+                  <Text style={styles.dropdownItemIcon}>📊</Text>
+                  <Text style={styles.dropdownItemText}>Xuất file CSV (.csv)</Text>
+                </TouchableOpacity>
+                <View style={styles.dropdownDivider} />
+                <TouchableOpacity style={styles.dropdownItem} onPress={handleExportJSON}>
+                  <Text style={styles.dropdownItemIcon}>📋</Text>
+                  <Text style={styles.dropdownItemText}>Xuất dữ liệu Telemetry (.json)</Text>
+                </TouchableOpacity>
+                <View style={styles.dropdownDivider} />
+                <TouchableOpacity style={styles.dropdownItem} onPress={handlePrint}>
+                  <Text style={styles.dropdownItemIcon}>🖨️</Text>
+                  <Text style={styles.dropdownItemText}>In / Lưu Báo cáo (PDF)</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
       </View>
 
-      {/* ==================== 3. ROW 1: 4 STAT KPI CARDS ==================== */}
+      {/* ==================== 3. ROW 1: 3 STAT KPI CARDS ==================== */}
       <View style={[styles.kpiRow, !isDesktop && styles.kpiRowWrap]}>
         {/* Card 1: THU NHẬP THỰC NHẬN */}
-        <View style={[styles.kpiCard, !isDesktop && styles.kpiCardHalf]}>
+        <View style={[styles.kpiCard, styles.kpiCardIncome, !isDesktop && styles.kpiCardHalf]}>
           <View style={styles.kpiHeader}>
             <Text style={styles.kpiLabel}>THU NHẬP THỰC NHẬN</Text>
-            <View style={[styles.kpiIconBadge, { backgroundColor: '#DCFCE7' }]}>
-              <Text style={styles.kpiEmoji}>💵</Text>
+            <View style={styles.kpiIconBadge}>
+              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+                <Rect x="2" y="6" width="20" height="12" rx="2" stroke="#1C1917" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <Circle cx="12" cy="12" r="2.5" stroke="#1C1917" strokeWidth="2" />
+                <Path d="M6 12h.01M18 12h.01" stroke="#1C1917" strokeWidth="2" strokeLinecap="round" />
+              </Svg>
             </View>
           </View>
           <View style={styles.kpiValueRow}>
@@ -577,18 +815,22 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
             <Text style={styles.kpiCurrency}>VNĐ</Text>
           </View>
           <View style={styles.kpiFooter}>
-            <Text style={styles.kpiTrendGreen}>
+            <Text style={styles.kpiTrendNeutral}>
               ↗ +{overview.incomeFixedPercent}% Cố định mốc ngân sách
             </Text>
           </View>
         </View>
 
         {/* Card 2: TỔNG CHI TIÊU THÁNG */}
-        <View style={[styles.kpiCard, !isDesktop && styles.kpiCardHalf]}>
+        <View style={[styles.kpiCard, styles.kpiCardExpense, !isDesktop && styles.kpiCardHalf]}>
           <View style={styles.kpiHeader}>
             <Text style={styles.kpiLabel}>TỔNG CHI TIÊU THÁNG</Text>
-            <View style={[styles.kpiIconBadge, { backgroundColor: '#FEF3C7' }]}>
-              <Text style={styles.kpiEmoji}>💳</Text>
+            <View style={styles.kpiIconBadge}>
+              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+                <Rect x="2" y="5" width="20" height="14" rx="2" stroke="#1C1917" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <Line x1="2" y1="10" x2="22" y2="10" stroke="#1C1917" strokeWidth="2" />
+                <Path d="M6 15h4" stroke="#1C1917" strokeWidth="2" strokeLinecap="round" />
+              </Svg>
             </View>
           </View>
           <View style={styles.kpiValueRow}>
@@ -597,54 +839,45 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
           </View>
           <View style={styles.kpiFooterSplit}>
             <Text style={styles.kpiSubText}>
-              Chiếm {overview.expensePercent}% • TB {formatMoney(overview.dailyAverage || 480000)}đ/ngày
+              Chiếm {overview.expensePercent}% • TB {formatMoney(overview.dailyAverage)}đ/ngày
             </Text>
-            <View style={styles.safePill}>
-              <Text style={styles.safePillText}>Mức an toàn</Text>
+            <View style={[styles.safePill, !overview.isSafe && { backgroundColor: '#FEE2E2', borderColor: '#FECACA' }]}>
+              <Text style={[styles.safePillText, !overview.isSafe && { color: '#DC2626' }]}>
+                {overview.isSafe ? 'Mức an toàn' : 'Vượt hạn mức'}
+              </Text>
             </View>
           </View>
         </View>
 
         {/* Card 3: TIỀN TÍCH LŨY CÒN LẠI */}
-        <View style={[styles.kpiCard, !isDesktop && styles.kpiCardHalf]}>
+        <View style={[styles.kpiCard, styles.kpiCardSavings, !isDesktop && styles.kpiCardHalf]}>
           <View style={styles.kpiHeader}>
             <Text style={styles.kpiLabel}>TIỀN TÍCH LŨY CÒN LẠI</Text>
-            <View style={[styles.kpiIconBadge, { backgroundColor: '#E0F2FE' }]}>
-              <Text style={styles.kpiEmoji}>🐷</Text>
+            <View style={styles.kpiIconBadge}>
+              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+                <Path
+                  d="M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-4c1-.5 1.5-1 2-2.5V11c0-1.5-.5-2-1-2.5.2-.5.5-1.5 0-2.5-.5-1-1-1-1-1z"
+                  stroke="#1C1917"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <Path d="M2 9v1c0 1.1.9 2 2 2h1" stroke="#1C1917" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <Path d="M16 11h.01" stroke="#1C1917" strokeWidth="2" strokeLinecap="round" />
+              </Svg>
             </View>
           </View>
           <View style={styles.kpiValueRow}>
-            <Text style={[styles.kpiMainValue, { color: '#047857' }]}>
+            <Text style={[styles.kpiMainValue, { color: '#1C1917' }]}>
               {formatMoney(overview.savings)}
             </Text>
             <Text style={styles.kpiCurrency}>VNĐ</Text>
           </View>
           <View style={styles.kpiFooter}>
-            <Text style={styles.kpiTrendGreen}>
-              ↑ Vượt chỉ tiêu tiết kiệm +{overview.savingsTargetDiffPercent}%
-            </Text>
-          </View>
-        </View>
-
-        {/* Card 4: TỶ LỆ ẢNH KHOẢNH KHẮC */}
-        <View style={[styles.kpiCard, !isDesktop && styles.kpiCardHalf]}>
-          <View style={styles.kpiHeader}>
-            <Text style={styles.kpiLabel}>TỶ LỆ ẢNH KHOẢNH KHẮC</Text>
-            <View style={[styles.kpiIconBadge, { backgroundColor: '#EDE9FE' }]}>
-              <Text style={styles.kpiEmoji}>📷</Text>
-            </View>
-          </View>
-          <View style={styles.kpiValueRowSplit}>
-            <Text style={styles.kpiMainValue}>
-              {overview.momentsRatio === 79 ? 82 : overview.momentsRatio}%
-            </Text>
-            <Text style={styles.kpiTxRatio}>
-              {overview.momentsCount} / {overview.totalTransactions} giao dịch
-            </Text>
-          </View>
-          <View style={styles.kpiFooter}>
-            <Text style={styles.kpiSubText}>
-              Minh bạch & giàu cảm xúc ký ức sống
+            <Text style={[styles.kpiTrendNeutral, overview.savings < 0 && { color: '#DC2626' }]}>
+              {overview.savings >= 0
+                ? `↑ Vượt chỉ tiêu tiết kiệm +${overview.savingsTargetDiffPercent}%`
+                : `! Vượt hạn mức chi tiêu`}
             </Text>
           </View>
         </View>
@@ -672,7 +905,7 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
             <View style={styles.legendItem}>
               <View style={styles.legendDashedLine} />
               <Text style={[styles.legendText, { color: '#B45309' }]}>
-                -- Mức TB Ngân sách (480.000đ/ngày)
+                -- Mức TB Ngân sách ({formatMoney(dailyBenchmark)}đ/ngày)
               </Text>
             </View>
           </View>
@@ -690,13 +923,7 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
             </Defs>
 
             {/* Horizontal Gridlines & Y-Axis Labels */}
-            {[
-              { val: '1.2M', y: padT },
-              { val: '900k', y: padT + plotH * 0.25 },
-              { val: '600k', y: padT + plotH * 0.5 },
-              { val: '300k', y: padT + plotH * 0.75 },
-              { val: '0', y: padT + plotH },
-            ].map((grid, idx) => (
+            {gridSteps.map((grid, idx) => (
               <G key={idx}>
                 <Line
                   x1={padL}
@@ -719,7 +946,7 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
               </G>
             ))}
 
-            {/* Benchmark line (480k) */}
+            {/* Benchmark line */}
             <Line
               x1={padL}
               y1={benchmarkY}
@@ -750,7 +977,7 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
               const isPtHovered = hoveredPoint?.day === pt.data.day;
               return (
                 <G key={i}>
-                  {/* Outer circle halo for peaks */}
+                  {/* Outer circle halo for peaks or active points */}
                   {(pt.data.isPeak || pt.data.highlightTitle || isPtHovered) && (
                     <Circle
                       cx={pt.x}
@@ -772,71 +999,79 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
               );
             })}
 
-            {/* Annotations: Day 05 Tooltip pill */}
-            {points.length > 2 && (
-              <G>
-                {/* Day 05 Tooltip */}
-                <Line
-                  x1={points[2].x}
-                  y1={points[2].y - 8}
-                  x2={points[2].x}
-                  y2={points[2].y - 24}
-                  stroke="#334155"
-                  strokeWidth="1.5"
-                />
-                <Rect
-                  x={points[2].x - 85}
-                  y={points[2].y - 50}
-                  width="170"
-                  height="26"
-                  rx="6"
-                  fill="#1E293B"
-                />
-                <SvgText
-                  x={points[2].x}
-                  y={points[2].y - 33}
-                  fill="#FFFFFF"
-                  fontSize="10.5"
-                  fontWeight="700"
-                  textAnchor="middle"
-                >
-                  📅 Ngày 05: 750k (Tiệc gia đình)
-                </SvgText>
-              </G>
-            )}
+            {/* Dynamic Annotations from real spending points */}
+            {(() => {
+              const peakPt = points.find((p) => p.data.isPeak && p.data.amount > 0);
+              const otherPt = points.find((p) => !p.data.isPeak && p.data.amount > 0);
 
-            {/* Annotations: Day 18 Peak Tooltip pill */}
-            {points.length > 7 && (
-              <G>
-                {/* Day 18 Tooltip */}
-                <Line
-                  x1={points[7].x}
-                  y1={points[7].y - 9}
-                  x2={points[7].x}
-                  y2={points[7].y - 22}
-                  stroke="#047857"
-                  strokeWidth="1.5"
-                />
-                <Rect
-                  x={points[7].x - 85}
-                  y={points[7].y - 48}
-                  width="170"
-                  height="26"
-                  rx="6"
-                  fill="#064E3B"
-                />
-                <SvgText
-                  x={points[7].x}
-                  y={points[7].y - 31}
-                  fill="#FFFFFF"
-                  fontSize="11"
-                  fontWeight="800"
-                  textAnchor="middle"
-                >
-                  🏷️ Đỉnh chi: Ngày 18 (1.180k)
-                </SvgText>
-              </G>
-            )}
+              return (
+                <>
+                  {/* Peak Spending Day Tooltip Pill */}
+                  {peakPt && (
+                    <G>
+                      <Line
+                        x1={peakPt.x}
+                        y1={peakPt.y - 8}
+                        x2={peakPt.x}
+                        y2={Math.max(16, peakPt.y - 24)}
+                        stroke="#047857"
+                        strokeWidth="1.6"
+                      />
+                      <Rect
+                        x={Math.max(padL, Math.min(chartW - padR - 190, peakPt.x - 95))}
+                        y={Math.max(6, peakPt.y - 50)}
+                        width="190"
+                        height="26"
+                        rx="6"
+                        fill="#064E3B"
+                      />
+                      <SvgText
+                        x={Math.max(padL, Math.min(chartW - padR - 190, peakPt.x - 95)) + 95}
+                        y={Math.max(6, peakPt.y - 50) + 17}
+                        fill="#FFFFFF"
+                        fontSize="11"
+                        fontWeight="800"
+                        textAnchor="middle"
+                      >
+                        {peakPt.data.highlightTitle || `🏷️ Đỉnh chi: Ngày ${peakPt.data.day} (${formatMoney(peakPt.data.amount)}đ)`}
+                      </SvgText>
+                    </G>
+                  )}
+
+                  {/* Secondary Spending Day Tooltip Pill */}
+                  {otherPt && (
+                    <G>
+                      <Line
+                        x1={otherPt.x}
+                        y1={otherPt.y - 8}
+                        x2={otherPt.x}
+                        y2={Math.max(16, otherPt.y - 24)}
+                        stroke="#334155"
+                        strokeWidth="1.5"
+                      />
+                      <Rect
+                        x={Math.max(padL, Math.min(chartW - padR - 190, otherPt.x - 95))}
+                        y={Math.max(6, otherPt.y - 50)}
+                        width="190"
+                        height="26"
+                        rx="6"
+                        fill="#1E293B"
+                      />
+                      <SvgText
+                        x={Math.max(padL, Math.min(chartW - padR - 190, otherPt.x - 95)) + 95}
+                        y={Math.max(6, otherPt.y - 50) + 17}
+                        fill="#FFFFFF"
+                        fontSize="10.5"
+                        fontWeight="700"
+                        textAnchor="middle"
+                      >
+                        {otherPt.data.highlightTitle || `📅 Ngày ${otherPt.data.day}: ${formatMoney(otherPt.data.amount)}đ`}
+                      </SvgText>
+                    </G>
+                  )}
+                </>
+              );
+            })()}
 
             {/* X-Axis Day Labels */}
             {points
@@ -874,49 +1109,75 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
           <View style={styles.donutCenterWrapper}>
             <Svg width="170" height="170" viewBox="0 0 170 170">
               <G rotation="-90" origin="85, 85">
-                {categories.map((cat, idx) => {
-                  const dash = (cat.percent / 100) * donutCircum;
-                  const offset = accumulatedDashOffset;
-                  accumulatedDashOffset += dash;
-                  return (
-                    <Circle
-                      key={idx}
-                      cx="85"
-                      cy="85"
-                      r={donutR}
-                      fill="transparent"
-                      stroke={cat.color}
-                      strokeWidth="24"
-                      strokeDasharray={`${dash} ${donutCircum - dash}`}
-                      strokeDashoffset={-offset}
-                      strokeLinecap="round"
-                    />
-                  );
-                })}
+                {categories.length === 0 ? (
+                  <Circle
+                    cx="85"
+                    cy="85"
+                    r={donutR}
+                    fill="transparent"
+                    stroke="#E2E8F0"
+                    strokeWidth="22"
+                  />
+                ) : (
+                  categories.map((cat, idx) => {
+                    const dash = (cat.percent / 100) * donutCircum;
+                    const offset = categories
+                      .slice(0, idx)
+                      .reduce((acc, c) => acc + (c.percent / 100) * donutCircum, 0);
+                    return (
+                      <Circle
+                        key={idx}
+                        cx="85"
+                        cy="85"
+                        r={donutR}
+                        fill="transparent"
+                        stroke={cat.color}
+                        strokeWidth="24"
+                        strokeDasharray={`${dash} ${donutCircum - dash}`}
+                        strokeDashoffset={-offset}
+                        strokeLinecap="round"
+                      />
+                    );
+                  })
+                )}
               </G>
             </Svg>
 
             {/* Center Label */}
             <View style={styles.donutHoleLabel}>
-              <Text style={styles.donutHoleSub}>Cao nhất</Text>
-              <Text style={styles.donutHolePercent}>38%</Text>
-              <Text style={styles.donutHoleCat}>Ăn uống</Text>
+              <Text style={styles.donutHoleSub}>
+                {totalExpense > 0 ? 'Cao nhất' : 'Trạng thái'}
+              </Text>
+              <Text style={styles.donutHolePercent}>
+                {topCategory ? `${topCategory.percent}%` : '0%'}
+              </Text>
+              <Text style={styles.donutHoleCat} numberOfLines={1}>
+                {topCategory ? topCategory.name : (totalExpense === 0 ? 'Chưa chi' : 'Tổng hợp')}
+              </Text>
             </View>
           </View>
 
           {/* Category breakdown items list */}
           <View style={styles.catLegendList}>
-            {categories.map((cat) => (
-              <View key={cat.id} style={styles.catLegendItem}>
-                <View style={styles.catLegendLeft}>
-                  <View style={[styles.catColorCircle, { backgroundColor: cat.color }]} />
-                  <Text style={styles.catNameText}>{cat.name}</Text>
-                </View>
-                <Text style={styles.catAmountText}>
-                  {formatMoney(cat.amount)}đ ({cat.percent}%)
+            {categories.length === 0 ? (
+              <View style={{ paddingVertical: 14, alignItems: 'center' }}>
+                <Text style={{ fontSize: 13, color: '#94A3B8', textAlign: 'center' }}>
+                  Chưa có dữ liệu danh mục trong Tháng {selectedMonth}
                 </Text>
               </View>
-            ))}
+            ) : (
+              categories.map((cat) => (
+                <View key={cat.id} style={styles.catLegendItem}>
+                  <View style={styles.catLegendLeft}>
+                    <View style={[styles.catColorCircle, { backgroundColor: cat.color }]} />
+                    <Text style={styles.catNameText}>{cat.name}</Text>
+                  </View>
+                  <Text style={styles.catAmountText}>
+                    {formatMoney(cat.amount)}đ ({cat.percent}%)
+                  </Text>
+                </View>
+              ))
+            )}
           </View>
         </View>
 
@@ -1003,76 +1264,84 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
 
           {/* Bar Chart */}
           <View style={styles.threeMonthBarWrapper}>
-            {(compRange === '3m'
-              ? comparison.months.slice(-3)
-              : comparison.months
-            ).map((m, idx) => {
+            {(() => {
+              const displayedMonths = compRange === '3m' ? comparison.months.slice(-3) : comparison.months;
+              const maxVal = Math.max(
+                budgetLimit,
+                ...displayedMonths.map((m) => Math.max(m.income || 0, m.expense || 0, m.amount || 0)),
+                1000000
+              );
               const maxBarHeight = 120;
-              const hExp = ((m.expense || m.amount) / 24000000) * maxBarHeight;
-              const hInc = ((m.income || 22000000) / 24000000) * maxBarHeight;
 
-              return (
-                <View key={idx} style={styles.barItemCol}>
-                  {/* Badge or Amount */}
-                  <View style={styles.barTopAmountWrap}>
-                    {m.isCurrent && m.deltaPercent && !showDualBars && (
-                      <View style={styles.deltaBadge}>
-                        <Text style={styles.deltaBadgeText}>{m.deltaPercent}%</Text>
+              return displayedMonths.map((m, idx) => {
+                const expVal = m.expense ?? m.amount ?? 0;
+                const incVal = m.income || budgetLimit;
+                const hExp = expVal > 0 ? Math.max(6, (expVal / maxVal) * maxBarHeight) : 4;
+                const hInc = Math.max(6, (incVal / maxVal) * maxBarHeight);
+
+                return (
+                  <View key={idx} style={styles.barItemCol}>
+                    {/* Badge or Amount */}
+                    <View style={styles.barTopAmountWrap}>
+                      {m.isCurrent && m.deltaPercent && !showDualBars && (
+                        <View style={styles.deltaBadge}>
+                          <Text style={styles.deltaBadgeText}>{m.deltaPercent}%</Text>
+                        </View>
+                      )}
+                      <Text
+                        style={[
+                          styles.barAmountNumber,
+                          m.isCurrent && styles.barAmountNumberActive,
+                        ]}
+                      >
+                        {m.displayAmount}
+                      </Text>
+                    </View>
+
+                    {/* Dual Bars or Single Bar */}
+                    {showDualBars ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3 }}>
+                        {/* Income Bar */}
+                        <View
+                          style={[
+                            styles.dualBarPill,
+                            { height: hInc, backgroundColor: '#047857' },
+                          ]}
+                        />
+                        {/* Expense Bar */}
+                        <View
+                          style={[
+                            styles.dualBarPill,
+                            { height: hExp, backgroundColor: m.isCurrent ? '#059669' : '#94A3B8' },
+                          ]}
+                        />
                       </View>
+                    ) : (
+                      /* Single Vertical Bar */
+                      <View
+                        style={[
+                          styles.verticalBarPill,
+                          { height: hExp },
+                          m.isCurrent
+                            ? styles.verticalBarCurrent
+                            : styles.verticalBarDefault,
+                        ]}
+                      />
                     )}
+
+                    {/* Month Label */}
                     <Text
                       style={[
-                        styles.barAmountNumber,
-                        m.isCurrent && styles.barAmountNumberActive,
+                        styles.barMonthLabel,
+                        m.isCurrent && styles.barMonthLabelActive,
                       ]}
                     >
-                      {m.displayAmount}
+                      {m.monthName}
                     </Text>
                   </View>
-
-                  {/* Dual Bars or Single Bar */}
-                  {showDualBars ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3 }}>
-                      {/* Income Bar */}
-                      <View
-                        style={[
-                          styles.dualBarPill,
-                          { height: hInc, backgroundColor: '#047857' },
-                        ]}
-                      />
-                      {/* Expense Bar */}
-                      <View
-                        style={[
-                          styles.dualBarPill,
-                          { height: hExp, backgroundColor: m.isCurrent ? '#059669' : '#94A3B8' },
-                        ]}
-                      />
-                    </View>
-                  ) : (
-                    /* Single Vertical Bar */
-                    <View
-                      style={[
-                        styles.verticalBarPill,
-                        { height: hExp },
-                        m.isCurrent
-                          ? styles.verticalBarCurrent
-                          : styles.verticalBarDefault,
-                      ]}
-                    />
-                  )}
-
-                  {/* Month Label */}
-                  <Text
-                    style={[
-                      styles.barMonthLabel,
-                      m.isCurrent && styles.barMonthLabelActive,
-                    ]}
-                  >
-                    {m.monthName}
-                  </Text>
-                </View>
-              );
-            })}
+                );
+              });
+            })()}
           </View>
 
           {/* Insight Callout Box */}
@@ -1133,109 +1402,6 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
           </View>
         </View>
       </View>
-
-      {/* ==================== 6. ROW 4: KHOẢNH KHẮC CHI TIÊU TIÊU BIỂU ==================== */}
-      <View style={styles.momentsSection}>
-        {/* Header row */}
-        <View style={styles.momentsHeaderRow}>
-          <View>
-            <Text style={styles.momentsMainTitle}>
-              Khoảnh Khắc Chi Tiêu Tiêu Biểu Trong Báo Cáo
-            </Text>
-            <Text style={styles.momentsSubTitle}>
-              Các kỷ niệm được đính kèm trực tiếp vào nhật ký giao dịch tuần này
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={styles.viewAllAlbumBtn}
-            onPress={() => onNavigateToTab && onNavigateToTab('moments')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.viewAllAlbumText}>Xem tất cả album ›</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 4 Photo Cards Grid */}
-        <View style={[styles.momentsGrid, !isDesktop && styles.momentsGridWrap]}>
-          {moments.map((m) => (
-            <TouchableOpacity
-              key={m.id}
-              style={[
-                styles.momentCard,
-                !isDesktop && (isTablet ? styles.momentCardHalf : styles.momentCardFull),
-              ]}
-              onPress={() => setSelectedMoment(m)}
-              activeOpacity={0.9}
-            >
-              {/* Background Photo */}
-              <Image source={{ uri: m.photoUri }} style={styles.momentCardImg} />
-
-              {/* Gradient Overlay for Text Readability */}
-              <View style={styles.momentGradientOverlay} />
-
-              {/* Top Row: Badge & Amount */}
-              <View style={styles.momentTopRow}>
-                <View style={styles.momentBadgePill}>
-                  <Text style={styles.momentBadgeText}>{m.badge}</Text>
-                </View>
-                <View style={styles.momentAmountPill}>
-                  <Text style={styles.momentAmountText}>-{formatMoney(m.amount)}đ</Text>
-                </View>
-              </View>
-
-              {/* Bottom Meta */}
-              <View style={styles.momentBottomCol}>
-                <Text style={styles.momentTitle} numberOfLines={1}>
-                  {m.title}
-                </Text>
-                <Text style={styles.momentSubtitle} numberOfLines={1}>
-                  {m.subtitle}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* ==================== PHOTO DETAIL PREVIEW MODAL ==================== */}
-      {selectedMoment && (
-        <Modal
-          visible={!!selectedMoment}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setSelectedMoment(null)}
-        >
-          <View style={styles.modalBackdrop}>
-            <View style={styles.modalContent}>
-              <Image
-                source={{ uri: selectedMoment.photoUri }}
-                style={styles.modalPhoto}
-                resizeMode="cover"
-              />
-              <View style={styles.modalBody}>
-                <View style={styles.modalHeaderRow}>
-                  <View style={styles.momentBadgePill}>
-                    <Text style={styles.momentBadgeText}>{selectedMoment.badge}</Text>
-                  </View>
-                  <Text style={styles.modalAmountText}>
-                    {formatMoney(selectedMoment.amount)}đ
-                  </Text>
-                </View>
-                <Text style={styles.modalTitleText}>{selectedMoment.title}</Text>
-                <Text style={styles.modalSubText}>{selectedMoment.subtitle}</Text>
-
-                <TouchableOpacity
-                  style={styles.modalCloseBtn}
-                  onPress={() => setSelectedMoment(null)}
-                >
-                  <Text style={styles.modalCloseBtnText}>Đóng xem ảnh</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-      )}
     </ScrollView>
   );
 };
@@ -1243,7 +1409,7 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFD',
+    backgroundColor: '#F5F0E8',
   },
   scrollContent: {
     padding: 24,
@@ -1431,16 +1597,16 @@ const styles = StyleSheet.create({
   },
   segmentedControl: {
     flexDirection: 'row',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 10,
-    padding: 3,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    backgroundColor: '#ECE7DD',
+    borderRadius: 14,
+    padding: 4,
+    borderWidth: 1.5,
+    borderColor: '#DDD6CA',
   },
   segmentBtn: {
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 10,
   },
   segmentBtnActive: {
     backgroundColor: '#047857',
@@ -1463,18 +1629,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
+    backgroundColor: '#ECE7DD',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#DDD6CA',
   },
   datePickerIcon: {
-    fontSize: 12,
+    fontSize: 13,
   },
   datePickerText: {
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#1E293B',
   },
@@ -1484,18 +1650,18 @@ const styles = StyleSheet.create({
   },
   monthPickerDropdown: {
     position: 'absolute',
-    top: 38,
+    top: 42,
     right: 0,
-    width: 160,
+    width: 170,
     backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: 4,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: '#DDD6CA',
+    padding: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
     elevation: 6,
     zIndex: 999,
   },
@@ -1505,7 +1671,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 8,
     paddingHorizontal: 10,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   monthPickerItemActive: {
     backgroundColor: '#ECFDF5',
@@ -1520,12 +1686,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   filterIconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    backgroundColor: '#ECE7DD',
+    borderWidth: 1.5,
+    borderColor: '#DDD6CA',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1542,17 +1708,29 @@ const styles = StyleSheet.create({
   kpiCard: {
     flex: 1,
     minWidth: 200,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 6,
-    elevation: 1,
+    backgroundColor: '#ECE7DD',
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: '#DDD6CA',
+    shadowColor: '#292524',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    elevation: 2,
     justifyContent: 'space-between',
+  },
+  kpiCardIncome: {
+    backgroundColor: '#BEE3C2',
+    borderColor: '#A8DAB0',
+  },
+  kpiCardExpense: {
+    backgroundColor: '#F6D35F',
+    borderColor: '#E5C24D',
+  },
+  kpiCardSavings: {
+    backgroundColor: '#B7D9F2',
+    borderColor: '#A1C8E6',
   },
   kpiCardHalf: {
     flexBasis: '48%',
@@ -1561,51 +1739,61 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   kpiLabel: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '800',
-    color: '#64748B',
-    letterSpacing: 0.5,
+    color: '#57534E',
+    letterSpacing: 0.6,
   },
   kpiIconBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    borderColor: 'rgba(255, 255, 255, 0.85)',
   },
   kpiEmoji: {
-    fontSize: 14,
+    fontSize: 18,
   },
   kpiValueRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     gap: 4,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   kpiValueRowSplit: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   kpiMainValue: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '900',
-    color: '#0F172A',
+    color: '#1C1917',
     letterSpacing: -0.5,
   },
   kpiCurrency: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
-    color: '#94A3B8',
+    color: '#78716C',
+    marginLeft: 4,
   },
   kpiTxRatio: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#64748B',
+    color: '#44403C',
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderWidth: 1,
+    borderColor: '#D7CFBF',
+    paddingVertical: 3,
+    paddingHorizontal: 9,
+    borderRadius: 10,
   },
   kpiFooter: {
     marginTop: 2,
@@ -1617,20 +1805,27 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   kpiTrendGreen: {
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: '700',
     color: '#047857',
   },
+  kpiTrendNeutral: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1C1917',
+  },
   kpiSubText: {
-    fontSize: 11.5,
-    color: '#64748B',
-    fontWeight: '500',
+    fontSize: 12,
+    color: '#57534E',
+    fontWeight: '600',
   },
   safePill: {
     backgroundColor: '#DCFCE7',
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingVertical: 3,
+    paddingHorizontal: 10,
+    borderRadius: 10,
   },
   safePillText: {
     fontSize: 11,
@@ -1640,17 +1835,17 @@ const styles = StyleSheet.create({
 
   // ==================== 4. ROW 2: XU HƯỚNG CHI TIÊU HÀNG NGÀY ====================
   chartCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 22,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    backgroundColor: '#ECE7DD',
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1.5,
+    borderColor: '#DDD6CA',
     marginBottom: 24,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    elevation: 1,
+    shadowColor: '#292524',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    elevation: 2,
   },
   chartCardHeader: {
     flexDirection: 'row',
@@ -1664,13 +1859,13 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   cardMainHeading: {
-    fontSize: 16.5,
+    fontSize: 17,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1C1917',
   },
   cardSubHeading: {
     fontSize: 12.5,
-    color: '#64748B',
+    color: '#78716C',
   },
   chartLegendRow: {
     flexDirection: 'row',
@@ -1701,6 +1896,12 @@ const styles = StyleSheet.create({
   svgWrapper: {
     width: '100%',
     overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    borderRadius: 18,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E2DBD0',
+    marginTop: 6,
   },
 
   // ==================== 5. ROW 3: 3 INSIGHT COLUMNS ====================
@@ -1714,16 +1915,16 @@ const styles = StyleSheet.create({
   },
   tripletCard: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
-    elevation: 1,
+    backgroundColor: '#ECE7DD',
+    borderRadius: 24,
+    padding: 22,
+    borderWidth: 1.5,
+    borderColor: '#DDD6CA',
+    shadowColor: '#292524',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    elevation: 2,
     justifyContent: 'space-between',
   },
   tripletCardFull: {
@@ -1736,13 +1937,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   tripletTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#1C1917',
   },
   tripletSub: {
-    fontSize: 11.5,
-    color: '#64748B',
+    fontSize: 12,
+    color: '#78716C',
     marginTop: 2,
   },
 
@@ -1757,16 +1958,26 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FDFBF7',
+    width: 94,
+    height: 94,
+    borderRadius: 47,
+    borderWidth: 1,
+    borderColor: '#DDD6CA',
+    shadowColor: '#292524',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
   },
   donutHoleSub: {
     fontSize: 11,
-    color: '#64748B',
+    color: '#78716C',
     fontWeight: '600',
   },
   donutHolePercent: {
     fontSize: 22,
     fontWeight: '900',
-    color: '#0F172A',
+    color: '#1C1917',
     lineHeight: 26,
   },
   donutHoleCat: {
@@ -1782,6 +1993,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2DBD0',
   },
   catLegendLeft: {
     flexDirection: 'row',
@@ -1796,12 +2013,12 @@ const styles = StyleSheet.create({
   catNameText: {
     fontSize: 12.5,
     fontWeight: '600',
-    color: '#334155',
+    color: '#292524',
   },
   catAmountText: {
     fontSize: 12.5,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#1C1917',
   },
 
   // 3-Month Bar elements
@@ -1826,9 +2043,11 @@ const styles = StyleSheet.create({
   },
   deltaBadge: {
     backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
     paddingVertical: 1,
     paddingHorizontal: 6,
-    borderRadius: 5,
+    borderRadius: 6,
   },
   deltaBadgeText: {
     fontSize: 10,
@@ -1853,21 +2072,25 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   miniToggleBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    borderWidth: 1,
+    borderColor: '#DDD6CA',
   },
   miniToggleBtnActive: {
     backgroundColor: '#047857',
+    borderColor: '#047857',
   },
   miniToggleBtnGreen: {
     backgroundColor: '#047857',
+    borderColor: '#047857',
   },
   miniToggleText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#64748B',
+    color: '#57534E',
   },
   miniToggleTextActive: {
     color: '#FFFFFF',
@@ -1881,18 +2104,18 @@ const styles = StyleSheet.create({
   barMonthLabel: {
     fontSize: 11.5,
     fontWeight: '600',
-    color: '#64748B',
+    color: '#57534E',
   },
   barMonthLabelActive: {
     color: '#047857',
     fontWeight: '800',
   },
   insightBox: {
-    backgroundColor: '#EEF2FF',
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: '#FDFBF7',
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
-    borderColor: '#E0E7FF',
+    borderColor: '#DDD6CA',
     marginTop: 14,
   },
   insightTitleRow: {
@@ -1903,17 +2126,17 @@ const styles = StyleSheet.create({
   },
   insightCheckIcon: {
     fontSize: 12,
-    color: '#4338CA',
+    color: '#047857',
     fontWeight: '900',
   },
   insightTitle: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#4338CA',
+    color: '#047857',
   },
   insightDesc: {
     fontSize: 11.5,
-    color: '#374151',
+    color: '#44403C',
     lineHeight: 16,
   },
 
@@ -1941,15 +2164,15 @@ const styles = StyleSheet.create({
   emotionTitleText: {
     fontSize: 12.5,
     fontWeight: '600',
-    color: '#1E293B',
+    color: '#292524',
   },
   emotionPercentText: {
     fontSize: 13,
     fontWeight: '800',
   },
   progressTrack: {
-    height: 7,
-    backgroundColor: '#F1F5F9',
+    height: 8,
+    backgroundColor: '#E0D8CB',
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -1959,17 +2182,17 @@ const styles = StyleSheet.create({
   },
   emotionDescText: {
     fontSize: 11,
-    color: '#64748B',
+    color: '#78716C',
   },
   suggestionBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
     backgroundColor: '#F0FDF4',
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 16,
+    padding: 14,
     borderWidth: 1,
-    borderColor: '#DCFCE7',
+    borderColor: '#BBF7D0',
     marginTop: 14,
   },
   suggestionLightbulb: {
@@ -1980,7 +2203,7 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: '#166534',
     lineHeight: 16,
-    fontWeight: '500',
+    fontWeight: '600',
   },
 
   // ==================== 6. ROW 4: KHOẢNH KHẮC CHI TIÊU TIÊU BIỂU ====================
@@ -2020,6 +2243,45 @@ const styles = StyleSheet.create({
   },
   momentsGridWrap: {
     flexWrap: 'wrap',
+  },
+  momentsEmptyContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#CBD5E1',
+    paddingVertical: 36,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  momentsEmptyTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  momentsEmptySubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    maxWidth: 540,
+    lineHeight: 19,
+    marginBottom: 16,
+  },
+  momentsEmptyBtn: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+    borderWidth: 1,
+    paddingVertical: 9,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+  },
+  momentsEmptyBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#047857',
   },
   momentCard: {
     flex: 1,
@@ -2120,7 +2382,7 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '100%',
     maxWidth: 480,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E8',
     borderRadius: 20,
     overflow: 'hidden',
   },

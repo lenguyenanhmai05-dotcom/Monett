@@ -80,11 +80,11 @@ export const RecentTransactionsWidget: React.FC<RecentTransactionsWidgetProps> =
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F0E8',
     borderRadius: 20,
     padding: 22,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E8E0D5',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#E8EFE5',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 8,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#E8EFE5',
   },
   viewAllText: {
     fontSize: 12,
@@ -137,14 +137,14 @@ const styles = StyleSheet.create({
   },
   list: {
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: '#E8E0D5',
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: '#E8E0D5',
   },
   itemRowLast: {
     borderBottomWidth: 0,

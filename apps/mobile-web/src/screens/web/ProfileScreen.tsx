@@ -1292,10 +1292,10 @@ export const ProfileScreen: React.FC = () => {
 };
 
 const getStyles = (isDark: boolean) => StyleSheet.create({
-  container: { flex: 1, backgroundColor: isDark ? '#1E293B' : '#F3F6F8' }, // Softer Dark Slate
+  container: { flex: 1, backgroundColor: isDark ? '#1E293B' : '#F5F0E8' },
   contentContainer: { paddingBottom: 60 },
   headerSection: {
-    backgroundColor: isDark ? '#334155' : '#FFFFFF', // Lighter dark card
+    backgroundColor: isDark ? '#334155' : '#F5F0E8',
     paddingTop: 32, paddingBottom: 32,
     borderBottomLeftRadius: 40, borderBottomRightRadius: 40,
     shadowColor: isDark ? '#000000' : '#64748B', shadowOpacity: isDark ? 0.2 : 0.05, shadowRadius: 20, elevation: 3,
@@ -1339,9 +1339,9 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
   column: { flex: 1, gap: 24 }, leftColumn: { flex: 0.35 }, rightColumn: { flex: 0.65 },
 
   card: {
-    backgroundColor: isDark ? '#334155' : '#FFFFFF', borderRadius: 24, padding: 28,
+    backgroundColor: isDark ? '#334155' : '#F5F0E8', borderRadius: 24, padding: 28,
     shadowColor: isDark ? '#000000' : '#64748B', shadowOpacity: isDark ? 0.2 : 0.04, shadowRadius: 15, elevation: 2,
-    borderWidth: 1, borderColor: isDark ? '#475569' : '#F1F5F9',
+    borderWidth: 1, borderColor: isDark ? '#475569' : '#E8E0D5',
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   cardHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -1374,16 +1374,16 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
   },
   primaryBtn: { backgroundColor: '#059669', borderRadius: 16, paddingVertical: 16, alignItems: 'center' },
   primaryBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
-  outlineBtn: { backgroundColor: isDark ? '#334155' : '#FFFFFF', borderWidth: 1, borderColor: isDark ? '#64748B' : '#CBD5E1', borderRadius: 16, paddingVertical: 14, alignItems: 'center' },
+  outlineBtn: { backgroundColor: isDark ? '#334155' : '#F5F0E8', borderWidth: 1, borderColor: isDark ? '#64748B' : '#E8E0D5', borderRadius: 16, paddingVertical: 14, alignItems: 'center' },
   outlineBtnText: { color: isDark ? '#F1F5F9' : '#475569', fontSize: 14, fontWeight: '700' },
 
   settingsGroup: { marginBottom: 32 },
   settingsGroupTitle: { fontSize: 13, fontWeight: '800', color: isDark ? '#94A3B8' : '#94A3B8', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 16, marginLeft: 16 },
   settingsBlock: {
-    backgroundColor: isDark ? '#334155' : '#FFFFFF', borderRadius: 28, overflow: 'hidden',
+    backgroundColor: isDark ? '#334155' : '#F5F0E8', borderRadius: 28, overflow: 'hidden',
     shadowColor: isDark ? '#000000' : '#64748B', shadowOffset: { width: 0, height: 16 },
     shadowOpacity: isDark ? 0.2 : 0.06, shadowRadius: 36, elevation: 6,
-    borderWidth: 1, borderColor: isDark ? '#475569' : 'rgba(241, 245, 249, 0.8)',
+    borderWidth: 1, borderColor: isDark ? '#475569' : '#E8E0D5',
   },
   passwordSection: { padding: 24, borderBottomWidth: 1, borderBottomColor: isDark ? '#475569' : '#F8FAFC' },
   settingRow: {
@@ -1415,7 +1415,7 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
   settingChevron: { fontSize: 22, color: isDark ? '#94A3B8' : '#CBD5E1', fontWeight: '500' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { width: '90%', maxWidth: 400, backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderRadius: 24, padding: 24, maxHeight: '80%' },
+  modalContent: { width: '90%', maxWidth: 400, backgroundColor: isDark ? '#1E293B' : '#F5F0E8', borderRadius: 24, padding: 24, maxHeight: '80%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: '800', color: isDark ? '#F1F5F9' : '#1E293B' },
   modalTabs: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: isDark ? '#334155' : '#E2E8F0', marginBottom: 16 },
