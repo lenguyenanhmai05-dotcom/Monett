@@ -12,11 +12,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useNotifications } from '../contexts/NotificationContext';
+import { NotificationModal } from '../components/NotificationModal';
 
 export type TabKey =
   | 'home'
   | 'feed'
-  | 'moments'
   | 'analytics'
   | 'transactions'
   | 'budget'
@@ -38,6 +39,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   const { user } = useAuth();
   const { language } = useLanguage();
   const { isDark, colors } = useTheme();
+  const { unreadCount, toggleNotifications } = useNotifications();
   const [imageError, setImageError] = useState(false);
   const styles = getStyles(isDark, colors);
 
@@ -69,7 +71,6 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   }[] = [
     { key: 'home', labelVi: 'Tổng quan', labelEn: 'Overview', icon: 'grid-outline' },
     { key: 'feed', labelVi: 'Bảng tin', labelEn: 'News Feed', icon: 'newspaper-outline' },
-    { key: 'moments', labelVi: 'Khoảnh khắc', labelEn: 'Moments', icon: 'images-outline' },
     { key: 'analytics', labelVi: 'Báo cáo', labelEn: 'Analytics', icon: 'bar-chart-outline' },
     { key: 'transactions', labelVi: 'Chi tiêu', labelEn: 'Expenses', icon: 'receipt-outline' },
     { key: 'budget', labelVi: 'Ngân sách', labelEn: 'Budget', icon: 'wallet-outline' },
@@ -130,15 +131,22 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
               {/* Notification Bell */}
               <TouchableOpacity
                 style={styles.bellBtn}
+                onPress={toggleNotifications}
                 activeOpacity={0.7}
                 accessibilityLabel="Thông báo"
               >
                 <Ionicons
-                  name="notifications-outline"
+                  name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
                   size={19}
-                  color={isDark ? '#94A3B8' : '#64748B'}
+                  color={unreadCount > 0 ? '#059669' : (isDark ? '#94A3B8' : '#64748B')}
                 />
-                <View style={styles.bellBadge} />
+                {unreadCount > 0 && (
+                  <View style={styles.bellBadge}>
+                    <Text style={styles.bellBadgeText}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
 
               {/* User Profile */}
@@ -191,15 +199,22 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
             />
             <TouchableOpacity
               style={styles.bellBtn}
+              onPress={toggleNotifications}
               activeOpacity={0.7}
               accessibilityLabel="Thông báo"
             >
               <Ionicons
-                name="notifications-outline"
+                name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
                 size={19}
-                color={isDark ? '#94A3B8' : '#64748B'}
+                color={unreadCount > 0 ? '#059669' : (isDark ? '#94A3B8' : '#64748B')}
               />
-              <View style={styles.bellBadge} />
+              {unreadCount > 0 && (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
         )}
@@ -260,6 +275,9 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
           </View>
         )}
       </View>
+
+      {/* Interactive Notification Popover / Modal */}
+      <NotificationModal onNavigateToTab={onSelectTab} />
     </SafeAreaView>
   );
 };
@@ -271,7 +289,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: isDark ? '#0F172A' : '#F8FAFD',
+    backgroundColor: isDark ? '#0F172A' : '#F5F0E8',
   },
 
   // ==================== TOP NAVBAR DESKTOP ====================
@@ -283,7 +301,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     borderBottomWidth: 1,
-    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0',
+    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E8E0D5',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: isDark ? 0.2 : 0.04,
@@ -313,7 +331,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     borderRadius: 8,
   },
   navTabBtnActive: {
-    backgroundColor: isDark ? 'rgba(4, 120, 87, 0.16)' : '#ECFDF5',
+    backgroundColor: isDark ? 'rgba(4, 120, 87, 0.16)' : '#E8EFE5',
   },
   navTabText: {
     fontSize: 13.5,
@@ -333,19 +351,30 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+    backgroundColor: isDark ? '#1E293B' : '#EAE3D7',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
   },
   bellBadge: {
     position: 'absolute',
-    top: 7,
-    right: 7,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    top: 2,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: isDark ? '#0F172A' : '#FFFFFF',
+  },
+  bellBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+    lineHeight: 11,
   },
 
   // User chip
@@ -378,7 +407,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0',
+    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#E8E0D5',
   },
   mobileNavLogo: {
     width: 105,
@@ -388,7 +417,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   // ==================== MAIN CONTENT ====================
   mainArea: {
     flex: 1,
-    backgroundColor: isDark ? '#0F172A' : '#F8FAFD',
+    backgroundColor: isDark ? '#0F172A' : '#F5F0E8',
   },
   contentWrapper: {
     flex: 1,

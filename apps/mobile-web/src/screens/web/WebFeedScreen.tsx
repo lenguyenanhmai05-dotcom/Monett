@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 import { getMomentsFeedApi, reactMomentApi, getMomentReactionsApi, deleteMomentApi, normalizeAvatarUrl, getFriendsApi, getFriendRequestsApi, respondFriendRequestApi, removeFriendApi, sendFriendRequestApi } from '../../services/api';
 import { MomentFormModal, MomentChatModal, MomentItem, MomentCommentItem } from '../mobile/FriendsFeedScreen';
 import { ChatModal } from '../../components/ChatModal';
@@ -415,6 +416,7 @@ const cardStyles = StyleSheet.create({
 export const WebFeedScreen = () => {
   const { user } = useAuth();
   const { isDark, colors } = useTheme();
+  const { addNotification } = useNotifications();
   const styles = getStyles(isDark, colors);
 
   const [moments, setMoments] = useState<MomentItem[]>([]);
@@ -535,6 +537,16 @@ export const WebFeedScreen = () => {
   const handleRespondFriendRequest = async (requestId: string, status: 'accepted' | 'rejected') => {
     try {
       await respondFriendRequestApi(requestId, status);
+      if (status === 'accepted') {
+        addNotification({
+          type: 'friend',
+          title: 'Kết bạn thành công! 🤝🎉',
+          message: 'Bạn và đối phương đã trở thành bạn bè trên Monett! Giờ hai bạn có thể xem các khoảnh khắc chi tiêu của nhau.',
+          iconBg: '#EDE9FE',
+          iconColor: '#8B5CF6',
+          metadata: { targetTab: 'feed' },
+        });
+      }
       loadData();
     } catch (e: any) {
       alert(e.message);
@@ -558,6 +570,14 @@ export const WebFeedScreen = () => {
     setIsSendingRequest(true);
     try {
       await sendFriendRequestApi(cleanedId);
+      addNotification({
+        type: 'friend',
+        title: 'Đã gửi lời mời kết bạn 🤝',
+        message: `Lời mời kết bạn đã được gửi thành công đến ID "${cleanedId}".`,
+        iconBg: '#EDE9FE',
+        iconColor: '#8B5CF6',
+        metadata: { targetTab: 'feed' },
+      });
       alert('Đã gửi lời mời kết bạn thành công!');
       setFriendIdInput('');
     } catch (e: any) {
@@ -771,7 +791,20 @@ export const WebFeedScreen = () => {
       <MomentFormModal
         visible={showCreate}
         onClose={() => { setShowCreate(false); setEditingMoment(null); setInitialAction(undefined); }}
-        onDone={() => { loadData(); setEditingMoment(null); setInitialAction(undefined); }}
+        onDone={() => {
+          loadData();
+          setShowCreate(false);
+          setEditingMoment(null);
+          setInitialAction(undefined);
+          addNotification({
+            type: 'moment',
+            title: 'Đã đăng thành công khoảnh khắc chi tiêu! 📸✨',
+            message: 'Khoảnh khắc chi tiêu mới của bạn đã được đăng tải thành công lên bảng tin bạn bè.',
+            iconBg: '#ECFDF5',
+            iconColor: '#059669',
+            metadata: { targetTab: 'feed' },
+          });
+        }}
         editingItem={editingMoment}
         initialAction={initialAction}
       />
@@ -829,7 +862,7 @@ export const WebFeedScreen = () => {
 const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: isDark ? '#18191A' : '#F0F2F5', // Web-like background
+    backgroundColor: isDark ? '#18191A' : '#F5F0E8',
   },
   modalOverlay: {
     flex: 1,
@@ -841,7 +874,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     width: '90%',
     maxWidth: 400,
     maxHeight: '60%',
-    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+    backgroundColor: isDark ? '#1E293B' : '#F5F0E8',
     borderRadius: 24,
     padding: 20,
     shadowColor: '#000',
@@ -908,7 +941,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     maxWidth: 1000, // Expanded feed to fill space
   },
   card: {
-    backgroundColor: isDark ? '#242526' : '#FFFFFF',
+    backgroundColor: isDark ? '#242526' : '#F5F0E8',
     borderRadius: 8, // Web-like sharp corners
     padding: 16,
     shadowColor: '#000',
@@ -917,7 +950,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
     borderWidth: 1,
-    borderColor: isDark ? '#3E4042' : '#E4E6EB',
+    borderColor: isDark ? '#3E4042' : '#E8E0D5',
     marginBottom: 16,
   },
   avatarPlaceholder: {

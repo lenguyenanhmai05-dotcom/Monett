@@ -23,6 +23,7 @@ import { MessagesScreen } from './MessagesScreen';
 import { DayExpensesScreen } from './DayExpensesScreen';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { createTransactionApi } from '../../services/api';
+import { NotificationModal } from '../../components/NotificationModal';
 
 export type MobileTab = 'home' | 'calendar' | 'analytics' | 'feed' | 'wallets' | 'categories' | 'profile';
 export type ActiveModal = 'none' | 'camera' | 'add_expense' | 'quick_save' | 'detail' | 'day_expenses';
@@ -387,6 +388,9 @@ export const MobileNavigator: React.FC = () => {
           />
         </View>
       )}
+
+      {/* Modal Thông báo hoạt động ứng dụng */}
+      <NotificationModal onNavigateToTab={(tab) => setCurrentTab(tab as any)} />
     </View>
   );
 };

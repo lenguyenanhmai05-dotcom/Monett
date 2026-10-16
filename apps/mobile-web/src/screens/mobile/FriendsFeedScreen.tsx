@@ -22,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 import * as ImagePicker from 'expo-image-picker';
 import QRCode from 'react-qr-code';
 import { playNotificationSound } from '../../utils/soundUtils';
@@ -727,6 +728,7 @@ export const MomentFormModal = ({
   initialAction?: 'photo' | 'tag' | 'text';
 }) => {
   const isEdit = !!editingItem;
+  const { addNotification } = useNotifications();
   const inputRef = useRef<TextInput>(null);
   const [caption, setCaption] = useState(editingItem?.caption || '');
   const [category, setCategory] = useState(editingItem?.category || CATEGORIES[0]);
@@ -814,6 +816,14 @@ export const MomentFormModal = ({
           caption: caption.trim() || 'Khoảnh khắc vui vẻ hôm nay ✨',
           amount: 0,
           category,
+        });
+        addNotification({
+          type: 'moment',
+          title: 'Đã đăng thành công khoảnh khắc chi tiêu! 📸',
+          message: `Khoảnh khắc "${caption.trim() || 'Khoảnh khắc hôm nay'}" đã được đăng tải thành công lên bảng tin bạn bè.`,
+          iconBg: '#ECFDF5',
+          iconColor: '#059669',
+          metadata: { targetTab: 'feed' },
         });
         onDone(res);
       }
@@ -1544,6 +1554,7 @@ const InviteModal = ({
   onSuccess?: () => void;
   isVi: boolean;
 }) => {
+  const { addNotification } = useNotifications();
   const [friendIdInput, setFriendIdInput] = useState('');
   const [isSending, setIsSending] = useState(false);
 
@@ -1573,6 +1584,12 @@ const InviteModal = ({
     try {
       setIsSending(true);
       await sendFriendRequestApi(cleanId);
+      addNotification({
+        type: 'friend',
+        title: 'Đã gửi lời mời kết bạn 🤝',
+        message: `Lời mời kết bạn đã được gửi thành công đến ID "${cleanId}".`,
+        metadata: { targetTab: 'feed' },
+      });
       Alert.alert('✅ ' + (isVi ? 'Thành công' : 'Success'), isVi ? 'Đã gửi lời mời kết bạn!' : 'Friend request sent!');
       setFriendIdInput('');
       if (onSuccess) onSuccess();
@@ -1825,6 +1842,7 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void }> = ({ onBack })
   const { user } = useAuth();
   const { language } = useLanguage();
   const { isDark, colors } = useTheme();
+  const { addNotification } = useNotifications();
   const isVi = language === 'vi';
   const styles = getStyles(isDark, colors);
 
@@ -1908,6 +1926,16 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void }> = ({ onBack })
   const handleRespondRequest = async (requestId: string, status: 'accepted' | 'rejected') => {
     try {
       await respondFriendRequestApi(requestId, status);
+      if (status === 'accepted') {
+        addNotification({
+          type: 'friend',
+          title: 'Kết bạn thành công! 🎉',
+          message: 'Bạn đã đồng ý lời mời kết bạn thành công! Giờ hai bạn có thể chia sẻ chi tiêu cùng nhau.',
+          iconBg: '#EDE9FE',
+          iconColor: '#8B5CF6',
+          metadata: { targetTab: 'feed' },
+        });
+      }
       Alert.alert('✅', status === 'accepted' ? (isVi ? 'Đã đồng ý kết bạn!' : 'Friend request accepted!') : (isVi ? 'Đã từ chối' : 'Declined'));
       loadData();
     } catch (e: any) {

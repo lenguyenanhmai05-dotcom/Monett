@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 import { getBudgetApi, BudgetData, getTransactionsByDateApi, getTransactionsApi, deleteTransactionApi } from '../../services/api';
 import { FinancialCalendarWidget } from '../../components/FinancialCalendarWidget';
 import { RemindersWidget } from '../../components/RemindersWidget';
@@ -86,6 +87,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 }) => {
   const { user: authUser } = useAuth();
   const { language } = useLanguage();
+  const { unreadCount, toggleNotifications } = useNotifications();
   const isVi = language === 'vi';
   const avatarUri = authUser?.avatarUrl;
 
@@ -266,14 +268,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           <TouchableOpacity
             style={styles.iconButton}
-            onPress={() => {
-              if (typeof alert !== 'undefined') {
-                alert(isVi ? 'Bạn không có thông báo mới nào.' : 'You have no new notifications.');
-              }
-            }}
+            onPress={toggleNotifications}
+            activeOpacity={0.7}
           >
-            <Ionicons name="notifications-outline" size={21} color="#1E293B" />
-            <View style={styles.notificationDot} />
+            <Ionicons
+              name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
+              size={21}
+              color={unreadCount > 0 ? '#059669' : '#1E293B'}
+            />
+            {unreadCount > 0 && <View style={styles.notificationDot} />}
           </TouchableOpacity>
 
           <TouchableOpacity

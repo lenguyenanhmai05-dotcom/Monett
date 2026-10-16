@@ -11,7 +11,6 @@ import { FinancialReportScreen } from './src/screens/web/FinancialReportScreen';
 import { TransactionsScreen } from './src/screens/web/TransactionsScreen';
 import { BudgetScreen } from './src/screens/web/BudgetScreen';
 import { CalendarScreen } from './src/screens/mobile/CalendarScreen';
-import { WebCalendarScreen } from './src/screens/web/CalendarScreen';
 import { FriendsFeedScreen } from './src/screens/mobile/FriendsFeedScreen';
 import { WebFeedScreen } from './src/screens/web/WebFeedScreen';
 import { MobileAuthScreen } from './src/screens/mobile/MobileAuthScreen';
@@ -21,6 +20,7 @@ import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { SocketProvider } from './src/contexts/SocketContext';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
+import { NotificationProvider } from './src/contexts/NotificationContext';
 
 function MainApp() {
   const { user, isLoading } = useAuth();
@@ -103,8 +103,6 @@ function MainApp() {
         return <WebFeedScreen />;
       case 'profile':
         return <ProfileScreen />;
-      case 'moments':
-        return <WebCalendarScreen />;
       case 'analytics':
         return <FinancialReportScreen onNavigateToTab={setActiveTab} />;
       case 'transactions':
@@ -130,8 +128,10 @@ export default function App() {
         <AuthProvider>
           <SocketProvider>
             <ThemeProvider>
-              <StatusBar style="dark" />
-              <MainApp />
+              <NotificationProvider>
+                <StatusBar style="dark" />
+                <MainApp />
+              </NotificationProvider>
             </ThemeProvider>
           </SocketProvider>
         </AuthProvider>
