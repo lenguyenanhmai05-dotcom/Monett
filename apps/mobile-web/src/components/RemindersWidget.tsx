@@ -24,6 +24,7 @@ import {
 
 interface RemindersWidgetProps {
   currentDateStr?: string; // YYYY-MM-DD
+  noMargin?: boolean;
 }
 
 // Hàm phát chuông thông báo nhẹ nhàng bằng Web Audio API không phụ thuộc file âm thanh bên ngoài
@@ -68,7 +69,7 @@ const INITIAL_SAMPLE_REMINDERS: IReminder[] = [
   },
 ];
 
-export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr }) => {
+export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr, noMargin }) => {
   const { language } = useLanguage();
   const isVi = language === 'vi';
   const todayYMD = useMemo(() => {
@@ -104,6 +105,7 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
   const [newBeforeMinutes, setNewBeforeMinutes] = useState<number>(10);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [editingReminderId, setEditingReminderId] = useState<string | null>(null);
+  const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
 
   const formattedTime = useMemo(() => {
     return `${String(selectedHour).padStart(2, '0')}:${String(selectedMinute).padStart(2, '0')}`;
@@ -416,7 +418,7 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
   const pendingCount = reminders.filter((r) => !r.isCompleted).length;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, noMargin && { marginHorizontal: 0, marginBottom: 0, marginTop: 0 }]}>
       {/* BANNER THÔNG BÁO NỔI BẬT KHI ĐẾN GIỜ (In-App Toast) */}
       {activeAlert && (
         <View style={styles.alertBanner}>
@@ -554,8 +556,13 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
               <Text style={styles.modalFieldLabel}>
                 {isVi ? 'Nội dung nhắc việc' : 'Reminder Title'}
               </Text>
-              <View style={styles.inputWrap}>
-                <Ionicons name="create-outline" size={17} color="#64748B" style={styles.inputIcon} />
+              <View style={[styles.inputWrap, isInputFocused && styles.inputWrapFocused]}>
+                <Ionicons
+                  name="create-outline"
+                  size={17}
+                  color={isInputFocused ? '#047857' : '#64748B'}
+                  style={styles.inputIcon}
+                />
                 <TextInput
                   style={styles.input}
                   placeholder={
@@ -566,6 +573,8 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                   placeholderTextColor="#94A3B8"
                   value={newTitle}
                   onChangeText={setNewTitle}
+                  onFocus={() => setIsInputFocused(true)}
+                  onBlur={() => setIsInputFocused(false)}
                   autoFocus={true}
                   returnKeyType="done"
                 />
@@ -1151,11 +1160,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#F8FAFC',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#CBD5E1',
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 10,
+    height: 44,
     marginBottom: 10,
+  },
+  inputWrapFocused: {
+    borderColor: '#047857',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#047857',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 0 0 3px rgba(4, 120, 87, 0.15)',
+    } : {}),
   },
   inputIcon: {
     marginRight: 8,
@@ -1166,6 +1188,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#1E293B',
     paddingVertical: 0,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    outlineWidth: 0,
   },
   // Bộ cuộn giờ và phút nhỏ gọn chuyên nghiệp dạng nấc ô vuông
   timePickerContainer: {

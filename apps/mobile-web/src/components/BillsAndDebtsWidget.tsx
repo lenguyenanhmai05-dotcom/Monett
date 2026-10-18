@@ -73,11 +73,21 @@ const SAMPLE_DEBTS: IDebtItem[] = [
   },
 ];
 
-export const BillsAndDebtsWidget: React.FC = () => {
+export interface BillsAndDebtsWidgetProps {
+  inline?: boolean;
+  defaultTab?: 'bills' | 'debts';
+  noMargin?: boolean;
+}
+
+export const BillsAndDebtsWidget: React.FC<BillsAndDebtsWidgetProps> = ({
+  inline = false,
+  defaultTab = 'bills',
+  noMargin = false,
+}) => {
   const { language } = useLanguage();
   const isVi = language === 'vi';
-  // Modal hiển thị chi tiết: null (chỉ hiện thanh capsule trên trang chủ), 'bills' hoặc 'debts'
   const [detailModal, setDetailModal] = useState<'bills' | 'debts' | null>(null);
+  const [focusedInput, setFocusedInput] = useState<string | null>(null);
 
   // =================== STATE HÓA ĐƠN ĐỊNH KỲ ===================
   const [bills, setBills] = useState<IRecurringBill[]>(SAMPLE_BILLS);
@@ -378,148 +388,64 @@ export const BillsAndDebtsWidget: React.FC = () => {
     return debts.filter((d) => d.type === debtFilter);
   }, [debts, debtFilter]);
 
-  return (
-    <View style={styles.container}>
-      {/* 1. THANH CAPSULE DUY NHẤT Ở TRANG CHỦ (Gọn gàng, thoáng đãng) */}
-      <View style={styles.tabCapsuleContainer}>
-        {/* Nút 1: Hóa đơn định kỳ */}
-        <TouchableOpacity
-          style={styles.tabCapsule}
-          onPress={() => setDetailModal('bills')}
-          activeOpacity={0.75}
-        >
-          <Ionicons name="receipt-outline" size={15} color="#047857" style={{ marginRight: 6 }} />
-          <Text style={styles.tabText}>{isVi ? 'Hóa đơn định kỳ' : 'Recurring Bills'}</Text>
-          {unpaidBillsCount > 0 && (
-            <View style={styles.pillCountBadge}>
-              <Text style={styles.pillCountText}>{unpaidBillsCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-
-        {/* Nút 2: Sổ ghi nợ */}
-        <TouchableOpacity
-          style={styles.tabCapsule}
-          onPress={() => setDetailModal('debts')}
-          activeOpacity={0.75}
-        >
-          <Ionicons name="people-outline" size={15} color="#047857" style={{ marginRight: 6 }} />
-          <Text style={styles.tabText}>{isVi ? 'Sổ ghi nợ' : 'Debt Book'}</Text>
-          {(debtSummary.lendCount > 0 || debtSummary.borrowCount > 0) && (
-            <View style={styles.pillCountBadgeGreen}>
-              <Text style={styles.pillCountTextGreen}>
-                {debtSummary.lendCount + debtSummary.borrowCount}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      {/* 2. MODAL ĐẨY LÊN NHƯ TRANG LƯU NHANH (BOTTOM SHEET SLIDE-UP) */}
-      <Modal
-        visible={Boolean(detailModal)}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setDetailModal(null)}
+  const renderSegmentedControl = (
+    activeTab: 'bills' | 'debts',
+    onSelectTab: (tab: 'bills' | 'debts') => void
+  ) => (
+    <View style={styles.segmentedControl}>
+      <TouchableOpacity
+        style={[styles.segmentBtn, activeTab === 'bills' && styles.segmentBtnActive]}
+        onPress={() => onSelectTab('bills')}
+        activeOpacity={0.8}
       >
-        <KeyboardAvoidingView
-          style={styles.sheetOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          {/* Backdrop mờ phía sau - bấm vào tự đóng */}
-          <TouchableOpacity
-            style={styles.sheetBackdrop}
-            onPress={() => setDetailModal(null)}
-            activeOpacity={1}
-          />
+        <Ionicons
+          name="receipt-outline"
+          size={16}
+          color={activeTab === 'bills' ? '#047857' : '#64748B'}
+          style={{ marginRight: 6 }}
+        />
+        <Text style={[styles.segmentText, activeTab === 'bills' && styles.segmentTextActive]}>
+          {isVi ? 'Hóa đơn định kỳ' : 'Recurring Bills'}
+        </Text>
+        {unpaidBillsCount > 0 && (
+          <View style={styles.badgeCount}>
+            <Text style={styles.badgeCountText}>{unpaidBillsCount}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
 
-          {/* Khung Bottom Sheet trượt lên từ dưới y hệt trang lưu nhanh */}
-          <View style={styles.sheetContainer}>
-            {/* Thanh kéo handle indicator */}
-            <View style={styles.handleBar} />
+      <TouchableOpacity
+        style={[styles.segmentBtn, activeTab === 'debts' && styles.segmentBtnActive]}
+        onPress={() => onSelectTab('debts')}
+        activeOpacity={0.8}
+      >
+        <Ionicons
+          name="people-outline"
+          size={16}
+          color={activeTab === 'debts' ? '#047857' : '#64748B'}
+          style={{ marginRight: 6 }}
+        />
+        <Text style={[styles.segmentText, activeTab === 'debts' && styles.segmentTextActive]}>
+          {isVi ? 'Sổ ghi nợ' : 'Debt Book'}
+        </Text>
+        {(debtSummary.lendCount > 0 || debtSummary.borrowCount > 0) && (
+          <View style={styles.badgeCount}>
+            <Text style={styles.badgeCountText}>
+              {debtSummary.lendCount + debtSummary.borrowCount}
+            </Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    </View>
+  );
 
-            {/* Header của Sheet */}
-            <View style={styles.sheetHeader}>
-              <View>
-                <Text style={styles.sheetTitle}>
-                  {detailModal === 'bills'
-                    ? (isVi ? 'Hóa đơn định kỳ' : 'Recurring Bills')
-                    : (isVi ? 'Sổ ghi nợ' : 'Debt Book')}
-                </Text>
-                <Text style={styles.sheetSubtitle}>
-                  {detailModal === 'bills'
-                    ? (isVi ? 'Quản lý các khoản chi định kỳ hàng tháng' : 'Manage monthly recurring bills')
-                    : (isVi ? 'Theo dõi tiền cho mượn và các khoản đi vay' : 'Track money lent and borrowed')}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                style={styles.closeBtn}
-                onPress={() => setDetailModal(null)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="close" size={20} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Thanh chuyển đổi tab bên trong sheet */}
-            <View style={styles.segmentedControl}>
-              <TouchableOpacity
-                style={[styles.segmentBtn, detailModal === 'bills' && styles.segmentBtnActive]}
-                onPress={() => setDetailModal('bills')}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name="receipt-outline"
-                  size={16}
-                  color={detailModal === 'bills' ? '#047857' : '#64748B'}
-                  style={{ marginRight: 6 }}
-                />
-                <Text style={[styles.segmentText, detailModal === 'bills' && styles.segmentTextActive]}>
-                  {isVi ? 'Hóa đơn định kỳ' : 'Recurring Bills'}
-                </Text>
-                {unpaidBillsCount > 0 && (
-                  <View style={styles.badgeCount}>
-                    <Text style={styles.badgeCountText}>{unpaidBillsCount}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.segmentBtn, detailModal === 'debts' && styles.segmentBtnActive]}
-                onPress={() => setDetailModal('debts')}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name="people-outline"
-                  size={16}
-                  color={detailModal === 'debts' ? '#047857' : '#64748B'}
-                  style={{ marginRight: 6 }}
-                />
-                <Text style={[styles.segmentText, detailModal === 'debts' && styles.segmentTextActive]}>
-                  {isVi ? 'Sổ ghi nợ' : 'Debt Book'}
-                </Text>
-                {(debtSummary.lendCount > 0 || debtSummary.borrowCount > 0) && (
-                  <View style={styles.badgeCount}>
-                    <Text style={styles.badgeCountText}>
-                      {debtSummary.lendCount + debtSummary.borrowCount}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {/* NỘI DUNG CUỘN */}
-            <ScrollView
-              style={styles.sheetScrollView}
-              contentContainerStyle={styles.sheetScrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-            {/* ============================================================== */}
-            {/* TAB 1: HÓA ĐƠN ĐỊNH KỲ */}
-            {/* ============================================================== */}
-            {detailModal === 'bills' && (
-              <View>
+  const renderTabContent = (currentActiveTab: 'bills' | 'debts') => (
+    <View>
+      {/* ============================================================== */}
+      {/* TAB 1: HÓA ĐƠN ĐỊNH KỲ */}
+      {/* ============================================================== */}
+      {currentActiveTab === 'bills' && (
+        <View>
                 {/* Form thêm/sửa hóa đơn to bản, tối giản, sang trọng */}
                 {isBillFormOpen ? (
                   <View style={styles.formCard}>
@@ -541,20 +467,27 @@ export const BillsAndDebtsWidget: React.FC = () => {
 
                     {/* 1. Tên hóa đơn */}
                     <Text style={styles.inputLabel}>{isVi ? 'Tên hóa đơn / Khoản phí' : 'Bill Name'}</Text>
-                    <View style={styles.inputBox}>
-                      <Ionicons name="receipt-outline" size={18} color="#94A3B8" style={{ marginRight: 10 }} />
+                    <View style={[styles.inputBox, focusedInput === 'billTitle' && styles.inputBoxFocused]}>
+                      <Ionicons
+                        name="receipt-outline"
+                        size={18}
+                        color={focusedInput === 'billTitle' ? '#047857' : '#94A3B8'}
+                        style={{ marginRight: 10 }}
+                      />
                       <TextInput
                         style={styles.textInput}
                         placeholder={isVi ? 'Ví dụ: Tiền phòng trọ, Điện nước, Wifi...' : 'e.g. Rent, Electricity, Internet...'}
                         placeholderTextColor="#94A3B8"
                         value={billTitle}
                         onChangeText={setBillTitle}
+                        onFocus={() => setFocusedInput('billTitle')}
+                        onBlur={() => setFocusedInput(null)}
                       />
                     </View>
 
                     {/* 2. Số tiền */}
                     <Text style={styles.inputLabel}>{isVi ? 'Số tiền định kỳ' : 'Amount'}</Text>
-                    <View style={styles.inputBox}>
+                    <View style={[styles.inputBox, focusedInput === 'billAmount' && styles.inputBoxFocused]}>
                       <TextInput
                         style={[styles.textInput, { fontSize: 18, fontWeight: '800', color: '#047857' }]}
                         placeholder="0"
@@ -562,8 +495,10 @@ export const BillsAndDebtsWidget: React.FC = () => {
                         keyboardType="numeric"
                         value={billAmount ? Number(billAmount.replace(/\D/g, '')).toLocaleString('vi-VN') : ''}
                         onChangeText={(val) => setBillAmount(val.replace(/\D/g, ''))}
+                        onFocus={() => setFocusedInput('billAmount')}
+                        onBlur={() => setFocusedInput(null)}
                       />
-                      <Text style={styles.currencyBadge}>đ</Text>
+                      <Text style={[styles.currencyBadge, focusedInput === 'billAmount' && { color: '#047857' }]}>đ</Text>
                     </View>
 
                     {/* Nút gợi ý tiền nhanh */}
@@ -770,7 +705,7 @@ export const BillsAndDebtsWidget: React.FC = () => {
             {/* ============================================================== */}
             {/* TAB 2: SỔ GHI NỢ (CHO VAY & ĐI VAY) */}
             {/* ============================================================== */}
-            {detailModal === 'debts' && (
+            {currentActiveTab === 'debts' && (
               <View>
                 {/* 2 Thẻ lớn tổng quan: Cho mượn & Đi vay */}
                 <View style={styles.debtOverviewRow}>
@@ -873,20 +808,27 @@ export const BillsAndDebtsWidget: React.FC = () => {
 
                     {/* 1. Tên người */}
                     <Text style={styles.inputLabel}>{isVi ? 'Tên người' : 'Person Name'}</Text>
-                    <View style={styles.inputBox}>
-                      <Ionicons name="person-outline" size={18} color="#94A3B8" style={{ marginRight: 10 }} />
+                    <View style={[styles.inputBox, focusedInput === 'debtPerson' && styles.inputBoxFocused]}>
+                      <Ionicons
+                        name="person-outline"
+                        size={18}
+                        color={focusedInput === 'debtPerson' ? '#047857' : '#94A3B8'}
+                        style={{ marginRight: 10 }}
+                      />
                       <TextInput
                         style={styles.textInput}
                         placeholder={isVi ? 'Ví dụ: Anh Nam, Bạn Linh đồng nghiệp...' : 'e.g. John, Alex...'}
                         placeholderTextColor="#94A3B8"
                         value={debtPerson}
                         onChangeText={setDebtPerson}
+                        onFocus={() => setFocusedInput('debtPerson')}
+                        onBlur={() => setFocusedInput(null)}
                       />
                     </View>
 
                     {/* 2. Số tiền */}
                     <Text style={styles.inputLabel}>{isVi ? 'Số tiền' : 'Amount'}</Text>
-                    <View style={styles.inputBox}>
+                    <View style={[styles.inputBox, focusedInput === 'debtAmount' && styles.inputBoxFocused]}>
                       <TextInput
                         style={[
                           styles.textInput,
@@ -901,8 +843,10 @@ export const BillsAndDebtsWidget: React.FC = () => {
                         keyboardType="numeric"
                         value={debtAmount ? Number(debtAmount.replace(/\D/g, '')).toLocaleString('vi-VN') : ''}
                         onChangeText={(val) => setDebtAmount(val.replace(/\D/g, ''))}
+                        onFocus={() => setFocusedInput('debtAmount')}
+                        onBlur={() => setFocusedInput(null)}
                       />
-                      <Text style={styles.currencyBadge}>đ</Text>
+                      <Text style={[styles.currencyBadge, focusedInput === 'debtAmount' && { color: debtType === 'lend' ? '#059669' : '#DC2626' }]}>đ</Text>
                     </View>
 
                     {/* Nút gợi ý tiền nhanh */}
@@ -920,27 +864,41 @@ export const BillsAndDebtsWidget: React.FC = () => {
 
                     {/* 3. Hạn trả / Ngày hẹn */}
                     <Text style={styles.inputLabel}>{isVi ? 'Hạn trả / Ngày hẹn' : 'Due Date'}</Text>
-                    <View style={styles.inputBox}>
-                      <Ionicons name="calendar-outline" size={18} color="#94A3B8" style={{ marginRight: 10 }} />
+                    <View style={[styles.inputBox, focusedInput === 'debtDueDate' && styles.inputBoxFocused]}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={18}
+                        color={focusedInput === 'debtDueDate' ? '#047857' : '#94A3B8'}
+                        style={{ marginRight: 10 }}
+                      />
                       <TextInput
                         style={styles.textInput}
                         placeholder={isVi ? 'Ví dụ: 15/10/2026 hoặc Cuối tuần này...' : 'e.g. 15/10/2026 or Next week...'}
                         placeholderTextColor="#94A3B8"
                         value={debtDueDate}
                         onChangeText={setDebtDueDate}
+                        onFocus={() => setFocusedInput('debtDueDate')}
+                        onBlur={() => setFocusedInput(null)}
                       />
                     </View>
 
                     {/* 4. Ghi chú */}
                     <Text style={styles.inputLabel}>{isVi ? 'Ghi chú lý do' : 'Note'}</Text>
-                    <View style={styles.inputBox}>
-                      <Ionicons name="document-text-outline" size={18} color="#94A3B8" style={{ marginRight: 10 }} />
+                    <View style={[styles.inputBox, focusedInput === 'debtNote' && styles.inputBoxFocused]}>
+                      <Ionicons
+                        name="document-text-outline"
+                        size={18}
+                        color={focusedInput === 'debtNote' ? '#047857' : '#94A3B8'}
+                        style={{ marginRight: 10 }}
+                      />
                       <TextInput
                         style={styles.textInput}
                         placeholder={isVi ? 'Ví dụ: Tiền ăn trưa chung, mượn cọc phòng...' : 'e.g. Lunch, Deposit...'}
                         placeholderTextColor="#94A3B8"
                         value={debtNote}
                         onChangeText={setDebtNote}
+                        onFocus={() => setFocusedInput('debtNote')}
+                        onBlur={() => setFocusedInput(null)}
                       />
                     </View>
 
@@ -1147,14 +1105,149 @@ export const BillsAndDebtsWidget: React.FC = () => {
                 </View>
               </View>
             )}
+    </View>
+  );
 
-            <View style={{ height: 20 }} />
-          </ScrollView>
+  return (
+    <View style={[styles.container, noMargin && { marginHorizontal: 0, marginTop: 0, marginBottom: 0 }]}>
+      {/* Header Mục Hóa đơn định kỳ & Sổ ghi nợ */}
+      <View style={styles.inlineHeaderRow}>
+        <View style={styles.inlineHeaderLeft}>
+          <Ionicons name="receipt-outline" size={16} color="#047857" style={{ marginRight: 6 }} />
+          <Text style={styles.inlineHeaderTitle}>
+            {isVi ? 'HÓA ĐƠN ĐỊNH KỲ & SỔ GHI NỢ' : 'RECURRING BILLS & DEBT BOOK'}
+          </Text>
         </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  </View>
-);
+
+        <View style={styles.inlineHeaderBadges}>
+          {unpaidBillsCount > 0 && (
+            <View style={styles.badgePillAmber}>
+              <Text style={styles.badgePillAmberText}>
+                {isVi ? `${unpaidBillsCount} cần đóng` : `${unpaidBillsCount} due`}
+              </Text>
+            </View>
+          )}
+          {(debtSummary.lendCount > 0 || debtSummary.borrowCount > 0) && (
+            <View style={styles.badgePillGreen}>
+              <Text style={styles.badgePillGreenText}>
+                {isVi ? `${debtSummary.lendCount + debtSummary.borrowCount} khoản` : `${debtSummary.lendCount + debtSummary.borrowCount} debts`}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* Thanh 2 nút bấm: Hóa đơn định kỳ & Sổ ghi nợ (Bấm vào nút nào sẽ mở Modal chi tiết) */}
+      <View style={styles.segmentedControl}>
+        <TouchableOpacity
+          style={[styles.segmentBtn, { backgroundColor: '#FFFFFF' }]}
+          onPress={() => setDetailModal('bills')}
+          activeOpacity={0.75}
+        >
+          <Ionicons
+            name="receipt-outline"
+            size={16}
+            color="#047857"
+            style={{ marginRight: 6 }}
+          />
+          <Text style={[styles.segmentText, { color: '#047857', fontWeight: '800' }]}>
+            {isVi ? 'Hóa đơn định kỳ' : 'Recurring Bills'}
+          </Text>
+          {unpaidBillsCount > 0 && (
+            <View style={styles.badgeCount}>
+              <Text style={styles.badgeCountText}>{unpaidBillsCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.segmentBtn, { backgroundColor: '#FFFFFF' }]}
+          onPress={() => setDetailModal('debts')}
+          activeOpacity={0.75}
+        >
+          <Ionicons
+            name="people-outline"
+            size={16}
+            color="#047857"
+            style={{ marginRight: 6 }}
+          />
+          <Text style={[styles.segmentText, { color: '#047857', fontWeight: '800' }]}>
+            {isVi ? 'Sổ ghi nợ' : 'Debt Book'}
+          </Text>
+          {(debtSummary.lendCount > 0 || debtSummary.borrowCount > 0) && (
+            <View style={styles.badgeCount}>
+              <Text style={styles.badgeCountText}>
+                {debtSummary.lendCount + debtSummary.borrowCount}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* MODAL TRƯỢT LÊN / BẬT MỞ CHI TIẾT (Cho cả Web & Mobile) */}
+      <Modal
+        visible={Boolean(detailModal)}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDetailModal(null)}
+      >
+        <KeyboardAvoidingView
+          style={styles.sheetOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          {/* Backdrop mờ phía sau - bấm vào tự đóng */}
+          <TouchableOpacity
+            style={styles.sheetBackdrop}
+            onPress={() => setDetailModal(null)}
+            activeOpacity={1}
+          />
+
+          {/* Khung Bottom Sheet trượt lên từ dưới hoặc căn giữa màn hình trên Desktop */}
+          <View style={styles.sheetContainer}>
+            {/* Thanh kéo handle indicator */}
+            <View style={styles.handleBar} />
+
+            {/* Header của Sheet */}
+            <View style={styles.sheetHeader}>
+              <View>
+                <Text style={styles.sheetTitle}>
+                  {detailModal === 'bills'
+                    ? (isVi ? 'Hóa đơn định kỳ' : 'Recurring Bills')
+                    : (isVi ? 'Sổ ghi nợ' : 'Debt Book')}
+                </Text>
+                <Text style={styles.sheetSubtitle}>
+                  {detailModal === 'bills'
+                    ? (isVi ? 'Quản lý các khoản chi định kỳ hàng tháng' : 'Manage monthly recurring bills')
+                    : (isVi ? 'Theo dõi tiền cho mượn và các khoản đi vay' : 'Track money lent and borrowed')}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => setDetailModal(null)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Thanh chuyển đổi tab bên trong sheet */}
+            {detailModal && renderSegmentedControl(detailModal, (tab) => setDetailModal(tab))}
+
+            {/* NỘI DUNG CUỘN CHI TIẾT */}
+            <ScrollView
+              style={styles.sheetScrollView}
+              contentContainerStyle={styles.sheetScrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {detailModal && renderTabContent(detailModal)}
+              <View style={{ height: 20 }} />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
@@ -1208,19 +1301,58 @@ const styles = StyleSheet.create({
     color: '#047857',
   },
 
+  // GIAO DIỆN HIỂN THỊ TRỰC TIẾP TRÊN TRANG TỔNG QUAN (INLINE)
+  inlineHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  inlineHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inlineHeaderTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#064E3B',
+    letterSpacing: 0.5,
+  },
+  inlineHeaderBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  inlineContentArea: {
+    marginTop: 4,
+  },
+
   // MODAL ĐẨY LÊN TỪ DƯỚI (BOTTOM SHEET SLIDE-UP Y HỆT TRANG LƯU NHANH)
   sheetOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: Platform.OS === 'web' ? 'center' : 'flex-end',
+    ...(Platform.OS === 'web' ? { alignItems: 'center', padding: 16 } : {}),
   },
   sheetBackdrop: {
-    flex: 1,
+    ...(StyleSheet.absoluteFill as any),
   },
   sheetContainer: {
     backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
+    ...(Platform.OS === 'web' ? {
+      borderRadius: 28,
+      width: '100%',
+      maxWidth: 620,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: 0.15,
+      shadowRadius: 24,
+      elevation: 10,
+    } : {}),
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
@@ -1398,17 +1530,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#F8FAFC',
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
     paddingHorizontal: 14,
     height: 48,
     marginBottom: 8,
+  },
+  inputBoxFocused: {
+    borderColor: '#047857',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#047857',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 0 0 3px rgba(4, 120, 87, 0.15)',
+    } : {}),
   },
   textInput: {
     flex: 1,
     fontSize: 14,
     color: '#0F172A',
     paddingVertical: 0,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
     outlineWidth: 0,
   },
   currencyBadge: {

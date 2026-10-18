@@ -17,6 +17,7 @@ import { getBudgetApi, BudgetData, getTransactionsByDateApi, getTransactionsApi,
 import { FinancialCalendarWidget } from '../../components/FinancialCalendarWidget';
 import { RemindersWidget } from '../../components/RemindersWidget';
 import { BillsAndDebtsWidget } from '../../components/BillsAndDebtsWidget';
+import { SavingsGoalsWidget } from '../../components/SavingsGoalsWidget';
 
 import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
 import { BudgetModal } from '../../components/BudgetModal';
@@ -384,6 +385,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
         {/* 4.6. HÓA ĐƠN ĐỊNH KỲ & SỔ GHI NỢ (Dưới Mục nhắc nhở) */}
         <BillsAndDebtsWidget />
+
+        {/* 4.7. HŨ TIẾT KIỆM & MỤC TIÊU NUÔI HEO */}
+        <SavingsGoalsWidget />
 
         {/* Khoảng cách đáy cuộn */}
         <View style={{ height: 28 }} />

@@ -14,6 +14,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { getBudgetApi, BudgetData } from '../../services/api';
 import { BudgetCardWidget } from '../../components/BudgetCardWidget';
 import { BudgetModal } from '../../components/BudgetModal';
+import { SavingsGoalsWidget } from '../../components/SavingsGoalsWidget';
 import { FROGS } from '../../../assets/frogIndex';
 
 interface BudgetScreenProps {
@@ -87,16 +88,16 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({ onNavigateToTab }) =
         <View style={styles.headerLeft}>
           <View style={styles.badgeLabel}>
             <Text style={styles.badgeLabelText}>
-              💳 {isVi ? 'KẾ HOẠCH TÀI CHÍNH' : 'BUDGET PLANNER'}
+              💳 {isVi ? 'KẾ HOẠCH & TÍCH LŨY' : 'BUDGET & SAVINGS'}
             </Text>
           </View>
           <Text style={styles.pageTitle}>
-            {isVi ? 'Kế Hoạch & Giám Sát Ngân Sách Tháng' : 'Monthly Budget Planning & Monitor'}
+            {isVi ? 'Ngân Sách & Mục Tiêu Tích Lũy' : 'Budget Planning & Savings Goals'}
           </Text>
           <Text style={styles.pageSubtitle}>
             {isVi
-              ? `Thiết lập hạn mức chi tiêu tháng ${budget.month}/${budget.year}, phân bổ nguồn lực theo từng danh mục và nhận cảnh báo sớm.`
-              : `Set spending limits for Month ${budget.month}/${budget.year}, categorize budgets and receive smart alerts.`}
+              ? `Thiết lập hạn mức chi tiêu tháng ${budget.month}/${budget.year}, cân đối nguồn lực và theo dõi các hũ tích lũy nuôi heo đạt ước mơ.`
+              : `Set monthly spending limits for Month ${budget.month}/${budget.year}, balance resources, and track dream savings goals.`}
           </Text>
         </View>
 
@@ -232,6 +233,11 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({ onNavigateToTab }) =
             );
           })}
         </View>
+      </View>
+
+      {/* ================= ROW 3: MỤC TIÊU TÍCH LŨY & TIẾT KIỆM (ĐỒNG BỘ VỚI TỔNG QUAN) ================= */}
+      <View style={{ marginTop: 24 }}>
+        <SavingsGoalsWidget noMargin={true} />
       </View>
 
       {/* Modal chỉnh sửa */}

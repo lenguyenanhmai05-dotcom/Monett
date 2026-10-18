@@ -14,9 +14,11 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { NotificationModal } from '../components/NotificationModal';
+import { FloatingFrogAIChat } from '../components/FloatingFrogAIChat';
 
 export type TabKey =
   | 'home'
+  | 'messages'
   | 'feed'
   | 'analytics'
   | 'transactions'
@@ -71,9 +73,8 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   }[] = [
     { key: 'home', labelVi: 'Tổng quan', labelEn: 'Overview', icon: 'grid-outline' },
     { key: 'feed', labelVi: 'Bảng tin', labelEn: 'News Feed', icon: 'newspaper-outline' },
-    { key: 'analytics', labelVi: 'Báo cáo', labelEn: 'Analytics', icon: 'bar-chart-outline' },
-    { key: 'transactions', labelVi: 'Chi tiêu', labelEn: 'Expenses', icon: 'receipt-outline' },
-    { key: 'budget', labelVi: 'Ngân sách', labelEn: 'Budget', icon: 'wallet-outline' },
+    { key: 'analytics', labelVi: 'Báo cáo', labelEn: 'Report', icon: 'bar-chart-outline' },
+    { key: 'budget', labelVi: 'Ngân sách & Tích lũy', labelEn: 'Budget & Savings', icon: 'wallet-outline' },
   ];
 
   return (
@@ -278,6 +279,9 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
 
       {/* Interactive Notification Popover / Modal */}
       <NotificationModal onNavigateToTab={onSelectTab} />
+
+      {/* Floating Frog AI Copilot (Interactive Guide & Navigator) */}
+      <FloatingFrogAIChat onNavigateToTab={onSelectTab} />
     </SafeAreaView>
   );
 };
@@ -417,7 +421,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   // ==================== MAIN CONTENT ====================
   mainArea: {
     flex: 1,
-    backgroundColor: isDark ? '#0F172A' : '#F5F0E8',
+    backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
   },
   contentWrapper: {
     flex: 1,

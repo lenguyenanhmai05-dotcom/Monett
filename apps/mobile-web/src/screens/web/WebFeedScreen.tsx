@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Image, Animated, Modal, Dimensions, Platform, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Image, Animated, Modal, Dimensions, Platform, TextInput, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -7,6 +7,7 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import { getMomentsFeedApi, reactMomentApi, getMomentReactionsApi, deleteMomentApi, normalizeAvatarUrl, getFriendsApi, getFriendRequestsApi, respondFriendRequestApi, removeFriendApi, sendFriendRequestApi } from '../../services/api';
 import { MomentFormModal, MomentChatModal, MomentItem, MomentCommentItem } from '../mobile/FriendsFeedScreen';
 import { ChatModal } from '../../components/ChatModal';
+import { MessagesScreen } from '../mobile/MessagesScreen';
 
 const EMOJIS = ['❤️', '🔥', '👏', '😂', '💸'];
 
@@ -413,7 +414,13 @@ const cardStyles = StyleSheet.create({
 });
 
 
-export const WebFeedScreen = () => {
+export interface WebFeedScreenProps {
+  initialTab?: 'feed' | 'chat' | 'friends';
+}
+
+export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed' }) => {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 900;
   const { user } = useAuth();
   const { isDark, colors } = useTheme();
   const { addNotification } = useNotifications();
@@ -430,8 +437,14 @@ export const WebFeedScreen = () => {
   const [friendIdInput, setFriendIdInput] = useState('');
   const [isSendingRequest, setIsSendingRequest] = useState(false);
 
-  // New tab state
-  const [activeTab, setActiveTab] = useState<'feed' | 'friends'>('feed');
+  // Tab gộp: Bảng tin khoảnh khắc • Tin nhắn & AI • Bạn bè
+  const [activeTab, setActiveTab] = useState<'feed' | 'chat' | 'friends'>(initialTab);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   // Friends state
   const [friendsList, setFriendsList] = useState<any[]>([]);
@@ -447,25 +460,21 @@ export const WebFeedScreen = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      if (activeTab === 'feed') {
-        const feedData = await getMomentsFeedApi().catch(() => []);
-        setMoments((feedData as any) || []);
-      } else if (activeTab === 'friends') {
-        setIsFriendsLoading(true);
-        const [f, r] = await Promise.all([
-          getFriendsApi().catch(() => []),
-          getFriendRequestsApi().catch(() => [])
-        ]);
-        setFriendsList(f || []);
-        setFriendRequests(r || []);
-        setIsFriendsLoading(false);
-      }
+      const [feedData, f, r] = await Promise.all([
+        getMomentsFeedApi().catch(() => []),
+        getFriendsApi().catch(() => []),
+        getFriendRequestsApi().catch(() => []),
+      ]);
+      setMoments((feedData as any) || []);
+      setFriendsList(f || []);
+      setFriendRequests(r || []);
     } catch (err) {
       console.error('Error loading data:', err);
     } finally {
       setLoading(false);
+      setIsFriendsLoading(false);
     }
-  }, [activeTab]);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -596,48 +605,79 @@ export const WebFeedScreen = () => {
             <View style={styles.userProfileHeader}>
               <Avatar uri={(user as any)?.avatarUrl || (user as any)?.avatar} name={(user as any)?.fullName || 'User'} size={44} />
               <View style={styles.userInfo}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={styles.userName} numberOfLines={1}>{(user as any)?.fullName || 'Người dùng'}</Text>
-                  {((user as any)?.isPro || (user as any)?.package === 'pro') && (
-                    <View style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      backgroundColor: '#059669',
-                      paddingHorizontal: 8,
-                      paddingVertical: 3,
-                      borderRadius: 12,
-                      marginLeft: 8,
-                      shadowColor: '#059669',
-                      shadowOpacity: 0.3,
-                      shadowRadius: 4,
-                      shadowOffset: { width: 0, height: 2 },
-                      elevation: 2
-                    }}>
-                      <Ionicons name="star" size={10} color="#FDE047" style={{ marginRight: 3 }} />
-                      <Text style={{ color: '#FFF', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 }}>PRO</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.userBadge}>@{((user as any)?.email || '').split('@')[0] || 'user'}</Text>
+                <Text style={styles.userName} numberOfLines={1}>
+                  {(user as any)?.fullName || 'Người dùng'}
+                </Text>
               </View>
             </View>
 
             <View style={styles.divider} />
 
             <TouchableOpacity style={[styles.menuItem, activeTab === 'feed' && styles.menuItemActive]} onPress={() => setActiveTab('feed')}>
-              <Ionicons name="home" size={20} color={activeTab === 'feed' ? "#059669" : "#64748B"} />
+              <Ionicons name="newspaper" size={20} color={activeTab === 'feed' ? "#059669" : "#64748B"} />
               <Text style={[styles.menuText, activeTab === 'feed' && styles.menuTextActive]}>Bảng tin</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity style={[styles.menuItem, activeTab === 'chat' && styles.menuItemActive]} onPress={() => setActiveTab('chat')}>
+              <Ionicons name="chatbubbles" size={20} color={activeTab === 'chat' ? "#059669" : "#64748B"} />
+              <Text style={[styles.menuText, activeTab === 'chat' && styles.menuTextActive]}>Tin nhắn</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={[styles.menuItem, activeTab === 'friends' && styles.menuItemActive]} onPress={() => setActiveTab('friends')}>
               <Ionicons name="people" size={20} color={activeTab === 'friends' ? "#059669" : "#64748B"} />
-              <Text style={[styles.menuText, activeTab === 'friends' && styles.menuTextActive]}>Bạn bè ({friendsList.length})</Text>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginLeft: 12 }}>
+                <Text style={[styles.menuText, { marginLeft: 0 }, activeTab === 'friends' && styles.menuTextActive]}>Bạn bè</Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: activeTab === 'friends' ? '#059669' : '#64748B' }}>({friendsList.length})</Text>
+              </View>
             </TouchableOpacity>
+          </View>
+
+          {/* Quick Chat Widget */}
+          <View style={[styles.card, { marginTop: 12 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <Text style={{ fontSize: 13, fontWeight: '800', color: isDark ? '#F1F5F9' : '#0F172A' }}>
+                Trò chuyện nhanh
+              </Text>
+              <TouchableOpacity onPress={() => setActiveTab('chat')}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#059669' }}>Mở chat ➔</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Bạn bè trong danh sách */}
+            {friendsList.length === 0 ? (
+              <Text style={{ fontSize: 12, color: '#94A3B8', paddingVertical: 8, textAlign: 'center' }}>
+                Chưa có bạn bè nào
+              </Text>
+            ) : (
+              friendsList.slice(0, 4).map((f: any, idx: number) => {
+                const fName = f.fullName || f.email || 'Bạn';
+                return (
+                  <TouchableOpacity
+                    key={f._id || f.id || idx}
+                    style={styles.quickChatItem}
+                    onPress={() => setActiveChatFriend(f)}
+                    activeOpacity={0.75}
+                  >
+                    <Avatar uri={f.avatarUrl || f.avatar} name={fName} size={34} />
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={styles.quickChatName} numberOfLines={1}>{fName}</Text>
+                      <Text style={styles.quickChatSub} numberOfLines={1}>🔥 Chuỗi {f.streak || 1} ngày</Text>
+                    </View>
+                    <Ionicons name="chatbubble-ellipses-outline" size={17} color="#059669" />
+                  </TouchableOpacity>
+                );
+              })
+            )}
           </View>
         </View>
 
         {/* MIDDLE COLUMN - Main Content */}
         <View style={styles.middleColumn}>
-          {activeTab === 'friends' ? (
+          {activeTab === 'chat' ? (
+            <View style={styles.chatFrameCard}>
+              <MessagesScreen />
+            </View>
+          ) : activeTab === 'friends' ? (
             <View style={styles.card}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 8 }}>
                 <TextInput
@@ -1116,5 +1156,122 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     fontSize: 12,
     color: isDark ? '#B0B3B8' : '#65676B',
     marginTop: 2,
+  },
+  topTabBar: {
+    flexDirection: 'row',
+    backgroundColor: isDark ? '#242526' : '#FFFFFF',
+    borderRadius: 16,
+    padding: 6,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: isDark ? '#3E4042' : '#E8E0D5',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  topTabBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  topTabBtnActive: {
+    backgroundColor: isDark ? '#064E3B' : '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  topTabBtnText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: isDark ? '#CBD5E1' : '#64748B',
+  },
+  topTabBtnTextActive: {
+    color: '#047857',
+    fontWeight: '800',
+  },
+  tabBadgeFrog: {
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  tabBadgeRed: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  chatFrameCard: {
+    height: Platform.OS === 'web' ? ('calc(100vh - 120px)' as any) : 750,
+    backgroundColor: isDark ? '#242526' : '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: isDark ? '#3E4042' : '#E8E0D5',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  quickChatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  frogAvatarBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  onlineDot: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#10B981',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  quickChatName: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: isDark ? '#F1F5F9' : '#0F172A',
+  },
+  quickChatSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  chatPillBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  chatPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#047857',
   },
 });

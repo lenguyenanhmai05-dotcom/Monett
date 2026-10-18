@@ -11,6 +11,7 @@ import { FinancialReportScreen } from './src/screens/web/FinancialReportScreen';
 import { TransactionsScreen } from './src/screens/web/TransactionsScreen';
 import { BudgetScreen } from './src/screens/web/BudgetScreen';
 import { CalendarScreen } from './src/screens/mobile/CalendarScreen';
+import { MessagesScreen } from './src/screens/mobile/MessagesScreen';
 import { FriendsFeedScreen } from './src/screens/mobile/FriendsFeedScreen';
 import { WebFeedScreen } from './src/screens/web/WebFeedScreen';
 import { MobileAuthScreen } from './src/screens/mobile/MobileAuthScreen';
@@ -21,6 +22,31 @@ import { SocketProvider } from './src/contexts/SocketContext';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { NotificationProvider } from './src/contexts/NotificationContext';
+
+// Xóa bỏ hoàn toàn viền đen mặc định của trình duyệt web trên mọi ô nhập liệu
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const styleId = 'monett-global-focus-reset';
+  if (!document.getElementById(styleId)) {
+    const styleEl = document.createElement('style');
+    styleEl.id = styleId;
+    styleEl.innerHTML = `
+      input, textarea, select {
+        outline: none !important;
+        outline-style: none !important;
+        outline-width: 0 !important;
+        box-shadow: none !important;
+        -webkit-tap-highlight-color: transparent !important;
+      }
+      input:focus, textarea:focus, select:focus {
+        outline: none !important;
+        outline-style: none !important;
+        outline-width: 0 !important;
+        box-shadow: none !important;
+      }
+    `;
+    document.head.appendChild(styleEl);
+  }
+}
 
 function MainApp() {
   const { user, isLoading } = useAuth();
@@ -99,14 +125,15 @@ function MainApp() {
     switch (activeTab) {
       case 'home':
         return <HomeScreen onNavigateToTab={setActiveTab} />;
+      case 'messages':
+        return <WebFeedScreen initialTab="chat" />;
       case 'feed':
-        return <WebFeedScreen />;
+        return <WebFeedScreen initialTab="feed" />;
       case 'profile':
         return <ProfileScreen />;
+      case 'transactions':
       case 'analytics':
         return <FinancialReportScreen onNavigateToTab={setActiveTab} />;
-      case 'transactions':
-        return <TransactionsScreen onNavigateToTab={setActiveTab} />;
       case 'budget':
         return <BudgetScreen onNavigateToTab={setActiveTab} />;
       default:

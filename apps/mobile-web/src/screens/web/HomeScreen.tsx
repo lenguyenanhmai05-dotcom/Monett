@@ -12,12 +12,16 @@ import {
   TextInput,
 } from 'react-native';
 import Svg, { Path, Rect, Circle, Line, Polyline } from 'react-native-svg';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 import { UserProfileHeader } from '../../components/UserProfileHeader';
 import { IntegratedBudgetBar } from '../../components/IntegratedBudgetBar';
+import { RemindersWidget } from '../../components/RemindersWidget';
+import { BillsAndDebtsWidget } from '../../components/BillsAndDebtsWidget';
+import { SavingsGoalsWidget } from '../../components/SavingsGoalsWidget';
 import { getBudgetApi, BudgetData } from '../../services/api';
 import {
   compressImageFile,
@@ -863,7 +867,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
       </View>
 
       {/* ===================== ROW 2: LỊCH TRÌNH CHI TIÊU (FULL WIDTH) ===================== */}
-      <View style={[styles.card, styles.fullWidthCard]}>
+      <View style={[styles.card, styles.fullWidthCard]} nativeID="financial-calendar-section" {...({ id: 'financial-calendar-section' } as any)}>
         <View style={styles.scheduleHeader}>
           <Text style={styles.scheduleTitle}>
             {language === 'vi' ? 'Lịch trình chi tiêu' : 'Spending Schedule'}
@@ -1108,6 +1112,35 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
               : 'Tap any day cell to upload receipt photo, enter amount, and select expense category.'}
           </Text>
         </View>
+      </View>
+
+      {/* ===================== ROW 3: MỤC NHẮC NHỞ & HÓA ĐƠN ĐỊNH KỲ, SỔ GHI NỢ ===================== */}
+      <View style={[styles.dashboardWidgetsRow, width >= 1080 && styles.dashboardWidgetsRowWide]}>
+        {/* CỘT 1: MỤC NHẮC NHỞ */}
+        <View style={[styles.card, styles.dashboardWidgetCard, width >= 1080 && { flex: 1 }]}>
+          <RemindersWidget
+            noMargin={true}
+            currentDateStr={`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(todayDate > 0 ? todayDate : 1).padStart(2, '0')}`}
+          />
+        </View>
+
+        {/* CỘT 2: HÓA ĐƠN ĐỊNH KỲ & SỔ GHI NỢ */}
+        <View
+          style={[styles.card, styles.dashboardWidgetCard, width >= 1080 && { flex: 1.15 }]}
+          nativeID="bills-debts-section"
+          {...({ id: 'bills-debts-section' } as any)}
+        >
+          <BillsAndDebtsWidget noMargin={true} />
+        </View>
+      </View>
+
+      {/* ===================== ROW 4: HŨ TIẾT KIỆM & MỤC TIÊU NUÔI HEO ===================== */}
+      <View
+        style={[styles.card, styles.fullWidthCard, { padding: 22, marginBottom: 24 }]}
+        nativeID="savings-goals-section"
+        {...({ id: 'savings-goals-section' } as any)}
+      >
+        <SavingsGoalsWidget noMargin={true} />
       </View>
 
       {/* ===================== 1. MODAL LƯU NHANH CHI TIÊU (KHÔNG BẮT BUỘC ẢNH, CỘNG DỒN VÀO LỊCH) ===================== */}
@@ -1833,6 +1866,21 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   },
   fullWidthCard: {
     width: '100%',
+  },
+  dashboardWidgetsRow: {
+    width: '100%',
+    flexDirection: 'column',
+    gap: 20,
+    marginBottom: 24,
+  },
+  dashboardWidgetsRowWide: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  dashboardWidgetCard: {
+    padding: 20,
+    borderRadius: 22,
+    marginBottom: 0,
   },
 
   // ==================== PROFILE CARD STYLES ====================
