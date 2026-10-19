@@ -27,32 +27,9 @@ interface RemindersWidgetProps {
   noMargin?: boolean;
 }
 
-// Hàm phát chuông thông báo nhẹ nhàng bằng Web Audio API không phụ thuộc file âm thanh bên ngoài
+// Đã tắt âm thanh thông báo theo yêu cầu
 const playNotificationSound = () => {
-  if (typeof window !== 'undefined' && ((window as any).AudioContext || (window as any).webkitAudioContext)) {
-    try {
-      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.type = 'sine';
-      // Âm điệu vui tươi Đô - Mi - Sol (C5 - E5 - G5)
-      osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
-      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.12); // E5
-      osc.frequency.setValueAtTime(783.99, ctx.currentTime + 0.24); // G5
-
-      gain.gain.setValueAtTime(0.2, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-
-      osc.start();
-      osc.stop(ctx.currentTime + 0.5);
-    } catch {
-      // Ignored if browser restricts autoplay audio
-    }
-  }
+  return;
 };
 
 // Dữ liệu mẫu ban đầu để giao diện không bị trống nếu chưa có mạng

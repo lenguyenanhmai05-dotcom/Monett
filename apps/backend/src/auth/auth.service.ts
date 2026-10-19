@@ -264,6 +264,12 @@ export class AuthService {
       throw new UnauthorizedException('Email hoặc mật khẩu không chính xác!');
     }
 
+    if (!user.password) {
+      throw new UnauthorizedException(
+        'Tài khoản này được đăng ký bằng Google. Vui lòng đăng nhập bằng Google!',
+      );
+    }
+
     const isMatch = await bcrypt.compare(loginDto.password, user.password);
     if (!isMatch) {
       throw new UnauthorizedException('Email hoặc mật khẩu không chính xác!');

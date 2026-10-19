@@ -17,8 +17,11 @@ import { BudgetModal } from '../../components/BudgetModal';
 import { SavingsGoalsWidget } from '../../components/SavingsGoalsWidget';
 import { FROGS } from '../../../assets/frogIndex';
 
+import { SavingsScreen } from './SavingsScreen';
+
 interface BudgetScreenProps {
   onNavigateToTab?: (tab: any) => void;
+  initialSubTab?: 'savings' | 'budget';
 }
 
 interface CategoryBudgetItem {
@@ -38,12 +41,17 @@ const DEFAULT_CATEGORY_BUDGETS: CategoryBudgetItem[] = [
   { category: 'Giải trí & Phim ảnh', icon: '🎬', spent: 350000, limit: 1000000, color: '#DB2777' },
 ];
 
-export const BudgetScreen: React.FC<BudgetScreenProps> = ({ onNavigateToTab }) => {
+export const BudgetScreen: React.FC<BudgetScreenProps> = ({
+  onNavigateToTab,
+  initialSubTab = 'savings',
+}) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 960;
   const { language } = useLanguage();
   const { isDark, colors } = useTheme();
   const isVi = language === 'vi';
+
+  const [subTab, setSubTab] = useState<'savings' | 'budget'>(initialSubTab);
 
   const [budget, setBudget] = useState<BudgetData>({
     month: new Date().getMonth() + 1,
@@ -77,12 +85,35 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({ onNavigateToTab }) =
 
   const styles = getStyles(isDark, colors);
 
+  // Nếu đang ở tab Tích lũy, hiển thị màn hình Tích lũy (SavingsScreen)
+  if (subTab === 'savings') {
+    return (
+      <SavingsScreen
+        onNavigateToTab={onNavigateToTab}
+        onSwitchToBudget={() => setSubTab('budget')}
+      />
+    );
+  }
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
+      {/* ================= SUB-TAB SWITCHER ROW ================= */}
+      <View style={styles.subTabNavRow}>
+        <TouchableOpacity
+          style={styles.subTabNavBtn}
+          onPress={() => setSubTab('savings')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="flag-outline" size={16} color="#059669" />
+          <Text style={styles.subTabNavTextActive}>
+            {isVi ? '← Trở về Tích lũy' : '← Back to Savings'}
+          </Text>
+        </TouchableOpacity>
+      </View>
       {/* ================= HEADER BAR ================= */}
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
@@ -262,6 +293,26 @@ const getStyles = (isDark: boolean, colors: any) =>
     contentContainer: {
       padding: 24,
       paddingBottom: 60,
+    },
+    subTabNavRow: {
+      flexDirection: 'row',
+      marginBottom: 16,
+    },
+    subTabNavBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: isDark ? '#1E293B' : '#E8F5E9',
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: isDark ? '#334155' : '#C8E6C9',
+    },
+    subTabNavTextActive: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: '#059669',
     },
     headerRow: {
       flexDirection: 'row',

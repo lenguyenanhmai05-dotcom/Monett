@@ -21,11 +21,12 @@ import { ProfileScreen } from './ProfileScreen';
 import { FriendsFeedScreen } from './FriendsFeedScreen';
 import { MessagesScreen } from './MessagesScreen';
 import { DayExpensesScreen } from './DayExpensesScreen';
+import { EventsScreen } from '../web/EventsScreen';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { createTransactionApi } from '../../services/api';
 import { NotificationModal } from '../../components/NotificationModal';
 
-export type MobileTab = 'home' | 'calendar' | 'analytics' | 'feed' | 'wallets' | 'categories' | 'profile';
+export type MobileTab = 'home' | 'calendar' | 'analytics' | 'feed' | 'wallets' | 'categories' | 'profile' | 'events';
 export type ActiveModal = 'none' | 'camera' | 'add_expense' | 'quick_save' | 'detail' | 'day_expenses';
 
 export const MobileNavigator: React.FC = () => {
@@ -109,6 +110,8 @@ export const MobileNavigator: React.FC = () => {
         return <WalletsScreen onBack={() => setCurrentTab('profile')} />;
       case 'categories':
         return <CategoriesScreen onBack={() => setCurrentTab('profile')} />;
+      case 'events':
+        return <EventsScreen onNavigateToTab={(tab) => setCurrentTab(tab as any)} />;
       case 'profile':
         return (
           <ProfileScreen

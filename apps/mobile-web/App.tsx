@@ -10,6 +10,9 @@ import { LandingScreen } from './src/screens/web/LandingScreen';
 import { FinancialReportScreen } from './src/screens/web/FinancialReportScreen';
 import { TransactionsScreen } from './src/screens/web/TransactionsScreen';
 import { BudgetScreen } from './src/screens/web/BudgetScreen';
+import { EventsScreen } from './src/screens/web/EventsScreen';
+import { RecurringScreen } from './src/screens/web/RecurringScreen';
+import { DebtScreen } from './src/screens/web/DebtScreen';
 import { CalendarScreen } from './src/screens/mobile/CalendarScreen';
 import { MessagesScreen } from './src/screens/mobile/MessagesScreen';
 import { FriendsFeedScreen } from './src/screens/mobile/FriendsFeedScreen';
@@ -134,8 +137,14 @@ function MainApp() {
       case 'transactions':
       case 'analytics':
         return <FinancialReportScreen onNavigateToTab={setActiveTab} />;
+      case 'events':
+        return <EventsScreen onNavigateToTab={setActiveTab} />;
       case 'budget':
         return <BudgetScreen onNavigateToTab={setActiveTab} />;
+      case 'recurring':
+        return <RecurringScreen onNavigateToTab={setActiveTab} />;
+      case 'debts':
+        return <DebtScreen onNavigateToTab={setActiveTab} />;
       default:
         return <HomeScreen onNavigateToTab={setActiveTab} />;
     }

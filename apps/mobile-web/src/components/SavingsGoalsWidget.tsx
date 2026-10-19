@@ -15,17 +15,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 
-export interface ISavingsGoal {
-  id: string;
-  title: string;
-  targetAmount: number;
-  currentAmount: number;
-  icon: string;
-  deadline?: string;
-  color?: string;
-  note?: string;
-  createdAt: string;
-}
+import {
+  ISavingsGoal,
+  loadSavingsGoals,
+  saveSavingsGoals,
+} from '../services/savingsStorage';
+
+export { ISavingsGoal };
 
 const PRESET_ICONS = ['📱', '🏖️', '💻', '🚗', '🏠', '🛡️', '💍', '🎓', '🎮', '🏍️', '✈️', '🎸'];
 const PRESET_COLORS = ['#059669', '#0284C7', '#7C3AED', '#EA580C', '#DB2777', '#F59E0B'];
@@ -63,28 +59,9 @@ const SAMPLE_GOALS: ISavingsGoal[] = [
   },
 ];
 
-// Hàm phát chuông tiếng tiền xu vui nhộn bằng Web Audio API
+// Đã tắt hoàn toàn âm thanh theo yêu cầu của người dùng
 const playCoinSound = () => {
-  if (typeof window !== 'undefined' && ((window as any).AudioContext || (window as any).webkitAudioContext)) {
-    try {
-      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(987.77, ctx.currentTime); // B5
-      osc.frequency.setValueAtTime(1318.51, ctx.currentTime + 0.08); // E6
-      osc.frequency.setValueAtTime(1975.53, ctx.currentTime + 0.16); // B6
-      gain.gain.setValueAtTime(0.2, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.45);
-    } catch {
-      // Ignored
-    }
-  }
+  return;
 };
 
 const formatMoney = (amount: number): string => {
@@ -107,7 +84,7 @@ export const SavingsGoalsWidget: React.FC<SavingsGoalsWidgetProps> = ({ noMargin
     return `@monett_savings_goals_${user?.id || 'guest'}`;
   }, [user?.id]);
 
-  const [goals, setGoals] = useState<ISavingsGoal[]>(SAMPLE_GOALS);
+  const [goals, setGoals] = useState<ISavingsGoal[]>(() => loadSavingsGoals(user?.id));
 
   // Modal nạp thêm tiền vào hũ
   const [depositingGoal, setDepositingGoal] = useState<ISavingsGoal | null>(null);
@@ -126,27 +103,13 @@ export const SavingsGoalsWidget: React.FC<SavingsGoalsWidgetProps> = ({ noMargin
 
   // Tải từ LocalStorage khi khởi động
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      try {
-        const raw = window.localStorage.getItem(storageKey);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setGoals(parsed);
-          }
-        }
-      } catch {}
-    }
-  }, [storageKey]);
+    setGoals(loadSavingsGoals(user?.id));
+  }, [user?.id]);
 
   // Lưu vào LocalStorage khi goals thay đổi
   const saveGoals = (updated: ISavingsGoal[]) => {
     setGoals(updated);
-    if (typeof window !== 'undefined' && window.localStorage) {
-      try {
-        window.localStorage.setItem(storageKey, JSON.stringify(updated));
-      } catch {}
-    }
+    saveSavingsGoals(updated, user?.id);
   };
 
   // Tính toán tổng số tiền đã gom & mục tiêu

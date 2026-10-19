@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -20,9 +20,12 @@ export type TabKey =
   | 'home'
   | 'messages'
   | 'feed'
+  | 'events'
   | 'analytics'
   | 'transactions'
   | 'budget'
+  | 'recurring'
+  | 'debts'
   | 'profile';
 
 interface ResponsiveLayoutProps {
@@ -73,8 +76,11 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   }[] = [
     { key: 'home', labelVi: 'Tổng quan', labelEn: 'Overview', icon: 'grid-outline' },
     { key: 'feed', labelVi: 'Bảng tin', labelEn: 'News Feed', icon: 'newspaper-outline' },
+    { key: 'events', labelVi: 'Sự kiện', labelEn: 'Events', icon: 'calendar-outline' },
     { key: 'analytics', labelVi: 'Báo cáo', labelEn: 'Report', icon: 'bar-chart-outline' },
-    { key: 'budget', labelVi: 'Ngân sách & Tích lũy', labelEn: 'Budget & Savings', icon: 'wallet-outline' },
+    { key: 'budget', labelVi: 'Tích lũy', labelEn: 'Savings', icon: 'wallet-outline' },
+    { key: 'recurring', labelVi: 'Định kỳ', labelEn: 'Recurring', icon: 'repeat-outline' },
+    { key: 'debts', labelVi: 'Sổ ghi nợ', labelEn: 'Debt Book', icon: 'book-outline' },
   ];
 
   return (
@@ -97,35 +103,14 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
             </TouchableOpacity>
 
             {/* Center: Main Navigation Tabs (Clean Frameless Nav Links) */}
-            <View style={styles.navCenter}>
-              {tabs.map((tab) => {
-                const isActive = activeTab === tab.key;
-                const label = language === 'vi' ? tab.labelVi : tab.labelEn;
-                return (
-                  <TouchableOpacity
-                    key={tab.key}
-                    style={[styles.navTabBtn, isActive && styles.navTabBtnActive]}
-                    onPress={() => onSelectTab(tab.key)}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons
-                      name={tab.icon}
-                      size={17}
-                      color={isActive ? '#047857' : (isDark ? '#94A3B8' : '#64748B')}
-                    />
-                    <Text
-                      style={[
-                        styles.navTabText,
-                        isActive && styles.navTabTextActive,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <NavTabs
+              tabs={tabs}
+              activeTab={activeTab}
+              onSelectTab={onSelectTab}
+              language={language}
+              isDark={isDark}
+              styles={styles}
+            />
 
             {/* Right: Notifications & User Profile */}
             <View style={styles.navRight}>
@@ -286,6 +271,59 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   );
 };
 
+// ---- Separate component for desktop nav tabs to enable hover state ----
+const NavTabs: React.FC<{
+  tabs: { key: TabKey; labelVi: string; labelEn: string; icon: keyof typeof Ionicons.glyphMap }[];
+  activeTab: TabKey;
+  onSelectTab: (tab: TabKey) => void;
+  language: string;
+  isDark: boolean;
+  styles: ReturnType<typeof getStyles>;
+}> = ({ tabs, activeTab, onSelectTab, language, isDark, styles }) => {
+  const [hoveredTab, setHoveredTab] = useState<TabKey | null>(null);
+  return (
+    <View style={styles.navCenter}>
+      {tabs.map((tab) => {
+        const isActive = activeTab === tab.key;
+        const isHovered = hoveredTab === tab.key;
+        const label = language === 'vi' ? tab.labelVi : tab.labelEn;
+        return (
+          <TouchableOpacity
+            key={tab.key}
+            style={[
+              styles.navTabBtn,
+              isHovered && !isActive && styles.navTabBtnHover,
+              isActive && styles.navTabBtnActive,
+            ]}
+            onPress={() => onSelectTab(tab.key)}
+            activeOpacity={0.85}
+            // @ts-ignore - web-only hover events
+            onMouseEnter={() => setHoveredTab(tab.key)}
+            // @ts-ignore
+            onMouseLeave={() => setHoveredTab(null)}
+          >
+            <Ionicons
+              name={tab.icon}
+              size={17}
+              color={isActive ? '#FFFFFF' : isHovered ? (isDark ? '#E2E8F0' : '#1C3D2E') : (isDark ? '#94A3B8' : '#64748B')}
+            />
+            <Text
+              style={[
+                styles.navTabText,
+                isHovered && !isActive && styles.navTabTextHover,
+                isActive && styles.navTabTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              {label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+};
+
 const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -331,19 +369,36 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingVertical: 7,
-    paddingHorizontal: 12,
+    paddingHorizontal: 13,
     borderRadius: 8,
-  },
+    cursor: 'pointer',
+    transitionProperty: 'background-color, box-shadow',
+    transitionDuration: '150ms',
+    transitionTimingFunction: 'ease',
+  } as any,
+  navTabBtnHover: {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : '#EDE7DC',
+    boxShadow: isDark ? 'none' : '0 1px 4px rgba(0,0,0,0.07)',
+  } as any,
   navTabBtnActive: {
-    backgroundColor: isDark ? 'rgba(4, 120, 87, 0.16)' : '#E8EFE5',
-  },
+    backgroundColor: isDark ? '#065F46' : '#166534',
+    boxShadow: isDark
+      ? '0 2px 8px rgba(4,120,87,0.35)'
+      : '0 2px 8px rgba(22,101,52,0.28)',
+  } as any,
   navTabText: {
     fontSize: 13.5,
     fontWeight: '500',
     color: isDark ? '#94A3B8' : '#475569',
+    transitionProperty: 'color, font-weight',
+    transitionDuration: '150ms',
+  } as any,
+  navTabTextHover: {
+    color: isDark ? '#E2E8F0' : '#1C3D2E',
+    fontWeight: '700',
   },
   navTabTextActive: {
-    color: '#047857',
+    color: '#FFFFFF',
     fontWeight: '700',
   },
   navRight: {
@@ -421,7 +476,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   // ==================== MAIN CONTENT ====================
   mainArea: {
     flex: 1,
-    backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
+    backgroundColor: isDark ? '#0F172A' : '#F5F0E8',
   },
   contentWrapper: {
     flex: 1,

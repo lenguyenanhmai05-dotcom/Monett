@@ -185,9 +185,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     setNotifications((prev) => [newNotif, ...prev]);
 
-    // Phát âm thanh thông báo dịu nhẹ
-    playNotificationSound().catch(() => {});
-
     return newNotif;
   }, []);
 

@@ -10,6 +10,7 @@ import {
   Platform,
   Modal,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Svg, {
   Path,
   Rect,
@@ -118,7 +119,7 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
             setDayRecords((prev) => ({ ...prev, ...stored }));
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     };
 
     reloadData();
@@ -132,7 +133,7 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
       .then((b) => {
         if (isMounted && b && b.limit) setBudget(b);
       })
-      .catch(() => {});
+      .catch(() => { });
 
     return () => {
       isMounted = false;
@@ -739,7 +740,7 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    } catch {}
+    } catch { }
   };
 
   // Xuất file JSON
@@ -884,137 +885,145 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
           ? `${weekReportData.peakDay.dayOfWeekLabel} (${weekReportData.peakDay.dayNum}/${weekReportData.peakDay.monthNum})`
           : 'Chưa có'
         : timeScope === 'day'
-        ? dayReportData.maxItem
-          ? `${dayReportData.maxItem.category}`
-          : 'Chưa có'
-        : timeScope === 'month'
-        ? monthReportData.peakDay
-          ? `Ngày ${monthReportData.peakDay.day}/${selectedMonth}`
-          : 'Chưa có'
-        : yearReportData.peakMonth
-        ? `Tháng ${yearReportData.peakMonth.month}`
-        : 'Chưa có';
+          ? dayReportData.maxItem
+            ? `${dayReportData.maxItem.category}`
+            : 'Chưa có'
+          : timeScope === 'month'
+            ? monthReportData.peakDay
+              ? `Ngày ${monthReportData.peakDay.day}/${selectedMonth}`
+              : 'Chưa có'
+            : yearReportData.peakMonth
+              ? `Tháng ${yearReportData.peakMonth.month}`
+              : 'Chưa có';
 
     const avgText =
       timeScope === 'week'
         ? `${formatMoney(weekReportData.dailyAvg)} VNĐ/ngày`
         : timeScope === 'day'
-        ? topCategory
-          ? `${topCategory.name}`
-          : 'Chưa có'
-        : timeScope === 'month'
-        ? `${formatMoney(
-            monthReportData.daysWithSpendingCount > 0
-              ? Math.round(monthReportData.totalSpending / monthReportData.daysWithSpendingCount)
-              : 0
-          )} VNĐ/ngày`
-        : `${formatMoney(yearReportData.monthlyAvg)} VNĐ/tháng`;
+          ? topCategory
+            ? `${topCategory.name}`
+            : 'Chưa có'
+          : timeScope === 'month'
+            ? `${formatMoney(
+              monthReportData.daysWithSpendingCount > 0
+                ? Math.round(monthReportData.totalSpending / monthReportData.daysWithSpendingCount)
+                : 0
+            )} VNĐ/ngày`
+            : `${formatMoney(yearReportData.monthlyAvg)} VNĐ/tháng`;
 
     const statusNote =
       timeScope === 'week'
         ? weekReportData.totalSpending === 0
           ? 'Chưa phát sinh chi tiêu'
           : weekReportData.dailyAvg <= dailyBenchmark
-          ? 'Kiểm soát tốt (Dưới định mức)'
-          : 'Vượt nhẹ định mức ngày'
+            ? 'Kiểm soát tốt (Dưới định mức)'
+            : 'Vượt nhẹ định mức ngày'
         : timeScope === 'month'
-        ? monthReportData.totalSpending === 0
-          ? 'Chưa phát sinh chi tiêu'
-          : (monthReportData.daysWithSpendingCount > 0
+          ? monthReportData.totalSpending === 0
+            ? 'Chưa phát sinh chi tiêu'
+            : (monthReportData.daysWithSpendingCount > 0
               ? Math.round(monthReportData.totalSpending / monthReportData.daysWithSpendingCount)
               : 0) <= dailyBenchmark
-          ? 'Kiểm soát tốt (Dưới định mức)'
-          : 'Đang vượt định mức ngày'
-        : timeScope === 'day'
-        ? dayReportData.totalSpending === 0
-          ? 'Không có khoản chi'
-          : `${dayReportData.transactionsCount} khoản chi hôm nay`
-        : yearReportData.yearTotal === 0
-        ? 'Chưa có giao dịch'
-        : `${yearReportData.yearTransactionsCount} giao dịch cả năm`;
+              ? 'Kiểm soát tốt (Dưới định mức)'
+              : 'Đang vượt định mức ngày'
+          : timeScope === 'day'
+            ? dayReportData.totalSpending === 0
+              ? 'Không có khoản chi'
+              : `${dayReportData.transactionsCount} khoản chi hôm nay`
+            : yearReportData.yearTotal === 0
+              ? 'Chưa có giao dịch'
+              : `${yearReportData.yearTransactionsCount} giao dịch cả năm`;
 
     return (
-      <View style={styles.compactKpiRow}>
+      <View style={styles.statsGrid}>
         {/* KPI 1: Tổng chi */}
-        <View style={[styles.compactKpiCard, styles.compactKpiCardGreen]}>
-          <View style={styles.compactKpiHeader}>
-            <Text style={styles.compactKpiLabel}>
+        <View style={[styles.statCard, styles.statCardGreen]}>
+          <View style={styles.statCardHeader}>
+            <Text style={[styles.statCardLabel, { color: '#2E5A36' }]}>
               {timeScope === 'week'
-                ? 'TỔNG CHI TUẦN'
+                ? 'Tổng chi tuần'
                 : timeScope === 'day'
-                ? `TỔNG CHI NGÀY ${selectedDay}/${selectedMonth}`
-                : timeScope === 'month'
-                ? `TỔNG CHI THÁNG ${selectedMonth}`
-                : `TỔNG CHI NĂM ${selectedYear}`}
+                  ? `Tổng chi ngày ${selectedDay}/${selectedMonth}`
+                  : timeScope === 'month'
+                    ? `Tổng chi tháng ${selectedMonth}`
+                    : `Tổng chi năm ${selectedYear}`}
             </Text>
-            <Text style={{ fontSize: 13 }}>💸</Text>
+            <View style={[styles.statIconWrap, { backgroundColor: 'rgba(34, 29, 24, 0.08)' }]}>
+              <Ionicons name="wallet-outline" size={18} color="#221D18" />
+            </View>
           </View>
-          <Text style={styles.compactKpiValue} numberOfLines={1}>
-            {formatMoney(currentTotalSpending)} <Text style={styles.compactKpiCurrency}>VNĐ</Text>
+          <Text style={[styles.statCardValue, { color: '#221D18' }]} numberOfLines={1}>
+            {formatMoney(currentTotalSpending)} <Text style={[styles.currencySub, { color: '#221D18' }]}>VNĐ</Text>
           </Text>
-          <Text style={styles.compactKpiSub} numberOfLines={1}>
+          <Text style={[styles.statCardSub, { color: '#44664D' }]} numberOfLines={1}>
             {timeScope === 'week'
               ? `${weekReportData.totalTransactionsCount} khoản • ${weekReportData.daysWithSpendingCount}/7 ngày`
               : timeScope === 'day'
-              ? `${dayReportData.transactionsCount} khoản chi`
-              : timeScope === 'month'
-              ? `${monthReportData.totalTransactionsCount} khoản • ${monthReportData.daysWithSpendingCount} ngày có chi`
-              : `${yearReportData.yearTransactionsCount} khoản chi`}
+                ? `${dayReportData.transactionsCount} khoản chi`
+                : timeScope === 'month'
+                  ? `${monthReportData.totalTransactionsCount} khoản • ${monthReportData.daysWithSpendingCount} ngày có chi`
+                  : `${yearReportData.yearTransactionsCount} khoản chi`}
           </Text>
         </View>
 
         {/* KPI 2: Đỉnh chi tiêu */}
-        <View style={[styles.compactKpiCard, styles.compactKpiCardRed]}>
-          <View style={styles.compactKpiHeader}>
-            <Text style={styles.compactKpiLabel}>ĐỈNH CHI TIÊU</Text>
-            <Text style={{ fontSize: 13 }}>👑</Text>
+        <View style={[styles.statCard, styles.statCardRed]}>
+          <View style={styles.statCardHeader}>
+            <Text style={[styles.statCardLabel, { color: '#7F1D1D' }]}>Đỉnh chi tiêu</Text>
+            <View style={[styles.statIconWrap, { backgroundColor: 'rgba(153, 27, 27, 0.1)' }]}>
+              <Ionicons name="flame-outline" size={18} color="#991B1B" />
+            </View>
           </View>
-          <Text style={[styles.compactKpiValue, { color: '#DC2626' }]} numberOfLines={1}>
+          <Text style={[styles.statCardValue, { color: '#221D18' }]} numberOfLines={1}>
             {timeScope === 'week'
               ? formatMoney(weekReportData.peakDay?.amount || 0)
               : timeScope === 'day'
-              ? formatMoney(dayReportData.maxItem?.amount || 0)
-              : timeScope === 'month'
-              ? formatMoney(monthReportData.peakDay?.amount || 0)
-              : formatMoney(yearReportData.peakMonth?.amount || 0)}{' '}
-            <Text style={styles.compactKpiCurrency}>VNĐ</Text>
+                ? formatMoney(dayReportData.maxItem?.amount || 0)
+                : timeScope === 'month'
+                  ? formatMoney(monthReportData.peakDay?.amount || 0)
+                  : formatMoney(yearReportData.peakMonth?.amount || 0)}{' '}
+            <Text style={[styles.currencySub, { color: '#221D18' }]}>VNĐ</Text>
           </Text>
-          <Text style={styles.compactKpiSub} numberOfLines={1}>
+          <Text style={[styles.statCardSub, { color: '#7F1D1D' }]} numberOfLines={1}>
             {peakText}
           </Text>
         </View>
 
         {/* KPI 3: Chi trung bình */}
-        <View style={[styles.compactKpiCard, styles.compactKpiCardAmber]}>
-          <View style={styles.compactKpiHeader}>
-            <Text style={styles.compactKpiLabel}>
-              {timeScope === 'day' ? 'NHÓM CHI NHIỀU' : 'CHI TRUNG BÌNH'}
+        <View style={[styles.statCard, styles.statCardAmber]}>
+          <View style={styles.statCardHeader}>
+            <Text style={[styles.statCardLabel, { color: '#78350F' }]}>
+              {timeScope === 'day' ? 'Nhóm chi nhiều' : 'Chi trung bình'}
             </Text>
-            <Text style={{ fontSize: 13 }}>🎯</Text>
+            <View style={[styles.statIconWrap, { backgroundColor: 'rgba(146, 64, 14, 0.1)' }]}>
+              <Ionicons name="speedometer-outline" size={18} color="#221D18" />
+            </View>
           </View>
-          <Text style={[styles.compactKpiValue, { color: '#B45309' }]} numberOfLines={1}>
+          <Text style={[styles.statCardValue, { color: '#221D18' }]} numberOfLines={1}>
             {avgText}
           </Text>
-          <Text style={styles.compactKpiSub} numberOfLines={1}>
+          <Text style={[styles.statCardSub, { color: '#78350F' }]} numberOfLines={1}>
             Định mức: {formatMoney(dailyBenchmark)}đ/ngày
           </Text>
         </View>
 
         {/* KPI 4: Đánh giá */}
-        <View style={[styles.compactKpiCard, styles.compactKpiCardBlue]}>
-          <View style={styles.compactKpiHeader}>
-            <Text style={styles.compactKpiLabel}>ĐÁNH GIÁ DÒNG TIỀN</Text>
-            <Text style={{ fontSize: 13 }}>📊</Text>
+        <View style={[styles.statCard, styles.statCardBlue]}>
+          <View style={styles.statCardHeader}>
+            <Text style={[styles.statCardLabel, { color: '#1E3A8A' }]}>Đánh giá dòng tiền</Text>
+            <View style={[styles.statIconWrap, { backgroundColor: 'rgba(30, 64, 175, 0.1)' }]}>
+              <Ionicons name="bar-chart-outline" size={18} color="#221D18" />
+            </View>
           </View>
-          <Text style={[styles.compactKpiValue, { color: '#1E40AF' }]} numberOfLines={1}>
+          <Text style={[styles.statCardValue, { color: '#221D18', fontSize: 20 }]} numberOfLines={1}>
             {statusNote}
           </Text>
-          <Text style={styles.compactKpiSub} numberOfLines={1}>
+          <Text style={[styles.statCardSub, { color: '#1E3A8A' }]} numberOfLines={1}>
             {timeScope === 'week'
               ? `${weekReportData.mondayStr} - ${weekReportData.sundayStr}`
               : timeScope === 'month'
-              ? `Tháng ${selectedMonth}/${selectedYear}`
-              : `Năm ${selectedYear}`}
+                ? `Tháng ${selectedMonth}/${selectedYear}`
+                : `Năm ${selectedYear}`}
           </Text>
         </View>
       </View>
@@ -1539,8 +1548,8 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
               <Text style={[styles.weekSummaryItemValue, { color: '#DC2626' }]}>
                 {weekReportData.peakDay
                   ? `${weekReportData.peakDay.dayOfWeekLabel} (${formatMoney(
-                      weekReportData.peakDay.amount
-                    )}đ)`
+                    weekReportData.peakDay.amount
+                  )}đ)`
                   : 'Chưa có'}
               </Text>
             </View>
@@ -1555,10 +1564,10 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
         </View>
       )}
 
-        {/* ========================================================================= */}
-        {/* 4. CHẾ ĐỘ: THEO NGÀY (DAY VIEW) - SƠ ĐỒ KHOẢN CHI & DANH SÁCH CHI TIẾT */}
-        {/* ========================================================================= */}
-        {timeScope === 'day' && (
+      {/* ========================================================================= */}
+      {/* 4. CHẾ ĐỘ: THEO NGÀY (DAY VIEW) - SƠ ĐỒ KHOẢN CHI & DANH SÁCH CHI TIẾT */}
+      {/* ========================================================================= */}
+      {timeScope === 'day' && (
         <View style={styles.sectionCard}>
           <View style={styles.sectionHeaderRow}>
             <View>
@@ -2294,10 +2303,10 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
               {timeScope === 'week'
                 ? `Tuần ${weekReportData.mondayStr} - ${weekReportData.sundayStr}`
                 : timeScope === 'day'
-                ? `Ngày ${selectedDay}/${selectedMonth}`
-                : timeScope === 'month'
-                ? `Tháng ${selectedMonth}/${selectedYear}`
-                : `Năm ${selectedYear}`}
+                  ? `Ngày ${selectedDay}/${selectedMonth}`
+                  : timeScope === 'month'
+                    ? `Tháng ${selectedMonth}/${selectedYear}`
+                    : `Năm ${selectedYear}`}
               )
             </Text>
             <Text style={styles.sectionSub}>
@@ -2454,7 +2463,7 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F5F0E8',
   },
   scrollContent: {
     paddingHorizontal: 28,
@@ -2521,17 +2530,17 @@ const styles = StyleSheet.create({
   scopeTabsContainer: {
     flexDirection: 'row',
     backgroundColor: '#F1F5F9',
-    borderRadius: 9,
-    padding: 3,
-    gap: 3,
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
   },
   scopeTabBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    borderRadius: 7,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 9,
   },
   scopeTabBtnActive: {
     backgroundColor: '#047857',
@@ -2541,7 +2550,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   scopeTabText: {
-    fontSize: 12.5,
+    fontSize: 13,
     fontWeight: '700',
     color: '#64748B',
   },
@@ -3955,64 +3964,134 @@ const styles = StyleSheet.create({
   proBarPeakBadgeTextYear: {
     fontSize: 9,
   },
+  // Overview Stats Grid (To & Sang trọng chuẩn như EventsScreen)
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 14,
+    marginBottom: 24,
+  },
+  statCard: {
+    flex: 1,
+    minWidth: 180,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  statCardGreen: {
+    borderColor: '#BEE3C2',
+    backgroundColor: '#BEE3C2',
+  },
+  statCardRed: {
+    borderColor: '#FFC5C5',
+    backgroundColor: '#FFC5C5',
+  },
+  statCardAmber: {
+    borderColor: '#F5D25F',
+    backgroundColor: '#F5D25F',
+  },
+  statCardBlue: {
+    borderColor: '#B7D9F2',
+    backgroundColor: '#B7D9F2',
+  },
+  statCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  statCardLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  statIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statCardValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  currencySub: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  statCardSub: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+
+  // Backward-compatibility aliases
   compactKpiRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 16,
+    gap: 14,
+    marginBottom: 24,
   },
   compactKpiCard: {
     flex: 1,
-    minWidth: 160,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
+    minWidth: 180,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
   },
   compactKpiCardGreen: {
-    borderColor: '#A7F3D0',
-    backgroundColor: '#F0FDF4',
+    borderColor: '#BEE3C2',
+    backgroundColor: '#BEE3C2',
   },
   compactKpiCardRed: {
-    borderColor: '#FECACA',
-    backgroundColor: '#FEF2F2',
+    borderColor: '#FFC5C5',
+    backgroundColor: '#FFC5C5',
   },
   compactKpiCardAmber: {
-    borderColor: '#FDE68A',
-    backgroundColor: '#FEF3C7',
+    borderColor: '#F5D25F',
+    backgroundColor: '#F5D25F',
   },
   compactKpiCardBlue: {
-    borderColor: '#BFDBFE',
-    backgroundColor: '#EFF6FF',
+    borderColor: '#B7D9F2',
+    backgroundColor: '#B7D9F2',
   },
   compactKpiHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 10,
   },
   compactKpiLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#475569',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
   },
   compactKpiValue: {
-    fontSize: 18,
-    fontWeight: '900',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#0F172A',
-    marginBottom: 3,
+    letterSpacing: -0.3,
   },
   compactKpiCurrency: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#64748B',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#334155',
   },
   compactKpiSub: {
-    fontSize: 11,
-    color: '#64748B',
-    fontWeight: '600',
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '500',
+    marginTop: 4,
   },
 });

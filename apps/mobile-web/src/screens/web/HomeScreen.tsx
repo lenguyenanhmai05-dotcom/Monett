@@ -20,8 +20,10 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import { UserProfileHeader } from '../../components/UserProfileHeader';
 import { IntegratedBudgetBar } from '../../components/IntegratedBudgetBar';
 import { RemindersWidget } from '../../components/RemindersWidget';
-import { BillsAndDebtsWidget } from '../../components/BillsAndDebtsWidget';
-import { SavingsGoalsWidget } from '../../components/SavingsGoalsWidget';
+import { RecentTransactionsWidget } from '../../components/RecentTransactionsWidget';
+import { BudgetModal } from '../../components/BudgetModal';
+import { loadRecurringItems, getFrequencyLabel } from '../../services/recurringStorage';
+import { loadEventsFromStorage } from '../../services/eventsStorage';
 import { getBudgetApi, BudgetData } from '../../services/api';
 import {
   compressImageFile,
@@ -315,6 +317,418 @@ export const formatAmountShort = (amount?: number): string => {
   return `${amount}đ`;
 };
 
+// ============================================================
+// SUB-COMPONENT: HomeBalanceStrip
+// 3 cards ngang: Số dư khả dụng (nâu pastel) | Thu nhập | Chi tiêu
+// ============================================================
+const HomeBalanceStrip: React.FC<{
+  budget: any;
+  onBudgetUpdated?: (b: any) => void;
+  language: 'vi' | 'en';
+  dayRecords: Record<string, any>;
+  currentYear: number;
+  currentMonth: number;
+}> = ({ budget, onBudgetUpdated, language, dayRecords, currentYear, currentMonth }) => {
+  const isVi = language === 'vi';
+  const [modalVisible, setModalVisible] = useState(false);
+
+  const monthlyIncome = budget.limit || 0;
+  const monthlySpent = budget.spent || 0;
+
+  return (
+    <View style={bsStyles.row}>
+      {/* Card 1: Số dư khả dụng - màu nâu pastel */}
+      <TouchableOpacity
+        style={[bsStyles.card, bsStyles.cardBalance]}
+        onPress={() => setModalVisible(true)}
+        activeOpacity={0.88}
+      >
+        <View style={bsStyles.cardTopRow}>
+          <Text style={bsStyles.cardLabelDark}>{isVi ? 'SỐ DƯ KHẢ DỤNG' : 'AVAILABLE BALANCE'}</Text>
+          {budget.status === 'danger' ? (
+            <View style={[bsStyles.badge, { backgroundColor: '#EF4444' }]}><Text style={bsStyles.badgeText}>Vượt</Text></View>
+          ) : budget.status === 'warning' ? (
+            <View style={[bsStyles.badge, { backgroundColor: '#F59E0B' }]}><Text style={bsStyles.badgeText}>Gần đủ</Text></View>
+          ) : (
+            <View style={[bsStyles.badge, { backgroundColor: '#FEF08A' }]}><Text style={[bsStyles.badgeText, { color: '#713F12' }]}>An toàn</Text></View>
+          )}
+        </View>
+        <Text style={bsStyles.balanceAmount}>
+          {budget.remaining?.toLocaleString('vi-VN') || '0'}
+          <Text style={bsStyles.balanceCurrency}> đ</Text>
+        </Text>
+        <Text style={bsStyles.cardSubDark}>
+          {isVi ? 'Chi đang ở mức' : 'Spent so far'}: {(budget.spentPercent || 0).toFixed(0)}%
+        </Text>
+      </TouchableOpacity>
+
+      {/* Card 2: Thu nhập - màu xanh lá nhạt */}
+      <View style={[bsStyles.card, bsStyles.cardIncome]}>
+        <View style={bsStyles.cardTopRow}>
+          <View style={bsStyles.iconCircle}>
+            <Ionicons name="arrow-down-outline" size={14} color="#047857" />
+          </View>
+          <Text style={bsStyles.cardLabel}>{isVi ? 'Thu nhập' : 'Income'}</Text>
+        </View>
+        <Text style={bsStyles.cardAmount}>
+          {monthlyIncome.toLocaleString('vi-VN')}
+        </Text>
+        <Text style={bsStyles.cardSub}>{isVi ? 'tháng này' : 'this month'}</Text>
+      </View>
+
+      {/* Card 3: Chi tiêu - màu hồng nhạt */}
+      <View style={[bsStyles.card, bsStyles.cardExpense]}>
+        <View style={bsStyles.cardTopRow}>
+          <View style={[bsStyles.iconCircle, { backgroundColor: 'rgba(239,68,68,0.12)' }]}>
+            <Ionicons name="arrow-up-outline" size={14} color="#E11D48" />
+          </View>
+          <Text style={[bsStyles.cardLabel, { color: '#BE123C' }]}>{isVi ? 'Chi tiêu' : 'Expenses'}</Text>
+        </View>
+        <Text style={[bsStyles.cardAmount, { color: '#1E293B' }]}>
+          {monthlySpent.toLocaleString('vi-VN')}
+        </Text>
+        <Text style={bsStyles.cardSub}>{isVi ? 'tháng này' : 'this month'}</Text>
+      </View>
+
+      <BudgetModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        onSaved={(updated) => { onBudgetUpdated?.(updated); }}
+        currentLimit={budget.limit}
+        currentPayday={budget.payday}
+        currentSpent={budget.spent}
+      />
+    </View>
+  );
+};
+
+const bsStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 0,
+  },
+  card: {
+    flex: 1,
+    borderRadius: 18,
+    padding: 16,
+    minHeight: 100,
+  },
+  cardBalance: {
+    backgroundColor: '#7B6345',
+    flex: 1.3,
+    shadowColor: '#8B6747',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  cardIncome: {
+    backgroundColor: '#BEE3C2',
+    flex: 1,
+  },
+  cardExpense: {
+    backgroundColor: '#FFC5C5',
+    flex: 1,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  cardLabelDark: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.85)',
+    letterSpacing: 0.5,
+  },
+  cardLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#047857',
+    flex: 1,
+    marginLeft: 6,
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  balanceAmount: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+    marginBottom: 4,
+  },
+  balanceCurrency: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.8)',
+  },
+  cardSubDark: {
+    fontSize: 11,
+    color: 'rgba(255,255,255,0.75)',
+    fontWeight: '500',
+  },
+  cardAmount: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#065F46',
+    marginBottom: 4,
+  },
+  cardSub: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  iconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(4,120,87,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
+
+// ============================================================
+// SUB-COMPONENT: HomeRecurringEventsRow
+// Chi định kỳ + Sự kiện ngang nhau với nút Xem tất cả
+// ============================================================
+const HomeRecurringEventsRow: React.FC<{
+  userId?: string;
+  language: 'vi' | 'en';
+  onNavigateToTab?: (tab: any) => void;
+  currentYear: number;
+  currentMonth: number;
+}> = ({ userId, language, onNavigateToTab, currentYear, currentMonth }) => {
+  const isVi = language === 'vi';
+  const { width } = useWindowDimensions();
+  const isWide = width >= 900;
+
+  const recurringItems = React.useMemo(() => {
+    return loadRecurringItems(userId).filter(it => it.type === 'expense' && it.isActive).slice(0, 3);
+  }, [userId]);
+
+  const events = React.useMemo(() => {
+    return loadEventsFromStorage().slice(0, 3);
+  }, []);
+
+  const formatAmount = (n: number) => n.toLocaleString('vi-VN') + 'đ';
+
+  const statusColor = (s: string) => {
+    if (s === 'ongoing') return '#FEF08A';
+    if (s === 'upcoming') return '#D97706';
+    return '#64748B';
+  };
+  const statusLabel = (s: string) => {
+    if (s === 'ongoing') return 'Đang diễn ra';
+    if (s === 'upcoming') return 'Sắp diễn ra';
+    return 'Đã xong';
+  };
+
+  return (
+    <View style={[reStyles.row, isWide && reStyles.rowWide]}>
+      {/* Panel trái: Chi định kỳ */}
+      <View style={[reStyles.panel, isWide && { flex: 1 }]}>
+        <View style={reStyles.panelHeader}>
+          <View style={reStyles.panelIconWrap}>
+            <Ionicons name="repeat-outline" size={18} color="#7C3AED" />
+          </View>
+          <Text style={reStyles.panelTitle}>{isVi ? 'Chi định kỳ' : 'Recurring Expenses'}</Text>
+          <TouchableOpacity
+            style={reStyles.viewAllBtn}
+            onPress={() => onNavigateToTab?.('recurring')}
+            activeOpacity={0.7}
+          >
+            <Text style={reStyles.viewAllText}>{isVi ? 'Xem tất cả' : 'View all'}</Text>
+            <Ionicons name="arrow-forward" size={12} color="#7C3AED" style={{ marginLeft: 3 }} />
+          </TouchableOpacity>
+        </View>
+        <View style={reStyles.itemList}>
+          {recurringItems.length === 0 ? (
+            <View style={reStyles.emptyState}>
+              <Ionicons name="repeat-outline" size={28} color="#D1C4E9" />
+              <Text style={reStyles.emptyText}>{isVi ? 'Chưa có khoản định kỳ' : 'No recurring items yet'}</Text>
+            </View>
+          ) : recurringItems.map((item, idx) => (
+            <View key={item.id} style={[reStyles.itemRow, idx === recurringItems.length - 1 && { borderBottomWidth: 0 }]}>
+              <View style={[reStyles.itemIcon, { backgroundColor: '#EDE9FE' }]}>
+                <Ionicons name="repeat" size={14} color="#7C3AED" />
+              </View>
+              <View style={reStyles.itemInfo}>
+                <Text style={reStyles.itemTitle} numberOfLines={1}>{item.title}</Text>
+                <Text style={reStyles.itemSub}>{getFrequencyLabel(item.frequency, isVi)}</Text>
+              </View>
+              <Text style={[reStyles.itemAmount, { color: '#BE123C' }]}>-{formatAmount(item.amount)}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      {/* Panel phải: Sự kiện */}
+      <View style={[reStyles.panel, isWide && { flex: 1 }]}>
+        <View style={reStyles.panelHeader}>
+          <View style={[reStyles.panelIconWrap, { backgroundColor: '#FEF3C7' }]}>
+            <Ionicons name="calendar-outline" size={18} color="#D97706" />
+          </View>
+          <Text style={reStyles.panelTitle}>{isVi ? 'Sự kiện' : 'Events'}</Text>
+          <TouchableOpacity
+            style={[reStyles.viewAllBtn, { backgroundColor: '#FEF3C7' }]}
+            onPress={() => onNavigateToTab?.('events')}
+            activeOpacity={0.7}
+          >
+            <Text style={[reStyles.viewAllText, { color: '#D97706' }]}>{isVi ? 'Xem tất cả' : 'View all'}</Text>
+            <Ionicons name="arrow-forward" size={12} color="#D97706" style={{ marginLeft: 3 }} />
+          </TouchableOpacity>
+        </View>
+        <View style={reStyles.itemList}>
+          {events.length === 0 ? (
+            <View style={reStyles.emptyState}>
+              <Ionicons name="calendar-outline" size={28} color="#FDE68A" />
+              <Text style={reStyles.emptyText}>{isVi ? 'Chưa có sự kiện nào' : 'No events yet'}</Text>
+            </View>
+          ) : events.map((ev, idx) => (
+            <View key={ev.id} style={[reStyles.itemRow, idx === events.length - 1 && { borderBottomWidth: 0 }]}>
+              <View style={[reStyles.itemIcon, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="calendar" size={14} color="#D97706" />
+              </View>
+              <View style={reStyles.itemInfo}>
+                <Text style={reStyles.itemTitle} numberOfLines={1}>{ev.title}</Text>
+                <Text style={reStyles.itemSub}>{ev.startDate}{ev.endDate && ev.endDate !== ev.startDate ? ` - ${ev.endDate}` : ''}</Text>
+              </View>
+              <View style={[reStyles.statusBadge, { backgroundColor: statusColor(ev.status) + '22' }]}>
+                <Text style={[reStyles.statusText, { color: statusColor(ev.status) }]}>{statusLabel(ev.status)}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+};
+
+const reStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'column',
+    gap: 14,
+    marginHorizontal: 0,
+    marginBottom: 20,
+  },
+  rowWide: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  panel: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#E8E0D5',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  panelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  panelIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#EDE9FE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  panelTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    flex: 1,
+  },
+  viewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#EDE9FE',
+  },
+  viewAllText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#7C3AED',
+  },
+  itemList: {
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  itemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  itemIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  itemInfo: {
+    flex: 1,
+  },
+  itemTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  itemSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  itemAmount: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+});
+
 export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({ onNavigateToTab }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 960;
@@ -328,7 +742,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth(); // 0-indexed
-  
+
   const today = new Date();
   const isCurrentRealMonth = today.getFullYear() === currentYear && today.getMonth() === currentMonth;
   const todayDate = isCurrentRealMonth ? today.getDate() : -1;
@@ -372,7 +786,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
           records[key] = val;
         }
       });
-    } catch (_) {}
+    } catch (_) { }
     return records;
   });
 
@@ -391,7 +805,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
           return merged;
         });
       }
-    }).catch(() => {});
+    }).catch(() => { });
     return () => {
       isMounted = false;
     };
@@ -681,11 +1095,11 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
         : (language === 'vi' ? 'Đã ghi nhận chi tiêu 🍜' : 'Expense Recorded 🍜'),
       message: isMoment
         ? (language === 'vi'
-            ? `Khoảnh khắc "${quickNote.trim() || quickCategory}" (${numericAmount.toLocaleString('vi-VN')} đ) đã được lưu thành công kèm ảnh vào ngày ${quickDayNum}/${currentMonth + 1}.`
-            : `Moment "${quickNote.trim() || quickCategory}" (${numericAmount.toLocaleString('vi-VN')} đ) saved with photo on ${quickDayNum}/${currentMonth + 1}.`)
+          ? `Khoảnh khắc "${quickNote.trim() || quickCategory}" (${numericAmount.toLocaleString('vi-VN')} đ) đã được lưu thành công kèm ảnh vào ngày ${quickDayNum}/${currentMonth + 1}.`
+          : `Moment "${quickNote.trim() || quickCategory}" (${numericAmount.toLocaleString('vi-VN')} đ) saved with photo on ${quickDayNum}/${currentMonth + 1}.`)
         : (language === 'vi'
-            ? `Khoản chi "${quickNote.trim() || quickCategory}" (${numericAmount.toLocaleString('vi-VN')} đ) đã được cộng dồn vào ngày ${quickDayNum}/${currentMonth + 1}.`
-            : `Expense "${quickNote.trim() || quickCategory}" (${numericAmount.toLocaleString('vi-VN')} đ) added to ${quickDayNum}/${currentMonth + 1}.`),
+          ? `Khoản chi "${quickNote.trim() || quickCategory}" (${numericAmount.toLocaleString('vi-VN')} đ) đã được cộng dồn vào ngày ${quickDayNum}/${currentMonth + 1}.`
+          : `Expense "${quickNote.trim() || quickCategory}" (${numericAmount.toLocaleString('vi-VN')} đ) added to ${quickDayNum}/${currentMonth + 1}.`),
       iconBg: isMoment ? '#EDE9FE' : '#ECFDF5',
       iconColor: isMoment ? '#8B5CF6' : '#059669',
       metadata: {
@@ -822,7 +1236,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
           setBudget(data);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
     return () => {
       isMounted = false;
     };
@@ -858,12 +1272,8 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
         {/* 1. Header: Avatar + Tên + Badge + Streak liên tục */}
         <UserProfileHeader onQuickSave={() => handleOpenQuickSave(todayDate > 0 ? todayDate : 1)} />
 
-        {/* 2. Tổng Tài Sản & Hạn Mức Tháng (Tích hợp liền mạch, không chia ô tách biệt) */}
-        <IntegratedBudgetBar
-          budget={budget}
-          onBudgetUpdated={setBudget}
-          language={language as any}
-        />
+        {/* 2. Số dư + Thu nhập + Chi tiêu (3 cards ngang nhau) */}
+        <HomeBalanceStrip budget={budget} onBudgetUpdated={setBudget} language={language as any} dayRecords={dayRecords} currentYear={currentYear} currentMonth={currentMonth} />
       </View>
 
       {/* ===================== ROW 2: LỊCH TRÌNH CHI TIÊU (FULL WIDTH) ===================== */}
@@ -1114,34 +1524,41 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
         </View>
       </View>
 
-      {/* ===================== ROW 3: MỤC NHẮC NHỞ & HÓA ĐƠN ĐỊNH KỲ, SỔ GHI NỢ ===================== */}
-      <View style={[styles.dashboardWidgetsRow, width >= 1080 && styles.dashboardWidgetsRowWide]}>
-        {/* CỘT 1: MỤC NHẮC NHỞ */}
-        <View style={[styles.card, styles.dashboardWidgetCard, width >= 1080 && { flex: 1 }]}>
-          <RemindersWidget
-            noMargin={true}
-            currentDateStr={`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(todayDate > 0 ? todayDate : 1).padStart(2, '0')}`}
+      {/* ===================== ROW 3: MỤC NHẮC NHỞ & GIAO DỊCH GẦN ĐÂY ===================== */}
+      <View style={[styles.widgetsRow, width >= 900 && styles.widgetsRowWide]}>
+        {/* CỘT 1: MỤC NHẮC NHỞ (kiểu card màu) */}
+        <View style={[styles.widgetCol, width >= 900 && { flex: 1 }]}>
+          <View style={styles.reminderCardWrap}>
+            <View style={styles.reminderCardHeader}>
+              <View style={styles.reminderCardIconWrap}>
+                <Ionicons name="alarm-outline" size={18} color="#7C3AED" />
+              </View>
+              <Text style={styles.reminderCardTitle}>Mục nhắc nhở</Text>
+            </View>
+            <RemindersWidget
+              noMargin={true}
+              currentDateStr={`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(todayDate > 0 ? todayDate : 1).padStart(2, '0')}`}
+            />
+          </View>
+        </View>
+
+        {/* CỘT 2: GIAO DỊCH GẦN ĐÂY */}
+        <View style={[styles.widgetCol, width >= 900 && { flex: 1 }]}>
+          <RecentTransactionsWidget
+            language={language as any}
+            onViewAll={() => onNavigateToTab?.('transactions')}
           />
         </View>
-
-        {/* CỘT 2: HÓA ĐƠN ĐỊNH KỲ & SỔ GHI NỢ */}
-        <View
-          style={[styles.card, styles.dashboardWidgetCard, width >= 1080 && { flex: 1.15 }]}
-          nativeID="bills-debts-section"
-          {...({ id: 'bills-debts-section' } as any)}
-        >
-          <BillsAndDebtsWidget noMargin={true} />
-        </View>
       </View>
 
-      {/* ===================== ROW 4: HŨ TIẾT KIỆM & MỤC TIÊU NUÔI HEO ===================== */}
-      <View
-        style={[styles.card, styles.fullWidthCard, { padding: 22, marginBottom: 24 }]}
-        nativeID="savings-goals-section"
-        {...({ id: 'savings-goals-section' } as any)}
-      >
-        <SavingsGoalsWidget noMargin={true} />
-      </View>
+      {/* ===================== ROW 4: CHI ĐỊNH KỲ & SỰ KIỆN ===================== */}
+      <HomeRecurringEventsRow
+        userId={user?.id}
+        language={language as any}
+        onNavigateToTab={onNavigateToTab}
+        currentYear={currentYear}
+        currentMonth={currentMonth}
+      />
 
       {/* ===================== 1. MODAL LƯU NHANH CHI TIÊU (KHÔNG BẮT BUỘC ẢNH, CỘNG DỒN VÀO LỊCH) ===================== */}
       <Modal
@@ -3250,6 +3667,57 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   lightboxImage: {
     width: '94%',
     height: '84%',
+  },
+
+  // ============ NEW LAYOUT STYLES ============
+  widgetsRow: {
+    flexDirection: 'column',
+    gap: 14,
+    marginBottom: 20,
+  },
+  widgetsRowWide: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  widgetCol: {
+    flex: 1,
+  },
+  reminderCardWrap: {
+    backgroundColor: '#EDE9FE',
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
+    overflow: 'hidden',
+  },
+  reminderCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  reminderCardIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  reminderCardTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#4C1D95',
   },
 });
 
