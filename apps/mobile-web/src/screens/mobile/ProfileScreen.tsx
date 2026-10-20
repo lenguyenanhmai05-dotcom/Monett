@@ -26,6 +26,7 @@ import {
   submitFeedbackApi,
 } from '../../services/api';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 import { useTransactions } from '../../contexts/TransactionContext';
 import { FROGS } from '../../../assets/frogIndex';
 import * as ImagePicker from 'expo-image-picker';
@@ -47,6 +48,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 }) => {
   const { user: authUser, logout, refreshUser } = useAuth();
   const { language, setLanguage } = useLanguage();
+  const { addNotification } = useNotifications();
   const isVi = language === 'vi';
   const displayName = authUser?.fullName || (isVi ? 'Người dùng Monett' : 'Monett User');
   const displayEmail = authUser?.email || 'monett.user@monett.app';
@@ -238,6 +240,27 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       setIsUpdatingReminder(true);
       await updateProfileApi({ reminderTime: time || '' });
       if (refreshUser) await refreshUser();
+
+      if (time) {
+        addNotification({
+          type: 'system',
+          title: `Đã đặt giờ nhắc nhở ${time} hằng ngày! ⏰`,
+          message: `Hệ thống sẽ gửi thông báo nhắc bạn ghi chép chi tiêu và giữ chuỗi streak vào lúc ${time} mỗi ngày.`,
+          iconBg: '#ECFDF5',
+          iconColor: '#059669',
+          metadata: { targetTab: 'home' },
+        });
+      } else {
+        addNotification({
+          type: 'system',
+          title: 'Đã tắt nhắc nhở hằng ngày 🔕',
+          message: 'Bạn đã tắt tính năng nhắc nhở chi tiêu hằng ngày. Bạn có thể bật lại bất cứ lúc nào trong Cài đặt.',
+          iconBg: '#F1F5F9',
+          iconColor: '#64748B',
+          metadata: { targetTab: 'profile' },
+        });
+      }
+
       Alert.alert('Thành công', time ? `Đã đặt giờ nhắc nhở lúc ${time}` : 'Đã tắt nhắc nhở hằng ngày!');
       setShowReminderModal(false);
     } catch (error: any) {
@@ -370,6 +393,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   };
 
   const menuItems: MenuItem[] = [
+    { 
+      iconName: 'images-outline' as const, 
+      iconBg: '#ECFDF5',
+      iconColor: '#059669',
+      title: isVi ? 'Bảng tin bạn bè 📸' : 'Friends Feed 📸', 
+      subtitle: isVi ? 'Xem ảnh & khoảnh khắc chia sẻ của bạn bè' : 'View friends photo moments',
+      onPress: () => onNavigateToFeed && onNavigateToFeed() 
+    },
     { 
       iconName: 'alarm-outline' as const, 
       iconBg: '#FEF3C7',

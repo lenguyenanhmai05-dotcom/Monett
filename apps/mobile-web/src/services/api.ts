@@ -815,26 +815,26 @@ export const sendMessageApi = async (receiverId: string, text: string): Promise<
 };
 
 // ============================================================
-// BILLS AND DEBTS APIS
+// RECURRING BILLS & DEBTS APIS
 // ============================================================
 
-export const getRecurringBillsApi = async (): Promise<any> => {
-  const res = await request<any>('/api/bills-and-debts/bills');
+export const getRecurringBillsApi = async (): Promise<any[]> => {
+  const res = await request<any[]>('/api/bills-and-debts/bills');
   return (res as any).data || res;
 };
 
-export const createRecurringBillApi = async (data: any): Promise<any> => {
+export const createRecurringBillApi = async (dto: any): Promise<any> => {
   const res = await request<any>('/api/bills-and-debts/bills', {
     method: 'POST',
-    body: JSON.stringify(data),
+    body: JSON.stringify(dto),
   });
   return (res as any).data || res;
 };
 
-export const updateRecurringBillApi = async (id: string, data: any): Promise<any> => {
+export const updateRecurringBillApi = async (id: string, dto: any): Promise<any> => {
   const res = await request<any>(`/api/bills-and-debts/bills/${id}`, {
     method: 'PUT',
-    body: JSON.stringify(data),
+    body: JSON.stringify(dto),
   });
   return (res as any).data || res;
 };
@@ -853,23 +853,28 @@ export const deleteRecurringBillApi = async (id: string): Promise<any> => {
   return (res as any).data || res;
 };
 
-export const getDebtsApi = async (): Promise<any> => {
-  const res = await request<any>('/api/bills-and-debts/debts');
+export const getDebtsApi = async (): Promise<any[]> => {
+  const res = await request<any[]>('/api/bills-and-debts/debts');
   return (res as any).data || res;
 };
 
-export const createDebtApi = async (data: any): Promise<any> => {
+export const getDebtSummaryApi = async (): Promise<any> => {
+  const res = await request<any>('/api/bills-and-debts/debts/summary');
+  return (res as any).data || res;
+};
+
+export const createDebtApi = async (dto: any): Promise<any> => {
   const res = await request<any>('/api/bills-and-debts/debts', {
     method: 'POST',
-    body: JSON.stringify(data),
+    body: JSON.stringify(dto),
   });
   return (res as any).data || res;
 };
 
-export const updateDebtApi = async (id: string, data: any): Promise<any> => {
+export const updateDebtApi = async (id: string, dto: any): Promise<any> => {
   const res = await request<any>(`/api/bills-and-debts/debts/${id}`, {
     method: 'PUT',
-    body: JSON.stringify(data),
+    body: JSON.stringify(dto),
   });
   return (res as any).data || res;
 };
@@ -892,16 +897,24 @@ export const deleteDebtApi = async (id: string): Promise<any> => {
 // REMINDERS APIS
 // ============================================================
 
-export const getRemindersApi = async (date?: string): Promise<any> => {
+export const getRemindersApi = async (date?: string): Promise<any[]> => {
   const qs = date ? `?date=${encodeURIComponent(date)}` : '';
-  const res = await request<any>(`/api/reminders${qs}`);
+  const res = await request<any[]>(`/api/reminders${qs}`);
   return (res as any).data || res;
 };
 
-export const createReminderApi = async (data: any): Promise<any> => {
+export const createReminderApi = async (dto: any): Promise<any> => {
   const res = await request<any>('/api/reminders', {
     method: 'POST',
-    body: JSON.stringify(data),
+    body: JSON.stringify(dto),
+  });
+  return (res as any).data || res;
+};
+
+export const updateReminderApi = async (id: string, dto: any): Promise<any> => {
+  const res = await request<any>(`/api/reminders/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dto),
   });
   return (res as any).data || res;
 };
@@ -916,14 +929,6 @@ export const toggleReminderApi = async (id: string): Promise<any> => {
 export const deleteReminderApi = async (id: string): Promise<any> => {
   const res = await request<any>(`/api/reminders/${id}`, {
     method: 'DELETE',
-  });
-  return (res as any).data || res;
-};
-
-export const updateReminderApi = async (id: string, data: any): Promise<any> => {
-  const res = await request<any>(`/api/reminders/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
   });
   return (res as any).data || res;
 };

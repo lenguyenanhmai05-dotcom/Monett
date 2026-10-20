@@ -99,7 +99,7 @@ const Avatar = ({ uri, name, size = 40 }: { uri?: string | null; name: string; s
 
 // ─── Moment Card with Edit/Delete ─────────────────────────────────────────────
 // ─── Locket-style Moment Card ────────────────────────────────────────────────
-const LOCKET_EMOJIS = ['❤️', '🔥', '😂', '😍', '🐸'];
+const LOCKET_EMOJIS = ['❤️', '🔥', '😂', '😍', '✨'];
 
 export const MomentCard = ({
   item,
@@ -232,7 +232,7 @@ export const MomentCard = ({
         )}
       </View>
 
-      {/* 2. Reaction Bar: Quick Emojis like Locket (❤️ 🔥 😂 😍 🐸) */}
+      {/* 2. Reaction Bar: Quick Emojis like Locket (❤️ 🔥 😂 😍 ✨) */}
       <View style={cardStyles.locketReactionSection}>
         <View style={cardStyles.locketEmojisRow}>
           {LOCKET_EMOJIS.map((emoji) => {
@@ -661,6 +661,8 @@ const SAMPLE_CAPTIONS: Record<string, string[]> = {
     'Quán ngon mới khám phá, chấm 10/10 nha mọi người 🍜😋',
   ],
   '🏖️ Du lịch & Phượt': [
+    'Hướng tới du lịch biển xanh, khám phá vẻ đẹp biển đảo quê hương 🌊🏝️',
+    'Check-in Vịnh Vĩnh Hy - Ninh Thuận non nước hữu tình 🚤🪸⛰️',
     'Chuyến đi chữa lành cuối tuần cùng đồng bọn 🏖️🌊',
     'Vi vu khám phá vùng đất mới, cảnh đẹp mê ly 🌄🚗',
     'Check-in view biển ngắm hoàng hôn siêu đỉnh 🌅🌴',
@@ -757,8 +759,10 @@ export const MomentFormModal = ({
     }
   }, [visible, editingItem, initialAction]);
 
-  // Mẫu ảnh Unsplash đẹp
+  // Mẫu ảnh du lịch & đời sống chất lượng cao
   const samplePhotos = [
+    'https://baohaiquanvietnam.vn/storage/users/user_6/N%C4%83m%202022/thang%205-2022/22-5/16052022-anh-9.jpg',
+    'https://tripmap.vn/wp-content/uploads/2021/08/vinh-vinh-hy-16294461697-jpg-1024x668.webp',
     'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=600&auto=format&fit=crop',
     'https://images.unsplash.com/photo-1509042239860-f550ce710b93?q=80&w=600&auto=format&fit=crop',
     'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=600&auto=format&fit=crop',
@@ -1838,7 +1842,7 @@ const inviteStyles = StyleSheet.create({
 });
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
-export const FriendsFeedScreen: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
+export const FriendsFeedScreen: React.FC<{ onBack?: () => void; onNavigateToMessages?: () => void }> = ({ onBack, onNavigateToMessages }) => {
   const { user } = useAuth();
   const { language } = useLanguage();
   const { isDark, colors } = useTheme();
@@ -2019,7 +2023,7 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void }> = ({ onBack })
 
       {/* Header */}
       <View style={styles.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
           {onBack && (
             <TouchableOpacity onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={styles.backDownBtn}>
               <Ionicons name="chevron-down" size={26} color={colors.textPrimary} />
@@ -2030,6 +2034,29 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void }> = ({ onBack })
             <Text style={styles.headerSub}>{isVi ? 'Khoảnh khắc Locket của bạn bè' : 'Friends Locket Moments'}</Text>
           </View>
         </View>
+
+        {onNavigateToMessages && (
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 5,
+              backgroundColor: '#ECFDF5',
+              paddingHorizontal: 12,
+              paddingVertical: 7,
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: '#A7F3D0',
+            }}
+            onPress={onNavigateToMessages}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="chatbubble-ellipses" size={15} color="#047857" />
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857' }}>
+              {isVi ? 'Nhắn tin 💬' : 'Chat 💬'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {loading ? (

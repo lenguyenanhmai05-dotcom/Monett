@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useRef, useCallb
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { getBaseUrl } from '../services/api';
+import { playNotificationSound, playMessageSentSound } from '../utils/soundUtils';
 
 export interface SocketMessagePayload {
   _id: string;
@@ -51,6 +52,11 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const socketRef = useRef<Socket | null>(null);
   const typingTimeoutsRef = useRef<Record<string, any>>({});
+  const userRef = useRef(user);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   useEffect(() => {
     if (!token) {
@@ -67,6 +73,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const serverUrl = getBaseUrl();
     const newSocket = io(serverUrl, {
       auth: { token },
+      query: { token },
+      withCredentials: true,
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 10,
@@ -78,6 +86,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     newSocket.on('connect', () => {
       setIsConnected(true);
       newSocket.emit('get_online_users');
+    });
+
+    newSocket.on('connect_error', (err) => {
+      console.warn('[SocketContext] Connection error:', err?.message || err);
     });
 
     newSocket.on('disconnect', () => {
@@ -136,6 +148,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           [String(msg.sender)]: false,
         }));
       }
+
+      // Phát tiếng chuông ting ting khi nhận tin nhắn từ người khác
+      const myId = String(userRef.current?.id || (userRef.current as any)?._id || '');
+      if (msg?.sender && String(msg.sender) !== myId) {
+        playNotificationSound();
+      }
     });
 
     return () => {
@@ -177,6 +195,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           { receiverId, text, type, billData },
           (response: any) => {
             if (response?.success && response?.data) {
+              playMessageSentSound();
               resolve(response.data);
             } else {
               resolve(null);

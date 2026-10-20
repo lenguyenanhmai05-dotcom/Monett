@@ -83,6 +83,17 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({
     };
   }, []);
 
+  // Lắng nghe sự kiện mở trực tiếp màn hình Tích lũy từ Trợ lý Ếch hoặc các liên kết
+  useEffect(() => {
+    const handleOpenSavings = () => {
+      setSubTab('savings');
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('monett_open_savings_tab', handleOpenSavings);
+      return () => window.removeEventListener('monett_open_savings_tab', handleOpenSavings);
+    }
+  }, []);
+
   const styles = getStyles(isDark, colors);
 
   // Nếu đang ở tab Tích lũy, hiển thị màn hình Tích lũy (SavingsScreen)

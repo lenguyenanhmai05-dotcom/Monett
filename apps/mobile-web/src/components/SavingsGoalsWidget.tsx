@@ -213,7 +213,7 @@ export const SavingsGoalsWidget: React.FC<SavingsGoalsWidgetProps> = ({ noMargin
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Text style={styles.headerTitle}>
-                {isVi ? 'HŨ TIẾT KIỆM & MỤC TIÊU' : 'SAVINGS GOALS & PIGGY BANK'}
+                {isVi ? 'TÍCH LŨY & MỤC TIÊU' : 'SAVINGS GOALS & PIGGY BANK'}
               </Text>
               <View style={styles.badgeCount}>
                 <Text style={styles.badgeCountText}>{goals.length} {isVi ? 'mục tiêu' : 'goals'}</Text>
@@ -493,7 +493,7 @@ export const SavingsGoalsWidget: React.FC<SavingsGoalsWidgetProps> = ({ noMargin
               <Text style={styles.modalTitle}>
                 {editingGoalId
                   ? (isVi ? '✏️ Chỉnh sửa mục tiêu' : 'Edit Goal')
-                  : (isVi ? '🎯 Tạo hũ tiết kiệm mới' : 'New Savings Goal')}
+                  : (isVi ? '🎯 Tạo mục tiêu tích lũy mới' : 'New Savings Goal')}
               </Text>
               <TouchableOpacity
                 onPress={() => setIsFormOpen(false)}

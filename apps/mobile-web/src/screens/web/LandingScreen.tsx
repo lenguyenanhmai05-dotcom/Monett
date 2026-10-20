@@ -916,7 +916,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
         <View style={styles.bottomCtaSection}>
           <View style={[styles.bottomCtaCard, isLarge && { maxWidth: 1100 }]}>
             <View style={styles.bottomCtaFrogBadge}>
-              <Text style={{ fontSize: 36 }}>🐸</Text>
+              <Text style={{ fontSize: 36 }}>✨</Text>
             </View>
 
             <Text style={styles.bottomCtaTitle}>

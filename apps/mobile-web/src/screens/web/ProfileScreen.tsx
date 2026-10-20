@@ -13,6 +13,7 @@ import { useTransactions } from '../../contexts/TransactionContext';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { ChatModal } from '../../components/ChatModal';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 export const ProfileScreen: React.FC = () => {
   const { width } = useWindowDimensions();
@@ -20,6 +21,7 @@ export const ProfileScreen: React.FC = () => {
   const { user, logout, refreshUser } = useAuth();
   const { language, setLanguage } = useLanguage();
   const { isDark } = useTheme();
+  const { addNotification } = useNotifications();
   const styles = getStyles(isDark);
 
   const [fullName, setFullName] = useState(user?.fullName || '');
@@ -148,6 +150,32 @@ export const ProfileScreen: React.FC = () => {
       setIsUpdatingSetting(true);
       await updateProfileApi({ reminderTime: timeValue || '' });
       if (refreshUser) await refreshUser();
+
+      // Gửi thông báo trực tiếp vào chuông (tab Hệ thống)
+      if (timeValue) {
+        addNotification({
+          type: 'system',
+          title: language === 'vi' ? `Đã đặt giờ nhắc nhở ${timeValue} hằng ngày! ⏰` : `Daily reminder set at ${timeValue}! ⏰`,
+          message: language === 'vi'
+            ? `Hệ thống sẽ nhắc nhở bạn ghi chép chi tiêu và giữ chuỗi streak vào lúc ${timeValue} mỗi ngày.`
+            : `Monett will remind you to log expenses and maintain your streak at ${timeValue} daily.`,
+          iconBg: '#ECFDF5',
+          iconColor: '#059669',
+          metadata: { targetTab: 'home' },
+        });
+      } else {
+        addNotification({
+          type: 'system',
+          title: language === 'vi' ? 'Đã tắt nhắc nhở hằng ngày 🔕' : 'Daily reminders turned off 🔕',
+          message: language === 'vi'
+            ? 'Bạn đã tắt tính năng nhắc nhở chi tiêu hằng ngày. Bạn có thể bật lại bất cứ lúc nào trong Cài đặt.'
+            : 'You turned off daily reminders. You can re-enable anytime in Settings.',
+          iconBg: '#F1F5F9',
+          iconColor: '#64748B',
+          metadata: { targetTab: 'profile' },
+        });
+      }
+
       setIsReminderModalVisible(false);
     } catch (error: any) {
       window.alert(error.message || 'Lỗi cập nhật giờ nhắc nhở');

@@ -18,6 +18,7 @@ import {
   deleteTransactionApi,
   getBudgetApi,
 } from '../services/api';
+import { useNotifications } from '../contexts/NotificationContext';
 import {
   applyBudgetDelta,
   saveCachedBudget,
@@ -54,6 +55,7 @@ export const TransactionTableWidget: React.FC<{ language?: 'vi' | 'en' }> = ({ l
   const isVi = language === 'vi';
   const [transactions, setTransactions] = useState<TxItem[]>(DEFAULT_TXS);
   const [loading, setLoading] = useState(false);
+  const { addNotification } = useNotifications();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCat, setSelectedCat] = useState('Tất cả');
   const [sortOption, setSortOption] = useState<'date_desc' | 'amount_asc' | 'amount_desc'>('date_desc');
@@ -211,6 +213,24 @@ export const TransactionTableWidget: React.FC<{ language?: 'vi' | 'en' }> = ({ l
           date: new Date().toISOString(),
         };
         setTransactions((prev) => [newTx, ...prev]);
+
+        // Đẩy thông báo chi tiêu vào Chuông
+        const isExpense = payload.type === 'expense';
+        const formattedAmount = Math.abs(num).toLocaleString('vi-VN');
+        addNotification({
+          type: 'expense',
+          title: isExpense ? 'Đã ghi nhận chi tiêu mới 💰' : 'Đã ghi nhận thu nhập mới 💵',
+          message: isExpense
+            ? `Khoản chi "${payload.title || payload.category}" (${formattedAmount} đ) đã được lưu vào sổ chi tiêu.`
+            : `Khoản thu "${payload.title || payload.category}" (+${formattedAmount} đ) đã được cộng vào tài khoản.`,
+          iconBg: isExpense ? '#FFF1F2' : '#ECFDF5',
+          iconColor: isExpense ? '#E11D48' : '#059669',
+          metadata: {
+            targetTab: 'home',
+            amount: Math.abs(num),
+            category: payload.category,
+          },
+        });
       }
       getBudgetApi()
         .then((fresh) => {
@@ -235,6 +255,23 @@ export const TransactionTableWidget: React.FC<{ language?: 'vi' | 'en' }> = ({ l
           date: new Date().toISOString(),
         };
         setTransactions((prev) => [newTx, ...prev]);
+
+        const isExpense = payload.type === 'expense';
+        const formattedAmount = Math.abs(num).toLocaleString('vi-VN');
+        addNotification({
+          type: 'expense',
+          title: isExpense ? 'Đã ghi nhận chi tiêu mới 💰' : 'Đã ghi nhận thu nhập mới 💵',
+          message: isExpense
+            ? `Khoản chi "${payload.title || payload.category}" (${formattedAmount} đ) đã được lưu vào sổ chi tiêu.`
+            : `Khoản thu "${payload.title || payload.category}" (+${formattedAmount} đ) đã được cộng vào tài khoản.`,
+          iconBg: isExpense ? '#FFF1F2' : '#ECFDF5',
+          iconColor: isExpense ? '#E11D48' : '#059669',
+          metadata: {
+            targetTab: 'home',
+            amount: Math.abs(num),
+            category: payload.category,
+          },
+        });
       }
       setEditModalVisible(false);
     } finally {

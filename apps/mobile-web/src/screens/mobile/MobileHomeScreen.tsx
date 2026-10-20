@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { MobileCameraScreen } from './MobileCameraScreen';
+import { getStreakApi } from '../../services/api';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -122,6 +123,26 @@ export const MobileHomeScreen: React.FC = () => {
   const [newAmount, setNewAmount] = useState('');
   const [newCategory, setNewCategory] = useState('Ẩm thực');
   const [newNote, setNewNote] = useState('');
+
+  // Streak thực tế của người dùng
+  const [streakCount, setStreakCount] = useState<number>(user?.streak || 1);
+
+  useEffect(() => {
+    let mounted = true;
+    if (typeof user?.streak === 'number') {
+      setStreakCount(user.streak);
+    }
+    getStreakApi()
+      .then((data: any) => {
+        if (mounted && data && typeof data.streak === 'number') {
+          setStreakCount(data.streak);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [user?.streak]);
 
   // Tên hiển thị người dùng
   const displayName = user?.fullName || (user?.email ? user.email.split('@')[0] : 'Mai Linh');
@@ -269,7 +290,7 @@ export const MobileHomeScreen: React.FC = () => {
           {/* Streak Flame Badge */}
           <View style={styles.streakBadge}>
             <Ionicons name="flame" size={16} color="#EA580C" style={{ marginRight: 2, textShadowColor: "rgba(234, 88, 12, 0.4)", textShadowOffset: {width: 0, height: 2}, textShadowRadius: 4 }} />
-            <Text style={styles.streakCount}>5</Text>
+            <Text style={styles.streakCount}>{streakCount}</Text>
           </View>
 
           {/* User Mini Avatar */}

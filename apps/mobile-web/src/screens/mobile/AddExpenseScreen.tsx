@@ -29,6 +29,7 @@ import {
   notifyBudgetUpdated,
 } from '../../services/calendarStorage';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 
 interface AddExpenseScreenProps {
   initialDate?: string;
@@ -50,6 +51,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   onSaveSuccess,
 }) => {
   const { language } = useLanguage();
+  const { addNotification } = useNotifications();
   const isVi = language === 'vi';
   const [photoUrl, setPhotoUrl] = useState<string | undefined>(initialPhotoUrl || initialData?.photoUri);
   const [amountStr, setAmountStr] = useState(initialData?.amount ? String(Math.abs(initialData.amount)) : '0');
@@ -198,6 +200,21 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
         savedTx = await updateTransactionApi(editingTransactionId, payload);
       } else {
         savedTx = await createTransactionApi(payload);
+        const formattedAmount = Math.abs(parsedAmount).toLocaleString('vi-VN');
+        addNotification({
+          type: 'expense',
+          title: isVi ? 'Đã lưu chi tiêu mới 💰' : 'New expense recorded 💰',
+          message: isVi
+            ? `Khoản chi "${title.trim() || selectedCategory}" (${formattedAmount} đ) đã được ghi nhận vào sổ chi tiêu.`
+            : `Expense "${title.trim() || selectedCategory}" (${formattedAmount} đ) has been recorded.`,
+          iconBg: '#FFF1F2',
+          iconColor: '#E11D48',
+          metadata: {
+            targetTab: 'home',
+            amount: Math.abs(parsedAmount),
+            category: selectedCategory,
+          },
+        });
       }
 
       // Đồng bộ tức thời vào dayRecords (IndexedDB & LocalStorage) để Web nhận diện ngay

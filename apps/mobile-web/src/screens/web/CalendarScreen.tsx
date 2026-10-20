@@ -1082,7 +1082,7 @@ export const WebCalendarScreen: React.FC = () => {
             {/* Lời khen từ Ếch Monett */}
             <View style={styles.frogPraiseCard}>
               <View style={styles.frogPraiseIconBox}>
-                <Text style={{ fontSize: 18 }}>🐸</Text>
+                <Text style={{ fontSize: 18 }}>✨</Text>
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.frogPraiseTitle}>Lời khen từ Ếch Monett:</Text>

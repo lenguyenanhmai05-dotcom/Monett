@@ -266,7 +266,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
       <NotificationModal onNavigateToTab={onSelectTab} />
 
       {/* Floating Frog AI Copilot (Interactive Guide & Navigator) */}
-      <FloatingFrogAIChat onNavigateToTab={onSelectTab} />
+      <FloatingFrogAIChat onNavigateToTab={onSelectTab} activeTab={activeTab} />
     </SafeAreaView>
   );
 };

@@ -8,6 +8,8 @@ import {
   ScrollView,
   Platform,
   TouchableWithoutFeedback,
+  Image,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNotifications, AppNotification, NotificationType } from '../contexts/NotificationContext';
@@ -34,14 +36,19 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
   const { isDark } = useTheme();
   const { language } = useLanguage();
   const isVi = language === 'vi';
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 860;
 
   const [filterType, setFilterType] = useState<'all' | NotificationType>('all');
 
   // Lọc thông báo theo tab
   const filteredNotifications = useMemo(() => {
     if (filterType === 'all') return notifications;
+    if (filterType === 'reminder') {
+      return notifications.filter((n) => n.type === 'reminder');
+    }
     if (filterType === 'moment') {
-      return notifications.filter((n) => n.type === 'moment' || n.type === 'expense');
+      return notifications.filter((n) => n.type === 'moment' || n.type === 'expense' || n.type === 'budget');
     }
     return notifications.filter((n) => n.type === filterType);
   }, [notifications, filterType]);
@@ -70,6 +77,8 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
 
   const getNotificationIcon = (notif: AppNotification) => {
     switch (notif.type) {
+      case 'reminder':
+        return { name: 'alarm' as const, color: '#7C3AED', bg: isDark ? 'rgba(124, 58, 237, 0.2)' : '#EDE9FE' };
       case 'friend':
         return { name: 'people' as const, color: '#8B5CF6', bg: isDark ? 'rgba(139, 92, 246, 0.2)' : '#EDE9FE' };
       case 'moment':
@@ -92,30 +101,190 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
     }
   };
 
-  // Tạo thông báo thử nghiệm
+  // Đếm số thông báo chưa đọc theo từng danh mục
+  const tabCounts = useMemo(() => {
+    return {
+      all: notifications.filter((n) => !n.read).length,
+      reminder: notifications.filter((n) => n.type === 'reminder' && !n.read).length,
+      friend: notifications.filter((n) => n.type === 'friend' && !n.read).length,
+      moment: notifications.filter((n) => (n.type === 'moment' || n.type === 'expense' || n.type === 'budget') && !n.read).length,
+      system: notifications.filter((n) => n.type === 'system' && !n.read).length,
+    };
+  }, [notifications]);
+
+  // Nội dung trạng thái rỗng tương ứng với từng tab
+  const emptyStateContent = useMemo(() => {
+    switch (filterType) {
+      case 'reminder':
+        return {
+          title: isVi ? 'Chưa có thông báo lời nhắc' : 'No reminder notifications',
+          subtitle: isVi
+            ? 'Khi các mục trong "Mục nhắc nhở" đến giờ hẹn hoặc sắp diễn ra, thông báo sẽ hiển thị tại đây.'
+            : 'Scheduled reminders from your planner will appear here when due.',
+          btnText: isVi ? 'Tạo thử thông báo lời nhắc' : 'Generate Reminder Alert',
+        };
+      case 'friend':
+        return {
+          title: isVi ? 'Chưa có thông báo bạn bè' : 'No friend notifications',
+          subtitle: isVi
+            ? 'Khi có lời mời kết bạn mới, bạn bè chấp nhận kết bạn hoặc chia sẻ khoảnh khắc chi tiêu, thông báo sẽ hiển thị tại đây.'
+            : 'Friend requests, accepted connections, and friend moments will appear here.',
+          btnText: isVi ? 'Tạo thử thông báo bạn bè' : 'Generate Friend Alert',
+        };
+      case 'moment':
+        return {
+          title: isVi ? 'Chưa có thông báo chi tiêu' : 'No expense notifications',
+          subtitle: isVi
+            ? 'Các cập nhật ghi chép chi tiêu và khoảnh khắc đã đăng sẽ hiển thị tại đây.'
+            : 'Expense logs and shared moments will appear here.',
+          btnText: isVi ? 'Tạo thử thông báo chi tiêu' : 'Generate Expense Alert',
+        };
+      case 'system':
+        return {
+          title: isVi ? 'Chưa có thông báo hệ thống' : 'No system notifications',
+          subtitle: isVi
+            ? 'Thông báo chuỗi streak, cảnh báo ngân sách và tin tức hệ thống sẽ hiển thị tại đây.'
+            : 'Streak reminders, budget alerts, and system notices will appear here.',
+          btnText: isVi ? 'Tạo thử thông báo hệ thống' : 'Generate System Alert',
+        };
+      default:
+        return {
+          title: isVi ? 'Không có thông báo nào' : 'No notifications',
+          subtitle: isVi
+            ? 'Khi có sự kiện kết bạn, đăng khoảnh khắc, lời nhắc hẹn hoặc cập nhật chi tiêu, thông báo sẽ hiển thị ở đây.'
+            : 'Friend activities, reminders, shared moments, and expense updates will appear here.',
+          btnText: isVi ? 'Tạo thông báo thử nghiệm' : 'Generate Test Alert',
+        };
+    }
+  }, [filterType, isVi]);
+
+  // Tạo thông báo thử nghiệm phù hợp với tab đang chọn
   const handleCreateTestNotification = () => {
-    const randomChoices = [
-      {
-        type: 'friend' as NotificationType,
-        title: 'Lời mời kết bạn mới 🤝',
-        message: 'Hoàng Long vừa gửi cho bạn một lời mời kết bạn trên Monett!',
-        metadata: { targetTab: 'feed' },
-      },
-      {
-        type: 'moment' as NotificationType,
-        title: 'Đăng khoảnh khắc chi tiêu thành công 📸',
-        message: 'Khoảnh khắc "Ăn tối cùng hội bạn" đã được đăng lên bảng tin.',
-        metadata: { targetTab: 'feed' },
-      },
-      {
-        type: 'expense' as NotificationType,
-        title: 'Đã lưu chi tiêu mới 💰',
-        message: 'Khoản chi "Đi siêu thị VinMart" (320.000đ) đã được ghi nhận.',
-        metadata: { targetTab: 'home' },
-      },
-    ];
-    const picked = randomChoices[Math.floor(Math.random() * randomChoices.length)];
-    addNotification(picked);
+    if (filterType === 'reminder') {
+      const reminderChoices = [
+        {
+          type: 'reminder' as NotificationType,
+          title: 'Nhắc nhở: Xíu nữa đi chợ mua cá & rau tươi ⏰',
+          message: 'Đã đến giờ nhắc nhở (17:30 - Báo trước 10 phút). Đừng quên ghé chợ mua cá và rau tươi tươi ngon nhé!',
+          iconBg: '#EDE9FE',
+          iconColor: '#7C3AED',
+          metadata: { targetTab: 'home' },
+        },
+        {
+          type: 'reminder' as NotificationType,
+          title: 'Nhắc nhở: Đóng tiền phòng & điện nước 🏠',
+          message: 'Đã đến hạn nộp tiền trọ theo lịch hẹn. Bạn hãy kiểm tra hóa đơn và thanh toán nhé!',
+          iconBg: '#EDE9FE',
+          iconColor: '#7C3AED',
+          metadata: { targetTab: 'home' },
+        },
+      ];
+      addNotification(reminderChoices[Math.floor(Math.random() * reminderChoices.length)]);
+    } else if (filterType === 'friend') {
+      const friendChoices = [
+        {
+          type: 'friend' as NotificationType,
+          title: 'Lời mời kết bạn mới 🤝',
+          message: 'Hoàng Long vừa gửi cho bạn một lời mời kết bạn trên Monett!',
+          iconBg: '#EDE9FE',
+          iconColor: '#8B5CF6',
+          metadata: { targetTab: 'feed' },
+        },
+        {
+          type: 'friend' as NotificationType,
+          title: 'Kết bạn thành công! 🎉',
+          message: 'Phương Thảo đã đồng ý lời mời kết bạn. Giờ hai bạn có thể xem khoảnh khắc chi tiêu của nhau!',
+          iconBg: '#EDE9FE',
+          iconColor: '#8B5CF6',
+          metadata: { targetTab: 'feed' },
+        },
+        {
+          type: 'friend' as NotificationType,
+          title: 'Bạn bè vừa chia sẻ khoảnh khắc 📸',
+          message: 'Minh Quân vừa chia sẻ khoảnh khắc "Cà phê sáng Highlands" (45.000đ) trên Bảng tin bạn bè.',
+          iconBg: '#EDE9FE',
+          iconColor: '#8B5CF6',
+          metadata: { targetTab: 'feed' },
+        },
+      ];
+      addNotification(friendChoices[Math.floor(Math.random() * friendChoices.length)]);
+    } else if (filterType === 'moment') {
+      const expenseChoices = [
+        {
+          type: 'moment' as NotificationType,
+          title: 'Đăng khoảnh khắc chi tiêu thành công 📸',
+          message: 'Khoảnh khắc "Ăn tối cùng hội bạn" đã được đăng lên bảng tin.',
+          iconBg: '#ECFDF5',
+          iconColor: '#059669',
+          metadata: { targetTab: 'feed' },
+        },
+        {
+          type: 'expense' as NotificationType,
+          title: 'Đã lưu chi tiêu mới 💰',
+          message: 'Khoản chi "Đi siêu thị VinMart" (320.000đ) đã được ghi nhận.',
+          iconBg: '#FFF1F2',
+          iconColor: '#E11D48',
+          metadata: { targetTab: 'home' },
+        },
+      ];
+      addNotification(expenseChoices[Math.floor(Math.random() * expenseChoices.length)]);
+    } else if (filterType === 'system') {
+      const systemChoices = [
+        {
+          type: 'system' as NotificationType,
+          title: 'Duy trì chuỗi streak 3 ngày! 🔥',
+          message: 'Tuyệt vời! Bạn đang duy trì thói quen ghi chép tài chính rất tốt.',
+          iconBg: '#FFFBEB',
+          iconColor: '#D97706',
+          metadata: { targetTab: 'home' },
+        },
+        {
+          type: 'budget' as NotificationType,
+          title: 'Cảnh báo hạn mức ngân sách ⚠️',
+          message: 'Chi tiêu tháng này của bạn đã đạt 80% hạn mức mục tiêu.',
+          iconBg: '#FEF2F2',
+          iconColor: '#DC2626',
+          metadata: { targetTab: 'analytics' },
+        },
+      ];
+      addNotification(systemChoices[Math.floor(Math.random() * systemChoices.length)]);
+    } else {
+      const allChoices = [
+        {
+          type: 'reminder' as NotificationType,
+          title: 'Nhắc nhở: Xíu nữa đi chợ mua cá & rau tươi ⏰',
+          message: 'Đã đến giờ nhắc nhở (17:30 - Báo trước 10 phút). Đừng quên ghé chợ mua cá và rau tươi tươi ngon nhé!',
+          iconBg: '#EDE9FE',
+          iconColor: '#7C3AED',
+          metadata: { targetTab: 'home' },
+        },
+        {
+          type: 'friend' as NotificationType,
+          title: 'Lời mời kết bạn mới 🤝',
+          message: 'Hoàng Long vừa gửi cho bạn một lời mời kết bạn trên Monett!',
+          iconBg: '#EDE9FE',
+          iconColor: '#8B5CF6',
+          metadata: { targetTab: 'feed' },
+        },
+        {
+          type: 'moment' as NotificationType,
+          title: 'Đăng khoảnh khắc chi tiêu thành công 📸',
+          message: 'Khoảnh khắc "Ăn tối cùng hội bạn" đã được đăng lên bảng tin.',
+          iconBg: '#ECFDF5',
+          iconColor: '#059669',
+          metadata: { targetTab: 'feed' },
+        },
+        {
+          type: 'expense' as NotificationType,
+          title: 'Đã lưu chi tiêu mới 💰',
+          message: 'Khoản chi "Đi siêu thị VinMart" (320.000đ) đã được ghi nhận.',
+          iconBg: '#FFF1F2',
+          iconColor: '#E11D48',
+          metadata: { targetTab: 'home' },
+        },
+      ];
+      addNotification(allChoices[Math.floor(Math.random() * allChoices.length)]);
+    }
   };
 
   if (!isOpen) return null;
@@ -128,7 +297,17 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
       onRequestClose={closeNotifications}
     >
       <TouchableWithoutFeedback onPress={closeNotifications}>
-        <View style={styles.overlay}>
+        <View
+          style={[
+            styles.overlay,
+            {
+              justifyContent: isDesktop ? 'flex-start' : 'flex-end',
+              alignItems: isDesktop ? 'flex-end' : 'stretch',
+              paddingTop: isDesktop ? 64 : 0,
+              paddingRight: isDesktop ? 48 : 0,
+            },
+          ]}
+        >
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
             <View
               style={[
@@ -136,9 +315,20 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
                 {
                   backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
                   borderColor: isDark ? '#334155' : '#E2E8F0',
+                  width: isDesktop ? 440 : '100%',
+                  maxHeight: isDesktop ? 620 : '88%',
+                  borderRadius: isDesktop ? 20 : 0,
+                  borderTopLeftRadius: 24,
+                  borderTopRightRadius: 24,
                 },
               ]}
             >
+              {/* Thanh kéo handle indicator trên Mobile */}
+              {!isDesktop && (
+                <View style={styles.handleBarWrap}>
+                  <View style={[styles.handleBar, { backgroundColor: isDark ? '#334155' : '#CBD5E1' }]} />
+                </View>
+              )}
               {/* Header */}
               <View
                 style={[
@@ -213,11 +403,13 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
               >
                 {[
                   { key: 'all', label: isVi ? 'Tất cả' : 'All' },
+                  { key: 'reminder', label: isVi ? 'Lời nhắc' : 'Reminders' },
                   { key: 'friend', label: isVi ? 'Bạn bè' : 'Friends' },
                   { key: 'moment', label: isVi ? 'Chi tiêu' : 'Expenses' },
                   { key: 'system', label: isVi ? 'Hệ thống' : 'System' },
                 ].map((tab) => {
                   const isActive = filterType === tab.key;
+                  const unreadInTab = tabCounts[tab.key as keyof typeof tabCounts] || 0;
                   return (
                     <TouchableOpacity
                       key={tab.key}
@@ -237,6 +429,25 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
                       >
                         {tab.label}
                       </Text>
+                      {unreadInTab > 0 && (
+                        <View
+                          style={[
+                            styles.tabBadge,
+                            isActive && styles.tabBadgeActive,
+                            { backgroundColor: isActive ? 'rgba(255, 255, 255, 0.3)' : (isDark ? 'rgba(5, 150, 105, 0.3)' : '#DCFCE7') },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.tabBadgeText,
+                              isActive && styles.tabBadgeTextActive,
+                              { color: isActive ? '#FFFFFF' : '#059669' },
+                            ]}
+                          >
+                            {unreadInTab}
+                          </Text>
+                        </View>
+                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -257,7 +468,13 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
                       ]}
                     >
                       <Ionicons
-                        name="notifications-off-outline"
+                        name={
+                          filterType === 'friend'
+                            ? 'people-outline'
+                            : filterType === 'reminder'
+                            ? 'alarm-outline'
+                            : 'notifications-off-outline'
+                        }
                         size={36}
                         color={isDark ? '#475569' : '#94A3B8'}
                       />
@@ -268,7 +485,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
                         { color: isDark ? '#F8FAFC' : '#0F172A' },
                       ]}
                     >
-                      {isVi ? 'Không có thông báo nào' : 'No notifications'}
+                      {emptyStateContent.title}
                     </Text>
                     <Text
                       style={[
@@ -276,9 +493,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
                         { color: isDark ? '#94A3B8' : '#64748B' },
                       ]}
                     >
-                      {isVi
-                        ? 'Khi có sự kiện kết bạn, đăng khoảnh khắc hoặc cập nhật chi tiêu, thông báo sẽ hiển thị ở đây.'
-                        : 'Friend activities, shared moments, and expense updates will appear here.'}
+                      {emptyStateContent.subtitle}
                     </Text>
 
                     <TouchableOpacity
@@ -288,7 +503,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
                     >
                       <Ionicons name="sparkles" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
                       <Text style={styles.testBtnText}>
-                        {isVi ? 'Tạo thông báo thử nghiệm' : 'Generate Test Alert'}
+                        {emptyStateContent.btnText}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -315,18 +530,25 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
                         activeOpacity={0.7}
                       >
                         {/* Icon hoặc Avatar */}
-                        <View
-                          style={[
-                            styles.notifIconBox,
-                            { backgroundColor: iconConfig.bg },
-                          ]}
-                        >
-                          <Ionicons
-                            name={iconConfig.name}
-                            size={18}
-                            color={iconConfig.color}
+                        {notif.avatarUrl ? (
+                          <Image
+                            source={{ uri: notif.avatarUrl }}
+                            style={styles.notifAvatar}
                           />
-                        </View>
+                        ) : (
+                          <View
+                            style={[
+                              styles.notifIconBox,
+                              { backgroundColor: iconConfig.bg },
+                            ]}
+                          >
+                            <Ionicons
+                              name={iconConfig.name}
+                              size={18}
+                              color={iconConfig.color}
+                            />
+                          </View>
+                        )}
 
                         {/* Nội dung thông báo */}
                         <View style={styles.notifBody}>
@@ -427,13 +649,19 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
 };
 
 const styles = StyleSheet.create({
+  handleBarWrap: {
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingBottom: 2,
+  },
+  handleBar: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    justifyContent: Platform.OS === 'web' ? 'flex-start' : 'flex-end',
-    alignItems: Platform.OS === 'web' ? 'flex-end' : 'stretch',
-    paddingTop: Platform.OS === 'web' ? 64 : 0,
-    paddingRight: Platform.OS === 'web' ? 48 : 0,
     zIndex: 99999,
   },
   popoverCard: {
@@ -516,10 +744,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 5,
+    paddingVertical: 6,
     borderRadius: 16,
     backgroundColor: 'transparent',
+    gap: 5,
   },
   filterChipActive: {
     backgroundColor: '#059669',
@@ -531,6 +762,31 @@ const styles = StyleSheet.create({
   filterChipTextActive: {
     color: '#FFFFFF',
     fontWeight: '800',
+  },
+  tabBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 8,
+    minWidth: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabBadgeActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  tabBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  tabBadgeTextActive: {
+    color: '#FFFFFF',
+  },
+  notifAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    marginTop: 2,
+    backgroundColor: '#E2E8F0',
   },
   listContainer: {
     maxHeight: 440,

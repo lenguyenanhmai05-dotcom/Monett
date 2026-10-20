@@ -14,7 +14,7 @@ import { MessagesService } from './messages.service';
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: true,
     credentials: true,
   },
 })
@@ -35,18 +35,19 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   async handleConnection(client: Socket) {
     try {
-      const token =
+      const rawToken =
         client.handshake.auth?.token ||
         (typeof client.handshake.headers?.authorization === 'string'
           ? client.handshake.headers.authorization.replace('Bearer ', '')
           : null) ||
         (client.handshake.query?.token as string);
 
-      if (!token || typeof token !== 'string') {
+      if (!rawToken || typeof rawToken !== 'string') {
         client.disconnect();
         return;
       }
 
+      const token = rawToken.trim().replace(/^Bearer\s+/i, '');
       const secret = this.configService.get<string>(
         'JWT_SECRET',
         'monett_super_secret_jwt_key_2026_finance_moments',
