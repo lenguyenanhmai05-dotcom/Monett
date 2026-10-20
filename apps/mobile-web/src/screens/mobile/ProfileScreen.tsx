@@ -394,14 +394,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   const menuItems: MenuItem[] = [
     { 
-      iconName: 'images-outline' as const, 
-      iconBg: '#ECFDF5',
-      iconColor: '#059669',
-      title: isVi ? 'Bảng tin bạn bè 📸' : 'Friends Feed 📸', 
-      subtitle: isVi ? 'Xem ảnh & khoảnh khắc chia sẻ của bạn bè' : 'View friends photo moments',
-      onPress: () => onNavigateToFeed && onNavigateToFeed() 
-    },
-    { 
       iconName: 'alarm-outline' as const, 
       iconBg: '#FEF3C7',
       iconColor: '#D97706',

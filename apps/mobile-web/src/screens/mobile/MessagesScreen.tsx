@@ -32,9 +32,9 @@ import {
 } from '../../services/api';
 import { playNotificationSound, playMessageSentSound } from '../../utils/soundUtils';
 
-// Mascot ảnh ếch Monett
-const FROG_MASCOT_URI = 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&auto=format&fit=crop&q=80';
+// Mascot ảnh mèo Monett AI (Bé mèo)
 const FROG_AI_AVATAR = 'https://images.unsplash.com/photo-1535268647677-300dbf3d78d1?w=200&auto=format&fit=crop&q=80';
+const FROG_MASCOT_URI = FROG_AI_AVATAR;
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 export interface ChatMessage {
@@ -74,6 +74,65 @@ interface MessagesScreenProps {
   onNavigateToDetail?: (id: string) => void;
   onNavigateToFeed?: () => void;
 }
+
+// ─── Safe Avatar Component với cơ chế Fallback tự động khi ảnh 404 hoặc lỗi mạng ───
+const MessageAvatar: React.FC<{
+  uri?: string | null;
+  name: string;
+  size?: number;
+  isAi?: boolean;
+  style?: any;
+}> = ({ uri, name, size = 52, isAi = false, style }) => {
+  const [hasError, setHasError] = useState(false);
+
+  if (isAi) {
+    return (
+      <Image
+        source={{ uri: FROG_AI_AVATAR }}
+        style={[{ width: size, height: size, borderRadius: size / 2 }, style]}
+      />
+    );
+  }
+
+  const normalizedUri = normalizeAvatarUrl(uri);
+
+  if (normalizedUri && !hasError) {
+    return (
+      <Image
+        source={{ uri: normalizedUri }}
+        style={[{ width: size, height: size, borderRadius: size / 2 }, style]}
+        onError={() => setHasError(true)}
+      />
+    );
+  }
+
+  // Fallback an toàn: Chữ cái đầu trên nền màu phong cách hiện đại
+  const initial = (name || '?').charAt(0).toUpperCase();
+  const colors = ['#059669', '#8B5CF6', '#F59E0B', '#EF4444', '#0EA5E9', '#EC4899', '#6366F1'];
+  let hash = 0;
+  for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  const bg = colors[Math.abs(hash) % colors.length];
+
+  return (
+    <View
+      style={[
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: bg,
+          justifyContent: 'center',
+          alignItems: 'center',
+        },
+        style,
+      ]}
+    >
+      <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: Math.round(size * 0.42) }}>
+        {initial}
+      </Text>
+    </View>
+  );
+};
 
 // ─── Khởi tạo Cuộc trò chuyện (Chỉ giữ Trợ lý AI mặc định) ────────────────
 const INITIAL_CONVERSATIONS: ConversationItem[] = [
@@ -154,6 +213,31 @@ const TypingDots: React.FC = () => {
   );
 };
 
+// ─── LocalStorage Persistence Helpers ───────────────────────────────────────
+const getAiStorageKey = (uid: string) => `monett_ai_chat_messages_${uid}`;
+const getConversationsStorageKey = (uid: string) => `monett_chat_conversations_${uid}`;
+const getChatHistoryStorageKey = (uid: string, chatId: string) => `monett_chat_history_${uid}_${chatId}`;
+
+const loadFromStorage = <T = any>(key: string): T | null => {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    console.warn('[MessagesScreen] Load storage error:', e);
+    return null;
+  }
+};
+
+const saveToStorage = (key: string, data: any) => {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {
+    console.warn('[MessagesScreen] Save storage error:', e);
+  }
+};
+
 export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed }) => {
   const { user } = useAuth();
   const { language } = useLanguage();
@@ -170,8 +254,37 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
     lastMessage,
   } = useSocket();
 
-  // ── State Danh sách ──
-  const [conversations, setConversations] = useState<ConversationItem[]>(INITIAL_CONVERSATIONS);
+  // ── State Danh sách Hội Thoại (Tự động tải & phục hồi từ localStorage) ──
+  const [conversations, setConversations] = useState<ConversationItem[]>(() => {
+    const saved = loadFromStorage<ConversationItem[]>(getConversationsStorageKey(currentUserId));
+    if (Array.isArray(saved) && saved.length > 0) {
+      return saved.map((c) => (c.isAi ? { ...c, avatarUrl: FROG_AI_AVATAR } : c));
+    }
+    // Nếu có lịch sử chat AI đã lưu, khôi phục dòng lastMessage tương ứng
+    const savedAi = loadFromStorage<ChatMessage[]>(getAiStorageKey(currentUserId));
+    if (Array.isArray(savedAi) && savedAi.length > 0) {
+      const last = savedAi[savedAi.length - 1];
+      const preview = last.sender === 'me' ? `Bạn: ${last.text}` : last.text;
+      return [
+        {
+          ...INITIAL_CONVERSATIONS[0],
+          avatarUrl: FROG_AI_AVATAR,
+          lastMessage: preview.length > 60 ? preview.slice(0, 57) + '...' : preview,
+          lastMessageTime: 'Vừa xong',
+          unreadCount: 0,
+        },
+      ];
+    }
+    return INITIAL_CONVERSATIONS;
+  });
+
+  // Tự động lưu danh sách hội thoại mỗi khi thay đổi
+  useEffect(() => {
+    if (conversations.length > 0) {
+      saveToStorage(getConversationsStorageKey(currentUserId), conversations);
+    }
+  }, [conversations, currentUserId]);
+
   const [activeTab, setActiveTab] = useState<'all' | 'friends' | 'ai' | 'unread'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -270,12 +383,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
     }
     try {
       setIsSendingFriendReq(true);
-      await sendFriendRequestApi(cleanId);
-      Alert.alert(isVi ? '✅ Thành công' : '✅ Success', isVi ? 'Đã gửi lời mời kết bạn thành công!' : 'Friend request sent successfully!');
+      const res: any = await sendFriendRequestApi(cleanId);
+      Alert.alert(isVi ? 'Thông báo' : 'Notice', res?.message || (isVi ? 'Đã gửi lời mời kết bạn thành công!' : 'Friend request sent successfully!'));
       setFriendIdInput('');
       loadPendingRequests();
     } catch (e: any) {
-      Alert.alert(isVi ? '❌ Lỗi' : '❌ Error', e.message || (isVi ? 'Không thể gửi lời mời kết bạn (ID không tồn tại hoặc đã gửi)' : 'Cannot send friend request (ID does not exist or already sent)'));
+      Alert.alert(isVi ? 'Thông báo' : 'Notice', e.message || (isVi ? 'Không thể gửi lời mời kết bạn (ID không tồn tại hoặc đã gửi)' : 'Cannot send friend request (ID does not exist or already sent)'));
     } finally {
       setIsSendingFriendReq(false);
     }
@@ -307,7 +420,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
         id: `real-${friend._id || friend.id}`,
         friendId: friend._id || friend.id,
         name: friend.fullName || friend.email || (isVi ? 'Bạn bè' : 'Friend'),
-        avatarUrl: friend.avatarUrl || FROG_MASCOT_URI,
+        avatarUrl: normalizeAvatarUrl(friend.avatarUrl) || undefined,
         isOnline: true,
         lastMessage: isVi ? 'Bắt đầu cuộc trò chuyện!' : 'Started conversation!',
         lastMessageTime: isVi ? 'Vừa xong' : 'Just now',
@@ -326,7 +439,19 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
         const realFriends = await getFriendsApi();
         if (isMounted) {
           setConversations((prev) => {
-            const aiItem = prev.find((c) => c.isAi) || INITIAL_CONVERSATIONS[0];
+            const aiExisting = prev.find((c) => c.isAi);
+            const savedAi = loadFromStorage<ChatMessage[]>(getAiStorageKey(currentUserId));
+            const lastAiMsg = savedAi && savedAi.length > 0 ? savedAi[savedAi.length - 1] : null;
+            const aiLastText = lastAiMsg
+              ? (lastAiMsg.sender === 'me' ? `Bạn: ${lastAiMsg.text}` : lastAiMsg.text)
+              : (aiExisting?.lastMessage || INITIAL_CONVERSATIONS[0].lastMessage);
+
+            const aiItem: ConversationItem = {
+              ...(aiExisting || INITIAL_CONVERSATIONS[0]),
+              avatarUrl: FROG_AI_AVATAR,
+              lastMessage: aiLastText.length > 60 ? aiLastText.slice(0, 57) + '...' : aiLastText,
+              isAi: true,
+            };
             const realConvItems: ConversationItem[] = (Array.isArray(realFriends) ? realFriends : []).map((f: any) => {
               const fId = String(
                 f?._id ||
@@ -337,21 +462,24 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
                   : (f?.requester?._id || f?.requester?.id))) ||
                 ''
               );
+              const prevItem = prev.find((c) => c.friendId === fId || c.id === `real-${fId}`);
               return {
                 id: `real-${fId}`,
                 friendId: fId,
                 name: f.fullName || f.name || f.email || 'Bạn bè',
-                avatarUrl: normalizeAvatarUrl(f.avatarUrl || f.avatar) || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
+                avatarUrl: normalizeAvatarUrl(f.avatarUrl || f.avatar) || undefined,
                 isOnline: isUserOnline(fId),
-                lastMessage: 'Hãy bắt đầu trò chuyện cùng nhau!',
-                lastMessageTime: 'Mới',
-                unreadCount: 0,
+                lastMessage: prevItem?.lastMessage || 'Hãy bắt đầu trò chuyện cùng nhau!',
+                lastMessageTime: prevItem?.lastMessageTime || 'Mới',
+                unreadCount: prevItem?.unreadCount || 0,
                 streak: f.streak || 1,
               };
             });
 
             // Chỉ hiển thị Trợ lý AI và bạn bè thật từ Database
-            return [aiItem, ...realConvItems];
+            const result = [aiItem, ...realConvItems];
+            saveToStorage(getConversationsStorageKey(currentUserId), result);
+            return result;
           });
         }
       } catch (err) {
@@ -366,12 +494,24 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
     };
   }, []);
 
-  // ── Tải tin nhắn khi mở cuộc trò chuyện ──
+  // ── Tải tin nhắn khi mở cuộc trò chuyện (Khôi phục từ localStorage) ──
   useEffect(() => {
     if (!activeChat) return;
 
     if (activeChat.isAi) {
-      setChatMessages(AI_INITIAL_MESSAGES);
+      // Đọc lịch sử trò chuyện AI đã lưu từ localStorage
+      const savedAi = loadFromStorage<ChatMessage[]>(getAiStorageKey(currentUserId));
+      if (Array.isArray(savedAi) && savedAi.length > 0) {
+        setChatMessages(savedAi);
+      } else {
+        setChatMessages(AI_INITIAL_MESSAGES);
+        saveToStorage(getAiStorageKey(currentUserId), AI_INITIAL_MESSAGES);
+      }
+
+      // Xóa badge chưa đọc của AI khi vào xem
+      setConversations((prev) =>
+        prev.map((c) => (c.isAi ? { ...c, unreadCount: 0 } : c))
+      );
       return;
     }
 
@@ -387,35 +527,48 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
         )
       );
 
+      // Tải cache offline tức thì 0ms
+      const cached = loadFromStorage<ChatMessage[]>(getChatHistoryStorageKey(currentUserId, activeChat.friendId));
+      if (Array.isArray(cached) && cached.length > 0) {
+        setChatMessages(cached);
+      }
+
       getMessagesApi(activeChat.friendId)
         .then((data) => {
           if (Array.isArray(data) && data.length > 0) {
-            setChatMessages(
-              data.map((m: any) => ({
-                _id: m._id || String(Math.random()),
-                sender: String(m.sender) === String(currentUserId) ? 'me' : 'other',
-                receiver: m.receiver,
-                text: m.text,
-                createdAt: m.createdAt || new Date().toISOString(),
-                type: m.type || 'text',
-                billData: m.billData,
-              }))
-            );
-          } else {
+            const mapped: ChatMessage[] = data.map((m: any) => ({
+              _id: m._id || String(Math.random()),
+              sender: String(m.sender) === String(currentUserId) ? 'me' : 'other',
+              receiver: m.receiver,
+              text: m.text,
+              createdAt: m.createdAt || new Date().toISOString(),
+              type: m.type || 'text',
+              billData: m.billData,
+            }));
+            setChatMessages(mapped);
+            saveToStorage(getChatHistoryStorageKey(currentUserId, activeChat.friendId!), mapped);
+          } else if (!cached || cached.length === 0) {
             // Chưa có tin nhắn DB -> load tin nhắn mẫu
             setChatMessages(SAMPLE_MESSAGES_MAP[activeChat.id] || []);
           }
         })
         .catch((err) => {
           console.log('[MessagesScreen] getMessagesApi error:', err);
-          setChatMessages(SAMPLE_MESSAGES_MAP[activeChat.id] || []);
+          if (!cached || cached.length === 0) {
+            setChatMessages(SAMPLE_MESSAGES_MAP[activeChat.id] || []);
+          }
         })
         .finally(() => {
           setIsLoadingMessages(false);
         });
     } else {
       // Tin nhắn mẫu offline
-      setChatMessages(SAMPLE_MESSAGES_MAP[activeChat.id] || []);
+      const cached = loadFromStorage<ChatMessage[]>(getChatHistoryStorageKey(currentUserId, activeChat.id));
+      if (Array.isArray(cached) && cached.length > 0) {
+        setChatMessages(cached);
+      } else {
+        setChatMessages(SAMPLE_MESSAGES_MAP[activeChat.id] || []);
+      }
     }
   }, [activeChat, currentUserId]);
 
@@ -431,7 +584,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
     if (activeFriendIdStr && (senderStr === activeFriendIdStr || receiverStr === activeFriendIdStr)) {
       setChatMessages((prev) => {
         if (prev.some((m) => m._id === lastMessage._id)) return prev;
-        return [
+        const next = [
           ...prev,
           {
             _id: lastMessage._id,
@@ -443,6 +596,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
             billData: lastMessage.billData,
           },
         ];
+        saveToStorage(getChatHistoryStorageKey(currentUserId, activeFriendIdStr), next);
+        return next;
       });
     }
 
@@ -497,17 +652,29 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
       type: 'text',
     };
 
-    setChatMessages((prev) => [...prev, newMsg]);
+    setChatMessages((prev) => {
+      const next = [...prev, newMsg];
+      if (activeChat.isAi) {
+        saveToStorage(getAiStorageKey(currentUserId), next);
+      } else if (activeChat.friendId) {
+        saveToStorage(getChatHistoryStorageKey(currentUserId, activeChat.friendId), next);
+      } else {
+        saveToStorage(getChatHistoryStorageKey(currentUserId, activeChat.id), next);
+      }
+      return next;
+    });
     playMessageSentSound();
 
-    // Cập nhật lại dòng lastMessage ngoài danh sách
-    setConversations((prev) =>
-      prev.map((c) =>
+    // Cập nhật lại dòng lastMessage ngoài danh sách và lưu trữ
+    setConversations((prev) => {
+      const updated = prev.map((c) =>
         c.id === activeChat.id
-          ? { ...c, lastMessage: `Bạn: ${text}`, lastMessageTime: 'Vừa xong' }
+          ? { ...c, lastMessage: `Bạn: ${text}`, lastMessageTime: isVi ? 'Vừa xong' : 'Just now' }
           : c
-      )
-    );
+      );
+      saveToStorage(getConversationsStorageKey(currentUserId), updated);
+      return updated;
+    });
 
     // 1. Nếu là Chat với Trợ lý AI Monett
     if (activeChat.isAi) {
@@ -544,15 +711,21 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
           createdAt: new Date().toISOString(),
           type: 'text',
         };
-        setChatMessages((prev) => [...prev, autoReply]);
+        setChatMessages((prev) => {
+          const next = [...prev, autoReply];
+          saveToStorage(getChatHistoryStorageKey(currentUserId, activeChat.id), next);
+          return next;
+        });
         playNotificationSound();
-        setConversations((prev) =>
-          prev.map((c) =>
+        setConversations((prev) => {
+          const updated = prev.map((c) =>
             c.id === activeChat.id
               ? { ...c, lastMessage: replyText, lastMessageTime: isVi ? 'Vừa xong' : 'Just now' }
               : c
-          )
-        );
+          );
+          saveToStorage(getConversationsStorageKey(currentUserId), updated);
+          return updated;
+        });
       }, 1500);
     }
   };
@@ -594,8 +767,25 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
       createdAt: new Date().toISOString(),
       type: 'text',
     };
-    setChatMessages((prev) => [...prev, aiMsg]);
+
+    setChatMessages((prev) => {
+      const next = [...prev, aiMsg];
+      saveToStorage(getAiStorageKey(currentUserId), next);
+      return next;
+    });
     playNotificationSound();
+
+    // Cập nhật preview câu trả lời của AI vào danh sách hội thoại & lưu trữ
+    const previewReply = reply.length > 55 ? reply.slice(0, 52).trim() + '...' : reply;
+    setConversations((prev) => {
+      const updated = prev.map((c) =>
+        c.isAi
+          ? { ...c, lastMessage: previewReply, lastMessageTime: isVi ? 'Vừa xong' : 'Just now' }
+          : c
+      );
+      saveToStorage(getConversationsStorageKey(currentUserId), updated);
+      return updated;
+    });
   };
 
   // Trả lời mẫu ngẫu nhiên cho bạn bè demo
@@ -633,8 +823,29 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
       },
     };
 
-    setChatMessages((prev) => [...prev, billMsg]);
+    setChatMessages((prev) => {
+      const next = [...prev, billMsg];
+      if (activeChat?.isAi) {
+        saveToStorage(getAiStorageKey(currentUserId), next);
+      } else if (activeChat?.friendId) {
+        saveToStorage(getChatHistoryStorageKey(currentUserId, activeChat.friendId), next);
+      } else if (activeChat) {
+        saveToStorage(getChatHistoryStorageKey(currentUserId, activeChat.id), next);
+      }
+      return next;
+    });
     playMessageSentSound();
+
+    setConversations((prev) => {
+      const updated = prev.map((c) =>
+        c.id === activeChat?.id
+          ? { ...c, lastMessage: `🧾 Yêu cầu chia tiền: ${splitTitle.trim()}`, lastMessageTime: isVi ? 'Vừa xong' : 'Just now' }
+          : c
+      );
+      saveToStorage(getConversationsStorageKey(currentUserId), updated);
+      return updated;
+    });
+
     setIsSplitBillModalVisible(false);
     setSplitTitle('');
     setSplitAmount('');
@@ -698,9 +909,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
           </TouchableOpacity>
 
           <View style={styles.chatHeaderAvatarWrapper}>
-            <Image
-              source={{ uri: activeChat.avatarUrl || FROG_MASCOT_URI }}
-              style={styles.chatHeaderAvatar}
+            <MessageAvatar
+              uri={activeChat.avatarUrl}
+              name={activeChat.name}
+              size={42}
+              isAi={activeChat.isAi}
             />
             <View
               style={[
@@ -750,13 +963,53 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
 
           {/* Quick Actions Header */}
           <View style={styles.chatHeaderActions}>
-            <TouchableOpacity
-              style={styles.headerIconBtn}
-              onPress={() => setIsSplitBillModalVisible(true)}
-              activeOpacity={0.75}
-            >
-              <Ionicons name="wallet-outline" size={20} color="#047857" />
-            </TouchableOpacity>
+            {activeChat.isAi ? (
+              <TouchableOpacity
+                style={styles.headerIconBtn}
+                onPress={() => {
+                  Alert.alert(
+                    isVi ? 'Làm mới cuộc trò chuyện' : 'Reset Conversation',
+                    isVi ? 'Bạn có muốn làm mới và xóa lịch sử tin nhắn với Trợ lý AI không?' : 'Do you want to reset and clear message history with AI Assistant?',
+                    [
+                      { text: isVi ? 'Hủy' : 'Cancel', style: 'cancel' },
+                      {
+                        text: isVi ? 'Làm mới' : 'Reset',
+                        style: 'destructive',
+                        onPress: () => {
+                          setChatMessages(AI_INITIAL_MESSAGES);
+                          saveToStorage(getAiStorageKey(currentUserId), AI_INITIAL_MESSAGES);
+                          setConversations((prev) => {
+                            const updated = prev.map((c) =>
+                              c.isAi
+                                ? {
+                                    ...c,
+                                    lastMessage: INITIAL_CONVERSATIONS[0].lastMessage,
+                                    lastMessageTime: isVi ? 'Vừa xong' : 'Just now',
+                                    unreadCount: 0,
+                                  }
+                                : c
+                            );
+                            saveToStorage(getConversationsStorageKey(currentUserId), updated);
+                            return updated;
+                          });
+                        },
+                      },
+                    ]
+                  );
+                }}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="refresh-outline" size={20} color="#047857" />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.headerIconBtn}
+                onPress={() => setIsSplitBillModalVisible(true)}
+                activeOpacity={0.75}
+              >
+                <Ionicons name="wallet-outline" size={20} color="#047857" />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={styles.headerIconBtn}
               onPress={() => alert(isVi ? 'Đã ghim cuộc trò chuyện này!' : 'Pinned this conversation!')}
@@ -796,12 +1049,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
                     ]}
                   >
                     {!isMe && (
-                      <Image
-                        source={{
-                          uri: isAi
-                            ? FROG_AI_AVATAR
-                            : activeChat.avatarUrl || FROG_MASCOT_URI,
-                        }}
+                      <MessageAvatar
+                        uri={isAi ? FROG_AI_AVATAR : activeChat.avatarUrl}
+                        name={activeChat.name}
+                        size={32}
+                        isAi={isAi}
                         style={styles.messageSenderAvatar}
                       />
                     )}
@@ -895,8 +1147,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
                   </View>
                 ) : isFriendTyping ? (
                   <View style={[styles.messageRow, styles.messageRowOther]}>
-                    <Image
-                      source={{ uri: activeChat?.avatarUrl || FROG_MASCOT_URI }}
+                    <MessageAvatar
+                      uri={activeChat?.avatarUrl}
+                      name={activeChat?.name || 'Friend'}
+                      size={28}
+                      isAi={false}
                       style={styles.messageSenderAvatar}
                     />
                     <View style={styles.typingBubble}>
@@ -1221,8 +1476,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
                   activeOpacity={0.75}
                 >
                   <View style={styles.storyAvatarRing}>
-                    <Image
-                      source={{ uri: item.avatarUrl || FROG_MASCOT_URI }}
+                    <MessageAvatar
+                      uri={item.avatarUrl}
+                      name={item.name}
+                      size={46}
+                      isAi={item.isAi}
                       style={styles.storyAvatar}
                     />
                     <View
@@ -1335,8 +1593,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
               >
                 {/* Avatar */}
                 <View style={styles.convAvatarContainer}>
-                  <Image
-                    source={{ uri: item.avatarUrl || FROG_MASCOT_URI }}
+                  <MessageAvatar
+                    uri={item.avatarUrl}
+                    name={item.name}
+                    size={52}
+                    isAi={item.isAi}
                     style={styles.convAvatar}
                   />
                   <View
@@ -1691,8 +1952,10 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
                   ) : (
                     dbFriendsList.map((friend) => (
                       <View key={friend._id} style={styles.friendListItem}>
-                        <Image
-                          source={{ uri: friend.avatarUrl || FROG_MASCOT_URI }}
+                        <MessageAvatar
+                          uri={friend.avatarUrl}
+                          name={friend.fullName}
+                          size={44}
                           style={styles.friendListAvatar}
                         />
                         <View style={{ flex: 1 }}>

@@ -11,7 +11,7 @@ export class FriendsService {
 
   async sendFriendRequest(requesterId: string, recipientId: string) {
     if (requesterId === recipientId) {
-      throw new BadRequestException('Cannot send friend request to yourself');
+      throw new BadRequestException('Không thể tự gửi lời mời kết bạn cho chính mình');
     }
 
     let requesterObjId: Types.ObjectId;
@@ -20,7 +20,7 @@ export class FriendsService {
       requesterObjId = new Types.ObjectId(requesterId);
       recipientObjId = new Types.ObjectId(recipientId);
     } catch (e) {
-      throw new BadRequestException('ID không hợp lệ - vui lòng dùng ID đầy đủ');
+      throw new BadRequestException('Mã ID người dùng không hợp lệ - vui lòng kiểm tra lại');
     }
 
     // Check if request already exists
@@ -32,7 +32,31 @@ export class FriendsService {
     });
 
     if (existing) {
-      throw new BadRequestException('Lời mời kết bạn đã tồn tại hoặc hai bạn đã là bạn bè');
+      if (existing.status === 'accepted') {
+        throw new BadRequestException('Hai bạn đã là bạn bè rồi! ✨');
+      }
+
+      if (existing.status === 'pending') {
+        if (existing.requester.toString() === requesterId) {
+          throw new BadRequestException('Bạn đã gửi lời mời kết bạn trước đó rồi, đang chờ đối phương đồng ý nhé! ⏳');
+        } else {
+          // Đối phương đã gửi lời mời trước đó -> Khi bạn kết bạn lại, tự động chấp nhận thành công!
+          existing.status = 'accepted';
+          await existing.save();
+          return {
+            message: 'Đối phương đã gửi lời mời trước đó, hai bạn đã trở thành bạn bè! 🎉',
+            status: 'accepted',
+            friendship: existing,
+          };
+        }
+      }
+
+      if (existing.status === 'rejected') {
+        existing.requester = requesterObjId;
+        existing.recipient = recipientObjId;
+        existing.status = 'pending';
+        return existing.save();
+      }
     }
 
     const newRequest = new this.friendshipModel({
@@ -93,12 +117,11 @@ export class FriendsService {
         { requester: userObjId, recipient: friendObjId },
         { requester: friendObjId, recipient: userObjId },
       ],
-      status: 'accepted'
     });
 
     if (!result) {
-      throw new NotFoundException('Friendship not found');
+      throw new NotFoundException('Không tìm thấy mối quan hệ bạn bè hoặc lời mời');
     }
-    return { success: true, message: 'Friend removed' };
+    return { success: true, message: 'Đã hủy kết bạn / xóa lời mời thành công' };
   }
 }

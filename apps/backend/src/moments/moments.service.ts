@@ -39,22 +39,12 @@ export class MomentsService {
       await this.seedInitialMoments(userObjId);
     }
 
-    // 3. Lấy moments mới nhất của user và bạn bè
-    let moments = await this.momentModel
+    // 3. Lấy moments mới nhất CHỈ CỦA user và bạn bè đã chấp nhận kết bạn
+    const moments = await this.momentModel
       .find({ user: { $in: allUserIds } })
       .sort({ createdAt: -1 })
       .populate('user', 'fullName avatarUrl email')
       .exec();
-
-    // Nếu người dùng mới chưa có bạn bè và chưa đăng bài nào, hiển thị các bài đăng nổi bật để bảng tin không bị trống
-    if (moments.length === 0) {
-      moments = await this.momentModel
-        .find({})
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .populate('user', 'fullName avatarUrl email')
-        .exec();
-    }
 
     // 4. Chuẩn hóa format trả về cho frontend
     return moments.map((m: any) => {
