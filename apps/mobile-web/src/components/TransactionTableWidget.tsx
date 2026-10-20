@@ -16,8 +16,16 @@ import {
   createTransactionApi,
   updateTransactionApi,
   deleteTransactionApi,
+  getBudgetApi,
 } from '../services/api';
 import { useNotifications } from '../contexts/NotificationContext';
+import {
+  applyBudgetDelta,
+  saveCachedBudget,
+  notifyBudgetUpdated,
+  notifyCalendarUpdated,
+} from '../services/calendarStorage';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 export interface TxItem {
   id: string;
@@ -55,6 +63,10 @@ export const TransactionTableWidget: React.FC<{ language?: 'vi' | 'en' }> = ({ l
   // Modal Sửa/Thêm
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editingTx, setEditingTx] = useState<TxItem | null>(null);
+
+  // Modal Confirm Delete
+  const [deletingTx, setDeletingTx] = useState<TxItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [formTitle, setFormTitle] = useState('');
   const [formAmount, setFormAmount] = useState('');
   const [formType, setFormType] = useState<'expense' | 'income'>('expense');
@@ -122,13 +134,38 @@ export const TransactionTableWidget: React.FC<{ language?: 'vi' | 'en' }> = ({ l
   };
 
   const handleDelete = (tx: TxItem) => {
-    const txId = tx.id || tx._id || '';
-    if (typeof window !== 'undefined' && window.confirm) {
-      if (!window.confirm(isVi ? `Bạn có chắc muốn xóa "${tx.title}"?` : `Delete "${tx.title}"?`)) return;
-    }
+    setDeletingTx(tx);
+  };
 
-    setTransactions((prev) => prev.filter((item) => (item.id || item._id) !== txId));
-    deleteTransactionApi(txId).catch((err) => console.log('Delete API offline fallback:', err));
+  const handleConfirmDelete = async () => {
+    if (!deletingTx) return;
+    const txId = deletingTx.id || deletingTx._id || '';
+    setIsDeleting(true);
+
+    // Hoàn lại số dư khả dụng ngay lập tức (0ms Optimistic UI)
+    const delAmount = Math.abs(deletingTx.amount || 0);
+    if (deletingTx.type === 'expense' || deletingTx.amount < 0) {
+      applyBudgetDelta(-delAmount);
+    }
+    notifyCalendarUpdated();
+
+    try {
+      await deleteTransactionApi(txId);
+    } catch (err) {
+      console.log('Delete API offline fallback:', err);
+    } finally {
+      getBudgetApi()
+        .then((fresh) => {
+          if (fresh && fresh.limit) {
+            saveCachedBudget(fresh);
+            notifyBudgetUpdated(fresh);
+          }
+        })
+        .catch(() => {});
+      setTransactions((prev) => prev.filter((item) => (item.id || item._id) !== txId));
+      setIsDeleting(false);
+      setDeletingTx(null);
+    }
   };
 
   const handleSaveModal = async () => {
@@ -150,6 +187,16 @@ export const TransactionTableWidget: React.FC<{ language?: 'vi' | 'en' }> = ({ l
       category: formCategory,
       note: formNote.trim(),
     };
+
+    // 1. Cập nhật số dư khả dụng ngay tức thì (0ms Optimistic UI)
+    if (!editingTx) {
+      if (formType === 'expense') {
+        applyBudgetDelta(num);
+      } else {
+        applyBudgetDelta(-num);
+      }
+      notifyCalendarUpdated();
+    }
 
     try {
       if (editingTx) {
@@ -185,6 +232,14 @@ export const TransactionTableWidget: React.FC<{ language?: 'vi' | 'en' }> = ({ l
           },
         });
       }
+      getBudgetApi()
+        .then((fresh) => {
+          if (fresh && fresh.limit) {
+            saveCachedBudget(fresh);
+            notifyBudgetUpdated(fresh);
+          }
+        })
+        .catch(() => {});
       setEditModalVisible(false);
     } catch (e) {
       // Fallback local update
@@ -518,6 +573,20 @@ export const TransactionTableWidget: React.FC<{ language?: 'vi' | 'en' }> = ({ l
           </View>
         </View>
       </Modal>
+
+      <ConfirmDeleteModal
+        visible={Boolean(deletingTx)}
+        itemTitle={deletingTx?.title}
+        itemAmount={
+          deletingTx
+            ? `${deletingTx.type === 'expense' ? '-' : '+'}${Math.abs(deletingTx.amount).toLocaleString('vi-VN')} đ`
+            : undefined
+        }
+        itemCategory={deletingTx?.category}
+        isDeleting={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeletingTx(null)}
+      />
     </View>
   );
 };

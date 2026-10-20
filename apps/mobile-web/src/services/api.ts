@@ -932,4 +932,3 @@ export const deleteReminderApi = async (id: string): Promise<any> => {
   });
   return (res as any).data || res;
 };
-

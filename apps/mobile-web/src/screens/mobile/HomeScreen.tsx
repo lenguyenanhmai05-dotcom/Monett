@@ -22,6 +22,18 @@ import { SavingsGoalsWidget } from '../../components/SavingsGoalsWidget';
 import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
 import { BudgetModal } from '../../components/BudgetModal';
 import { formatYMD } from '../../utils/dateUtils';
+import {
+  getInitialDayRecordsFromLocalStorage,
+  saveDayRecordsToStorage,
+  mergeTransactionsIntoDayRecords,
+  subscribeCalendarUpdates,
+  removeDayRecordItem,
+  getCachedBudget,
+  saveCachedBudget,
+  notifyBudgetUpdated,
+  subscribeBudgetUpdates,
+  applyBudgetDelta,
+} from '../../services/calendarStorage';
 
 interface HomeScreenProps {
   refreshTrigger?: number;
@@ -115,18 +127,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const avatarColor = getAvatarColor(displayName);
   const [imageError, setImageError] = React.useState(false);
 
-  const [budget, setBudget] = React.useState<BudgetData>({
-    month: new Date().getMonth() + 1,
-    year: new Date().getFullYear(),
-    limit: 22000000,
-    spent: 6180000,
-    remaining: 15820000,
-    spentPercent: 28.1,
-    remainingPercent: 71.9,
-    status: 'safe',
-    payday: 5,
-    daysUntilPayday: 12,
-    currency: 'VND',
+  const [budget, setBudget] = React.useState<BudgetData>(() => {
+    return (
+      (getCachedBudget() as BudgetData) || {
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear(),
+        limit: 22000000,
+        spent: 6180000,
+        remaining: 15820000,
+        spentPercent: 28.1,
+        remainingPercent: 71.9,
+        status: 'safe',
+        payday: 5,
+        daysUntilPayday: 12,
+        currency: 'VND',
+      }
+    );
   });
 
   const todayStr = useMemo(() => formatYMD(new Date()), []);
@@ -162,25 +178,36 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   const handleConfirmDeleteExpense = async () => {
     if (!deletingExpense) return;
+    const itemToDelete = deletingExpense;
     setIsDeletingTx(true);
+
+    // Cập nhật số dư khả dụng ngay lập tức (0ms Optimistic UI)
+    const updatedBudget = applyBudgetDelta(-itemToDelete.rawAmount, budget);
+    setBudget(updatedBudget);
+
+    // Cập nhật danh sách chi tiêu ngày được chọn ngay lập tức
+    removeDayRecordItem(itemToDelete.id);
+    setTodayExpenses((prev) => prev.filter((item) => item.id !== itemToDelete.id));
+    setTodayTotal((prev) => Math.max(0, prev - itemToDelete.rawAmount));
+    setDeletingExpense(null);
+    setIsDeletingTx(false);
+
     try {
-      if (deletingExpense.id && !deletingExpense.id.startsWith('tx_')) {
-        await deleteTransactionApi(deletingExpense.id);
+      if (itemToDelete.id && !itemToDelete.id.startsWith('tx_') && !itemToDelete.id.startsWith('tx-')) {
+        await deleteTransactionApi(itemToDelete.id);
       }
-      setTodayExpenses((prev) => prev.filter((item) => item.id !== deletingExpense.id));
-      setTodayTotal((prev) => Math.max(0, prev - deletingExpense.rawAmount));
-      setDeletingExpense(null);
-      // Refresh lại ngân sách & danh sách tháng
-      const budgetData = await getBudgetApi();
-      if (budgetData && budgetData.limit) setBudget(budgetData);
-      fetchHomeData();
     } catch (e: any) {
-      console.log('Error deleting transaction:', e);
-      if (typeof alert !== 'undefined') {
-        alert('Không thể xóa giao dịch: ' + (e?.message || 'Lỗi kết nối'));
-      }
+      console.log('Error deleting transaction from API:', e);
     } finally {
-      setIsDeletingTx(false);
+      try {
+        const budgetData = await getBudgetApi();
+        if (budgetData && budgetData.limit) {
+          setBudget(budgetData);
+          saveCachedBudget(budgetData);
+          notifyBudgetUpdated(budgetData);
+        }
+        fetchHomeData();
+      } catch (_) {}
     }
   };
 
@@ -190,15 +217,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       const budgetData = await getBudgetApi();
       if (budgetData && budgetData.limit) {
         setBudget(budgetData);
+        saveCachedBudget(budgetData);
       }
     } catch (e) {}
 
-    // Lấy toàn bộ giao dịch của tháng để hiển thị lên Lịch tài chính
+    // Lấy toàn bộ giao dịch của tháng để hiển thị lên Lịch tài chính và đồng bộ với dayRecords
     try {
       const monthRes: any = await getTransactionsApi({ limit: 300 });
       const txList = Array.isArray(monthRes) ? monthRes : monthRes?.data || monthRes?.items || [];
       if (Array.isArray(txList)) {
         setMonthTransactions(txList);
+        const curRecords = getInitialDayRecordsFromLocalStorage();
+        const merged = mergeTransactionsIntoDayRecords(curRecords, txList);
+        saveDayRecordsToStorage(merged);
       }
     } catch (e) {}
 
@@ -243,6 +274,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   React.useEffect(() => {
     fetchHomeData();
   }, [fetchHomeData, refreshTrigger]);
+
+  // Lắng nghe cập nhật lịch chi tiêu từ Web hoặc các modal khác để tự động làm mới
+  React.useEffect(() => {
+    const unsub = subscribeCalendarUpdates(() => {
+      fetchHomeData();
+    });
+    return unsub;
+  }, [fetchHomeData]);
+
+  // Lắng nghe cập nhật ngân sách trực tiếp (khi lưu hoặc xóa chi tiêu) để số dư nhảy tức thì
+  React.useEffect(() => {
+    const unsub = subscribeBudgetUpdates((b) => {
+      if (b) setBudget(b as BudgetData);
+    });
+    return unsub;
+  }, []);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>

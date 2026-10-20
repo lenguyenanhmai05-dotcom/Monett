@@ -18,7 +18,16 @@ import {
   updateTransactionApi,
   uploadReceiptApi,
   scanReceiptOcrApi,
+  getBudgetApi,
 } from '../../services/api';
+import {
+  getInitialDayRecordsFromLocalStorage,
+  mergeTransactionsIntoDayRecords,
+  saveDayRecordsToStorage,
+  applyBudgetDelta,
+  saveCachedBudget,
+  notifyBudgetUpdated,
+} from '../../services/calendarStorage';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 
@@ -146,21 +155,51 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
         }
       }
 
+      const now = new Date();
+      let targetDateIso = now.toISOString();
+      if (initialDate) {
+        const parts = initialDate.split('-');
+        if (parts.length === 3) {
+          const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+          targetDateIso = d.toISOString();
+        } else {
+          const parsed = new Date(initialDate);
+          if (!isNaN(parsed.getTime())) {
+            const d = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+            targetDateIso = d.toISOString();
+          }
+        }
+      }
+      const uploadTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
       const catIcon = categories.find((c) => c.name === selectedCategory)?.icon || '🍜';
+      const numAmount = Math.abs(parsedAmount);
       const payload = {
         title: title.trim() || selectedCategory,
-        amount: -Math.abs(parsedAmount),
+        amount: -numAmount,
         type: 'expense' as const,
         category: selectedCategory,
         categoryIcon: catIcon,
         photoUri: finalPhotoUri,
-        date: initialDate ? new Date(initialDate).toISOString() : new Date().toISOString(),
+        date: targetDateIso,
       };
 
-      if (editingTransactionId && !editingTransactionId.startsWith('tx_')) {
-        await updateTransactionApi(editingTransactionId, payload);
+      // 1. CẬP NHẬT NGAY LẬP TỨC SỐ DƯ KHẢ DỤNG (0ms Optimistic UI)
+      if (!editingTransactionId) {
+        applyBudgetDelta(numAmount);
       } else {
-        await createTransactionApi(payload);
+        const oldAmount = Math.abs(initialData?.rawAmount || initialData?.amount || 0);
+        const diff = numAmount - oldAmount;
+        if (diff !== 0) {
+          applyBudgetDelta(diff);
+        }
+      }
+
+      let savedTx: any = null;
+      if (editingTransactionId && !editingTransactionId.startsWith('tx_')) {
+        savedTx = await updateTransactionApi(editingTransactionId, payload);
+      } else {
+        savedTx = await createTransactionApi(payload);
         const formattedAmount = Math.abs(parsedAmount).toLocaleString('vi-VN');
         addNotification({
           type: 'expense',
@@ -177,6 +216,30 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
           },
         });
       }
+
+      // Đồng bộ tức thời vào dayRecords (IndexedDB & LocalStorage) để Web nhận diện ngay
+      try {
+        const curRecords = getInitialDayRecordsFromLocalStorage();
+        const txObj = {
+          ...payload,
+          time: uploadTimeStr,
+          createdAt: now.toISOString(),
+          _id: savedTx?._id || savedTx?.id || editingTransactionId || `tx-${Date.now()}`,
+        };
+        const nextRecords = mergeTransactionsIntoDayRecords(curRecords, [txObj]);
+        saveDayRecordsToStorage(nextRecords);
+      } catch (storageErr) {
+        console.warn('Lỗi đồng bộ local storage:', storageErr);
+      }
+
+      getBudgetApi()
+        .then((fresh) => {
+          if (fresh && fresh.limit) {
+            saveCachedBudget(fresh);
+            notifyBudgetUpdated(fresh);
+          }
+        })
+        .catch(() => {});
 
       if (onSaveSuccess) {
         onSaveSuccess();

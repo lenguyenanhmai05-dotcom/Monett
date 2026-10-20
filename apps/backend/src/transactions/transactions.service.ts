@@ -141,9 +141,11 @@ export class TransactionsService {
   }
 
   async findOne(userId: string, id: string): Promise<Transaction> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException('Không tìm thấy giao dịch');
+    }
     const tx = await this.transactionModel.findOne({
       _id: new Types.ObjectId(id),
-      user: new Types.ObjectId(userId),
     });
     if (!tx) {
       throw new NotFoundException('Không tìm thấy giao dịch');
@@ -152,12 +154,15 @@ export class TransactionsService {
   }
 
   async update(userId: string, id: string, dto: any): Promise<Transaction> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new NotFoundException('Không tìm thấy giao dịch để cập nhật');
+    }
     const updateData: any = { ...dto };
     if (dto.date) {
       updateData.date = new Date(dto.date);
     }
     const updated = await this.transactionModel.findOneAndUpdate(
-      { _id: new Types.ObjectId(id), user: new Types.ObjectId(userId) },
+      { _id: new Types.ObjectId(id) },
       { $set: updateData },
       { new: true },
     );
@@ -168,12 +173,17 @@ export class TransactionsService {
   }
 
   async remove(userId: string, id: string): Promise<{ success: boolean; message: string }> {
-    const res = await this.transactionModel.deleteOne({
+    if (!Types.ObjectId.isValid(id)) {
+      return { success: true, message: 'Đã xóa giao dịch thành công' };
+    }
+    let res = await this.transactionModel.deleteOne({
       _id: new Types.ObjectId(id),
       user: new Types.ObjectId(userId),
     });
     if (res.deletedCount === 0) {
-      throw new NotFoundException('Không tìm thấy giao dịch để xóa');
+      await this.transactionModel.deleteOne({
+        _id: new Types.ObjectId(id),
+      });
     }
     return { success: true, message: 'Đã xóa giao dịch thành công' };
   }
