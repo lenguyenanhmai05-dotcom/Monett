@@ -104,8 +104,9 @@ export class AppModule implements OnModuleInit {
   async onModuleInit() {
     try {
       await this.seedService.seedAdmin();
+      await this.seedService.seedSampleTransactions();
     } catch (error) {
-      console.error('Lỗi khi khởi tạo admin seed:', error);
+      console.error('Lỗi khi khởi tạo admin/sample seed:', error);
     }
   }
 }

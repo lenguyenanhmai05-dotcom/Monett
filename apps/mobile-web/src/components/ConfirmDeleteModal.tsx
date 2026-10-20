@@ -8,9 +8,11 @@ import {
   ActivityIndicator,
   Image,
   TouchableWithoutFeedback,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 export interface ConfirmDeleteModalProps {
   visible: boolean;
@@ -38,6 +40,7 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
   onCancel,
 }) => {
   const { language } = useLanguage();
+  const { isDark } = useTheme();
   const isVi = language === 'vi';
 
   const finalTitle = title || (isVi ? 'Xác nhận xóa giao dịch?' : 'Confirm delete transaction?');
@@ -54,35 +57,47 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
     >
       <TouchableWithoutFeedback onPress={isDeleting ? undefined : onCancel}>
         <View style={styles.overlay}>
-          <TouchableWithoutFeedback>
-            <View style={styles.dialogContainer}>
+          <TouchableWithoutFeedback onPress={(e: any) => e?.stopPropagation?.()}>
+            <View
+              style={[
+                styles.dialogContainer,
+                isDark && { backgroundColor: '#1E293B', borderColor: '#334155' },
+              ]}
+              // @ts-ignore
+              onClick={(e: any) => e?.stopPropagation?.()}
+            >
               {/* 1. Icon vòng tròn kép đỏ Pastel sang trọng */}
-              <View style={styles.iconOuterCircle}>
-                <View style={styles.iconInnerCircle}>
-                  <Ionicons name="trash" size={22} color="#DC2626" />
+              <View style={[styles.iconOuterCircle, isDark && { backgroundColor: 'rgba(239, 68, 68, 0.2)' }]}>
+                <View style={[styles.iconInnerCircle, isDark && { backgroundColor: 'rgba(239, 68, 68, 0.35)' }]}>
+                  <Ionicons name="trash" size={22} color="#EF4444" />
                 </View>
               </View>
 
               {/* 2. Tiêu đề & Mô tả */}
-              <Text style={styles.dialogTitle}>{finalTitle}</Text>
-              <Text style={styles.dialogMessage}>{finalMessage}</Text>
+              <Text style={[styles.dialogTitle, isDark && { color: '#F1F5F9' }]}>{finalTitle}</Text>
+              <Text style={[styles.dialogMessage, isDark && { color: '#94A3B8' }]}>{finalMessage}</Text>
 
               {/* 3. Card tóm tắt giao dịch sắp xóa */}
               {(itemTitle || itemAmount) && (
-                <View style={styles.previewCard}>
+                <View
+                  style={[
+                    styles.previewCard,
+                    isDark && { backgroundColor: '#0F172A', borderColor: '#334155' },
+                  ]}
+                >
                   {itemImage ? (
-                    <Image source={{ uri: itemImage }} style={styles.previewImage} />
+                    <Image source={{ uri: itemImage }} style={styles.previewImage} resizeMode="cover" />
                   ) : (
-                    <View style={styles.previewIconBox}>
-                      <Ionicons name="receipt-outline" size={20} color="#047857" />
+                    <View style={[styles.previewIconBox, isDark && { backgroundColor: '#1E293B' }]}>
+                      <Ionicons name="receipt-outline" size={20} color="#10B981" />
                     </View>
                   )}
                   <View style={styles.previewInfo}>
-                    <Text style={styles.previewTitle} numberOfLines={1}>
+                    <Text style={[styles.previewTitle, isDark && { color: '#F1F5F9' }]} numberOfLines={1}>
                       {itemTitle || (isVi ? 'Giao dịch' : 'Transaction')}
                     </Text>
                     {itemCategory && (
-                      <Text style={styles.previewCategory}>
+                      <Text style={[styles.previewCategory, isDark && { color: '#94A3B8' }]}>
                         {itemCategory}
                       </Text>
                     )}
@@ -98,12 +113,14 @@ export const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
               {/* 4. Hành động: Hủy bỏ & Xóa vĩnh viễn */}
               <View style={styles.actionRow}>
                 <TouchableOpacity
-                  style={styles.cancelBtn}
+                  style={[styles.cancelBtn, isDark && { backgroundColor: '#334155' }]}
                   onPress={onCancel}
                   disabled={isDeleting}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.cancelBtnText}>{isVi ? 'Hủy bỏ' : 'Cancel'}</Text>
+                  <Text style={[styles.cancelBtnText, isDark && { color: '#CBD5E1' }]}>
+                    {isVi ? 'Hủy bỏ' : 'Cancel'}
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -137,10 +154,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 24,
+    zIndex: 99999,
   },
   dialogContainer: {
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 380,
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     paddingHorizontal: 22,
@@ -151,9 +169,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.15,
     shadowRadius: 24,
-    elevation: 10,
+    elevation: 20,
     borderWidth: 1,
     borderColor: '#F1F5F9',
+    zIndex: 100000,
   },
   iconOuterCircle: {
     width: 64,

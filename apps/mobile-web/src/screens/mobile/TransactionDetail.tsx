@@ -11,9 +11,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { getTransactionDetailApi, deleteTransactionApi } from '../../services/api';
+import { getTransactionDetailApi, deleteTransactionApi, getBudgetApi } from '../../services/api';
 import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
 import { useLanguage } from '../../contexts/LanguageContext';
+import {
+  removeDayRecordItem,
+  notifyCalendarUpdated,
+  applyBudgetDelta,
+  saveCachedBudget,
+  notifyBudgetUpdated,
+  formatExpenseUploadTime,
+} from '../../services/calendarStorage';
 
 interface TransactionDetailProps {
   transactionId?: string;
@@ -102,7 +110,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
             amount: `${sign}${Math.abs(tx.amount || 0).toLocaleString('vi-VN')} đ`,
             rawAmount: Math.abs(tx.amount || 0),
             rawType: isExpense ? 'expense' : 'income',
-            time: d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+            time: formatExpenseUploadTime(tx),
             date: d.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }),
             category: tx.category || 'Ăn uống',
             categoryIcon: tx.categoryIcon || 'restaurant-outline',
@@ -126,19 +134,34 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
 
   const handleConfirmDelete = async () => {
     setIsDeleting(true);
+
+    // Hoàn lại số dư khả dụng ngay lập tức (0ms Optimistic UI)
+    if (detail.rawType === 'expense' && detail.rawAmount > 0) {
+      applyBudgetDelta(-detail.rawAmount);
+    }
+
     try {
-      if (transactionId && !transactionId.startsWith('tx_')) {
+      if (transactionId && !transactionId.startsWith('tx_') && !transactionId.startsWith('tx-')) {
         await deleteTransactionApi(transactionId);
       }
-      setShowDeleteModal(false);
-      if (onDelete) onDelete();
     } catch (e: any) {
-      console.log('Error deleting transaction:', e);
-      if (typeof alert !== 'undefined') {
-        alert('Không thể xóa giao dịch: ' + (e?.message || 'Lỗi kết nối'));
-      }
+      console.log('Error deleting transaction from API:', e);
     } finally {
+      if (transactionId) {
+        removeDayRecordItem(transactionId);
+        notifyCalendarUpdated();
+      }
+      getBudgetApi()
+        .then((fresh) => {
+          if (fresh && fresh.limit) {
+            saveCachedBudget(fresh);
+            notifyBudgetUpdated(fresh);
+          }
+        })
+        .catch(() => {});
+      setShowDeleteModal(false);
       setIsDeleting(false);
+      if (onDelete) onDelete();
     }
   };
 
