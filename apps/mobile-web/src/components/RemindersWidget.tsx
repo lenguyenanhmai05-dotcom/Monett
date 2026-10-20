@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { IReminder } from '@monett/shared';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useNotifications } from '../contexts/NotificationContext';
 import {
   getRemindersApi,
   createReminderApi,
@@ -27,10 +28,7 @@ interface RemindersWidgetProps {
   noMargin?: boolean;
 }
 
-// Đã tắt âm thanh thông báo theo yêu cầu
-const playNotificationSound = () => {
-  return;
-};
+import { playNotificationSound } from '../utils/soundUtils';
 
 // Dữ liệu mẫu ban đầu để giao diện không bị trống nếu chưa có mạng
 const INITIAL_SAMPLE_REMINDERS: IReminder[] = [
@@ -48,6 +46,7 @@ const INITIAL_SAMPLE_REMINDERS: IReminder[] = [
 
 export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr, noMargin }) => {
   const { language } = useLanguage();
+  const { addNotification } = useNotifications();
   const isVi = language === 'vi';
   const todayYMD = useMemo(() => {
     const now = new Date();
@@ -101,6 +100,29 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
 
   // Lưu danh sách id đã thông báo để không lặp lại liên tục
   const alertedIdsRef = useRef<Set<string>>(new Set());
+  const [pushedReminderId, setPushedReminderId] = useState<string | null>(null);
+
+  // Thủ công đưa lời nhắc lên chuông thông báo (Bell Notification)
+  const handlePushToBell = (item: IReminder) => {
+    addNotification({
+      id: `reminder-manual-${item.id}-${Date.now()}`,
+      type: 'reminder',
+      title: `Nhắc nhở: ${item.title} ⏰`,
+      message: `Đã đến giờ nhắc nhở (${item.time || '17:30'} - Báo trước ${item.remindBeforeMinutes || 10} phút). Đừng quên công việc của bạn nhé!`,
+      createdAt: new Date().toISOString(),
+      read: false,
+      iconBg: '#EDE9FE',
+      iconColor: '#7C3AED',
+      metadata: {
+        targetTab: 'home',
+      },
+    });
+    playNotificationSound();
+    setPushedReminderId(item.id);
+    setTimeout(() => {
+      setPushedReminderId(null);
+    }, 2500);
+  };
 
   // Tự động cuộn đến giờ & phút đã chọn khi mở form
   useEffect(() => {
@@ -245,6 +267,21 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
               title: item.title,
               time: item.time,
               beforeMinutes: alertLeadMinutes,
+            });
+
+            // Đưa thông báo vào chuông thông báo (Bell Notification)
+            addNotification({
+              id: `reminder-alarm-${item.id}-${Date.now()}`,
+              type: 'reminder',
+              title: `Nhắc nhở: ${item.title} ⏰`,
+              message: `Đã đến giờ nhắc nhở (${item.time} - Báo trước ${alertLeadMinutes} phút). Đừng quên công việc của bạn nhé!`,
+              createdAt: new Date().toISOString(),
+              read: false,
+              iconBg: '#EDE9FE',
+              iconColor: '#7C3AED',
+              metadata: {
+                targetTab: 'home',
+              },
             });
 
             // Phát âm thanh chuông
@@ -850,7 +887,28 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                     {isDone && (
                       <Text style={styles.statusDoneText}>Đã hoàn thành</Text>
                     )}
+                    {pushedReminderId === item.id && (
+                      <Text style={styles.statusPushedText}>Đã gửi lên chuông 🔔</Text>
+                    )}
                   </View>
+                </TouchableOpacity>
+
+                {/* 2.4 NÚT CÀI THÔNG BÁO VÀO CHUÔNG (🔔) */}
+                <TouchableOpacity
+                  style={[
+                    styles.bellActionBtn,
+                    pushedReminderId === item.id && styles.bellActionBtnActive,
+                  ]}
+                  onPress={() => handlePushToBell(item)}
+                  activeOpacity={0.6}
+                  hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+                  accessibilityLabel={isVi ? 'Cài thông báo này lên chuông' : 'Push to bell notification'}
+                >
+                  <Ionicons
+                    name={pushedReminderId === item.id ? 'notifications' : 'notifications-outline'}
+                    size={13}
+                    color={pushedReminderId === item.id ? '#7C3AED' : '#6D28D9'}
+                  />
                 </TouchableOpacity>
 
                 {/* 2.5 NÚT CHỈNH SỬA (✏️) */}
@@ -1495,6 +1553,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#059669',
     fontWeight: '600',
+  },
+  statusPushedText: {
+    fontSize: 10,
+    color: '#7C3AED',
+    fontWeight: '700',
+  },
+  bellActionBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#F5F3FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 4,
+  },
+  bellActionBtnActive: {
+    backgroundColor: '#EDE9FE',
   },
   deleteBtn: {
     width: 24,

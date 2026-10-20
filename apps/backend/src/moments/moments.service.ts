@@ -39,12 +39,22 @@ export class MomentsService {
       await this.seedInitialMoments(userObjId);
     }
 
-    // 3. Lấy moments mới nhất
-    const moments = await this.momentModel
+    // 3. Lấy moments mới nhất của user và bạn bè
+    let moments = await this.momentModel
       .find({ user: { $in: allUserIds } })
       .sort({ createdAt: -1 })
       .populate('user', 'fullName avatarUrl email')
       .exec();
+
+    // Nếu người dùng mới chưa có bạn bè và chưa đăng bài nào, hiển thị các bài đăng nổi bật để bảng tin không bị trống
+    if (moments.length === 0) {
+      moments = await this.momentModel
+        .find({})
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .populate('user', 'fullName avatarUrl email')
+        .exec();
+    }
 
     // 4. Chuẩn hóa format trả về cho frontend
     return moments.map((m: any) => {
@@ -331,6 +341,22 @@ export class MomentsService {
    */
   private async seedInitialMoments(creatorId: Types.ObjectId) {
     const demoItems = [
+      {
+        user: creatorId,
+        photo: 'https://baohaiquanvietnam.vn/storage/users/user_6/N%C4%83m%202022/thang%205-2022/22-5/16052022-anh-9.jpg',
+        caption: 'Hướng tới du lịch biển xanh 🌊 Khám phá vẻ đẹp biển đảo quê hương và bảo vệ môi trường! 🏝️✨',
+        amount: 0,
+        category: '🏖️ Du lịch & Phượt',
+        reactions: new Map(),
+      },
+      {
+        user: creatorId,
+        photo: 'https://tripmap.vn/wp-content/uploads/2021/08/vinh-vinh-hy-16294461697-jpg-1024x668.webp',
+        caption: 'Check-in Vịnh Vĩnh Hy - Ninh Thuận tuyệt đẹp! Nước biển trong xanh như ngọc bích 🚤🪸⛰️',
+        amount: 0,
+        category: '🏖️ Du lịch & Phượt',
+        reactions: new Map(),
+      },
       {
         user: creatorId,
         photo: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=600&auto=format&fit=crop',

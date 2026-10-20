@@ -30,6 +30,7 @@ import {
   sendMessageApi,
   normalizeAvatarUrl,
 } from '../../services/api';
+import { playNotificationSound, playMessageSentSound } from '../../utils/soundUtils';
 
 // Mascot ảnh ếch Monett
 const FROG_MASCOT_URI = 'https://images.unsplash.com/photo-1544717305-2782549b5136?w=200&auto=format&fit=crop&q=80';
@@ -71,9 +72,10 @@ interface MessagesScreenProps {
   onNavigateToHome?: () => void;
   onNavigateToCamera?: (dateStr?: string) => void;
   onNavigateToDetail?: (id: string) => void;
+  onNavigateToFeed?: () => void;
 }
 
-// ─── Khởi tạo Dữ liệu Cuộc trò chuyện Mẫu Sinh động ─────────────────────────
+// ─── Khởi tạo Cuộc trò chuyện (Chỉ giữ Trợ lý AI mặc định) ────────────────
 const INITIAL_CONVERSATIONS: ConversationItem[] = [
   {
     id: 'ai-monett-assistant',
@@ -81,60 +83,10 @@ const INITIAL_CONVERSATIONS: ConversationItem[] = [
     name: 'Trợ lý Ếch Monett AI 🌟',
     avatarUrl: 'https://images.unsplash.com/photo-1535268647677-300dbf3d78d1?w=200&auto=format&fit=crop&q=80',
     isOnline: true,
-    lastMessage: 'Hôm nay bạn đã chi tiêu hợp lý chưa nè? Cần mình giúp chia bill hay mẹo tiết kiệm không? 🐸',
+    lastMessage: 'Hôm nay bạn đã chi tiêu hợp lý chưa nè? Cần mình giúp chia bill hay mẹo tiết kiệm không?',
     lastMessageTime: 'Vừa xong',
     unreadCount: 1,
     badge: 'AI Tài chính',
-  },
-  {
-    id: 'user-minhanh',
-    name: 'Minh Anh',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
-    isOnline: true,
-    lastMessage: 'Trưa nay đi ăn bún bò Huế không bồ? Mình đặt bàn trước rồi á 🍲',
-    lastMessageTime: '10:45',
-    unreadCount: 2,
-    badge: 'Bạn thân',
-    streak: 12,
-  },
-  {
-    id: 'user-baotram',
-    name: 'Bảo Trâm',
-    avatarUrl: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&auto=format&fit=crop&q=80',
-    isOnline: false,
-    lastMessage: 'Đã nhận được 45k tiền cà phê sáng nay rồi nhé! Cảm ơn nhiều 🥰',
-    lastMessageTime: '08:30',
-    unreadCount: 0,
-    streak: 5,
-  },
-  {
-    id: 'user-quanghuy',
-    name: 'Quang Huy (Nhóm Du Lịch)',
-    avatarUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&auto=format&fit=crop&q=80',
-    isOnline: true,
-    lastMessage: '🧾 Đã chia bill homestay cuối tuần: 320.000đ/người nha anh em!',
-    lastMessageTime: 'Hôm qua',
-    unreadCount: 1,
-    badge: 'Nhóm',
-  },
-  {
-    id: 'user-hoangnam',
-    name: 'Hoàng Nam',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
-    isOnline: false,
-    lastMessage: 'Tháng này ông tiết kiệm được 2 triệu tiền quỹ chưa ông ơi? 🔥',
-    lastMessageTime: 'Hôm qua',
-    unreadCount: 0,
-    streak: 18,
-  },
-  {
-    id: 'user-lanchi',
-    name: 'Lan Chi',
-    avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&auto=format&fit=crop&q=80',
-    isOnline: true,
-    lastMessage: 'Giao diện chú ếch Monett ôm lịch nhìn cưng xỉu luôn haha 🐸💚',
-    lastMessageTime: '2 ngày trước',
-    unreadCount: 0,
   },
 ];
 
@@ -143,71 +95,14 @@ const AI_INITIAL_MESSAGES: ChatMessage[] = [
   {
     _id: 'ai-m1',
     sender: 'ai',
-    text: 'Chào bạn! Mình là Trợ lý Ếch Monett 🐸✨\n\nMình có thể hỗ trợ bạn:\n• 💡 Gợi ý mẹo tiết kiệm thông minh\n• 🧾 Chia sẻ hóa đơn & tính bill nhóm nhanh\n• 📊 Phân tích chi tiêu hợp lý theo quy tắc 50/30/20\n• 🎯 Nhắc nhở giữ chuỗi tài chính mỗi ngày!\n\nHôm nay bạn muốn tâm sự hay tính toán gì nè?',
+    text: 'Chào bạn! Mình là Trợ lý Ếch Monett ✨\n\nMình có thể hỗ trợ bạn:\n• 💡 Gợi ý mẹo tiết kiệm thông minh\n• 🧾 Chia sẻ hóa đơn & tính bill nhóm nhanh\n• 📊 Phân tích chi tiêu hợp lý theo quy tắc 50/30/20\n• 🎯 Nhắc nhở giữ chuỗi tài chính mỗi ngày!\n\nHôm nay bạn muốn tâm sự hay tính toán gì nè?',
     createdAt: new Date(Date.now() - 3600000).toISOString(),
     type: 'text',
   },
 ];
 
-// Tin nhắn mẫu cho các bạn bè
-const SAMPLE_MESSAGES_MAP: Record<string, ChatMessage[]> = {
-  'user-minhanh': [
-    {
-      _id: 'ma-1',
-      sender: 'other',
-      text: 'Sáng nay ghi chép chi tiêu cà phê chưa bạn yêu? ☕',
-      createdAt: new Date(Date.now() - 7200000).toISOString(),
-    },
-    {
-      _id: 'ma-2',
-      sender: 'me',
-      text: 'Ghi rồi nè, vừa chụp ảnh hóa đơn xong app tự phân loại luôn tiện ghê! ✨',
-      createdAt: new Date(Date.now() - 3600000).toISOString(),
-    },
-    {
-      _id: 'ma-3',
-      sender: 'other',
-      text: 'Trưa nay đi ăn bún bò Huế không bồ? Mình đặt bàn trước rồi á 🍲',
-      createdAt: new Date(Date.now() - 900000).toISOString(),
-    },
-  ],
-  'user-baotram': [
-    {
-      _id: 'bt-1',
-      sender: 'me',
-      text: 'Mình vừa chuyển 45k tiền cà phê sáng nay qua ví nha!',
-      createdAt: new Date(Date.now() - 14400000).toISOString(),
-    },
-    {
-      _id: 'bt-2',
-      sender: 'other',
-      text: 'Đã nhận được 45k tiền cà phê sáng nay rồi nhé! Cảm ơn nhiều 🥰',
-      createdAt: new Date(Date.now() - 7200000).toISOString(),
-    },
-  ],
-  'user-quanghuy': [
-    {
-      _id: 'qh-1',
-      sender: 'other',
-      text: 'Tổng chi tiền thuê villa cuối tuần là 1.280.000đ cho 4 người nha.',
-      createdAt: new Date(Date.now() - 86400000).toISOString(),
-    },
-    {
-      _id: 'qh-2',
-      sender: 'other',
-      text: '🧾 Đã chia bill homestay cuối tuần: 320.000đ/người nha anh em!',
-      createdAt: new Date(Date.now() - 86000000).toISOString(),
-      type: 'bill_split',
-      billData: {
-        title: 'Villa Đà Lạt 2N1Đ',
-        amount: 1280000,
-        splitCount: 4,
-        perPerson: 320000,
-        isSettled: false,
-      },
-    },
-  ],
-};
+// Tin nhắn mẫu offline (trống vì chỉ dùng dữ liệu thực từ bạn bè)
+const SAMPLE_MESSAGES_MAP: Record<string, ChatMessage[]> = {};
 
 // ── Hiệu ứng 3 dấu chấm nhấp nháy mượt mà khi đối phương đang gõ ──
 const TypingDots: React.FC = () => {
@@ -259,7 +154,7 @@ const TypingDots: React.FC = () => {
   );
 };
 
-export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
+export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed }) => {
   const { user } = useAuth();
   const { language } = useLanguage();
   const isVi = language === 'vi';
@@ -429,28 +324,38 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
     const fetchFriends = async () => {
       try {
         const realFriends = await getFriendsApi();
-        if (isMounted && Array.isArray(realFriends) && realFriends.length > 0) {
+        if (isMounted) {
           setConversations((prev) => {
             const aiItem = prev.find((c) => c.isAi) || INITIAL_CONVERSATIONS[0];
-            const realConvItems: ConversationItem[] = realFriends.map((f: any) => ({
-              id: `real-${f._id || f.id}`,
-              friendId: f._id || f.id,
-              name: f.fullName || f.email || 'Bạn bè',
-              avatarUrl: normalizeAvatarUrl(f.avatarUrl) || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
-              isOnline: true,
-              lastMessage: 'Hãy bắt đầu trò chuyện cùng nhau!',
-              lastMessageTime: 'Mới',
-              unreadCount: 0,
-              streak: f.streak || 1,
-            }));
+            const realConvItems: ConversationItem[] = (Array.isArray(realFriends) ? realFriends : []).map((f: any) => {
+              const fId = String(
+                f?._id ||
+                f?.id ||
+                f?.friendId ||
+                (f?.requester && (String(f?.requester?._id || f?.requester?.id) === String(currentUserId)
+                  ? (f?.recipient?._id || f?.recipient?.id)
+                  : (f?.requester?._id || f?.requester?.id))) ||
+                ''
+              );
+              return {
+                id: `real-${fId}`,
+                friendId: fId,
+                name: f.fullName || f.name || f.email || 'Bạn bè',
+                avatarUrl: normalizeAvatarUrl(f.avatarUrl || f.avatar) || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
+                isOnline: isUserOnline(fId),
+                lastMessage: 'Hãy bắt đầu trò chuyện cùng nhau!',
+                lastMessageTime: 'Mới',
+                unreadCount: 0,
+                streak: f.streak || 1,
+              };
+            });
 
-            // Ghép bạn bè thật lên đầu (sau AI Bot)
-            const sampleFiltered = prev.filter((c) => !c.isAi && !c.id.startsWith('real-'));
-            return [aiItem, ...realConvItems, ...sampleFiltered];
+            // Chỉ hiển thị Trợ lý AI và bạn bè thật từ Database
+            return [aiItem, ...realConvItems];
           });
         }
       } catch (err) {
-        console.log('[MessagesScreen] fetchFriends error (using local list):', err);
+        console.log('[MessagesScreen] fetchFriends error:', err);
       }
     };
 
@@ -593,6 +498,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
     };
 
     setChatMessages((prev) => [...prev, newMsg]);
+    playMessageSentSound();
 
     // Cập nhật lại dòng lastMessage ngoài danh sách
     setConversations((prev) =>
@@ -639,6 +545,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
           type: 'text',
         };
         setChatMessages((prev) => [...prev, autoReply]);
+        playNotificationSound();
         setConversations((prev) =>
           prev.map((c) =>
             c.id === activeChat.id
@@ -660,7 +567,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
         '💡 Mẹo tiết kiệm tuần này từ Ếch Monett:\n\n' +
         '1. Quy tắc 24h: Trước khi mua món đồ không thiết yếu, hãy đợi 24 giờ để tránh mua sắm bốc đồng!\n' +
         '2. Tự nấu ăn hoặc mang cơm trưa: Tiết kiệm tới 40-50% chi phí ăn uống so với ăn ngoài.\n' +
-        '3. Ghi chép ngay sau khi chi: Dùng tính năng chụp ảnh món ăn của Monett để app tự tổng hợp nhé! 🐸✨';
+        '3. Ghi chép ngay sau khi chi: Dùng tính năng chụp ảnh món ăn của Monett để app tự tổng hợp nhé! ✨';
     } else if (lower.includes('50/30/20') || lower.includes('quy tắc') || lower.includes('ngân sách')) {
       reply =
         '📊 Quy tắc ngân sách vàng 50/30/20:\n\n' +
@@ -671,13 +578,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
     } else if (lower.includes('chia bill') || lower.includes('chia tiền') || lower.includes('tính tiền')) {
       reply =
         '🧾 Bạn muốn chia bill nhóm hả?\n\n' +
-        'Hãy bấm vào biểu tượng 💸 chiếc ví hoặc "Chia bill" ở thanh bên dưới, nhập số tiền và số người để mình tạo ngay thẻ chia tiền gửi vào nhóm nhé! 🐸';
+        'Hãy bấm vào biểu tượng 💸 chiếc ví hoặc "Chia bill" ở thanh bên dưới, nhập số tiền và số người để mình tạo ngay thẻ chia tiền gửi vào nhóm nhé!';
     } else if (lower.includes('cafe') || lower.includes('cà phê') || lower.includes('ăn trưa') || lower.includes('bún')) {
       reply =
         '☕ Ăn uống nạp năng lượng là điều tuyệt vời! Chỉ cần bạn nhớ bấm "Chụp ảnh món" để Monett giúp bạn lưu lại khoảnh khắc ẩm thực và số tiền nha 🍜';
     } else {
       reply =
-        'Ếch Monett đã nhận thông tin! 🐸💚 Mình luôn ở đây 24/7 để đồng hành cùng bạn trên hành trình quản lý tài chính thông minh. Cần kiểm tra ngân sách hay phân tích chi tiêu cứ nhắn mình nhé!';
+        'Ếch Monett đã nhận thông tin! 💚 Mình luôn ở đây 24/7 để đồng hành cùng bạn trên hành trình quản lý tài chính thông minh. Cần kiểm tra ngân sách hay phân tích chi tiêu cứ nhắn mình nhé!';
     }
 
     const aiMsg: ChatMessage = {
@@ -688,6 +595,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
       type: 'text',
     };
     setChatMessages((prev) => [...prev, aiMsg]);
+    playNotificationSound();
   };
 
   // Trả lời mẫu ngẫu nhiên cho bạn bè demo
@@ -726,6 +634,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
     };
 
     setChatMessages((prev) => [...prev, billMsg]);
+    playMessageSentSound();
     setIsSplitBillModalVisible(false);
     setSplitTitle('');
     setSplitAmount('');
@@ -759,12 +668,17 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
   // GIAO DIỆN 1: MÀN HÌNH KHUNG CHAT CHI TIẾT (KHI ĐANG TRÒ CHUYỆN)
   // ─────────────────────────────────────────────────────────────────────────
   if (activeChat) {
+    const activeFriendId = String(
+      activeChat.friendId ||
+      activeChat.id?.replace(/^real-/, '') ||
+      ''
+    );
     const isFriendOnline = activeChat.isAi
       ? true
-      : activeChat.friendId
-      ? isUserOnline(activeChat.friendId)
+      : activeFriendId
+      ? isUserOnline(activeFriendId)
       : !!activeChat.isOnline;
-    const isFriendTyping = activeChat.friendId ? isUserTyping(activeChat.friendId) : false;
+    const isFriendTyping = activeFriendId ? isUserTyping(activeFriendId) : false;
 
     return (
       <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
@@ -773,8 +687,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
           <TouchableOpacity
             style={styles.chatBackBtn}
             onPress={() => {
-              if (activeChat.friendId) {
-                sendTyping(activeChat.friendId, false);
+              if (activeFriendId) {
+                sendTyping(activeFriendId, false);
               }
               setActiveChat(null);
             }}
@@ -788,7 +702,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
               source={{ uri: activeChat.avatarUrl || FROG_MASCOT_URI }}
               style={styles.chatHeaderAvatar}
             />
-            {isFriendOnline && <View style={styles.onlineBadgeDot} />}
+            <View
+              style={[
+                styles.onlineBadgeDot,
+                !isFriendOnline && styles.offlineBadgeDot,
+              ]}
+            />
           </View>
 
           <View style={styles.chatHeaderInfo}>
@@ -802,20 +721,31 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
                 </View>
               )}
             </View>
-            <Text
-              style={[
-                styles.chatHeaderStatus,
-                isFriendTyping && { color: '#059669', fontWeight: '700' },
-              ]}
-            >
-              {activeChat.isAi
-                ? (isVi ? 'Trợ lý tài chính Monett 24/7' : 'Monett Financial AI 24/7')
-                : isFriendTyping
-                ? (isVi ? '💬 Đang soạn tin...' : '💬 Typing...')
-                : isFriendOnline
-                ? (isVi ? '🟢 Đang trực tuyến' : '🟢 Online')
-                : (isVi ? 'Hoạt động gần đây' : 'Recently active')}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 1 }}>
+              <View
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 3,
+                  backgroundColor: activeChat.isAi || isFriendOnline ? '#10B981' : '#94A3B8',
+                }}
+              />
+              <Text
+                style={[
+                  styles.chatHeaderStatus,
+                  { color: activeChat.isAi || isFriendOnline ? '#059669' : '#64748B' },
+                  isFriendTyping && { color: '#059669', fontWeight: '700' },
+                ]}
+              >
+                {activeChat.isAi
+                  ? (isVi ? 'Trợ lý tài chính Monett 24/7' : 'Monett Financial AI 24/7')
+                  : isFriendTyping
+                  ? (isVi ? '💬 Đang soạn tin...' : '💬 Typing...')
+                  : isFriendOnline
+                  ? (isVi ? 'Đang hoạt động' : 'Online')
+                  : (isVi ? 'Ngoại tuyến' : 'Offline')}
+              </Text>
+            </View>
           </View>
 
           {/* Quick Actions Header */}
@@ -1191,6 +1121,17 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
         </View>
 
         <View style={styles.inboxHeaderActions}>
+          {onNavigateToFeed && (
+            <TouchableOpacity
+              style={styles.feedSwitchPill}
+              onPress={onNavigateToFeed}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="images" size={15} color="#047857" />
+              <Text style={styles.feedSwitchPillText}>{isVi ? 'Bảng tin 📸' : 'Feed 📸'}</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={styles.circleActionBtn}
             onPress={() => setIsSearching(!isSearching)}
@@ -1284,7 +1225,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
                       source={{ uri: item.avatarUrl || FROG_MASCOT_URI }}
                       style={styles.storyAvatar}
                     />
-                    {isOnline && <View style={styles.storyOnlineDot} />}
+                    <View
+                      style={[
+                        styles.storyOnlineDot,
+                        !isOnline && { backgroundColor: '#94A3B8' },
+                      ]}
+                    />
                   </View>
                   <Text style={styles.storyNameText} numberOfLines={1}>
                     {item.name.split(' ')[0]}
@@ -1335,7 +1281,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
               activeTab === 'ai' && styles.filterTabPillTextActive,
             ]}
           >
-            {isVi ? 'Trợ lý AI 🐸' : 'AI Bot 🐸'}
+            {isVi ? 'Trợ lý AI' : 'AI Bot'}
           </Text>
         </TouchableOpacity>
 
@@ -1393,7 +1339,12 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = () => {
                     source={{ uri: item.avatarUrl || FROG_MASCOT_URI }}
                     style={styles.convAvatar}
                   />
-                  {isOnline && <View style={styles.convOnlineDot} />}
+                  <View
+                    style={[
+                      styles.convOnlineDot,
+                      !isOnline && !item.isAi && { backgroundColor: '#94A3B8' },
+                    ]}
+                  />
                   {item.isAi && (
                     <View style={styles.convAiPinIcon}>
                       <Ionicons name="sparkles" size={10} color="#FFFFFF" />
@@ -1836,6 +1787,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  feedSwitchPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  feedSwitchPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#047857',
+  },
 
   // ── Search Bar ──
   searchBarWrapper: {
@@ -2148,6 +2115,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#10B981',
     borderWidth: 2,
     borderColor: '#FFFFFF',
+  },
+  offlineBadgeDot: {
+    backgroundColor: '#94A3B8',
   },
   chatHeaderInfo: {
     flex: 1,

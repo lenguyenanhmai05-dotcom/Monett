@@ -40,7 +40,7 @@ export class MailService {
         <!-- Body -->
         <div style="padding: 28px 24px; background-color: #FFFFFF;">
           <div style="text-align: center; margin-bottom: 20px;">
-            <span style="font-size: 38px;">🐸</span>
+            <span style="font-size: 38px;">✨</span>
             <h2 style="color: #0F172A; font-size: 20px; margin: 10px 0 6px 0;">Xác Nhận Đăng Ký Tài Khoản</h2>
             <p style="color: #64748B; font-size: 13.5px; margin: 0; line-height: 1.5;">
               Bé Ếch Monett đã nhận được yêu cầu đăng ký tài khoản với email <strong style="color: #0F172A;">${toEmail}</strong>.

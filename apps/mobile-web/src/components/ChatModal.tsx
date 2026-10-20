@@ -19,7 +19,7 @@ import { getMessagesApi, sendMessageApi, normalizeAvatarUrl } from '../services/
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSocket } from '../contexts/SocketContext';
-import { playNotificationSound } from '../utils/soundUtils';
+import { playNotificationSound, playMessageSentSound } from '../utils/soundUtils';
 
 interface Message {
   _id: string;
@@ -49,8 +49,16 @@ export const ChatModal: React.FC<ChatModalProps> = ({ visible, onClose, friend }
   const flatListRef = useRef<FlatList>(null);
 
   const currentUserId = user?.id || (user as any)?._id;
-  const friendId = friend?._id || friend?.id || '';
-  const isOnline = friendId ? isUserOnline(friendId) : false;
+  const friendId = String(
+    friend?._id ||
+    friend?.id ||
+    friend?.friendId ||
+    (friend?.requester && (String(friend?.requester?._id || friend?.requester?.id) === String(currentUserId)
+      ? (friend?.recipient?._id || friend?.recipient?.id)
+      : (friend?.requester?._id || friend?.requester?.id))) ||
+    ''
+  );
+  const isOnline = friendId ? isUserOnline(friendId) : !!friend?.isOnline;
   const friendName = friend?.fullName || friend?.name || friend?.email || 'Bạn bè';
   const friendAvatar = normalizeAvatarUrl(friend?.avatarUrl || friend?.avatar);
 
@@ -83,10 +91,13 @@ export const ChatModal: React.FC<ChatModalProps> = ({ visible, onClose, friend }
 
   useEffect(() => {
     if (visible && messages.length > prevMsgCount.current && prevMsgCount.current > 0) {
-      playNotificationSound();
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && String(lastMsg.sender) !== String(currentUserId)) {
+        playNotificationSound();
+      }
     }
     prevMsgCount.current = messages.length;
-  }, [messages.length, visible]);
+  }, [messages.length, visible, currentUserId]);
 
   const handleSend = async () => {
     if (!text.trim() || !friendId) return;
@@ -94,6 +105,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ visible, onClose, friend }
       const currentText = text.trim();
       setText(''); // Optimistic clear
       const newMsg = await sendMessageApi(friendId, currentText);
+      playMessageSentSound();
       setMessages((prev) => [...prev, newMsg]);
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
@@ -157,9 +169,25 @@ export const ChatModal: React.FC<ChatModalProps> = ({ visible, onClose, friend }
             >
               {friendName}
             </Text>
-            <Text style={styles.headerStatus} numberOfLines={1}>
-              {isOnline ? '🟢 Đang hoạt động' : 'Vừa truy cập'}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
+              <View
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 3,
+                  backgroundColor: isOnline ? '#10B981' : '#94A3B8',
+                }}
+              />
+              <Text
+                style={[
+                  styles.headerStatus,
+                  { color: isOnline ? '#10B981' : (isDark ? '#94A3B8' : '#64748B') },
+                ]}
+                numberOfLines={1}
+              >
+                {isOnline ? 'Đang hoạt động' : 'Ngoại tuyến'}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -216,7 +244,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({ visible, onClose, friend }
               contentContainerStyle={styles.messageList}
               onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
               renderItem={({ item }) => {
-                const isMe = item.sender === currentUserId;
+                const isMe = String(item.sender?._id || item.sender) === String(currentUserId);
                 const timeStr = item.createdAt
                   ? new Date(item.createdAt).toLocaleTimeString([], {
                       hour: '2-digit',

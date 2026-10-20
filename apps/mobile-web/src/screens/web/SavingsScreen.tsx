@@ -377,7 +377,7 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
             {isVi ? 'Mục tiêu tích lũy của sổ' : 'Savings goals of your wallet'}
           </Text>
           <Text style={styles.subHeaderMainTitle}>
-            {isVi ? 'Tiết kiệm' : 'Savings'}
+            {isVi ? 'Tích lũy' : 'Savings'}
           </Text>
         </View>
 

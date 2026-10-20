@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { useSocket } from '../../contexts/SocketContext';
 import { getMomentsFeedApi, reactMomentApi, getMomentReactionsApi, deleteMomentApi, normalizeAvatarUrl, getFriendsApi, getFriendRequestsApi, respondFriendRequestApi, removeFriendApi, sendFriendRequestApi } from '../../services/api';
 import { MomentFormModal, MomentChatModal, MomentItem, MomentCommentItem } from '../mobile/FriendsFeedScreen';
 import { ChatModal } from '../../components/ChatModal';
@@ -424,6 +425,7 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
   const { user } = useAuth();
   const { isDark, colors } = useTheme();
   const { addNotification } = useNotifications();
+  const { isUserOnline } = useSocket();
   const styles = getStyles(isDark, colors);
 
   const [moments, setMoments] = useState<MomentItem[]>([]);
@@ -651,6 +653,8 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
             ) : (
               friendsList.slice(0, 4).map((f: any, idx: number) => {
                 const fName = f.fullName || f.email || 'Bạn';
+                const fId = String(f._id || f.id || '');
+                const isOnline = fId ? isUserOnline(fId) : false;
                 return (
                   <TouchableOpacity
                     key={f._id || f.id || idx}
@@ -658,10 +662,33 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
                     onPress={() => setActiveChatFriend(f)}
                     activeOpacity={0.75}
                   >
-                    <Avatar uri={f.avatarUrl || f.avatar} name={fName} size={34} />
+                    <View style={{ position: 'relative' }}>
+                      <Avatar uri={f.avatarUrl || f.avatar} name={fName} size={34} />
+                      <View
+                        style={{
+                          position: 'absolute',
+                          bottom: -1,
+                          right: -1,
+                          width: 10,
+                          height: 10,
+                          borderRadius: 5,
+                          backgroundColor: isOnline ? '#10B981' : '#94A3B8',
+                          borderWidth: 2,
+                          borderColor: isDark ? '#1E293B' : '#FFFFFF',
+                        }}
+                      />
+                    </View>
                     <View style={{ flex: 1, marginLeft: 10 }}>
                       <Text style={styles.quickChatName} numberOfLines={1}>{fName}</Text>
-                      <Text style={styles.quickChatSub} numberOfLines={1}>🔥 Chuỗi {f.streak || 1} ngày</Text>
+                      <Text
+                        style={[
+                          styles.quickChatSub,
+                          { color: isOnline ? '#10B981' : '#94A3B8', fontWeight: isOnline ? '700' : '500' },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {isOnline ? '🟢 Đang hoạt động' : `🔥 Chuỗi ${f.streak || 1} ngày`}
+                      </Text>
                     </View>
                     <Ionicons name="chatbubble-ellipses-outline" size={17} color="#059669" />
                   </TouchableOpacity>

@@ -813,3 +813,123 @@ export const sendMessageApi = async (receiverId: string, text: string): Promise<
   });
   return (res as any).data || res;
 };
+
+// ============================================================
+// RECURRING BILLS & DEBTS APIS
+// ============================================================
+
+export const getRecurringBillsApi = async (): Promise<any[]> => {
+  const res = await request<any[]>('/api/bills-and-debts/bills');
+  return (res as any).data || res;
+};
+
+export const createRecurringBillApi = async (dto: any): Promise<any> => {
+  const res = await request<any>('/api/bills-and-debts/bills', {
+    method: 'POST',
+    body: JSON.stringify(dto),
+  });
+  return (res as any).data || res;
+};
+
+export const updateRecurringBillApi = async (id: string, dto: any): Promise<any> => {
+  const res = await request<any>(`/api/bills-and-debts/bills/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dto),
+  });
+  return (res as any).data || res;
+};
+
+export const toggleBillPaidApi = async (id: string): Promise<any> => {
+  const res = await request<any>(`/api/bills-and-debts/bills/${id}/toggle`, {
+    method: 'PATCH',
+  });
+  return (res as any).data || res;
+};
+
+export const deleteRecurringBillApi = async (id: string): Promise<any> => {
+  const res = await request<any>(`/api/bills-and-debts/bills/${id}`, {
+    method: 'DELETE',
+  });
+  return (res as any).data || res;
+};
+
+export const getDebtsApi = async (): Promise<any[]> => {
+  const res = await request<any[]>('/api/bills-and-debts/debts');
+  return (res as any).data || res;
+};
+
+export const getDebtSummaryApi = async (): Promise<any> => {
+  const res = await request<any>('/api/bills-and-debts/debts/summary');
+  return (res as any).data || res;
+};
+
+export const createDebtApi = async (dto: any): Promise<any> => {
+  const res = await request<any>('/api/bills-and-debts/debts', {
+    method: 'POST',
+    body: JSON.stringify(dto),
+  });
+  return (res as any).data || res;
+};
+
+export const updateDebtApi = async (id: string, dto: any): Promise<any> => {
+  const res = await request<any>(`/api/bills-and-debts/debts/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dto),
+  });
+  return (res as any).data || res;
+};
+
+export const toggleDebtSettledApi = async (id: string): Promise<any> => {
+  const res = await request<any>(`/api/bills-and-debts/debts/${id}/toggle`, {
+    method: 'PATCH',
+  });
+  return (res as any).data || res;
+};
+
+export const deleteDebtApi = async (id: string): Promise<any> => {
+  const res = await request<any>(`/api/bills-and-debts/debts/${id}`, {
+    method: 'DELETE',
+  });
+  return (res as any).data || res;
+};
+
+// ============================================================
+// REMINDERS APIS
+// ============================================================
+
+export const getRemindersApi = async (date?: string): Promise<any[]> => {
+  const qs = date ? `?date=${encodeURIComponent(date)}` : '';
+  const res = await request<any[]>(`/api/reminders${qs}`);
+  return (res as any).data || res;
+};
+
+export const createReminderApi = async (dto: any): Promise<any> => {
+  const res = await request<any>('/api/reminders', {
+    method: 'POST',
+    body: JSON.stringify(dto),
+  });
+  return (res as any).data || res;
+};
+
+export const updateReminderApi = async (id: string, dto: any): Promise<any> => {
+  const res = await request<any>(`/api/reminders/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dto),
+  });
+  return (res as any).data || res;
+};
+
+export const toggleReminderApi = async (id: string): Promise<any> => {
+  const res = await request<any>(`/api/reminders/${id}/toggle`, {
+    method: 'PATCH',
+  });
+  return (res as any).data || res;
+};
+
+export const deleteReminderApi = async (id: string): Promise<any> => {
+  const res = await request<any>(`/api/reminders/${id}`, {
+    method: 'DELETE',
+  });
+  return (res as any).data || res;
+};
+
