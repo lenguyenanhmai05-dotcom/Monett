@@ -13,8 +13,18 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { getTransactionsByDateApi } from '../../services/api';
-import { SAMPLE_DAYS_MAP } from '../../components/FinancialCalendarWidget';
+import { getTransactionsByDateApi, deleteTransactionApi, getBudgetApi } from '../../services/api';
+import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
+import {
+  getInitialDayRecordsFromLocalStorage,
+  subscribeCalendarUpdates,
+  removeDayRecordItem,
+  notifyCalendarUpdated,
+  applyBudgetDelta,
+  saveCachedBudget,
+  notifyBudgetUpdated,
+  formatExpenseUploadTime,
+} from '../../services/calendarStorage';
 
 export interface DayExpensesScreenProps {
   dateStr: string; // YYYY-MM-DD
@@ -52,6 +62,9 @@ export const DayExpensesScreen: React.FC<DayExpensesScreenProps> = ({
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [expenses, setExpenses] = useState<DayExpenseItem[]>([]);
   const [totalSpent, setTotalSpent] = useState<number>(0);
+  const [coverPhoto, setCoverPhoto] = useState<string | undefined>();
+  const [deletingItem, setDeletingItem] = useState<DayExpenseItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   // Định dạng ngày hiển thị đẹp chuẩn xác theo thực tế (Thứ, ngày/tháng/năm)
   const formattedDateTitle = useMemo(() => {
@@ -81,30 +94,69 @@ export const DayExpensesScreen: React.FC<DayExpensesScreenProps> = ({
   }, [dateStr, dateLabel, isVi]);
 
   const fetchDayExpenses = useCallback(async () => {
+    // 1. Hiển thị tức thì 0ms từ localStorage để giao diện phản hồi tức khắc
+    const curRecords = getInitialDayRecordsFromLocalStorage();
+    const parts = dateStr.split('-');
+    let storedRec: any = null;
+
+    if (parts.length === 3) {
+      const unpadded = `${Number(parts[0])}-${Number(parts[1])}-${Number(parts[2])}`;
+      const padded = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      storedRec = curRecords[unpadded] || curRecords[padded];
+    }
+
+    if (storedRec && storedRec.items && storedRec.items.length > 0) {
+      const formatted: DayExpenseItem[] = storedRec.items.map((it: any) => ({
+        id: it._id || it.id,
+        title: it.title || it.note || it.category || (isVi ? 'Khoản chi' : 'Expense'),
+        amount: `${it.type === 'income' || it.amount > 0 ? '+' : '-'}${Math.abs(it.amount).toLocaleString('vi-VN')} đ`,
+        rawAmount: Math.abs(it.amount),
+        time: formatExpenseUploadTime(it),
+        category: it.category || (isVi ? 'Chi tiêu' : 'General'),
+        image: it.photoUri,
+      }));
+      setExpenses(formatted);
+      const total = formatted.reduce((acc, curr) => acc + curr.rawAmount, 0);
+      setTotalSpent(total);
+      if (storedRec.photoUri) setCoverPhoto(storedRec.photoUri);
+      setLoading(false);
+    }
+
     try {
       const res = await getTransactionsByDateApi(dateStr);
       let itemsList: any[] = [];
 
       if (res && Array.isArray(res.items) && res.items.length > 0) {
         itemsList = res.items;
-      } else {
-        // Fallback: Nếu ngày này có dữ liệu mẫu khớp với Lịch (Tháng 10/2026, ngày 1..11)
-        const parts = dateStr.split('-');
-        if (parts.length === 3 && parts[0] === '2026' && parts[1] === '10') {
-          const dNum = Number(parts[2]);
-          const sample = SAMPLE_DAYS_MAP[dNum];
-          if (sample && Array.isArray(sample.items) && sample.items.length > 0) {
-            itemsList = sample.items.map((it: any) => ({
-              id: it.id,
-              title: it.title,
-              amount: -(sample.rawAmount || 0),
-              photoUri: sample.imageUrl,
-              category: sample.category || it.category,
-              date: dateStr,
-            }));
-          }
+      } else if (storedRec && storedRec.items && storedRec.items.length > 0) {
+        itemsList = storedRec.items.map((it: any) => ({
+          id: it.id,
+          title: it.note || it.category || (isVi ? 'Khoản chi' : 'Expense'),
+          amount: -(it.amount || 0),
+          photoUri: it.photoUri,
+          category: it.category,
+          date: it.createdAt || dateStr,
+        }));
+      }
+
+      // Rule 1: Nếu xóa hết khoản chi tiêu trong ngày -> Xóa luôn ảnh đại diện ô lịch
+      // Rule 2: Nếu vẫn còn các khoản chi -> Tự động lấy ảnh upload mới nhất
+      let dayCover: string | undefined = undefined;
+      if (itemsList.length > 0) {
+        const itemsWithPhoto = itemsList.filter((it: any) => Boolean(it.photoUri && String(it.photoUri).trim().length > 0));
+        if (itemsWithPhoto.length > 0) {
+          const sorted = [...itemsWithPhoto].sort((a: any, b: any) => {
+            const timeA = a.date ? new Date(a.date).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+            const timeB = b.date ? new Date(b.date).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+            return timeB - timeA;
+          });
+          dayCover = sorted[0]?.photoUri;
+        } else if (storedRec?.photoUri) {
+          dayCover = storedRec.photoUri;
         }
       }
+
+      setCoverPhoto(dayCover);
 
       if (itemsList.length > 0) {
         const formatted: DayExpenseItem[] = itemsList.map((it: any) => ({
@@ -112,9 +164,7 @@ export const DayExpensesScreen: React.FC<DayExpensesScreenProps> = ({
           title: it.title || (isVi ? 'Khoản chi' : 'Expense'),
           amount: `${it.type === 'income' || it.amount > 0 ? '+' : '-'}${Math.abs(it.amount).toLocaleString('vi-VN')} đ`,
           rawAmount: Math.abs(it.amount),
-          time: it.date
-            ? new Date(it.date).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-            : '08:00',
+          time: formatExpenseUploadTime(it),
           category: it.category || (isVi ? 'Chi tiêu' : 'General'),
           image: it.photoUri,
         }));
@@ -133,10 +183,70 @@ export const DayExpensesScreen: React.FC<DayExpensesScreenProps> = ({
     }
   }, [dateStr, isVi]);
 
+  const handleConfirmDeleteItem = async () => {
+    if (!deletingItem) return;
+    const itemToDelete = deletingItem;
+    setIsDeleting(true);
+
+    // 1. CẬP NHẬT NGAY LẬP TỨC 0ms: SỐ DƯ KHẢ DỤNG TĂNG LẠI & MỤC CHI TIÊU XÓA NGAY
+    applyBudgetDelta(-itemToDelete.rawAmount);
+    removeDayRecordItem(itemToDelete.id);
+    notifyCalendarUpdated();
+
+    const updated = expenses.filter((e) => e.id !== itemToDelete.id);
+    setExpenses(updated);
+    const newTotal = updated.reduce((acc, curr) => acc + curr.rawAmount, 0);
+    setTotalSpent(newTotal);
+
+    // Rule 1: Nếu xóa hết khoản chi tiêu trong ngày -> Xóa luôn ảnh đại diện ô lịch
+    // Rule 2: Nếu vẫn còn các khoản chi -> Tự động lấy ảnh upload mới nhất
+    if (updated.length === 0) {
+      setCoverPhoto(undefined);
+    } else {
+      const itemsWithPhoto = updated.filter((it) => Boolean(it.image && it.image.trim().length > 0));
+      setCoverPhoto(itemsWithPhoto[0]?.image || undefined);
+    }
+
+    setDeletingItem(null);
+    setIsDeleting(false);
+
+    try {
+      if (itemToDelete.id && !itemToDelete.id.startsWith('tx_') && !itemToDelete.id.startsWith('tx-')) {
+        await deleteTransactionApi(itemToDelete.id);
+      }
+    } catch (e: any) {
+      console.log('Error deleting transaction from API:', e);
+    } finally {
+      getBudgetApi()
+        .then((fresh) => {
+          if (fresh && fresh.limit) {
+            saveCachedBudget(fresh);
+            notifyBudgetUpdated(fresh);
+          }
+        })
+        .catch(() => {});
+
+      // Nếu xóa hết các khoản chi trong ngày -> Tự động quay lại trang trước
+      if (updated.length === 0) {
+        setTimeout(() => {
+          onBack();
+        }, 350);
+      }
+    }
+  };
+
   useEffect(() => {
     setLoading(true);
     fetchDayExpenses();
   }, [fetchDayExpenses, refreshTrigger]);
+
+  // Lắng nghe cập nhật khi Web hoặc thiết bị khác lưu ảnh mới
+  useEffect(() => {
+    const unsub = subscribeCalendarUpdates(() => {
+      fetchDayExpenses();
+    });
+    return unsub;
+  }, [fetchDayExpenses]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -202,6 +312,21 @@ export const DayExpensesScreen: React.FC<DayExpensesScreenProps> = ({
               <Text style={styles.pillCameraText}>{isVi ? 'Chụp ảnh' : 'Take Photo'}</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Ảnh khoảnh khắc ô lịch của ngày (Đồng bộ hai chiều với Web) */}
+          {coverPhoto ? (
+            <View style={styles.coverBannerContainer}>
+              <Image source={{ uri: coverPhoto }} style={styles.coverBannerImg} resizeMode="cover" />
+              <View style={styles.coverBannerOverlay}>
+                <View style={styles.coverBannerBadgeRow}>
+                  <Ionicons name="image" size={13} color="#FFFFFF" style={{ marginRight: 5 }} />
+                  <Text style={styles.coverBannerBadge}>
+                    {isVi ? 'Ảnh khoảnh khắc ngày này' : 'Day Moment Photo'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ) : null}
         </View>
 
         {/* Đường gạch phân cách nhẹ */}
@@ -271,7 +396,7 @@ export const DayExpensesScreen: React.FC<DayExpensesScreenProps> = ({
                       </Text>
                     </View>
 
-                    {/* Thumbnail ảnh hoặc Icon */}
+                    {/* Thumbnail ảnh hoặc Icon + Nút xóa trực tiếp */}
                     <View style={styles.expenseItemRight}>
                       {item.image && !item.image.includes('placeholder') ? (
                         <Image
@@ -284,6 +409,18 @@ export const DayExpensesScreen: React.FC<DayExpensesScreenProps> = ({
                           <Ionicons name="receipt-outline" size={24} color="#047857" />
                         </View>
                       )}
+                      <TouchableOpacity
+                        style={styles.deleteRowBtn}
+                        onPress={(e) => {
+                          (e as any)?.stopPropagation?.();
+                          setDeletingItem(item);
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        activeOpacity={0.7}
+                        accessibilityLabel={isVi ? 'Xóa khoản chi này' : 'Delete this item'}
+                      >
+                        <Ionicons name="trash-outline" size={17} color="#DC2626" />
+                      </TouchableOpacity>
                     </View>
                   </TouchableOpacity>
 
@@ -297,6 +434,18 @@ export const DayExpensesScreen: React.FC<DayExpensesScreenProps> = ({
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Modal xác nhận xóa chuẩn Fintech */}
+      <ConfirmDeleteModal
+        visible={Boolean(deletingItem)}
+        itemTitle={deletingItem?.title}
+        itemAmount={deletingItem?.amount}
+        itemImage={deletingItem?.image}
+        itemCategory={deletingItem?.category}
+        isDeleting={isDeleting}
+        onCancel={() => setDeletingItem(null)}
+        onConfirm={handleConfirmDeleteItem}
+      />
     </SafeAreaView>
   );
 };
@@ -423,6 +572,39 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
+  coverBannerContainer: {
+    width: '100%',
+    height: 160,
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginTop: 18,
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F1F5F9',
+  },
+  coverBannerImg: {
+    width: '100%',
+    height: '100%',
+  },
+  coverBannerOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+  },
+  coverBannerBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  coverBannerBadge: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   sectionDivider: {
     height: 8,
     backgroundColor: '#F8FAFC',
@@ -540,26 +722,35 @@ const styles = StyleSheet.create({
     color: '#EF4444',
   },
   expenseItemRight: {
-    width: 60,
-    height: 60,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
   },
   expenseThumb: {
-    width: 60,
-    height: 60,
-    borderRadius: 14,
+    width: 50,
+    height: 50,
+    borderRadius: 12,
     backgroundColor: '#F1F5F9',
   },
   expenseIconBox: {
-    width: 54,
-    height: 54,
-    borderRadius: 14,
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     backgroundColor: '#ECFDF5',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#D1FAE5',
+  },
+  deleteRowBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#FEF2F2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
   },
   itemDivider: {
     height: 1,

@@ -23,7 +23,17 @@ import { MessagesScreen } from './MessagesScreen';
 import { DayExpensesScreen } from './DayExpensesScreen';
 import { EventsScreen } from '../web/EventsScreen';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { createTransactionApi } from '../../services/api';
+import { createTransactionApi, getBudgetApi } from '../../services/api';
+import {
+  getInitialDayRecordsFromLocalStorage,
+  mergeTransactionsIntoDayRecords,
+  saveDayRecordsToStorage,
+  removeDayRecordItem,
+  getCachedBudget,
+  saveCachedBudget,
+  notifyBudgetUpdated,
+  applyBudgetDelta,
+} from '../../services/calendarStorage';
 import { NotificationModal } from '../../components/NotificationModal';
 
 export type MobileTab = 'home' | 'calendar' | 'analytics' | 'feed' | 'wallets' | 'categories' | 'profile' | 'events';
@@ -307,7 +317,10 @@ export const MobileNavigator: React.FC = () => {
             onSaveSuccess={() => {
               setEditingTransaction(null);
               setTargetExpenseDate(undefined);
-              setActiveModal(selectedDayExpensesDate ? 'day_expenses' : 'none');
+              setSelectedDayExpensesDate(undefined);
+              setSelectedDayExpensesLabel(undefined);
+              setActiveModal('none');
+              setCurrentTab('home');
               setCapturedPhoto(undefined);
               triggerRefresh();
             }}
@@ -329,8 +342,14 @@ export const MobileNavigator: React.FC = () => {
               setActiveModal('add_expense');
             }}
             onDelete={() => {
+              if (selectedTxId) {
+                removeDayRecordItem(selectedTxId);
+              }
               setSelectedTxId(undefined);
-              setActiveModal(selectedDayExpensesDate ? 'day_expenses' : 'none');
+              setSelectedDayExpensesDate(undefined);
+              setSelectedDayExpensesLabel(undefined);
+              setActiveModal('none');
+              setCurrentTab('home');
               triggerRefresh();
             }}
           />
@@ -346,20 +365,72 @@ export const MobileNavigator: React.FC = () => {
           setActiveModal(selectedDayExpensesDate ? 'day_expenses' : 'none');
         }}
         onSaveQuick={async (amount, category, date) => {
+          const numAmount = Math.abs(amount);
+          const now = new Date();
+          let dObj = now;
+          if (date) {
+            const parts = date.split('-');
+            if (parts.length === 3) {
+              dObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]), now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+            } else {
+              const parsed = new Date(date);
+              if (!isNaN(parsed.getTime())) {
+                dObj = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate(), now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+              }
+            }
+          }
+          const uploadTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+          // 1. NGAY LẬP TỨC TRỪ SỐ DƯ KHẢ DỤNG VÀ TĂNG TỔNG CHI (0ms Optimistic UI)
+          applyBudgetDelta(numAmount);
+
+          // 2. NGAY LẬP TỨC CẬP NHẬT DAY RECORDS (Lịch & Danh sách chi tiêu)
+          const curRecords = getInitialDayRecordsFromLocalStorage();
+          const tempId = `tx-${Date.now()}`;
+          const nextRecords = mergeTransactionsIntoDayRecords(curRecords, [{
+            title: category,
+            amount: -numAmount,
+            category,
+            type: 'expense',
+            date: dObj.toISOString(),
+            time: uploadTimeStr,
+            createdAt: now.toISOString(),
+            _id: tempId,
+          }]);
+          saveDayRecordsToStorage(nextRecords);
+          triggerRefresh();
+
+          // Quay lại màn hình: nếu đang xem danh sách chi tiêu ngày (day_expenses) thì giữ nguyên để thấy ngay khoản mới
+          const returnToDayExpenses = Boolean(selectedDayExpensesDate);
+          setTargetExpenseDate(undefined);
+          if (returnToDayExpenses) {
+            setActiveModal('day_expenses');
+          } else {
+            setActiveModal('none');
+            setCurrentTab('home');
+          }
+
+          // 3. Đồng bộ lên Backend ngầm và tải lại số dư chính thức từ server
           try {
             await createTransactionApi({
               title: category,
-              amount: -Math.abs(amount),
+              amount: -numAmount,
               category,
               type: 'expense',
-              date: date ? new Date(date).toISOString() : new Date().toISOString(),
+              date: dObj.toISOString(),
             });
-            triggerRefresh();
+
+            getBudgetApi()
+              .then((fresh) => {
+                if (fresh && fresh.limit) {
+                  saveCachedBudget(fresh);
+                  notifyBudgetUpdated(fresh);
+                }
+              })
+              .catch(() => {});
           } catch (e) {
             console.log('Saved quick expense (offline/local fallback):', amount, category);
           }
-          setTargetExpenseDate(undefined);
-          setActiveModal(selectedDayExpensesDate ? 'day_expenses' : 'none');
         }}
         onOpenFullCamera={() => setActiveModal('camera')}
       />

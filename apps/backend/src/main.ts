@@ -8,9 +8,14 @@ dns.setDefaultResultOrder('ipv4first');
 
 import { ValidationPipe } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
+import { json, urlencoded } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Cho phép nhận payload hình ảnh base64 lớn
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ limit: '50mb', extended: true }));
 
   app.useWebSocketAdapter(new IoAdapter(app));
 
@@ -34,4 +39,4 @@ async function bootstrap() {
   console.log(`🩺 Health check endpoint: http://localhost:${port}/api/health`);
 }
 bootstrap();
-// Trigger restart
+// Trigger restart: 2026-10-19 22:48

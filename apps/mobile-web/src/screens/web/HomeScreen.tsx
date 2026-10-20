@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -22,14 +22,31 @@ import { IntegratedBudgetBar } from '../../components/IntegratedBudgetBar';
 import { RemindersWidget } from '../../components/RemindersWidget';
 import { RecentTransactionsWidget } from '../../components/RecentTransactionsWidget';
 import { BudgetModal } from '../../components/BudgetModal';
+import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
 import { loadRecurringItems, getFrequencyLabel } from '../../services/recurringStorage';
 import { loadEventsFromStorage } from '../../services/eventsStorage';
-import { getBudgetApi, BudgetData } from '../../services/api';
+import {
+  getBudgetApi,
+  BudgetData,
+  getTransactionsApi,
+  createTransactionApi,
+  updateTransactionApi,
+  deleteTransactionApi,
+} from '../../services/api';
 import {
   compressImageFile,
   saveDayRecordsToStorage,
   idbLoadRecords,
   getInitialDayRecordsFromLocalStorage,
+  mergeTransactionsIntoDayRecords,
+  subscribeCalendarUpdates,
+  getLatestPhotoFromItems,
+  getCachedBudget,
+  saveCachedBudget,
+  notifyBudgetUpdated,
+  subscribeBudgetUpdates,
+  applyBudgetDelta,
+  formatExpenseUploadTime,
 } from '../../services/calendarStorage';
 
 export interface ExpenseItem {
@@ -762,12 +779,16 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
       const raw = getInitialDayRecordsFromLocalStorage();
       Object.entries(raw).forEach(([key, val]: [string, any]) => {
         if (val) {
+          // Nếu ô lịch rỗng không có chi tiêu và amount = 0 -> không giữ ảnh đại diện rác
+          if (Array.isArray(val.items) && val.items.length === 0 && (!val.amount || val.amount === 0)) {
+            return;
+          }
           if (!val.items || !Array.isArray(val.items)) {
             if (val.amount > 0 || val.photoUri) {
               val.items = [
                 {
                   id: `legacy-${key}`,
-                  time: '12:00',
+                  time: getCurrentFormattedTime(),
                   amount: val.amount || 0,
                   category: val.category || 'Ăn uống',
                   categoryIcon: val.categoryIcon || '🍜',
@@ -782,6 +803,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
           }
           if (val.items.length > 0) {
             val.amount = val.items.reduce((s: number, it: any) => s + (it.amount || 0), 0);
+            val.photoUri = getLatestPhotoFromItems(val.items) || val.photoUri;
           }
           records[key] = val;
         }
@@ -799,6 +821,10 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
           const merged = { ...prev };
           Object.entries(stored).forEach(([k, v]) => {
             if (v) {
+              if (Array.isArray(v.items) && v.items.length === 0 && (!v.amount || v.amount === 0)) {
+                delete merged[k];
+                return;
+              }
               merged[k] = { ...merged[k], ...v };
             }
           });
@@ -811,6 +837,68 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
     };
   }, []);
 
+  // Đồng bộ hai chiều với Backend (giao dịch & hình ảnh từ Mobile và các thiết bị khác)
+  const syncWithBackend = useCallback(async () => {
+    try {
+      getBudgetApi()
+        .then((bData) => {
+          if (bData && bData.limit) {
+            setBudget(bData);
+            saveCachedBudget(bData);
+          }
+        })
+        .catch(() => {});
+
+      const res: any = await getTransactionsApi({ limit: 500 });
+      const txList = Array.isArray(res) ? res : (res?.data || res?.items || []);
+      if (Array.isArray(txList) && txList.length > 0) {
+        setDayRecords((prev) => {
+          const merged = mergeTransactionsIntoDayRecords(prev, txList);
+          saveDayRecordsToStorage(merged);
+          return merged;
+        });
+      }
+    } catch (e) {
+      console.warn('[HomeScreen Web] Sync transactions error:', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    syncWithBackend();
+
+    // Lắng nghe cập nhật khi có giao dịch hoặc ảnh mới từ Mobile (trong cùng trình duyệt hoặc tab khác)
+    const unsubscribe = subscribeCalendarUpdates((updated) => {
+      setDayRecords(updated);
+      getBudgetApi()
+        .then((bData) => {
+          if (bData && bData.limit) {
+            setBudget(bData);
+            saveCachedBudget(bData);
+          }
+        })
+        .catch(() => {});
+    });
+
+    // Tự động đồng bộ khi người dùng quay lại tab Web
+    const handleFocus = () => {
+      syncWithBackend();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', handleFocus);
+    }
+
+    // Định kỳ 10 giây tự động đồng bộ ngầm
+    const interval = setInterval(syncWithBackend, 10000);
+
+    return () => {
+      unsubscribe();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', handleFocus);
+      }
+      clearInterval(interval);
+    };
+  }, [syncWithBackend]);
+
   // Calculate monthly stats from dayRecords
   const monthlyStats = useMemo(() => {
     let totalSpending = 0;
@@ -818,7 +906,8 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
 
     for (let d = 1; d <= totalDaysInMonth; d++) {
       const key = `${currentYear}-${currentMonth + 1}-${d}`;
-      const rec = dayRecords[key];
+      const paddedKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const rec = dayRecords[key] || dayRecords[paddedKey];
       if (rec && (rec.amount > 0 || rec.photoUri)) {
         countDays++;
         if (rec.amount > 0) {
@@ -848,7 +937,8 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
     let total = 0;
     for (let d = 1; d <= totalDaysInMonth; d++) {
       const key = `${currentYear}-${currentMonth + 1}-${d}`;
-      const rec = dayRecords[key];
+      const paddedKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const rec = dayRecords[key] || dayRecords[paddedKey];
       if (rec && rec.amount > 0) {
         const catName = rec.category || 'Ăn uống';
         const icon = rec.categoryIcon || '🍜';
@@ -917,6 +1007,16 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
 
   // Full-image lightbox preview
   const [lightboxUri, setLightboxUri] = useState<string | null>(null);
+
+  // Modal xác nhận xóa chi tiêu và gỡ ảnh bìa ô lịch
+  const [deletingExpense, setDeletingExpense] = useState<{
+    dayNum: number;
+    item: ExpenseItem;
+  } | null>(null);
+  const [isDeletingExpense, setIsDeletingExpense] = useState<boolean>(false);
+
+  const [deletingCoverDay, setDeletingCoverDay] = useState<number | null>(null);
+  const [isDeletingCover, setIsDeletingCover] = useState<boolean>(false);
 
   // Mini Date Picker state inside Quick Save modal
   const [showMiniDatePicker, setShowMiniDatePicker] = useState<boolean>(false);
@@ -1029,11 +1129,13 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
     }
 
     const photoKey = `${currentYear}-${currentMonth + 1}-${quickDayNum}`;
+    const paddedKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(quickDayNum).padStart(2, '0')}`;
     const now = new Date();
     const timeToUse = quickTimeStr.trim() || getCurrentFormattedTime();
+    const tempId = `exp-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
     const newItem: ExpenseItem = {
-      id: `exp-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      id: tempId,
       time: timeToUse,
       amount: numericAmount,
       category: quickCategory,
@@ -1049,7 +1151,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
       if (existingItems.length === 0 && (existing?.amount || existing?.photoUri)) {
         existingItems.push({
           id: `legacy-${photoKey}`,
-          time: '12:00',
+          time: getCurrentFormattedTime(),
           amount: existing.amount || 0,
           category: existing.category || 'Ăn uống',
           categoryIcon: existing.categoryIcon || '🍜',
@@ -1066,14 +1168,11 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
       // Cộng dồn toàn bộ số tiền chi tiêu của ngày hôm đó
       const totalAmount = updatedItems.reduce((sum, it) => sum + (it.amount || 0), 0);
 
-      // Ảnh hiển thị trên ô lịch: ưu tiên ảnh mới vừa tải lên, hoặc ảnh có sẵn của ô lịch
-      const mainCoverPhoto =
-        quickPhotoUri ||
-        existing?.photoUri ||
-        updatedItems.find((it) => it.photoUri)?.photoUri;
+      // Ảnh hiển thị trên ô lịch: ưu tiên ảnh mới vừa tải lên, hoặc tự động lấy ảnh upload mới nhất
+      const latestPhoto = quickPhotoUri || getLatestPhotoFromItems(updatedItems);
 
       const updatedRecord: DayExpenseRecord = {
-        photoUri: mainCoverPhoto,
+        photoUri: latestPhoto,
         amount: totalAmount,
         category: quickCategory,
         categoryIcon: quickCategoryIcon,
@@ -1082,9 +1181,58 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
         items: updatedItems,
       };
 
-      const next = { ...prev, [photoKey]: updatedRecord };
+      const next = { ...prev, [photoKey]: updatedRecord, [paddedKey]: updatedRecord };
       saveDayRecordsToStorage(next);
       return next;
+    });
+
+    // 1. CẬP NHẬT NGAY LẬP TỨC SỐ DƯ KHẢ DỤNG VÀ CHI TIÊU (0ms Optimistic UI)
+    const updatedBudget = applyBudgetDelta(numericAmount, budget);
+    setBudget(updatedBudget);
+
+    // Đồng bộ tức thời lên Backend để Mobile ngay lập tức nhận được chi tiêu & ảnh
+    let targetHour = now.getHours();
+    let targetMin = now.getMinutes();
+    if (timeToUse && timeToUse.includes(':')) {
+      const [h, m] = timeToUse.split(':').map(Number);
+      if (!isNaN(h) && !isNaN(m)) {
+        targetHour = h;
+        targetMin = m;
+      }
+    }
+    const targetIsoDate = new Date(currentYear, currentMonth, quickDayNum, targetHour, targetMin, now.getSeconds()).toISOString();
+    createTransactionApi({
+      title: quickNote.trim() || quickCategory,
+      amount: -Math.abs(numericAmount),
+      type: 'expense',
+      category: quickCategory,
+      categoryIcon: quickCategoryIcon,
+      note: quickNote.trim(),
+      photoUri: quickPhotoUri || undefined,
+      date: targetIsoDate,
+    }).then((createdTx: any) => {
+      if (createdTx && (createdTx._id || createdTx.id)) {
+        const realId = String(createdTx._id || createdTx.id);
+        setDayRecords((prev) => {
+          const rec = prev[photoKey];
+          if (!rec || !rec.items) return prev;
+          const updatedItems = rec.items.map((it) => (it.id === tempId ? { ...it, id: realId } : it));
+          const next = { ...prev, [photoKey]: { ...rec, items: updatedItems }, [paddedKey]: { ...rec, items: updatedItems } };
+          saveDayRecordsToStorage(next);
+          return next;
+        });
+      }
+      getBudgetApi()
+        .then((fresh) => {
+          if (fresh && fresh.limit) {
+            setBudget(fresh);
+            saveCachedBudget(fresh);
+            notifyBudgetUpdated(fresh);
+          }
+        })
+        .catch(() => {});
+    }).catch((err) => {
+      console.warn('[HomeScreen Web] Lưu giao dịch backend ngầm thất bại (tiếp tục dùng local):', err);
     });
 
     const isMoment = Boolean(quickPhotoUri);
@@ -1112,35 +1260,108 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
     setQuickSaveModalVisible(false);
   };
 
-  const handleDeleteExpenseItem = (dayNum: number, itemId: string) => {
+  const handleDeleteExpenseItem = async (dayNum: number, itemId: string) => {
     const photoKey = `${currentYear}-${currentMonth + 1}-${dayNum}`;
+    const paddedKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+
+    // Tìm khoản tiền chuẩn bị xóa để hoàn lại số dư khả dụng ngay lập tức (0ms Optimistic UI)
+    const existingRec = dayRecords[photoKey] || dayRecords[paddedKey];
+    const itemToDelete = existingRec?.items?.find((it) => it.id === itemId || (it as any)._id === itemId);
+    const deletedAmount = itemToDelete ? (itemToDelete.amount || 0) : 0;
+    if (deletedAmount > 0) {
+      const updatedBudget = applyBudgetDelta(-deletedAmount, budget);
+      setBudget(updatedBudget);
+    }
+
+    // Xóa trên backend nếu đây là transaction ID thực sự
+    if (itemId && !itemId.startsWith('exp-') && !itemId.startsWith('legacy-')) {
+      try {
+        await deleteTransactionApi(itemId);
+        getBudgetApi()
+          .then((fresh) => {
+            if (fresh && fresh.limit) {
+              setBudget(fresh);
+              saveCachedBudget(fresh);
+              notifyBudgetUpdated(fresh);
+            }
+          })
+          .catch(() => {});
+      } catch (e) {
+        console.warn('Lỗi xóa giao dịch backend:', e);
+      }
+    }
+
     setDayRecords((prev) => {
-      const existing = prev[photoKey];
+      const existing = prev[photoKey] || prev[paddedKey];
       if (!existing || !existing.items) return prev;
 
-      const updatedItems = existing.items.filter((it) => it.id !== itemId);
+      const updatedItems = existing.items.filter((it) => it.id !== itemId && (it as any)._id !== itemId);
       const totalAmount = updatedItems.reduce((sum, it) => sum + (it.amount || 0), 0);
-      const remainingPhoto = updatedItems.find((it) => it.photoUri)?.photoUri;
 
       let next: Record<string, DayExpenseRecord>;
-      if (updatedItems.length === 0 && !existing.photoUri) {
+      // Rule 1: Nếu xóa hết các khoản chi tiêu trong ngày -> Xóa luôn ảnh đại diện ô lịch
+      if (updatedItems.length === 0) {
         next = { ...prev };
         delete next[photoKey];
+        delete next[paddedKey];
+
+        // Dọn dẹp cả trên backend nếu có transaction ảnh bìa/khoảnh khắc (amount 0) trên ngày này
+        getTransactionsApi({ limit: 100 }).then((res: any) => {
+          const list = Array.isArray(res) ? res : (res?.data || res?.items || []);
+          const targetDateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+          list.forEach((tx: any) => {
+            if (tx.date && tx.date.startsWith(targetDateStr)) {
+              if (tx._id) {
+                deleteTransactionApi(tx._id).catch(() => {});
+              }
+            }
+          });
+        }).catch(() => {});
       } else {
+        // Rule 2: Nếu vẫn còn các khoản chi tiêu khác -> Tự động lấy ảnh upload mới nhất
+        const latestPhoto = getLatestPhotoFromItems(updatedItems);
+        const updatedRecord: DayExpenseRecord = {
+          ...existing,
+          amount: totalAmount,
+          photoUri: latestPhoto,
+          items: updatedItems,
+        };
         next = {
           ...prev,
-          [photoKey]: {
-            ...existing,
-            amount: totalAmount,
-            photoUri: existing.photoUri || remainingPhoto,
-            items: updatedItems,
-          },
+          [photoKey]: updatedRecord,
+          [paddedKey]: updatedRecord,
         };
       }
 
       saveDayRecordsToStorage(next);
       return next;
     });
+  };
+
+  const handleConfirmDeleteExpense = async () => {
+    if (!deletingExpense) return;
+    setIsDeletingExpense(true);
+    try {
+      await handleDeleteExpenseItem(deletingExpense.dayNum, deletingExpense.item.id);
+    } catch (err) {
+      console.error('Error confirming delete expense:', err);
+    } finally {
+      setIsDeletingExpense(false);
+      setDeletingExpense(null);
+    }
+  };
+
+  const handleConfirmRemoveCoverPhoto = async () => {
+    if (deletingCoverDay === null) return;
+    setIsDeletingCover(true);
+    try {
+      handleRemoveCoverPhotoForDay(deletingCoverDay);
+    } catch (err) {
+      console.error('Error removing cover photo:', err);
+    } finally {
+      setIsDeletingCover(false);
+      setDeletingCoverDay(null);
+    }
   };
 
   const handlePickCoverPhotoForDay = (dayNum: number) => {
@@ -1154,12 +1375,16 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
           try {
             const compressedBase64 = await compressImageFile(file);
             const photoKey = `${currentYear}-${currentMonth + 1}-${dayNum}`;
+            const now = new Date();
+            const targetIsoDate = new Date(currentYear, currentMonth, dayNum, now.getHours(), now.getMinutes(), now.getSeconds()).toISOString();
+
             setDayRecords((prev) => {
               const existing = prev[photoKey] || {
                 amount: 0,
-                category: 'Ăn uống',
-                categoryIcon: '🍜',
+                category: 'Khoảnh khắc',
+                categoryIcon: '📸',
                 items: [],
+                dateStr: `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`,
               };
               const updated = { ...existing, photoUri: compressedBase64 };
               const next = { ...prev, [photoKey]: updated };
@@ -1178,6 +1403,24 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
 
               return next;
             });
+
+            // Đồng bộ ảnh bìa này lên Backend để Mobile hiển thị đúng ô lịch ngày này
+            const currentRec = dayRecords[photoKey];
+            const firstValidItem = currentRec?.items?.find((it) => it.id && !it.id.startsWith('exp-') && !it.id.startsWith('legacy-'));
+            if (firstValidItem) {
+              updateTransactionApi(firstValidItem.id, { photoUri: compressedBase64 }).catch(() => {});
+            } else {
+              createTransactionApi({
+                title: 'Khoảnh khắc chi tiêu',
+                amount: 0,
+                type: 'expense',
+                category: 'Khoảnh khắc',
+                categoryIcon: '📸',
+                note: 'Ảnh đại diện lịch trình chi tiêu',
+                photoUri: compressedBase64,
+                date: targetIsoDate,
+              }).catch(() => {});
+            }
           } catch (err) {
             console.error('Error compressing cover photo:', err);
           }
@@ -1189,14 +1432,34 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
 
   const handleRemoveCoverPhotoForDay = (dayNum: number) => {
     const photoKey = `${currentYear}-${currentMonth + 1}-${dayNum}`;
+    const paddedKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+    const existing = dayRecords[photoKey] || dayRecords[paddedKey];
+
     setDayRecords((prev) => {
-      const existing = prev[photoKey];
-      if (!existing) return prev;
-      const updated = { ...existing, photoUri: undefined };
-      const next = { ...prev, [photoKey]: updated };
+      const rec = prev[photoKey] || prev[paddedKey];
+      if (!rec) return prev;
+
+      let next: Record<string, DayExpenseRecord>;
+      if (!rec.items || rec.items.length === 0) {
+        next = { ...prev };
+        delete next[photoKey];
+        delete next[paddedKey];
+      } else {
+        const updated = { ...rec, photoUri: undefined };
+        next = { ...prev, [photoKey]: updated, [paddedKey]: updated };
+      }
+
       saveDayRecordsToStorage(next);
       return next;
     });
+
+    if (existing?.items) {
+      existing.items.forEach((it) => {
+        if (it.id && !it.id.startsWith('exp-') && !it.id.startsWith('legacy-') && it.photoUri) {
+          updateTransactionApi(it.id, { photoUri: '' }).catch(() => {});
+        }
+      });
+    }
   };
 
   const handlePrevMonth = () => {
@@ -1214,18 +1477,22 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
   const displayName = user?.fullName || 'Ánh Mai';
   const [imageError, setImageError] = useState(false);
 
-  const [budget, setBudget] = useState<BudgetData>({
-    month: new Date().getMonth() + 1,
-    year: new Date().getFullYear(),
-    limit: 22000000,
-    spent: 6180000,
-    remaining: 15820000,
-    spentPercent: 28.1,
-    remainingPercent: 71.9,
-    status: 'safe',
-    payday: 5,
-    daysUntilPayday: 12,
-    currency: 'VND',
+  const [budget, setBudget] = useState<BudgetData>(() => {
+    return (
+      (getCachedBudget() as BudgetData) || {
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear(),
+        limit: 22000000,
+        spent: 6180000,
+        remaining: 15820000,
+        spentPercent: 28.1,
+        remainingPercent: 71.9,
+        status: 'safe',
+        payday: 5,
+        daysUntilPayday: 12,
+        currency: 'VND',
+      }
+    );
   });
 
   useEffect(() => {
@@ -1234,11 +1501,20 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
       .then((data) => {
         if (isMounted && data && data.limit) {
           setBudget(data);
+          saveCachedBudget(data);
         }
       })
       .catch(() => { });
+
+    const unsubscribe = subscribeBudgetUpdates((updatedBudget) => {
+      if (isMounted && updatedBudget) {
+        setBudget(updatedBudget as BudgetData);
+      }
+    });
+
     return () => {
       isMounted = false;
+      unsubscribe();
     };
   }, []);
 
@@ -1545,6 +1821,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
         {/* CỘT 2: GIAO DỊCH GẦN ĐÂY */}
         <View style={[styles.widgetCol, width >= 900 && { flex: 1 }]}>
           <RecentTransactionsWidget
+            dayRecords={dayRecords}
             language={language as any}
             onViewAll={() => onNavigateToTab?.('transactions')}
           />
@@ -2095,7 +2372,8 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.timelineCoverActionBtn, { backgroundColor: 'rgba(239, 68, 68, 0.85)' }]}
-                        onPress={() => handleRemoveCoverPhotoForDay(timelineDayNum)}
+                        onPress={() => setDeletingCoverDay(timelineDayNum)}
+                        accessibilityLabel={language === 'vi' ? 'Gỡ ảnh đại diện ô lịch' : 'Remove cover photo'}
                       >
                         <Text style={styles.timelineCoverActionText}>🗑️</Text>
                       </TouchableOpacity>
@@ -2136,7 +2414,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
                       {/* Left: Time indicator */}
                       <View style={styles.timelineTimeCol}>
                         <View style={styles.timelineTimeBadge}>
-                          <Text style={styles.timelineTimeText}>{it.time || '12:00'}</Text>
+                          <Text style={styles.timelineTimeText}>{formatExpenseUploadTime(it)}</Text>
                         </View>
                         {idx < dayRecords[`${currentYear}-${currentMonth + 1}-${timelineDayNum}`]!.items!.length - 1 && (
                           <View style={styles.timelineConnectorLine} />
@@ -2156,9 +2434,10 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
                               -{(it.amount || 0).toLocaleString('vi-VN')} đ
                             </Text>
                             <TouchableOpacity
-                              onPress={() => handleDeleteExpenseItem(timelineDayNum, it.id)}
+                              onPress={() => setDeletingExpense({ dayNum: timelineDayNum, item: it })}
                               style={styles.timelineItemDeleteBtn}
                               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                              accessibilityLabel={language === 'vi' ? 'Xóa khoản chi tiêu' : 'Delete expense'}
                             >
                               <Text style={{ fontSize: 12 }}>🗑️</Text>
                             </TouchableOpacity>
@@ -2234,6 +2513,47 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
           )}
         </View>
       </Modal>
+
+      {/* ===================== 4. MODAL XÁC NHẬN XÓA CHI TIÊU ===================== */}
+      <ConfirmDeleteModal
+        visible={Boolean(deletingExpense)}
+        itemTitle={
+          deletingExpense?.item.note ||
+          deletingExpense?.item.category ||
+          (language === 'vi' ? 'Khoản chi' : 'Expense')
+        }
+        itemAmount={
+          deletingExpense?.item.amount != null
+            ? `-${deletingExpense.item.amount.toLocaleString('vi-VN')} đ`
+            : undefined
+        }
+        itemImage={deletingExpense?.item.photoUri}
+        itemCategory={deletingExpense?.item.category}
+        isDeleting={isDeletingExpense}
+        onConfirm={handleConfirmDeleteExpense}
+        onCancel={() => setDeletingExpense(null)}
+      />
+
+      {/* ===================== 5. MODAL XÁC NHẬN GỠ ẢNH Ô LỊCH ===================== */}
+      <ConfirmDeleteModal
+        visible={deletingCoverDay !== null}
+        title={language === 'vi' ? 'Gỡ ảnh đại diện ô lịch?' : 'Remove cover photo?'}
+        message={
+          language === 'vi'
+            ? 'Ảnh đại diện của ô lịch ngày này sẽ bị gỡ bỏ khỏi giao diện lịch.'
+            : 'The cover photo for this day cell will be removed from your calendar view.'
+        }
+        itemTitle={language === 'vi' ? 'Ảnh đại diện ô lịch' : 'Calendar Cell Cover'}
+        itemImage={
+          deletingCoverDay !== null
+            ? dayRecords[`${currentYear}-${currentMonth + 1}-${deletingCoverDay}`]?.photoUri
+            : undefined
+        }
+        itemCategory={language === 'vi' ? 'Hình ảnh' : 'Photo'}
+        isDeleting={isDeletingCover}
+        onConfirm={handleConfirmRemoveCoverPhoto}
+        onCancel={() => setDeletingCoverDay(null)}
+      />
     </ScrollView>
   );
 };

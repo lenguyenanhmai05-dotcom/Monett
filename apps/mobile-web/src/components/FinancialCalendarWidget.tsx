@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
 import { getMonthCalendarGrid, isSameDay } from '../utils/dateUtils';
+import {
+  getInitialDayRecordsFromLocalStorage,
+  subscribeCalendarUpdates,
+  DayExpenseRecord,
+} from '../services/calendarStorage';
 
 export interface CalendarDayData {
   dayNum: number;
@@ -236,6 +241,18 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
   const isCurrentViewingMonth = viewYear === now.getFullYear() && viewMonth === now.getMonth() + 1;
   const activeSelectedDay = selectedDay !== undefined ? selectedDay : (isCurrentViewingMonth ? now.getDate() : 1);
 
+  // State đồng bộ Lịch trình chi tiêu (IndexedDB & LocalStorage từ Web/Mobile)
+  const [dayRecords, setDayRecords] = useState<Record<string, DayExpenseRecord>>(() =>
+    getInitialDayRecordsFromLocalStorage()
+  );
+
+  useEffect(() => {
+    const unsub = subscribeCalendarUpdates((updated) => {
+      setDayRecords(updated);
+    });
+    return unsub;
+  }, []);
+
   // Sinh ma trận ngày tháng chuẩn theo viewYear và viewMonth
   const monthGrid = useMemo(() => {
     return getMonthCalendarGrid(viewYear, viewMonth, now);
@@ -272,6 +289,7 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
       count: number;
       amountText: string;
       items: any[];
+      latestPhotoTime?: number;
     }> = {};
 
     // 1. Dữ liệu mẫu khởi tạo (CHỈ áp dụng cho Tháng 10/2026 và các ngày đã qua <= 11)
@@ -290,7 +308,7 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
       });
     }
 
-    // 2. Cộng dồn các giao dịch thực tế của người dùng trong tháng đang xem
+    // 2. Cộng dồn các giao dịch thực tế của người dùng trong tháng đang xem từ Backend
     if (Array.isArray(transactions) && transactions.length > 0) {
       transactions.forEach((tx: any) => {
         if (!tx.date) return;
@@ -305,13 +323,52 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
           map[dNum].count += 1;
           map[dNum].items.push(tx);
           if (tx.photoUri) {
-            map[dNum].photoUrl = tx.photoUri;
+            const txTime = txDate.getTime();
+            if (!map[dNum].latestPhotoTime || txTime >= map[dNum].latestPhotoTime) {
+              map[dNum].photoUrl = tx.photoUri;
+              map[dNum].latestPhotoTime = txTime;
+            }
           }
         }
       });
     }
 
-    // 3. Format amountText cho tất cả các ngày có chi tiêu
+    // 3. Ưu tiên cập nhật từ dayRecords (Đồng bộ tức thời với Web Lịch trình chi tiêu)
+    if (dayRecords && typeof dayRecords === 'object') {
+      Object.entries(dayRecords).forEach(([key, rec]) => {
+        if (!rec) return;
+        const parts = key.split('-');
+        if (parts.length === 3) {
+          const recY = Number(parts[0]);
+          const recM = Number(parts[1]);
+          const recD = Number(parts[2]);
+          if (recY === viewYear && recM === viewMonth) {
+            if (!map[recD]) {
+              map[recD] = { totalAmount: 0, count: 0, items: [], amountText: '' };
+            }
+            // Nếu ngày này có items rỗng và amount = 0 -> xóa ảnh đại diện ô lịch
+            if (Array.isArray(rec.items) && rec.items.length === 0 && (!rec.amount || rec.amount === 0)) {
+              map[recD].photoUrl = undefined;
+              map[recD].totalAmount = 0;
+              map[recD].count = 0;
+              map[recD].items = [];
+            } else {
+              // Cập nhật theo rec.photoUri (nếu rec.photoUri là undefined thì gỡ bỏ)
+              map[recD].photoUrl = rec.photoUri || undefined;
+              if (rec.amount !== undefined) {
+                map[recD].totalAmount = rec.amount;
+              }
+              if (rec.items && rec.items.length > 0) {
+                map[recD].count = rec.items.length;
+                map[recD].items = rec.items;
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // 4. Format amountText cho tất cả các ngày có chi tiêu
     Object.keys(map).forEach((dStr) => {
       const dNum = Number(dStr);
       const total = map[dNum].totalAmount;
@@ -325,7 +382,7 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
     });
 
     return map;
-  }, [transactions, viewYear, viewMonth]);
+  }, [transactions, viewYear, viewMonth, dayRecords]);
 
   // Tổng chi tiêu của tháng đang xem
   const monthTotalSpent = useMemo(() => {
