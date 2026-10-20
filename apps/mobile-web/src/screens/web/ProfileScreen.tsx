@@ -27,6 +27,8 @@ export const ProfileScreen: React.FC = () => {
   const [fullName, setFullName] = useState(user?.fullName || '');
   const [friendIdInput, setFriendIdInput] = useState('');
   const [isSendingRequest, setIsSendingRequest] = useState(false);
+  const [friendFeedback, setFriendFeedback] = useState<{ type: 'success' | 'info' | 'error'; message: string } | null>(null);
+  const [copiedId, setCopiedId] = useState(false);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -301,23 +303,56 @@ export const ProfileScreen: React.FC = () => {
 
 
   const handleCopyId = () => {
-    if (user?.id) navigator.clipboard.writeText(user.id).then(() => window.alert('Đã sao chép ID!'));
+    const idToCopy = user?.id || (user as any)?._id;
+    if (idToCopy && typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(idToCopy).then(() => {
+        setCopiedId(true);
+        setTimeout(() => setCopiedId(false), 2500);
+      });
+    }
   };
 
   const handleAddFriend = async () => {
-    if (!friendIdInput) return window.alert(language === 'vi' ? 'Vui lòng nhập ID bạn bè!' : 'Please enter a friend ID!');
-    let cleanedId = friendIdInput.trim();
-    if (cleanedId.startsWith('#')) cleanedId = cleanedId.slice(1);
-    
+    const cleanedId = friendIdInput.trim().replace(/^#/, '');
+    if (!cleanedId) {
+      setFriendFeedback({
+        type: 'error',
+        message: language === 'vi' ? 'Vui lòng nhập ID bạn bè!' : 'Please enter a friend ID!',
+      });
+      return;
+    }
+
     try {
       setIsSendingRequest(true);
-      const result = await sendFriendRequestApi(cleanedId);
+      setFriendFeedback(null);
+      const result: any = await sendFriendRequestApi(cleanedId);
       console.log('[AddFriend] Result:', result);
-      window.alert(language === 'vi' ? '✅ Đã gửi lời mời kết bạn!' : '✅ Friend request sent!');
+
+      const successMsg = result?.message || (language === 'vi' ? 'Đã gửi lời mời kết bạn thành công!' : 'Friend request sent!');
+      setFriendFeedback({
+        type: 'success',
+        message: successMsg,
+      });
+
+      addNotification({
+        type: 'friend',
+        title: language === 'vi' ? 'Kết nối bạn bè 🤝' : 'Friend Connection 🤝',
+        message: successMsg,
+        iconBg: '#EDE9FE',
+        iconColor: '#8B5CF6',
+        metadata: { targetTab: 'profile' },
+      });
+
       setFriendIdInput('');
+      loadFriendsData();
     } catch (error: any) {
       console.error('[AddFriend] Error:', error);
-      window.alert('❌ ' + (error.message || 'Lỗi khi gửi lời mời'));
+      const errMsg = error.message || (language === 'vi' ? 'Lỗi khi gửi lời mời' : 'Failed to send request');
+      const isInfo = errMsg.includes('chờ') || errMsg.includes('đã là bạn bè') || errMsg.includes('đã gửi') || errMsg.includes('tồn tại');
+      setFriendFeedback({
+        type: isInfo ? 'info' : 'error',
+        message: errMsg,
+      });
     } finally {
       setIsSendingRequest(false);
     }
@@ -438,8 +473,13 @@ export const ProfileScreen: React.FC = () => {
               </View>
               <Text style={styles.userIdDisplay}>ID của bạn:</Text>
               <Text style={[styles.userIdBold, { fontSize: 12, marginBottom: 16, textAlign: 'center', flexWrap: 'wrap' }]}>{user?.id || 'loading...'}</Text>
-              <TouchableOpacity style={styles.actionBtnSoft} onPress={handleCopyId}>
-                <Text style={styles.actionBtnSoftText}>📋 {language === 'vi' ? 'Sao chép ID' : 'Copy ID'}</Text>
+              <TouchableOpacity
+                style={[styles.actionBtnSoft, copiedId && { backgroundColor: isDark ? '#064E3B' : '#ECFDF5', borderColor: '#10B981' }]}
+                onPress={handleCopyId}
+              >
+                <Text style={[styles.actionBtnSoftText, copiedId && { color: '#059669', fontWeight: '800' }]}>
+                  {copiedId ? (language === 'vi' ? '✅ Đã sao chép ID!' : '✅ Copied ID!') : ('📋 ' + (language === 'vi' ? 'Sao chép ID' : 'Copy ID'))}
+                </Text>
               </TouchableOpacity>
               
               {/* Add Friend Input */}
@@ -451,7 +491,11 @@ export const ProfileScreen: React.FC = () => {
                     placeholder={language === 'vi' ? 'Nhập ID bạn bè...' : 'Enter friend ID...'}
                     placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
                     value={friendIdInput}
-                    onChangeText={setFriendIdInput}
+                    onChangeText={(val) => {
+                      setFriendIdInput(val);
+                      if (friendFeedback) setFriendFeedback(null);
+                    }}
+                    onSubmitEditing={handleAddFriend}
                   />
                   <TouchableOpacity 
                     style={[styles.primaryBtn, { paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, opacity: isSendingRequest ? 0.7 : 1 }]} 
@@ -463,6 +507,49 @@ export const ProfileScreen: React.FC = () => {
                     </Text>
                   </TouchableOpacity>
                 </View>
+
+                {/* Friendly in-app feedback banner (no ugly window.alert!) */}
+                {friendFeedback && (
+                  <View
+                    style={[
+                      styles.friendFeedbackBox,
+                      friendFeedback.type === 'success' && styles.friendFeedbackSuccess,
+                      friendFeedback.type === 'info' && styles.friendFeedbackInfo,
+                      friendFeedback.type === 'error' && styles.friendFeedbackError,
+                    ]}
+                  >
+                    <Ionicons
+                      name={
+                        friendFeedback.type === 'success'
+                          ? 'checkmark-circle'
+                          : friendFeedback.type === 'info'
+                          ? 'information-circle'
+                          : 'alert-circle'
+                      }
+                      size={18}
+                      color={
+                        friendFeedback.type === 'success'
+                          ? '#059669'
+                          : friendFeedback.type === 'info'
+                          ? '#0284C7'
+                          : '#DC2626'
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.friendFeedbackText,
+                        friendFeedback.type === 'success' && { color: isDark ? '#34D399' : '#065F46' },
+                        friendFeedback.type === 'info' && { color: isDark ? '#38BDF8' : '#075985' },
+                        friendFeedback.type === 'error' && { color: isDark ? '#F87171' : '#991B1B' },
+                      ]}
+                    >
+                      {friendFeedback.message}
+                    </Text>
+                    <TouchableOpacity onPress={() => setFriendFeedback(null)} style={{ padding: 2 }}>
+                      <Ionicons name="close" size={16} color={isDark ? '#94A3B8' : '#64748B'} />
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             </View>
           </View>
@@ -1382,6 +1469,35 @@ const getStyles = (isDark: boolean) => StyleSheet.create({
   userIdBold: { fontWeight: '700', color: isDark ? '#F8FAFC' : '#0F172A', fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
   actionBtnSoft: { backgroundColor: isDark ? '#475569' : '#F8FAFC', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: isDark ? '#64748B' : '#E2E8F0' },
   actionBtnSoftText: { fontSize: 14, fontWeight: '700', color: isDark ? '#F1F5F9' : '#475569' },
+
+  friendFeedbackBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  friendFeedbackSuccess: {
+    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.15)' : '#ECFDF5',
+    borderColor: isDark ? '#059669' : '#A7F3D0',
+  },
+  friendFeedbackInfo: {
+    backgroundColor: isDark ? 'rgba(2, 132, 199, 0.15)' : '#F0F9FF',
+    borderColor: isDark ? '#0284C7' : '#BAE6FD',
+  },
+  friendFeedbackError: {
+    backgroundColor: isDark ? 'rgba(220, 38, 38, 0.15)' : '#FEF2F2',
+    borderColor: isDark ? '#DC2626' : '#FECACA',
+  },
+  friendFeedbackText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
 
   mascotCard: {
     backgroundColor: '#047857', borderRadius: 24, padding: 24,

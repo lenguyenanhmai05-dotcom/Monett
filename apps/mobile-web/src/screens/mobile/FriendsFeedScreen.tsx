@@ -170,43 +170,44 @@ export const MomentCard = ({
 
   return (
     <View style={cardStyles.locketCard}>
-      {/* 1. Locket Photo Widget */}
+      {/* 1. Header Row (Outside of photo): Avatar, Friend Name, Category, Time, Menu */}
+      <View style={cardStyles.headerRow}>
+        <Avatar uri={item.user?.avatar} name={item.user?.name || 'Bạn'} size={38} />
+        <View style={cardStyles.authorInfo}>
+          <Text style={cardStyles.authorName} numberOfLines={1}>
+            {item.user?.name || 'Bạn bè'}
+          </Text>
+          <Text style={cardStyles.metaText}>
+            {item.category ? `${item.category} · ` : ''}{item.time || 'Vừa xong'}
+          </Text>
+        </View>
+
+        {/* 3-dot Menu for Owner */}
+        {isOwner && (
+          <TouchableOpacity
+            onPress={() => setShowMenu(true)}
+            style={cardStyles.menuBtn}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="ellipsis-horizontal" size={18} color="#64748B" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* 2. Caption Text (Outside & above photo - clean, clear typography, not overlaying photo!) */}
+      {item.caption ? (
+        <View style={cardStyles.captionBox}>
+          <Text style={cardStyles.captionText}>{item.caption}</Text>
+        </View>
+      ) : null}
+
+      {/* 3. Photo Container: Clean, unobstructed */}
       <View style={cardStyles.locketPhotoContainer}>
         <Image
           source={{ uri: normalizeAvatarUrl(item.photo) || item.photo }}
           style={cardStyles.locketPhoto}
           resizeMode="cover"
         />
-
-        {/* Top Floating Badge: Avatar, Friend Name, Time */}
-        <View style={cardStyles.locketTopOverlay}>
-          <View style={cardStyles.locketAuthorPill}>
-            <Avatar uri={item.user?.avatar} name={item.user?.name || 'Bạn'} size={30} />
-            <Text style={cardStyles.locketAuthorName} numberOfLines={1}>
-              {item.user?.name || 'Bạn bè'}
-            </Text>
-            <Text style={cardStyles.locketDot}>·</Text>
-            <Text style={cardStyles.locketTimeText}>{item.time || 'Vừa xong'}</Text>
-          </View>
-
-          {/* 3-dot Menu for Owner */}
-          {isOwner && (
-            <TouchableOpacity
-              onPress={() => setShowMenu(true)}
-              style={cardStyles.locketMenuBtn}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="ellipsis-horizontal" size={18} color="#FFFFFF" />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Bottom Floating Caption Pill (Locket style) */}
-        {item.caption ? (
-          <View style={cardStyles.locketCaptionPill}>
-            <Text style={cardStyles.locketCaptionText}>{item.caption}</Text>
-          </View>
-        ) : null}
 
         {/* Floating Toast Notification when replied */}
         {toastMessage && (
@@ -363,22 +364,63 @@ export const MomentCard = ({
 const cardStyles = StyleSheet.create({
   locketCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 28,
+    borderRadius: 24,
     marginHorizontal: 16,
     marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 16,
-    elevation: 4,
+    elevation: 3,
     borderWidth: 1,
     borderColor: '#F1F5F9',
-    padding: 12,
+    padding: 14,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingHorizontal: 2,
+  },
+  authorInfo: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  authorName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  metaText: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  menuBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  captionBox: {
+    marginBottom: 12,
+    paddingHorizontal: 2,
+  },
+  captionText: {
+    color: '#1E293B',
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 21,
   },
   locketPhotoContainer: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: 22,
+    borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#0F172A',
     position: 'relative',
@@ -388,69 +430,6 @@ const cardStyles = StyleSheet.create({
   locketPhoto: {
     width: '100%',
     height: '100%',
-  },
-  locketTopOverlay: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    right: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    zIndex: 2,
-  },
-  locketAuthorPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 42, 0.72)',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 20,
-    gap: 6,
-    maxWidth: '82%',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  locketAuthorName: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  locketDot: {
-    color: '#94A3B8',
-    fontSize: 12,
-  },
-  locketTimeText: {
-    color: '#CBD5E1',
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  locketMenuBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(15, 23, 42, 0.72)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-  },
-  locketCaptionPill: {
-    position: 'absolute',
-    bottom: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.72)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    maxWidth: '88%',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  locketCaptionText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-    textAlign: 'center',
   },
   locketToast: {
     position: 'absolute',
@@ -1587,18 +1566,19 @@ const InviteModal = ({
     }
     try {
       setIsSending(true);
-      await sendFriendRequestApi(cleanId);
+      const res: any = await sendFriendRequestApi(cleanId);
+      const msg = res?.message || (isVi ? 'Đã gửi lời mời kết bạn!' : 'Friend request sent!');
       addNotification({
         type: 'friend',
-        title: 'Đã gửi lời mời kết bạn 🤝',
-        message: `Lời mời kết bạn đã được gửi thành công đến ID "${cleanId}".`,
+        title: 'Kết bạn 🤝',
+        message: msg,
         metadata: { targetTab: 'feed' },
       });
-      Alert.alert('✅ ' + (isVi ? 'Thành công' : 'Success'), isVi ? 'Đã gửi lời mời kết bạn!' : 'Friend request sent!');
+      Alert.alert(isVi ? 'Thông báo' : 'Notice', msg);
       setFriendIdInput('');
       if (onSuccess) onSuccess();
     } catch (e: any) {
-      Alert.alert('❌ ' + (isVi ? 'Lỗi' : 'Error'), e.message || (isVi ? 'Không thể gửi lời mời' : 'Failed to send request'));
+      Alert.alert(isVi ? 'Thông báo' : 'Notice', e.message || (isVi ? 'Không thể gửi lời mời' : 'Failed to send request'));
     } finally {
       setIsSending(false);
     }
@@ -2093,8 +2073,8 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void; onNavigateToMess
               <Text style={styles.emptyTitle}>{isVi ? 'Chưa có khoảnh khắc nào' : 'No moments yet'}</Text>
               <Text style={styles.emptySub}>
                 {isVi
-                  ? 'Bảng tin hiện chưa có bài đăng nào.'
-                  : 'No posts in the feed yet.'}
+                  ? 'Bảng tin chỉ hiển thị bài đăng khi hai bạn đã kết bạn với nhau. Hãy kết nối bạn bè để cùng chia sẻ khoảnh khắc nhé! ✨'
+                  : 'Feed only shows moments when you and your friends are connected. Connect with friends to share moments! ✨'}
               </Text>
             </View>
           ) : (

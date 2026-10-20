@@ -573,26 +573,28 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
   };
 
   const handleSendFriendRequest = async () => {
-    const cleanedId = friendIdInput.trim();
+    const cleanedId = friendIdInput.trim().replace(/^#/, '');
     if (!cleanedId) {
       alert('Vui lòng nhập ID bạn bè');
       return;
     }
     setIsSendingRequest(true);
     try {
-      await sendFriendRequestApi(cleanedId);
+      const res: any = await sendFriendRequestApi(cleanedId);
+      const msg = res?.message || 'Đã gửi lời mời kết bạn thành công!';
       addNotification({
         type: 'friend',
-        title: 'Đã gửi lời mời kết bạn 🤝',
-        message: `Lời mời kết bạn đã được gửi thành công đến ID "${cleanedId}".`,
+        title: 'Kết bạn 🤝',
+        message: msg,
         iconBg: '#EDE9FE',
         iconColor: '#8B5CF6',
-        metadata: { targetTab: 'feed' },
+        metadata: { targetTab: 'friends' },
       });
-      alert('Đã gửi lời mời kết bạn thành công!');
+      alert(msg);
       setFriendIdInput('');
+      loadData();
     } catch (e: any) {
-      alert('Lỗi: ' + (e.message || 'Không thể gửi lời mời'));
+      alert(e.message || 'Không thể gửi lời mời');
     } finally {
       setIsSendingRequest(false);
     }

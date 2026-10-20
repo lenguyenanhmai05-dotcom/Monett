@@ -98,83 +98,27 @@ export const MobileNavigator: React.FC = () => {
           />
         );
       case 'calendar':
+        return (
+          <MessagesScreen
+            refreshTrigger={refreshKey}
+            onNavigateToHome={() => setCurrentTab('home')}
+            onNavigateToCamera={(dateStr) => {
+              setTargetExpenseDate(dateStr);
+              setActiveModal('camera');
+            }}
+            onNavigateToDetail={(id) => {
+              setSelectedTxId(id);
+              setActiveModal('detail');
+            }}
+            onNavigateToFeed={() => setCurrentTab('feed')}
+          />
+        );
       case 'feed':
         return (
-          <View style={{ flex: 1, backgroundColor: '#FAFAF9' }}>
-            {/* Thanh chuyển đổi nhanh trên cùng: [ 📸 Bảng tin Monett ]  [ 💬 Nhắn tin ] */}
-            <SafeAreaView edges={['top']} style={styles.socialTopNavWrapper}>
-              <View style={styles.socialTopNav}>
-                <TouchableOpacity
-                  style={[
-                    styles.socialTabBtn,
-                    currentTab === 'feed' && styles.socialTabBtnActive,
-                  ]}
-                  onPress={() => setCurrentTab('feed')}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name={currentTab === 'feed' ? 'images' : 'images-outline'}
-                    size={16}
-                    color={currentTab === 'feed' ? '#047857' : '#64748B'}
-                  />
-                  <Text
-                    style={[
-                      styles.socialTabBtnText,
-                      currentTab === 'feed' && styles.socialTabBtnTextActive,
-                    ]}
-                  >
-                    {isVi ? 'Bảng tin Monett 📸' : 'Monett Feed 📸'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.socialTabBtn,
-                    currentTab === 'calendar' && styles.socialTabBtnActive,
-                  ]}
-                  onPress={() => setCurrentTab('calendar')}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons
-                    name={currentTab === 'calendar' ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'}
-                    size={16}
-                    color={currentTab === 'calendar' ? '#047857' : '#64748B'}
-                  />
-                  <Text
-                    style={[
-                      styles.socialTabBtnText,
-                      currentTab === 'calendar' && styles.socialTabBtnTextActive,
-                    ]}
-                  >
-                    {isVi ? 'Nhắn tin 💬' : 'Messages 💬'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </SafeAreaView>
-
-            <View style={{ flex: 1 }}>
-              {currentTab === 'feed' ? (
-                <FriendsFeedScreen
-                  onBack={() => setCurrentTab('home')}
-                  onNavigateToMessages={() => setCurrentTab('calendar')}
-                />
-              ) : (
-                <MessagesScreen
-                  refreshTrigger={refreshKey}
-                  onNavigateToHome={() => setCurrentTab('home')}
-                  onNavigateToCamera={(dateStr) => {
-                    setTargetExpenseDate(dateStr);
-                    setActiveModal('camera');
-                  }}
-                  onNavigateToDetail={(id) => {
-                    setSelectedTxId(id);
-                    setActiveModal('detail');
-                  }}
-                  onNavigateToFeed={() => setCurrentTab('feed')}
-                />
-              )}
-            </View>
-          </View>
+          <FriendsFeedScreen
+            onBack={() => setCurrentTab('profile')}
+            onNavigateToMessages={() => setCurrentTab('calendar')}
+          />
         );
       case 'wallets':
         return <WalletsScreen onBack={() => setCurrentTab('profile')} />;
@@ -235,22 +179,14 @@ export const MobileNavigator: React.FC = () => {
             </Text>
           </TouchableOpacity>
 
-          {/* 2. Bảng tin & Nhắn tin */}
+          {/* 2. Nhắn tin */}
           <TouchableOpacity
             style={[
               styles.navItem,
-              (currentTab === 'calendar' || currentTab === 'feed') && styles.navItemActive,
-              hoveredTab === 'calendar' && currentTab !== 'calendar' && currentTab !== 'feed' && styles.navItemHovered,
+              currentTab === 'calendar' && styles.navItemActive,
+              hoveredTab === 'calendar' && currentTab !== 'calendar' && styles.navItemHovered,
             ]}
-            onPress={() => {
-              if (currentTab === 'calendar') {
-                setCurrentTab('feed');
-              } else if (currentTab === 'feed') {
-                setCurrentTab('calendar');
-              } else {
-                setCurrentTab('feed');
-              }
-            }}
+            onPress={() => setCurrentTab('calendar')}
             activeOpacity={0.75}
             {...(Platform.OS === 'web'
               ? {
@@ -260,34 +196,18 @@ export const MobileNavigator: React.FC = () => {
               : {})}
           >
             <Ionicons
-              name={
-                currentTab === 'feed'
-                  ? 'images'
-                  : currentTab === 'calendar'
-                  ? 'chatbubble-ellipses'
-                  : 'images-outline'
-              }
+              name={currentTab === 'calendar' ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'}
               size={20}
-              color={currentTab === 'calendar' || currentTab === 'feed' || hoveredTab === 'calendar' ? '#064E3B' : '#475569'}
+              color={currentTab === 'calendar' || hoveredTab === 'calendar' ? '#064E3B' : '#475569'}
             />
             <Text
               style={[
                 styles.navLabel,
-                (currentTab === 'calendar' || currentTab === 'feed') && styles.navLabelActive,
-                hoveredTab === 'calendar' && currentTab !== 'calendar' && currentTab !== 'feed' && styles.navLabelHovered,
+                currentTab === 'calendar' && styles.navLabelActive,
+                hoveredTab === 'calendar' && currentTab !== 'calendar' && styles.navLabelHovered,
               ]}
             >
-              {isVi
-                ? currentTab === 'feed'
-                  ? 'Bảng tin'
-                  : currentTab === 'calendar'
-                  ? 'Nhắn tin'
-                  : 'Bảng tin'
-                : currentTab === 'feed'
-                ? 'Feed'
-                : currentTab === 'calendar'
-                ? 'Messages'
-                : 'Feed'}
+              {isVi ? 'Nhắn tin' : 'Messages'}
             </Text>
           </TouchableOpacity>
 
