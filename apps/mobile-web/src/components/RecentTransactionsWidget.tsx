@@ -214,68 +214,85 @@ export const RecentTransactionsWidget: React.FC<RecentTransactionsWidgetProps> =
 
   return (
     <View style={styles.card}>
-      <View style={styles.header}>
+      {/* 1. Header Bar Màu Vàng / Hổ Phách Pastel Khớp Mobile & Hình 1 */}
+      <View style={styles.headerBar}>
         <View style={styles.headerLeft}>
-          <View style={styles.iconWrap}>
-            <Ionicons name="time-outline" size={18} color="#059669" />
+          <View style={styles.iconBadge}>
+            <Ionicons name="receipt-outline" size={17} color="#92400E" />
           </View>
-          <View>
-            <Text style={styles.title}>{isVi ? 'Giao Dịch Gần Đây' : 'Recent Activity'}</Text>
-            <Text style={styles.subtitle}>
-              {displayItems.length > 0
-                ? isVi
-                  ? `${displayItems.length} khoản thu chi mới nhất`
-                  : `Last ${displayItems.length} entries`
-                : isVi
-                ? 'Chưa có giao dịch gần đây'
-                : 'No recent activity'}
-            </Text>
+          <Text style={styles.headerTitle}>
+            {isVi ? 'Giao dịch gần đây' : 'Recent Transactions'}
+          </Text>
+          <View style={styles.countBadge}>
+            <Text style={styles.countBadgeText}>{displayItems.length}</Text>
           </View>
         </View>
 
         {onViewAll && (
-          <TouchableOpacity style={styles.viewAllBtn} onPress={onViewAll} activeOpacity={0.7}>
-            <Text style={styles.viewAllText}>{isVi ? 'Xem tất cả' : 'View all'}</Text>
-            <Ionicons name="arrow-forward" size={12} color="#059669" style={{ marginLeft: 4 }} />
+          <TouchableOpacity
+            style={styles.viewAllBtn}
+            onPress={onViewAll}
+            activeOpacity={0.75}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.viewAllText}>
+              {isVi ? 'xem tất cả →' : 'view all →'}
+            </Text>
           </TouchableOpacity>
         )}
       </View>
 
-      {displayItems.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <View style={styles.emptyIconBox}>
-            <Ionicons name="receipt-outline" size={24} color="#059669" />
-          </View>
-          <Text style={styles.emptyTitle}>
-            {isVi ? 'Chưa có giao dịch gần đây' : 'No recent transactions'}
-          </Text>
-          <Text style={styles.emptySubText}>
-            {isVi
-              ? 'Các khoản chi tiêu vừa thêm sẽ hiển thị tại đây'
-              : 'Newly added expenses will appear here'}
-          </Text>
-        </View>
-      ) : (
-        <View style={styles.list}>
-          {displayItems.map((item, idx) => {
-            const isExpense = item.type === 'expense' || item.amount < 0;
-            return (
-              <View key={item.id || idx} style={[styles.itemRow, idx === displayItems.length - 1 && styles.itemRowLast]}>
-                <View style={[styles.itemIconBox, { backgroundColor: isExpense ? '#FEF2F2' : '#ECFDF5' }]}>
-                  <Text style={{ fontSize: 14 }}>{item.categoryIcon || (isExpense ? '💸' : '💰')}</Text>
-                </View>
+      <View style={styles.headerDivider} />
 
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
-                  <Text style={styles.itemMeta}>
-                    {item.category} • {item.date || (isVi ? 'Gần đây' : 'Recent')}
+      {/* 2. Thân thẻ màu trắng chứa danh sách giao dịch */}
+      <View style={styles.bodyContent}>
+        {displayItems.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconBox}>
+              <Ionicons name="receipt-outline" size={24} color="#92400E" />
+            </View>
+            <Text style={styles.emptyTitle}>
+              {isVi ? 'Chưa có giao dịch gần đây' : 'No recent transactions'}
+            </Text>
+            <Text style={styles.emptySubText}>
+              {isVi
+                ? 'Các khoản chi tiêu vừa thêm sẽ hiển thị tại đây'
+                : 'Newly added expenses will appear here'}
+            </Text>
+          </View>
+        ) : (
+          displayItems.map((item, idx) => {
+            const isExpense = item.type === 'expense' || item.amount < 0;
+            const initialChar = (item.title || 'Đ').charAt(0).toUpperCase();
+
+            return (
+              <View
+                key={item.id || idx}
+                style={[
+                  styles.itemRow,
+                  idx < displayItems.length - 1 && styles.itemRowBorder,
+                ]}
+              >
+                {/* Avatar tròn màu vàng pastel khớp mobile */}
+                <View style={styles.avatarCircle}>
+                  <Text style={styles.avatarText}>
+                    {item.categoryIcon && item.categoryIcon.length === 1 ? item.categoryIcon : initialChar}
                   </Text>
                 </View>
 
+                {/* Thông tin giao dịch */}
+                <View style={styles.itemInfo}>
+                  <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
+                  <Text style={styles.itemMeta}>
+                    {item.category} · {item.date || (isVi ? 'Hôm qua' : 'Yesterday')}
+                  </Text>
+                </View>
+
+                {/* Số tiền */}
                 <Text
                   style={[
                     styles.itemAmount,
-                    { color: isExpense ? '#E11D48' : '#059669' },
+                    { color: isExpense ? '#DC2626' : '#047857' },
                   ]}
                 >
                   {isExpense ? '-' : '+'}
@@ -283,122 +300,156 @@ export const RecentTransactionsWidget: React.FC<RecentTransactionsWidgetProps> =
                 </Text>
               </View>
             );
-          })}
-        </View>
-      )}
+          })
+        )}
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#F5F0E8',
-    borderRadius: 20,
-    padding: 22,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#E8E0D5',
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-    marginBottom: 20,
+    shadowRadius: 6,
+    elevation: 1,
+    marginBottom: 0,
+    width: '100%',
+    minHeight: 220,
+    flex: 1,
   },
-  header: {
+  headerBar: {
+    backgroundColor: '#FEF3C7', // Màu vàng/hổ phách pastel khớp mobile
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    justifyContent: 'space-between',
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  iconWrap: {
-    width: 36,
-    height: 36,
+  iconBadge: {
+    width: 34,
+    height: 34,
     borderRadius: 10,
-    backgroundColor: '#E8EFE5',
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
+    shadowColor: '#92400E',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  title: {
-    fontSize: 15,
+  headerTitle: {
+    fontSize: 16,
     fontWeight: '800',
-    color: '#0F172A',
+    color: '#92400E',
+    letterSpacing: -0.2,
   },
-  subtitle: {
-    fontSize: 11,
-    color: '#64748B',
+  countBadge: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    minWidth: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#92400E',
   },
   viewAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: '#E8EFE5',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    shadowColor: '#92400E',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
   },
   viewAllText: {
-    fontSize: 12,
+    fontSize: 12.5,
     fontWeight: '700',
-    color: '#059669',
+    color: '#92400E',
   },
-  list: {
-    borderTopWidth: 1,
-    borderTopColor: '#E8E0D5',
+  headerDivider: {
+    height: 1,
+    backgroundColor: 'rgba(217, 119, 6, 0.12)',
+  },
+  bodyContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: '#FFFFFF',
+    flex: 1,
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+  },
+  itemRowBorder: {
+    paddingBottom: 12,
+    marginBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E8E0D5',
+    borderBottomColor: '#F3F4F6',
   },
-  itemRowLast: {
-    borderBottomWidth: 0,
-    paddingBottom: 2,
-  },
-  itemIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
+  avatarCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FEF08A', // Màu vàng pastel
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
+  avatarText: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#854D0E',
+  },
   itemInfo: {
     flex: 1,
+    marginRight: 10,
   },
   itemTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1E293B',
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 2,
   },
   itemMeta: {
-    fontSize: 11,
-    color: '#64748B',
-    marginTop: 2,
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: '#6B7280',
   },
   itemAmount: {
-    fontSize: 13.5,
-    fontWeight: '800',
+    fontSize: 15.5,
+    fontWeight: '900',
+    letterSpacing: -0.2,
   },
   emptyContainer: {
     paddingVertical: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#E8E0D5',
   },
   emptyIconBox: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#FEF3C7',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -411,7 +462,7 @@ const styles = StyleSheet.create({
   },
   emptySubText: {
     fontSize: 11,
-    color: '#64748B',
+    color: '#6B7280',
     textAlign: 'center',
   },
 });

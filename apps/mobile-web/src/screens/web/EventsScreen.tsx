@@ -26,6 +26,7 @@ import { EventDetailScreen } from './EventDetailScreen';
 
 interface EventsScreenProps {
   onNavigateToTab?: (tab: any) => void;
+  onBack?: () => void;
 }
 
 // Pastel icon backgrounds matching the screenshot (Card 1: yellow, Card 2: baby blue, etc.)
@@ -38,13 +39,21 @@ const ICON_PALETTES = [
   '#FED7AA', // Pastel Peach
 ];
 
-export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab }) => {
+export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onBack }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 860;
   const { language } = useLanguage();
   const { isDark, colors } = useTheme();
   const { addNotification } = useNotifications();
   const isVi = language === 'vi';
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else if (onNavigateToTab) {
+      onNavigateToTab('home');
+    }
+  };
 
   // Events state
   const [events, setEvents] = useState<MonettEvent[]>(() => loadEventsFromStorage());
@@ -111,6 +120,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab }) =
     location?: string;
     estimatedBudget: number;
     description?: string;
+    status?: 'upcoming' | 'ongoing' | 'completed';
   }) => {
     if (editingEvent) {
       // Update existing
@@ -120,6 +130,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab }) =
             ? {
                 ...item,
                 ...eventData,
+                status: eventData.status || item.status,
               }
             : item
         )
@@ -142,7 +153,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab }) =
         ...eventData,
         spentAmount: 0,
         expenses: [],
-        status: 'ongoing', // Default new event to ongoing as seen in screenshot
+        status: eventData.status || 'ongoing', // Default new event to selected or ongoing
         createdAt: new Date().toISOString(),
       };
 
@@ -300,21 +311,33 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab }) =
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
           <View style={styles.headerTitleRow}>
-            <View style={styles.headerIconBadge}>
-              <Ionicons name="calendar" size={22} color="#059669" />
-            </View>
+            {/* Nút lùi ra (Back button) */}
+            {(onBack || onNavigateToTab) && (
+              <TouchableOpacity
+                style={styles.backBtn}
+                onPress={handleBack}
+                activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityLabel={isVi ? 'Quay lại' : 'Go back'}
+              >
+                <Ionicons name="chevron-back" size={24} color={textPrimary} />
+              </TouchableOpacity>
+            )}
+
             <Text style={[styles.headerTitle, { color: textPrimary }]}>
-              {isVi ? 'Quản Lý Sự Kiện & Kế Hoạch' : 'Events & Trip Planner'}
+              {isVi ? 'Sự kiện' : 'Events'}
             </Text>
           </View>
-          <Text style={[styles.headerSubtitle, { color: textSecondary }]}>
-            {isVi
-              ? 'Lên kế hoạch, theo dõi ngân sách chi tiêu và ghi nhận hóa đơn cho từng sự kiện'
-              : 'Plan, track budgets, and manage expenses for every trip & special occasion'}
-          </Text>
+          {isDesktop && (
+            <Text style={[styles.headerSubtitle, { color: textSecondary }]}>
+              {isVi
+                ? 'Lên kế hoạch, theo dõi ngân sách chi tiêu và ghi nhận hóa đơn cho từng sự kiện'
+                : 'Plan, track budgets, and manage expenses for every trip & special occasion'}
+            </Text>
+          )}
         </View>
 
-        {/* Action Button: Nút Tạo Sự Kiện Mới */}
+        {/* Action Button: Nút Tạo Sự Kiện Mới / + Thêm khớp 100% hình 3 */}
         <TouchableOpacity
           style={styles.createEventBtn}
           onPress={() => {
@@ -323,82 +346,63 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab }) =
           }}
           activeOpacity={0.85}
         >
-          <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
+          <Ionicons name="add" size={18} color="#064E3B" />
           <Text style={styles.createEventBtnText}>
-            {isVi ? 'Tạo sự kiện mới' : 'New Event'}
+            {isVi ? 'Thêm' : 'New'}
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* ================= OVERVIEW STATS CARDS ================= */}
-      <View style={styles.statsGrid}>
-        {/* Card 1: Tổng số sự kiện */}
-        <View style={[styles.statCard, { backgroundColor: '#221D18', borderColor: '#221D18' }]}>
+      {/* ================= OVERVIEW STATS CARDS (3 THẺ DÀI RA THẲNG HÀNG KHỚP 100% ẢNH 3) ================= */}
+      <View style={[styles.statsGrid, !isDesktop && styles.statsGridMobile]}>
+        {/* Card 1: ĐANG / SẮP TỚI (#221D18 - Thẻ đen/nâu dài ra full width) */}
+        <View style={[styles.statCard, styles.cardDark, !isDesktop && styles.statCardMobile]}>
           <View style={styles.statCardHeader}>
-            <Text style={[styles.statCardLabel, { color: '#9E958A' }]}>
-              {isVi ? 'Tổng số sự kiện' : 'Total Events'}
+            <Text style={styles.cardDarkLabel}>
+              {isVi ? 'ĐANG / SẮP TỚI' : 'ACTIVE / UPCOMING'}
             </Text>
-            <View style={[styles.statIconWrap, { backgroundColor: 'rgba(246, 241, 233, 0.12)' }]}>
-              <Ionicons name="calendar-outline" size={18} color="#F6F1E9" />
+            <View style={styles.cardDarkBadge}>
+              <Text style={styles.cardDarkBadgeText}>{totalEvents}</Text>
             </View>
           </View>
-          <Text style={[styles.statCardValue, { color: '#F6F1E9' }]}>{totalEvents}</Text>
-          <Text style={[styles.statCardSub, { color: '#9E958A' }]}>
-            {isVi ? `${ongoingCount} đang diễn ra • ${upcomingCount} sắp tới` : `${ongoingCount} ongoing • ${upcomingCount} upcoming`}
+          <Text style={styles.cardDarkAmount}>
+            {totalEvents} <Text style={{ fontSize: 20, fontWeight: '700' }}>{isVi ? 'sự kiện' : 'events'}</Text>
+          </Text>
+          <View style={styles.cardDarkDivider} />
+          <Text style={styles.cardDarkSub}>
+            {isVi
+              ? `${ongoingCount} đang diễn ra • ${upcomingCount} sắp tới • ${events.filter((e) => e.status === 'completed').length} đã xong`
+              : `${ongoingCount} ongoing • ${upcomingCount} upcoming • ${events.filter((e) => e.status === 'completed').length} done`}
           </Text>
         </View>
 
-        {/* Card 2: Đang diễn ra */}
-        <View style={[styles.statCard, { backgroundColor: '#BEE3C2', borderColor: '#BEE3C2' }]}>
-          <View style={styles.statCardHeader}>
-            <Text style={[styles.statCardLabel, { color: '#697664' }]}>
-              {isVi ? 'Đang diễn ra' : 'Ongoing Now'}
+        {/* Card 2: Đang diễn ra (#BEE3C2 - Thẻ xanh mint dài ra full width) */}
+        <View style={[styles.statCard, styles.cardMint, !isDesktop && styles.statCardMobile]}>
+          <View style={styles.cardHeaderLeftWrap}>
+            <Ionicons name="sparkles" size={17} color="#047857" style={{ marginRight: 6 }} />
+            <Text style={styles.cardMintLabel}>
+              {isVi ? 'Đang diễn ra' : 'Ongoing now'}
             </Text>
-            <View style={[styles.statIconWrap, { backgroundColor: 'rgba(34, 29, 24, 0.08)' }]}>
-              <Ionicons name="radio-button-on" size={18} color="#221D18" />
-            </View>
           </View>
-          <Text style={[styles.statCardValue, { color: '#221D18' }]}>{ongoingCount}</Text>
-          <Text style={[styles.statCardSub, { color: '#697664' }]}>
-            {isVi ? 'Sự kiện kích hoạt trong kỳ' : 'Active events this period'}
+          <Text style={styles.cardMintAmount}>{ongoingCount}</Text>
+          <Text style={styles.cardMintSub}>
+            {isVi ? 'sự kiện active' : 'active events'}
           </Text>
         </View>
 
-        {/* Card 3: Ngân sách */}
-        <View style={[styles.statCard, { backgroundColor: '#B7D9F2', borderColor: '#B7D9F2' }]}>
-          <View style={styles.statCardHeader}>
-            <Text style={[styles.statCardLabel, { color: '#697664' }]}>
+        {/* Card 3: Ngân sách (#B7D9F2 - Thẻ xanh trời dài ra full width) */}
+        <View style={[styles.statCard, styles.cardSky, !isDesktop && styles.statCardMobile]}>
+          <View style={styles.cardHeaderLeftWrap}>
+            <Ionicons name="time-outline" size={18} color="#0369A1" style={{ marginRight: 6 }} />
+            <Text style={styles.cardSkyLabel}>
               {isVi ? 'Ngân sách' : 'Budget'}
             </Text>
-            <View style={[styles.statIconWrap, { backgroundColor: 'rgba(34, 29, 24, 0.08)' }]}>
-              <Ionicons name="wallet-outline" size={18} color="#221D18" />
-            </View>
           </View>
-          <Text style={[styles.statCardValue, { color: '#221D18' }]}>
-            {totalBudget.toLocaleString('vi-VN')} <Text style={[styles.currencySub, { color: '#221D18' }]}>đ</Text>
+          <Text style={styles.cardSkyAmount}>
+            {totalBudget.toLocaleString('vi-VN')} <Text style={{ fontSize: 18, fontWeight: '700' }}>đ</Text>
           </Text>
-          <Text style={[styles.statCardSub, { color: '#697664' }]}>
-            {isVi ? 'Kế hoạch chi tiêu đã định' : 'Allocated target budgets'}
-          </Text>
-        </View>
-
-        {/* Card 4: Chi tiêu thực tế */}
-        <View style={[styles.statCard, { backgroundColor: '#F5D25F', borderColor: '#F5D25F' }]}>
-          <View style={styles.statCardHeader}>
-            <Text style={[styles.statCardLabel, { color: '#697664' }]}>
-              {isVi ? 'Chi tiêu thực tế' : 'Actual Spent'}
-            </Text>
-            <View style={[styles.statIconWrap, { backgroundColor: 'rgba(34, 29, 24, 0.08)' }]}>
-              <Ionicons name="card-outline" size={18} color="#221D18" />
-            </View>
-          </View>
-          <Text style={[styles.statCardValue, { color: '#221D18' }]}>
-            {totalSpent.toLocaleString('vi-VN')} <Text style={[styles.currencySub, { color: '#221D18' }]}>đ</Text>
-          </Text>
-          <Text style={[styles.statCardSub, { color: '#697664' }]}>
-            {totalBudget > 0
-              ? `${Math.round((totalSpent / totalBudget) * 100)}% ${isVi ? 'ngân sách dự kiến' : 'of budget'}`
-              : isVi ? 'Chưa phân bổ ngân sách' : 'No budget set'}
+          <Text style={styles.cardSkySub}>
+            {isVi ? 'đang + sắp tới' : 'active + upcoming'}
           </Text>
         </View>
       </View>
@@ -507,7 +511,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab }) =
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={styles.eventsGrid}>
+        <View style={[styles.eventsGrid, !isDesktop && styles.eventsGridMobile]}>
           {filteredEvents.map((evt, index) => {
             // Status styling: Nền thẻ, viền thẻ & badge theo tone màu #D2EADA
             const statusConfig = {
@@ -557,6 +561,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab }) =
                 key={evt.id}
                 style={[
                   styles.compactCard,
+                  !isDesktop && styles.compactCardMobile,
                   {
                     backgroundColor: statusConfig.cardBg,
                     borderColor: statusConfig.cardBorder,
@@ -585,12 +590,20 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab }) =
                     </View>
                   </View>
 
-                  {/* Status Badge khớp ảnh 1, 2, 3 & 4 */}
-                  <View style={[styles.statusBadge, { backgroundColor: statusConfig.badgeBg }]}>
+                  {/* Status Badge - Có thể bấm để chuyển nhanh trạng thái */}
+                  <TouchableOpacity
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleToggleStatus(evt.id);
+                    }}
+                    activeOpacity={0.75}
+                    style={[styles.statusBadge, { backgroundColor: statusConfig.badgeBg }]}
+                    accessibilityLabel={`Trạng thái: ${isVi ? statusConfig.labelVi : statusConfig.labelEn}. Bấm để đổi`}
+                  >
                     <Text style={[styles.statusBadgeText, { color: statusConfig.badgeColor }]}>
                       {isVi ? statusConfig.labelVi : statusConfig.labelEn}
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 </View>
 
                 {/* 2. Middle Row: Location */}
@@ -814,40 +827,47 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingHorizontal: 28,
-    paddingTop: 24,
-    paddingBottom: 60,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 140, // Đảm bảo không bị thanh bottom tab che ("cụt ngủn")
     width: '100%',
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 16,
-    marginBottom: 24,
+    marginBottom: 20,
+    width: '100%',
   },
   headerLeft: {
     flex: 1,
-    minWidth: 280,
   },
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 2,
   },
   headerIconBadge: {
-    width: 42,
-    height: 42,
+    width: 38,
+    height: 38,
     borderRadius: 12,
     backgroundColor: 'rgba(5, 150, 105, 0.12)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
   },
   headerSubtitle: {
     fontSize: 14,
@@ -857,70 +877,146 @@ const styles = StyleSheet.create({
   createEventBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#059669',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    gap: 4,
+    backgroundColor: '#A7F3D0',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 14,
     shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   createEventBtnText: {
-    color: '#FFFFFF',
-    fontSize: 15,
+    color: '#064E3B',
+    fontSize: 14,
     fontWeight: '700',
   },
+  // 3 Overview Cards Layout (Full width một đường thẳng)
   statsGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 14,
-    marginBottom: 28,
+    gap: 16,
+    marginBottom: 24,
+    width: '100%',
+  },
+  statsGridMobile: {
+    flexDirection: 'column',
+    gap: 12,
   },
   statCard: {
     flex: 1,
-    minWidth: 180,
-    borderRadius: 20,
+    borderRadius: 24,
     borderWidth: 1,
     padding: 20,
+    minHeight: 140,
+    justifyContent: 'space-between',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 8,
-    elevation: 1,
+    elevation: 2,
+  },
+  statCardMobile: {
+    width: '100%',
+    minHeight: 125,
   },
   statCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
   },
-  statCardLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+  // Card 1: Dark Brown/Black (#221D18)
+  cardDark: {
+    backgroundColor: '#221D18',
+    borderColor: '#221D18',
   },
-  statIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statCardValue: {
-    fontSize: 22,
-    fontWeight: '800',
-    letterSpacing: -0.3,
-  },
-  currencySub: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  statCardSub: {
+  cardDarkLabel: {
     fontSize: 12,
+    fontWeight: '700',
+    color: '#9E958A',
+    letterSpacing: 0.6,
+  },
+  cardDarkBadge: {
+    backgroundColor: '#D9F99D',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  cardDarkBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1E293B',
+  },
+  cardDarkAmount: {
+    fontSize: 30,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+    marginTop: 6,
+    marginBottom: 8,
+  },
+  cardDarkDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    marginVertical: 6,
+  },
+  cardDarkSub: {
+    fontSize: 12,
+    color: '#9E958A',
     fontWeight: '500',
-    marginTop: 4,
+  },
+  // Card 2: Pastel Mint Green (#BEE3C2)
+  cardMint: {
+    backgroundColor: '#BEE3C2',
+    borderColor: '#A7F3D0',
+  },
+  cardHeaderLeftWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  cardMintLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  cardMintAmount: {
+    fontSize: 30,
+    fontWeight: '900',
+    color: '#047857',
+    letterSpacing: -0.5,
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  cardMintSub: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: '#065F46',
+  },
+  // Card 3: Pastel Sky Blue (#B7D9F2)
+  cardSky: {
+    backgroundColor: '#B7D9F2',
+    borderColor: '#93C5FD',
+  },
+  cardSkyLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0369A1',
+  },
+  cardSkyAmount: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#0369A1',
+    letterSpacing: -0.5,
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  cardSkySub: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: '#075985',
   },
   filterBar: {
     borderRadius: 16,
@@ -1018,27 +1114,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  // Compact Cards Grid — layout chuẩn 2 cột trên desktop
+  // Compact Cards Grid
   eventsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 18,
+    gap: 16,
+    width: '100%',
+  },
+  eventsGridMobile: {
+    flexDirection: 'column',
+    gap: 14,
+    width: '100%',
   },
   compactCard: {
     flex: 1,
-    minWidth: 300,
+    minWidth: 320,
     maxWidth: '48.5%' as any,
     borderRadius: 22,
-    paddingHorizontal: 22,
-    paddingTop: 20,
-    paddingBottom: 18,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 16,
     borderWidth: 1,
     justifyContent: 'space-between',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
     elevation: 2,
+  },
+  compactCardMobile: {
+    width: '100%',
+    maxWidth: '100%',
+    minWidth: '100%',
+    flex: undefined,
   },
   cardTopRow: {
     flexDirection: 'row',

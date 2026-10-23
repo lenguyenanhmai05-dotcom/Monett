@@ -24,6 +24,7 @@ import {
   saveCachedBudget,
   notifyBudgetUpdated,
   formatExpenseUploadTime,
+  isIncomeTransactionOrItem,
 } from '../../services/calendarStorage';
 
 export interface DayExpensesScreenProps {
@@ -105,11 +106,15 @@ export const DayExpensesScreen: React.FC<DayExpensesScreenProps> = ({
       storedRec = curRecords[unpadded] || curRecords[padded];
     }
 
-    if (storedRec && storedRec.items && storedRec.items.length > 0) {
-      const formatted: DayExpenseItem[] = storedRec.items.map((it: any) => ({
+    const expenseStoredItems = storedRec && storedRec.items
+      ? storedRec.items.filter((it: any) => !isIncomeTransactionOrItem(it))
+      : [];
+
+    if (expenseStoredItems.length > 0) {
+      const formatted: DayExpenseItem[] = expenseStoredItems.map((it: any) => ({
         id: it._id || it.id,
         title: it.title || it.note || it.category || (isVi ? 'Khoản chi' : 'Expense'),
-        amount: `${it.type === 'income' || it.amount > 0 ? '+' : '-'}${Math.abs(it.amount).toLocaleString('vi-VN')} đ`,
+        amount: `-${Math.abs(it.amount).toLocaleString('vi-VN')} đ`,
         rawAmount: Math.abs(it.amount),
         time: formatExpenseUploadTime(it),
         category: it.category || (isVi ? 'Chi tiêu' : 'General'),
@@ -127,9 +132,9 @@ export const DayExpensesScreen: React.FC<DayExpensesScreenProps> = ({
       let itemsList: any[] = [];
 
       if (res && Array.isArray(res.items) && res.items.length > 0) {
-        itemsList = res.items;
-      } else if (storedRec && storedRec.items && storedRec.items.length > 0) {
-        itemsList = storedRec.items.map((it: any) => ({
+        itemsList = res.items.filter((it: any) => !isIncomeTransactionOrItem(it));
+      } else if (expenseStoredItems.length > 0) {
+        itemsList = expenseStoredItems.map((it: any) => ({
           id: it.id,
           title: it.note || it.category || (isVi ? 'Khoản chi' : 'Expense'),
           amount: -(it.amount || 0),
@@ -453,7 +458,7 @@ export const DayExpensesScreen: React.FC<DayExpensesScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAF7F2',
   },
   header: {
     flexDirection: 'row',
@@ -462,14 +467,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-    backgroundColor: '#FFFFFF',
+    borderBottomColor: '#E8E0D5',
+    backgroundColor: '#FAF7F2',
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#EDE7DC',
     alignItems: 'center',
     justifyContent: 'center',
   },

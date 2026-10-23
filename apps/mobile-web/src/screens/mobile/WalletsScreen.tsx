@@ -145,11 +145,11 @@ export const WalletsScreen: React.FC<WalletsScreenProps> = ({ onBack, onAddWalle
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAF7F2',
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#FAFAF9',
+    backgroundColor: '#FAF7F2',
   },
   header: {
     flexDirection: 'row',
@@ -158,9 +158,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 6,
     paddingBottom: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAF7F2',
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#E8E0D5',
   },
   headerBtn: {
     width: 36,

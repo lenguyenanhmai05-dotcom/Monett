@@ -26,6 +26,7 @@ import {
   getCategoryBreakdownApi,
   getTransactionsApi,
 } from '../../services/api';
+import { isIncomeTransactionOrItem } from '../../services/calendarStorage';
 import { getCurrentWeekRange } from '../../utils/dateUtils';
 
 interface AnalyticsScreenProps {
@@ -174,7 +175,8 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
 
       // Lọc transactions chi tiêu
       const expenseTxs = allTxs.filter((t: any) => {
-        const isExp = t.type === 'expense' || t.amount < 0;
+        if (isIncomeTransactionOrItem(t)) return false;
+        const isExp = t.type === 'expense' || t.amount < 0 || !t.type;
         if (!isExp) return false;
         if (!t.date) return true;
         const txDate = new Date(t.date);
@@ -1115,11 +1117,11 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAF7F2',
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FAF7F2',
   },
   scrollContent: {
     padding: 16,
@@ -1134,9 +1136,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAF7F2',
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: '#E8E0D5',
   },
   headerTitleRow: {
     flexDirection: 'row',

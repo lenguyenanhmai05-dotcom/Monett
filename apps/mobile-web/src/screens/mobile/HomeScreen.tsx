@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Image,
   RefreshControl,
+  Modal,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,11 +18,12 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import { getBudgetApi, BudgetData, getTransactionsByDateApi, getTransactionsApi, deleteTransactionApi } from '../../services/api';
 import { FinancialCalendarWidget } from '../../components/FinancialCalendarWidget';
 import { RemindersWidget } from '../../components/RemindersWidget';
-import { BillsAndDebtsWidget } from '../../components/BillsAndDebtsWidget';
-import { SavingsGoalsWidget } from '../../components/SavingsGoalsWidget';
+import { HomeRecentTransactionsWidget } from '../../components/HomeRecentTransactionsWidget';
+import { HomeRecurringWidget } from '../../components/HomeRecurringWidget';
+import { HomeEventsWidget } from '../../components/HomeEventsWidget';
 
 import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
-import { BudgetModal } from '../../components/BudgetModal';
+import { IncomeManagementScreen } from './IncomeManagementScreen';
 import { formatYMD } from '../../utils/dateUtils';
 import {
   getInitialDayRecordsFromLocalStorage,
@@ -33,7 +36,14 @@ import {
   notifyBudgetUpdated,
   subscribeBudgetUpdates,
   applyBudgetDelta,
+  calculateMonthTotalExpenses,
+  isIncomeTransactionOrItem,
 } from '../../services/calendarStorage';
+import {
+  getTotalIncomeForMonth,
+  subscribeIncomeUpdates,
+  syncIncomeWithBudget,
+} from '../../services/incomeStorage';
 
 interface HomeScreenProps {
   refreshTrigger?: number;
@@ -45,6 +55,7 @@ interface HomeScreenProps {
   onNavigateToCalendar?: () => void;
   onNavigateToProfile?: () => void;
   onNavigateToDayExpenses?: (dateStr: string, dateLabel: string) => void;
+  onNavigateToTab?: (tab: string) => void;
 }
 
 interface ExpenseCardItem {
@@ -97,12 +108,32 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigateToCalendar,
   onNavigateToProfile,
   onNavigateToDayExpenses,
+  onNavigateToTab,
 }) => {
-  const { user: authUser } = useAuth();
+  const { user: authUser, logout } = useAuth();
   const { language } = useLanguage();
   const { unreadCount, toggleNotifications } = useNotifications();
   const isVi = language === 'vi';
   const avatarUri = authUser?.avatarUrl;
+  const [isMenuDrawerVisible, setIsMenuDrawerVisible] = React.useState(false);
+
+  const handleLogout = () => {
+    Alert.alert(
+      isVi ? 'Đăng xuất tài khoản' : 'Log Out',
+      isVi ? 'Bạn có chắc chắn muốn đăng xuất khỏi Monett không?' : 'Are you sure you want to log out of Monett?',
+      [
+        { text: isVi ? 'Hủy' : 'Cancel', style: 'cancel' },
+        {
+          text: isVi ? 'Đăng xuất' : 'Log Out',
+          style: 'destructive',
+          onPress: () => {
+            setIsMenuDrawerVisible(false);
+            logout();
+          },
+        },
+      ]
+    );
+  };
 
   const displayName = authUser?.fullName || (authUser?.email ? authUser.email.split('@')[0] : 'Min');
 
@@ -156,7 +187,35 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [refreshing, setRefreshing] = React.useState<boolean>(false);
   const [deletingExpense, setDeletingExpense] = React.useState<ExpenseCardItem | null>(null);
   const [isDeletingTx, setIsDeletingTx] = React.useState<boolean>(false);
-  const [isBudgetModalVisible, setIsBudgetModalVisible] = React.useState<boolean>(false);
+  const [isIncomeScreenOpen, setIsIncomeScreenOpen] = React.useState<boolean>(false);
+  const [totalMonthIncome, setTotalMonthIncome] = React.useState<number>(() => {
+    const n = new Date();
+    return getTotalIncomeForMonth(n.getFullYear(), n.getMonth() + 1);
+  });
+
+  // Tổng chi tiêu thực tế của tháng hiện tại
+  const realMonthSpent = React.useMemo(() => {
+    const n = new Date();
+    return calculateMonthTotalExpenses(n.getFullYear(), n.getMonth() + 1, undefined, monthTransactions);
+  }, [monthTransactions]);
+
+  // Số dư khả dụng = Tổng thu nhập - Tổng chi tiêu
+  const availableBalance = React.useMemo(() => {
+    if (totalMonthIncome === 0) {
+      return realMonthSpent > 0 ? -realMonthSpent : 0;
+    }
+    return totalMonthIncome - realMonthSpent;
+  }, [totalMonthIncome, realMonthSpent]);
+
+  // Trạng thái ngân sách dựa trên thu & chi thực tế
+  const budgetStatus = React.useMemo<'safe' | 'warning' | 'danger'>(() => {
+    if (totalMonthIncome === 0) {
+      return realMonthSpent > 0 ? 'danger' : 'safe';
+    }
+    if (availableBalance < 0) return 'danger';
+    if (realMonthSpent / totalMonthIncome >= 0.8) return 'warning';
+    return 'safe';
+  }, [totalMonthIncome, realMonthSpent, availableBalance]);
 
   const greetingSub = React.useMemo(() => {
     const h = new Date().getHours();
@@ -173,8 +232,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   }, []);
 
   const safeDailySpend = useMemo(() => {
-    return Math.max(0, Math.round(budget.remaining / remainingDaysInMonth));
-  }, [budget.remaining, remainingDaysInMonth]);
+    return Math.max(0, Math.round(Math.max(0, availableBalance) / remainingDaysInMonth));
+  }, [availableBalance, remainingDaysInMonth]);
 
   const handleConfirmDeleteExpense = async () => {
     if (!deletingExpense) return;
@@ -200,12 +259,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       console.log('Error deleting transaction from API:', e);
     } finally {
       try {
-        const budgetData = await getBudgetApi();
-        if (budgetData && budgetData.limit) {
-          setBudget(budgetData);
-          saveCachedBudget(budgetData);
-          notifyBudgetUpdated(budgetData);
-        }
+        syncIncomeWithBudget();
         fetchHomeData();
       } catch (_) {}
     }
@@ -214,11 +268,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const fetchHomeData = React.useCallback(async (targetDate?: string) => {
     const queryDate = targetDate || selectedDateStr;
     try {
-      const budgetData = await getBudgetApi();
-      if (budgetData && budgetData.limit) {
-        setBudget(budgetData);
-        saveCachedBudget(budgetData);
-      }
+      syncIncomeWithBudget();
     } catch (e) {}
 
     // Lấy toàn bộ giao dịch của tháng để hiển thị lên Lịch tài chính và đồng bộ với dayRecords
@@ -236,11 +286,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     try {
       const dailyRes = await getTransactionsByDateApi(queryDate);
       if (dailyRes && Array.isArray(dailyRes.items)) {
-        if (dailyRes.items.length > 0) {
-          const formatted: ExpenseCardItem[] = dailyRes.items.map((it: any) => ({
+        const expenseOnly = dailyRes.items.filter((it: any) => !isIncomeTransactionOrItem(it));
+        if (expenseOnly.length > 0) {
+          const formatted: ExpenseCardItem[] = expenseOnly.map((it: any) => ({
             id: it._id || it.id,
             title: it.title,
-            amount: `${it.type === 'income' || it.amount > 0 ? '+' : '-'}${Math.abs(it.amount).toLocaleString('vi-VN')} đ`,
+            amount: `-${Math.abs(it.amount).toLocaleString('vi-VN')} đ`,
             rawAmount: Math.abs(it.amount),
             time: it.date ? new Date(it.date).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'Hôm nay',
             category: it.category || 'Ăn uống',
@@ -291,6 +342,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     return unsub;
   }, []);
 
+  // Lắng nghe cập nhật các khoản thu nhập để nhảy tổng thu tức thì
+  React.useEffect(() => {
+    const unsub = subscribeIncomeUpdates(() => {
+      const n = new Date();
+      setTotalMonthIncome(getTotalIncomeForMonth(n.getFullYear(), n.getMonth() + 1));
+    });
+    return unsub;
+  }, []);
+
+  if (isIncomeScreenOpen) {
+    return <IncomeManagementScreen onBack={() => setIsIncomeScreenOpen(false)} />;
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       {/* 1. Header Bar */}
@@ -327,23 +391,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             {unreadCount > 0 && <View style={styles.notificationDot} />}
           </TouchableOpacity>
 
+          {/* Nút Hamburger Menu (thay cho ảnh đại diện theo yêu cầu) */}
           <TouchableOpacity
-            onPress={onNavigateToProfile}
-            activeOpacity={0.8}
+            style={styles.hamburgerBtn}
+            onPress={() => setIsMenuDrawerVisible(true)}
+            activeOpacity={0.7}
+            accessibilityLabel={isVi ? 'Mở menu danh mục' : 'Open menu'}
           >
-            {avatarUri && !imageError ? (
-              <Image
-                source={{ uri: avatarUri }}
-                style={styles.avatar}
-                onError={() => setImageError(true)}
-              />
-            ) : (
-              <View style={[styles.avatar, { backgroundColor: avatarColor.bg, justifyContent: 'center', alignItems: 'center' }]}>
-                <Text style={{ color: avatarColor.text, fontWeight: '800', fontSize: 16 }}>
-                  {displayName.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
+            <Ionicons name="menu-outline" size={23} color="#1E293B" />
           </TouchableOpacity>
         </View>
       </View>
@@ -369,38 +424,73 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
 
 
-        {/* 3. MINIMALIST EMERALD BUDGET CARD (Bản xanh đậm #064E3B + Ếch ôm lịch 3D siêu cute) */}
+        {/* 3. EMERALD BUDGET CARD (Khả dụng - bản to rõ như hình 2 + Ếch ôm lịch 3D) */}
         <View style={styles.budgetCard}>
           <View style={styles.cardLeftContent}>
             <View style={styles.cardHeaderRow}>
               <View style={styles.cardHeaderLeft}>
-                <Ionicons name="wallet-outline" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Ionicons name="wallet-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
                 <Text style={styles.cardSubLabel}>{isVi ? 'Khả dụng' : 'Available'}</Text>
               </View>
+              {/* Bấm icon cây bút nhảy ra trang tổng thu nhập luôn */}
               <TouchableOpacity
                 style={styles.cardEditBtn}
-                onPress={() => setIsBudgetModalVisible(true)}
+                onPress={() => setIsIncomeScreenOpen(true)}
                 activeOpacity={0.7}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <Ionicons name="pencil" size={11} color="#FFFFFF" />
               </TouchableOpacity>
+
+              {/* Badge trạng thái */}
+              <View
+                style={[
+                  styles.cardStatusBadge,
+                  budgetStatus === 'danger'
+                    ? { backgroundColor: '#EF4444' }
+                    : budgetStatus === 'warning'
+                    ? { backgroundColor: '#F59E0B' }
+                    : { backgroundColor: '#10B981' },
+                ]}
+              >
+                <Text style={styles.cardStatusBadgeText}>
+                  {totalMonthIncome === 0
+                    ? (isVi ? 'Chưa có thu' : 'No Income')
+                    : budgetStatus === 'danger'
+                    ? (isVi ? 'Vượt' : 'Exceeded')
+                    : budgetStatus === 'warning'
+                    ? (isVi ? 'Gần đủ' : 'Warning')
+                    : (isVi ? 'An toàn' : 'Safe')}
+                </Text>
+              </View>
             </View>
 
             <TouchableOpacity
               activeOpacity={0.85}
-              onPress={onNavigateToAnalytics}
+              onPress={() => setIsIncomeScreenOpen(true)}
             >
               <Text style={styles.cardMainBalance}>
-                {budget.remaining.toLocaleString('vi-VN')} đ
+                {availableBalance >= 0
+                  ? `${availableBalance.toLocaleString('vi-VN')} đ`
+                  : `-${Math.abs(availableBalance).toLocaleString('vi-VN')} đ`}
               </Text>
             </TouchableOpacity>
+
+            <View style={styles.cardDividerLine} />
+
+            <Text style={styles.cardStatusSubText}>
+              {totalMonthIncome === 0
+                ? (isVi ? 'Bấm ✏️ để thêm thu nhập và bắt đầu quản lý' : 'Tap ✏️ to add income & track budget')
+                : budgetStatus === 'danger'
+                ? (isVi ? 'Chi đang vượt thu tháng này' : 'Expenses exceed income this month')
+                : (isVi ? `Chi tiêu an toàn: ~${safeDailySpend.toLocaleString('vi-VN')} đ/ngày` : `Safe spend: ~${safeDailySpend.toLocaleString('vi-VN')} đ/day`)}
+            </Text>
           </View>
 
           {/* Chú ếch 3D ôm lịch dễ thương nhô nhẹ lên mép thẻ */}
           <TouchableOpacity
             activeOpacity={0.9}
-            onPress={() => setIsBudgetModalVisible(true)}
+            onPress={() => setIsIncomeScreenOpen(true)}
             style={styles.cardMascotWrapper}
           >
             <Image
@@ -411,10 +501,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </TouchableOpacity>
         </View>
 
-        {/* 4. LỊCH TÀI CHÍNH */}
+        {/* 4. LỊCH TÀI CHÍNH (Đã tích hợp phần CHI và THU bên trong thẻ lịch như hình 1) */}
         <FinancialCalendarWidget
           selectedDay={selectedWeekDay}
           transactions={monthTransactions}
+          totalIncome={totalMonthIncome}
+          onPressIncome={() => setIsIncomeScreenOpen(true)}
+          onPressExpense={onNavigateToAnalytics}
+          onNavigateToCamera={() => onNavigateToCamera?.()}
           onSelectDay={(dayNum, fullDateStr, dateLabel) => {
             setSelectedWeekDay(dayNum);
             setSelectedDateStr(fullDateStr);
@@ -427,17 +521,35 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           onViewAll={onNavigateToCalendar}
         />
 
-        {/* 4.5. MỤC NHẮC NHỞ (Dưới Lịch tài chính, trên HÔM NAY) */}
+        {/* 4.5. MỤC NHẮC NHỞ */}
         <RemindersWidget currentDateStr={selectedDateStr} />
 
-        {/* 4.6. HÓA ĐƠN ĐỊNH KỲ & SỔ GHI NỢ (Dưới Mục nhắc nhở) */}
-        <BillsAndDebtsWidget />
+        {/* 4.6. GIAO DỊCH GẦN ĐÂY (Khớp 100% hình 2) */}
+        <HomeRecentTransactionsWidget
+          transactions={monthTransactions}
+          onViewAll={onNavigateToCalendar}
+          onSelectTransaction={onNavigateToDetail}
+          language={language}
+        />
 
-        {/* 4.7. HŨ TIẾT KIỆM & MỤC TIÊU NUÔI HEO */}
-        <SavingsGoalsWidget />
+        {/* 4.7. CHI ĐỊNH KỲ (Khớp 100% hình 2) */}
+        <HomeRecurringWidget
+          onViewAll={() => {
+            if (onNavigateToTab) onNavigateToTab('recurring');
+          }}
+          language={language}
+        />
+
+        {/* 4.8. SỰ KIỆN (Khớp 100% hình 2) */}
+        <HomeEventsWidget
+          onViewAll={() => {
+            if (onNavigateToTab) onNavigateToTab('events');
+          }}
+          language={language}
+        />
 
         {/* Khoảng cách đáy cuộn */}
-        <View style={{ height: 28 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
 
       <ConfirmDeleteModal
@@ -451,17 +563,228 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         onCancel={() => setDeletingExpense(null)}
       />
 
-      {/* Modal chỉnh sửa hạn mức ngân sách */}
-      <BudgetModal
-        visible={isBudgetModalVisible}
-        onClose={() => setIsBudgetModalVisible(false)}
-        currentLimit={budget.limit}
-        currentSpent={budget.spent}
-        onSaved={(updatedBudget) => {
-          setBudget(updatedBudget);
-          setIsBudgetModalVisible(false);
-        }}
-      />
+      {/* 6. MODAL HAMBURGER MENU DRAWER */}
+      <Modal
+        visible={isMenuDrawerVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsMenuDrawerVisible(false)}
+      >
+        <View style={styles.drawerOverlay}>
+          {/* Backdrop tối mờ */}
+          <TouchableOpacity
+            style={styles.drawerBackdrop}
+            activeOpacity={1}
+            onPress={() => setIsMenuDrawerVisible(false)}
+          />
+
+          {/* Khung Drawer bên phải */}
+          <View style={styles.drawerContainer}>
+            {/* Header Drawer */}
+            <View style={styles.drawerHeader}>
+              <View style={styles.drawerBrandRow}>
+                <Image
+                  source={require('../../../assets/adaptive-icon.png')}
+                  style={styles.drawerBrandLogo}
+                  resizeMode="contain"
+                />
+                <Text style={styles.drawerBrandTitle}>Monett</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.drawerCloseBtn}
+                onPress={() => setIsMenuDrawerVisible(false)}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Danh mục: Tổng quan, Bảng tin, Sự kiện, Báo cáo, Tích lũy, Sổ ghi nợ, Cài đặt */}
+            <ScrollView
+              style={styles.drawerMenuList}
+              contentContainerStyle={styles.drawerMenuContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={styles.drawerSectionTitle}>
+                {isVi ? 'DANH MỤC' : 'CATEGORIES'}
+              </Text>
+
+              {/* 1. Tổng quan */}
+              <TouchableOpacity
+                style={[styles.drawerMenuItem, styles.drawerMenuItemActive]}
+                onPress={() => {
+                  setIsMenuDrawerVisible(false);
+                  onNavigateToTab?.('home');
+                }}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.drawerMenuIconBox, { backgroundColor: '#DCFCE7' }]}>
+                  <Ionicons name="home" size={18} color="#064E3B" />
+                </View>
+                <Text style={[styles.drawerMenuText, styles.drawerMenuTextActive]}>
+                  {isVi ? 'Tổng quan' : 'Overview'}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color="#059669" />
+              </TouchableOpacity>
+
+              {/* 2. Bảng tin */}
+              <TouchableOpacity
+                style={styles.drawerMenuItem}
+                onPress={() => {
+                  setIsMenuDrawerVisible(false);
+                  onNavigateToTab?.('feed');
+                }}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.drawerMenuIconBox, { backgroundColor: '#EDE9FE' }]}>
+                  <Ionicons name="newspaper-outline" size={18} color="#7C3AED" />
+                </View>
+                <Text style={styles.drawerMenuText}>
+                  {isVi ? 'Bảng tin' : 'Feed'}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+              </TouchableOpacity>
+
+              {/* 3. Sự kiện */}
+              <TouchableOpacity
+                style={styles.drawerMenuItem}
+                onPress={() => {
+                  setIsMenuDrawerVisible(false);
+                  onNavigateToTab?.('events');
+                }}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.drawerMenuIconBox, { backgroundColor: '#FEF3C7' }]}>
+                  <Ionicons name="calendar-outline" size={18} color="#D97706" />
+                </View>
+                <Text style={styles.drawerMenuText}>
+                  {isVi ? 'Sự kiện' : 'Events'}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+              </TouchableOpacity>
+
+              {/* 4. Báo cáo */}
+              <TouchableOpacity
+                style={styles.drawerMenuItem}
+                onPress={() => {
+                  setIsMenuDrawerVisible(false);
+                  if (onNavigateToTab) onNavigateToTab('analytics');
+                  else onNavigateToAnalytics?.();
+                }}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.drawerMenuIconBox, { backgroundColor: '#E0F2FE' }]}>
+                  <Ionicons name="pie-chart-outline" size={18} color="#0284C7" />
+                </View>
+                <Text style={styles.drawerMenuText}>
+                  {isVi ? 'Báo cáo' : 'Reports'}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+              </TouchableOpacity>
+
+              {/* 5. Tích lũy */}
+              <TouchableOpacity
+                style={styles.drawerMenuItem}
+                onPress={() => {
+                  setIsMenuDrawerVisible(false);
+                  onNavigateToTab?.('savings');
+                }}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.drawerMenuIconBox, { backgroundColor: '#FCE7F3' }]}>
+                  <Ionicons name="wallet-outline" size={18} color="#DB2777" />
+                </View>
+                <Text style={styles.drawerMenuText}>
+                  {isVi ? 'Tích lũy' : 'Savings'}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+              </TouchableOpacity>
+
+              {/* 6. Sổ ghi nợ */}
+              <TouchableOpacity
+                style={styles.drawerMenuItem}
+                onPress={() => {
+                  setIsMenuDrawerVisible(false);
+                  onNavigateToTab?.('debt');
+                }}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.drawerMenuIconBox, { backgroundColor: '#FFEDD5' }]}>
+                  <Ionicons name="book-outline" size={18} color="#EA580C" />
+                </View>
+                <Text style={styles.drawerMenuText}>
+                  {isVi ? 'Sổ ghi nợ' : 'Debt Book'}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+              </TouchableOpacity>
+
+              {/* 7. Cài đặt (Bấm vào cài đặt thì mới đưa tới trang cá nhân) */}
+              <TouchableOpacity
+                style={styles.drawerMenuItem}
+                onPress={() => {
+                  setIsMenuDrawerVisible(false);
+                  if (onNavigateToTab) onNavigateToTab('profile');
+                  else onNavigateToProfile?.();
+                }}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.drawerMenuIconBox, { backgroundColor: '#F1F5F9' }]}>
+                  <Ionicons name="settings-outline" size={18} color="#475569" />
+                </View>
+                <Text style={styles.drawerMenuText}>
+                  {isVi ? 'Cài đặt' : 'Settings'}
+                </Text>
+                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
+              </TouchableOpacity>
+            </ScrollView>
+
+            {/* Ở DƯỚI CÙNG: Ảnh đại diện, Tên, Gmail, và Icon Đăng xuất */}
+            <View style={styles.drawerFooter}>
+              <View style={styles.drawerUserProfile}>
+                {avatarUri && !imageError ? (
+                  <Image
+                    source={{ uri: avatarUri }}
+                    style={styles.drawerUserAvatar}
+                    onError={() => setImageError(true)}
+                  />
+                ) : (
+                  <View
+                    style={[
+                      styles.drawerUserAvatar,
+                      { backgroundColor: avatarColor.bg, justifyContent: 'center', alignItems: 'center' },
+                    ]}
+                  >
+                    <Text style={{ color: avatarColor.text, fontWeight: '800', fontSize: 16 }}>
+                      {displayName.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.drawerUserInfo}>
+                  <Text style={styles.drawerUserName} numberOfLines={1}>
+                    {displayName}
+                  </Text>
+                  <Text style={styles.drawerUserEmail} numberOfLines={1}>
+                    {authUser?.email || 'user@monett.vn'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Nút Icon Đăng xuất */}
+              <TouchableOpacity
+                style={styles.drawerLogoutBtn}
+                onPress={handleLogout}
+                activeOpacity={0.75}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                accessibilityLabel={isVi ? 'Đăng xuất tài khoản' : 'Log out'}
+              >
+                <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -469,11 +792,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAF7F2',
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#FAFAF9',
+    backgroundColor: '#FAF7F2',
   },
   header: {
     flexDirection: 'row',
@@ -482,9 +805,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 6,
     paddingBottom: 10,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAF7F2',
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#E8E0D5',
   },
   brandContainer: {
     flexDirection: 'row',
@@ -677,22 +1000,24 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#E11D48',
   },
-  // MINIMALIST EMERALD BUDGET CARD (Tone xanh đậm #064E3B, chiều cao thu gọn, ếch 3D ôm lịch)
+  // EMERALD BUDGET CARD (Khả dụng - to rõ như hình 2 + ếch 3D ôm lịch)
   budgetCard: {
-    backgroundColor: '#064E3B', // Xanh đậm bản cũ sang trọng, uy tín
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10, // Thu gọn chiều cao cho đỡ chiếm diện tích
-    marginBottom: 14,
+    backgroundColor: '#064E3B', // Xanh đậm sang trọng
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 18,
+    minHeight: 140,
+    marginBottom: 12,
     marginTop: 6,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     shadowColor: '#064E3B',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 10,
-    elevation: 5,
+    elevation: 4,
     borderWidth: 1,
     borderColor: 'rgba(52, 211, 153, 0.25)',
     overflow: 'visible',
@@ -711,10 +1036,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardSubLabel: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#FFFFFF', // Chữ Khả dụng màu trắng
     fontWeight: '700',
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
   },
   cardEditBtn: {
     width: 24,
@@ -727,25 +1052,48 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.25)',
   },
+  cardStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 10,
+    marginLeft: 10,
+  },
+  cardStatusBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
   cardMainBalance: {
-    fontSize: 26,
+    fontSize: 30,
     fontWeight: '900',
     color: '#FFFFFF',
-    marginTop: 4,
+    marginTop: 8,
     letterSpacing: -0.5,
+  },
+  cardDividerLine: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    marginVertical: 8,
+    width: '90%',
+  },
+  cardStatusSubText: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
   },
   cardMascotWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -26, // Chú ếch nhô cao hơn khung xanh theo yêu cầu
-    marginBottom: -10,
-    marginRight: -4,
-    marginLeft: 6,
+    marginTop: -20,
+    marginBottom: -8,
+    marginRight: -6,
+    marginLeft: 8,
   },
   cardMascotImage: {
-    width: 96,
-    height: 96,
+    width: 104,
+    height: 104,
   },
+
   backTodayBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -832,5 +1180,168 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#374151',
+  },
+  hamburgerBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 4,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  drawerOverlay: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  drawerBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+  },
+  drawerContainer: {
+    width: '78%',
+    maxWidth: 320,
+    height: '100%',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: -4, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 20,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  drawerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingTop: 48,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  drawerBrandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  drawerBrandLogo: {
+    width: 28,
+    height: 28,
+    marginRight: 8,
+  },
+  drawerBrandTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#064E3B',
+    letterSpacing: -0.3,
+  },
+  drawerCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  drawerMenuList: {
+    flex: 1,
+  },
+  drawerMenuContent: {
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  drawerSectionTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.8,
+    marginBottom: 10,
+    marginLeft: 6,
+  },
+  drawerMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    marginBottom: 4,
+    backgroundColor: '#FFFFFF',
+  },
+  drawerMenuItemActive: {
+    backgroundColor: '#F0FDF4',
+  },
+  drawerMenuIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  drawerMenuText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  drawerMenuTextActive: {
+    fontWeight: '700',
+    color: '#064E3B',
+  },
+  drawerFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingBottom: 28,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    backgroundColor: '#FAFAFA',
+  },
+  drawerUserProfile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  drawerUserAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 2,
+    borderColor: '#10B981',
+    marginRight: 10,
+  },
+  drawerUserInfo: {
+    flex: 1,
+  },
+  drawerUserName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  drawerUserEmail: {
+    fontSize: 11.5,
+    color: '#64748B',
+  },
+  drawerLogoutBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

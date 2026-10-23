@@ -11,6 +11,7 @@ import {
   Platform,
   useWindowDimensions,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Rect, Circle, Line } from 'react-native-svg';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -168,14 +169,23 @@ const AVATAR_PALETTE = [
 
 interface DebtScreenProps {
   onNavigateToTab?: (tab: any) => void;
+  onBack?: () => void;
 }
 
-export const DebtScreen: React.FC<DebtScreenProps> = () => {
+export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 860;
   const { user } = useAuth();
   const { language } = useLanguage();
   const isVi = language === 'vi';
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else if (onNavigateToTab) {
+      onNavigateToTab('home');
+    }
+  };
 
   // Sub-tab: 'lent' (Cho mượn / người khác nợ mình) vs 'borrowed' (Đang vay / mình nợ người khác)
   const [activeTab, setActiveTab] = useState<DebtType>('lent');
@@ -432,12 +442,23 @@ export const DebtScreen: React.FC<DebtScreenProps> = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* ========================================================================= */}
-        {/* 1. TIÊU ĐỀ TRANG */}
-        {/* ========================================================================= */}
         <View style={styles.headerRow}>
-          <Text style={styles.screenHeading}>
-            {isVi ? 'Sổ ghi nợ' : 'Debt Book'}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {(onBack || onNavigateToTab) && (
+              <TouchableOpacity
+                style={styles.backBtn}
+                onPress={handleBack}
+                activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityLabel={isVi ? 'Quay lại' : 'Go back'}
+              >
+                <Ionicons name="chevron-back" size={24} color="#221D18" />
+              </TouchableOpacity>
+            )}
+            <Text style={styles.screenHeading}>
+              {isVi ? 'Sổ ghi nợ' : 'Debt Book'}
+            </Text>
+          </View>
         </View>
 
         {/* ========================================================================= */}
@@ -1320,9 +1341,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 28,
-    paddingTop: 24,
-    paddingBottom: 80,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 140, // Đảm bảo không bị thanh bottom tab che ("cụt ngủn")
     width: '100%',
   },
 
@@ -1330,8 +1351,17 @@ const styles = StyleSheet.create({
   headerRow: {
     marginBottom: 20,
   },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 4,
+  },
   screenHeading: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '900',
     color: '#221D18',
     letterSpacing: -0.4,
@@ -1427,9 +1457,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   statCardDark: {
-    backgroundColor: '#221D18',
-    borderColor: '#221D18',
-    flex: 1.25,
+    backgroundColor: '#3A342E',
+    borderColor: '#3A342E',
+    flex: 1,
   },
   cardDarkDivider: {
     height: 1,

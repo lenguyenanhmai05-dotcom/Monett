@@ -28,12 +28,12 @@ import { GoalDetailModal } from '../../components/GoalDetailModal';
 
 interface SavingsScreenProps {
   onNavigateToTab?: (tab: any) => void;
-  onSwitchToBudget?: () => void;
+  onBack?: () => void;
 }
 
 export const SavingsScreen: React.FC<SavingsScreenProps> = ({
   onNavigateToTab,
-  onSwitchToBudget,
+  onBack,
 }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 860;
@@ -42,6 +42,14 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
   const { user } = useAuth();
   const { addNotification, toggleNotifications, unreadCount } = useNotifications();
   const isVi = language === 'vi';
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else if (onNavigateToTab) {
+      onNavigateToTab('home');
+    }
+  };
 
   // Goals state
   const [goals, setGoals] = useState<ISavingsGoal[]>(() => loadSavingsGoals(user?.id));
@@ -354,19 +362,18 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
       {/* ================= 1. TOP HEADER ROW ================= */}
       <View style={styles.topHeaderRow}>
         <View style={styles.topHeaderLeft}>
-          <Text style={styles.topHeaderTitle}>{isVi ? 'Tích lũy' : 'Savings'}</Text>
-          {onSwitchToBudget && (
+          {(onBack || onNavigateToTab) && (
             <TouchableOpacity
-              style={styles.subTabLink}
-              onPress={onSwitchToBudget}
+              style={styles.backBtn}
+              onPress={handleBack}
               activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              accessibilityLabel={isVi ? 'Quay lại' : 'Go back'}
             >
-              <Ionicons name="swap-horizontal-outline" size={14} color="#78716C" />
-              <Text style={styles.subTabLinkText}>
-                {isVi ? 'Sang Hạn mức chi tiêu' : 'Switch to Budget Limits'}
-              </Text>
+              <Ionicons name="chevron-back" size={24} color="#221D18" />
             </TouchableOpacity>
           )}
+          <Text style={styles.topHeaderTitle}>{isVi ? 'Tích lũy' : 'Savings'}</Text>
         </View>
       </View>
 
@@ -390,7 +397,7 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
         </TouchableOpacity>
       </View>
 
-      {/* ================= 3. OVERVIEW STATS CARDS (EXACT COLORS: 221D18, BEE3C2, CDB9F2) ================= */}
+      {/* ================= 3. OVERVIEW STATS CARDS (ĐỒNG BỘ MÀU 100% VỚI SỰ KIỆN: 221D18, BEE3C2, B7D9F2) ================= */}
       <View style={[styles.statsRow, !isDesktop && styles.statsRowMobile]}>
         {/* Card 1: Tổng đã tích (#221D18) */}
         <View style={[styles.statCard, styles.cardDark, !isDesktop && styles.statCardMobile]}>
@@ -415,29 +422,29 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
         </View>
 
         {/* Card 2: Mục tiêu (#BEE3C2) */}
-        <View style={[styles.statCard, styles.cardGreen, !isDesktop && styles.statCardMobile]}>
+        <View style={[styles.statCard, styles.cardMint, !isDesktop && styles.statCardMobile]}>
           <View style={styles.cardHeaderRowLeft}>
-            <Ionicons name="flag-outline" size={17} color="#221D18" style={{ marginRight: 6 }} />
-            <Text style={styles.cardPastelLabel}>{isVi ? 'Mục tiêu' : 'Target'}</Text>
+            <Ionicons name="flag-outline" size={17} color="#047857" style={{ marginRight: 6 }} />
+            <Text style={styles.cardMintLabel}>{isVi ? 'Mục tiêu' : 'Target'}</Text>
           </View>
 
-          <Text style={styles.cardPastelAmount}>{formatVND(totalTarget)}</Text>
+          <Text style={styles.cardMintAmount}>{formatVND(totalTarget)}</Text>
 
-          <Text style={styles.cardPastelSub}>
+          <Text style={styles.cardMintSub}>
             {isVi ? `${goals.length} kế hoạch` : `${goals.length} plans`}
           </Text>
         </View>
 
-        {/* Card 3: Còn cần (#CDB9F2) */}
-        <View style={[styles.statCard, styles.cardPurple, !isDesktop && styles.statCardMobile]}>
+        {/* Card 3: Còn cần (#B7D9F2) */}
+        <View style={[styles.statCard, styles.cardSky, !isDesktop && styles.statCardMobile]}>
           <View style={styles.cardHeaderRowLeft}>
-            <Ionicons name="cash-outline" size={18} color="#221D18" style={{ marginRight: 6 }} />
-            <Text style={styles.cardPastelLabel}>{isVi ? 'Còn cần' : 'Remaining'}</Text>
+            <Ionicons name="cash-outline" size={18} color="#0369A1" style={{ marginRight: 6 }} />
+            <Text style={styles.cardSkyLabel}>{isVi ? 'Còn cần' : 'Remaining'}</Text>
           </View>
 
-          <Text style={styles.cardPastelAmount}>{formatVND(totalRemaining)}</Text>
+          <Text style={styles.cardSkyAmount}>{formatVND(totalRemaining)}</Text>
 
-          <Text style={styles.cardPastelSub}>
+          <Text style={styles.cardSkySub}>
             {isVi ? 'để chạm mục tiêu' : 'to reach goal'}
           </Text>
         </View>
@@ -960,9 +967,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F0E8',
   },
   contentContainer: {
-    paddingHorizontal: 28,
-    paddingTop: 24,
-    paddingBottom: 60,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 140, // Đảm bảo không bị thanh bottom tab che ("cụt ngủn")
   },
 
   // 1. Top Header Row
@@ -975,7 +982,16 @@ const styles = StyleSheet.create({
   topHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 8,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 2,
   },
   topHeaderTitle: {
     fontSize: 22,
@@ -1093,10 +1109,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
-  // Card Dark (Tổng đã tích)
+  // Card Dark (Tổng đã tích - đồng bộ với Sự kiện)
   cardDark: {
     backgroundColor: '#221D18',
-    flex: 1.25,
+    borderColor: '#221D18',
+    flex: 1,
   },
   cardHeaderRow: {
     flexDirection: 'row',
@@ -1110,15 +1127,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   percentBadge: {
-    backgroundColor: '#FEF08A',
+    backgroundColor: '#D9F99D',
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
+    paddingVertical: 2.5,
+    borderRadius: 10,
   },
   percentBadgeText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#854D0E',
+    color: '#1E293B',
   },
   cardDarkAmount: {
     fontSize: 34,
@@ -1139,35 +1156,58 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Card Green (Mục tiêu)
-  cardGreen: {
+  // Card Mint Green (Mục tiêu - đồng bộ với Sự kiện)
+  cardMint: {
     backgroundColor: '#BEE3C2',
+    borderColor: '#A7F3D0',
+    flex: 1,
   },
-  // Card Purple (Còn cần)
-  cardPurple: {
-    backgroundColor: '#CDB9F2',
+  cardMintLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  cardMintAmount: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#047857',
+    letterSpacing: -0.5,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  cardMintSub: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: '#065F46',
+  },
+
+  // Card Sky Blue (Còn cần - đồng bộ với Sự kiện)
+  cardSky: {
+    backgroundColor: '#B7D9F2',
+    borderColor: '#93C5FD',
+    flex: 1,
+  },
+  cardSkyLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0369A1',
+  },
+  cardSkyAmount: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#0369A1',
+    letterSpacing: -0.5,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  cardSkySub: {
+    fontSize: 12.5,
+    fontWeight: '500',
+    color: '#075985',
   },
   cardHeaderRowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  cardPastelLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#221D18',
-  },
-  cardPastelAmount: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#221D18',
-    letterSpacing: -0.5,
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  cardPastelSub: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4B5563',
   },
 
   // 4. Section Header Row

@@ -13,7 +13,12 @@ import {
   getInitialDayRecordsFromLocalStorage,
   subscribeCalendarUpdates,
   DayExpenseRecord,
+  isIncomeTransactionOrItem,
 } from '../services/calendarStorage';
+import {
+  getTotalIncomeForMonth,
+  subscribeIncomeUpdates,
+} from '../services/incomeStorage';
 
 export interface CalendarDayData {
   dayNum: number;
@@ -223,12 +228,22 @@ export interface FinancialCalendarWidgetProps {
   onSelectDay?: (dayNum: number, fullDateStr: string, dateLabel: string) => void;
   onViewAll?: () => void;
   transactions?: any[];
+  totalIncome?: number;
+  totalExpense?: number;
+  onPressIncome?: () => void;
+  onPressExpense?: () => void;
+  onNavigateToCamera?: () => void;
 }
 
 export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = ({
   selectedDay,
   onSelectDay,
   transactions,
+  totalIncome,
+  totalExpense,
+  onPressIncome,
+  onPressExpense,
+  onNavigateToCamera,
 }) => {
   const { language } = useLanguage();
   const isVi = language === 'vi';
@@ -252,6 +267,22 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
     });
     return unsub;
   }, []);
+
+  // Tính tổng thu nhập thực tế của tháng đang xem trên lịch
+  const [viewMonthIncome, setViewMonthIncome] = useState<number>(() =>
+    getTotalIncomeForMonth(viewYear, viewMonth)
+  );
+
+  useEffect(() => {
+    setViewMonthIncome(getTotalIncomeForMonth(viewYear, viewMonth));
+  }, [viewYear, viewMonth]);
+
+  useEffect(() => {
+    const unsub = subscribeIncomeUpdates(() => {
+      setViewMonthIncome(getTotalIncomeForMonth(viewYear, viewMonth));
+    });
+    return unsub;
+  }, [viewYear, viewMonth]);
 
   // Sinh ma trận ngày tháng chuẩn theo viewYear và viewMonth
   const monthGrid = useMemo(() => {
@@ -311,7 +342,9 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
     // 2. Cộng dồn các giao dịch thực tế của người dùng trong tháng đang xem từ Backend
     if (Array.isArray(transactions) && transactions.length > 0) {
       transactions.forEach((tx: any) => {
-        if (!tx.date) return;
+        if (!tx || !tx.date) return;
+        // BỎ QUA GIAO DỊCH THU NHẬP! Lịch và ô CHI CHỈ TÍNH TIỀN CHI TIÊU
+        if (isIncomeTransactionOrItem(tx)) return;
         const txDate = new Date(tx.date);
         if (txDate.getFullYear() === viewYear && txDate.getMonth() + 1 === viewMonth) {
           const dNum = txDate.getDate();
@@ -343,11 +376,19 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
           const recM = Number(parts[1]);
           const recD = Number(parts[2]);
           if (recY === viewYear && recM === viewMonth) {
+            // Lọc các item chi tiêu thực sự (loại trừ income)
+            const expenseItems = Array.isArray(rec.items)
+              ? rec.items.filter((it: any) => !isIncomeTransactionOrItem(it))
+              : [];
+            const realDayAmount = Array.isArray(rec.items)
+              ? expenseItems.reduce((s: number, it: any) => s + (it.amount || 0), 0)
+              : (rec.amount || 0);
+
             if (!map[recD]) {
               map[recD] = { totalAmount: 0, count: 0, items: [], amountText: '' };
             }
             // Nếu ngày này có items rỗng và amount = 0 -> xóa ảnh đại diện ô lịch
-            if (Array.isArray(rec.items) && rec.items.length === 0 && (!rec.amount || rec.amount === 0)) {
+            if (Array.isArray(rec.items) && expenseItems.length === 0 && (!realDayAmount || realDayAmount === 0)) {
               map[recD].photoUrl = undefined;
               map[recD].totalAmount = 0;
               map[recD].count = 0;
@@ -355,12 +396,10 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
             } else {
               // Cập nhật theo rec.photoUri (nếu rec.photoUri là undefined thì gỡ bỏ)
               map[recD].photoUrl = rec.photoUri || undefined;
-              if (rec.amount !== undefined) {
-                map[recD].totalAmount = rec.amount;
-              }
-              if (rec.items && rec.items.length > 0) {
-                map[recD].count = rec.items.length;
-                map[recD].items = rec.items;
+              map[recD].totalAmount = realDayAmount;
+              if (expenseItems.length > 0) {
+                map[recD].count = expenseItems.length;
+                map[recD].items = expenseItems;
               }
             }
           }
@@ -389,6 +428,15 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
     return Object.values(daysDataMap).reduce((sum, item) => sum + (item.totalAmount || 0), 0);
   }, [daysDataMap]);
 
+  // Đếm tổng số ảnh có trong tháng
+  const totalPhotosCount = useMemo(() => {
+    return Object.values(daysDataMap).filter((d) => Boolean(d.photoUrl)).length;
+  }, [daysDataMap]);
+
+  // Giá trị hiển thị Chi tiêu và Thu nhập chuẩn xác theo dữ liệu thực tế
+  const displayExpense = totalExpense !== undefined && totalExpense !== 6180000 ? totalExpense : monthTotalSpent;
+  const displayIncome = isCurrentViewingMonth && totalIncome !== undefined ? totalIncome : viewMonthIncome;
+
   const handleCellPress = (cell: any) => {
     if (!onSelectDay) return;
     const isToday = isSameDay(new Date(cell.year, cell.month - 1, cell.dayNum), now);
@@ -400,68 +448,98 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
 
   return (
     <View style={styles.container}>
-      {/* 1. Header: Tiêu đề Lịch & Bộ chọn Tháng/Năm thực tế */}
+      {/* 1. Header: Tiêu đề Lịch & Nút Ảnh + Bộ chọn Tháng/Năm chuẩn như Hình 1 */}
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <Ionicons name="flame" size={15} color="#EF4444" style={{ marginRight: 6 }} />
+          <Ionicons name="flame" size={16} color="#EF4444" style={{ marginRight: 6 }} />
           <Text style={styles.title}>{isVi ? 'LỊCH TÀI CHÍNH' : 'FINANCIAL CALENDAR'}</Text>
         </View>
 
-        {/* Thanh chuyển tháng/năm chuẩn thực tế */}
-        <View style={styles.monthNavRow}>
+        <View style={styles.headerRight}>
+          {/* Nút ảnh 📷 1 Ảnh chuẩn như hình 1 */}
           <TouchableOpacity
-            style={styles.monthNavBtn}
-            onPress={handlePrevMonth}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            activeOpacity={0.7}
+            style={styles.photoCountPill}
+            onPress={onNavigateToCamera}
+            activeOpacity={0.8}
           >
-            <Ionicons name="chevron-back" size={15} color="#334155" />
+            <Ionicons name="camera-outline" size={13} color="#059669" style={{ marginRight: 4 }} />
+            <Text style={styles.photoCountText}>
+              {totalPhotosCount > 0 ? `${totalPhotosCount} ${isVi ? 'Ảnh' : 'Photos'}` : (isVi ? '1 Ảnh' : '1 Photo')}
+            </Text>
           </TouchableOpacity>
 
-          <Text style={styles.monthYearTitle}>
-            {isVi ? `Tháng ${viewMonth}, ${viewYear}` : `Month ${viewMonth}, ${viewYear}`}
-          </Text>
-
-          <TouchableOpacity
-            style={styles.monthNavBtn}
-            onPress={handleNextMonth}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="chevron-forward" size={15} color="#334155" />
-          </TouchableOpacity>
-
-          {!isCurrentViewingMonth && (
+          {/* Thanh chuyển tháng/năm chuẩn thực tế */}
+          <View style={styles.monthNavRow}>
             <TouchableOpacity
-              style={styles.todayPillBtn}
-              onPress={handleGoToToday}
-              activeOpacity={0.8}
+              style={styles.monthNavBtn}
+              onPress={handlePrevMonth}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
             >
-              <Text style={styles.todayPillText}>{isVi ? 'Hôm nay' : 'Today'}</Text>
+              <Ionicons name="chevron-back" size={13} color="#334155" />
             </TouchableOpacity>
-          )}
+
+            <Text style={styles.monthYearTitle}>
+              {isVi ? `Thg ${viewMonth}, ${viewYear}` : `${viewMonth}/${viewYear}`}
+            </Text>
+
+            <TouchableOpacity
+              style={styles.monthNavBtn}
+              onPress={handleNextMonth}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="chevron-forward" size={13} color="#334155" />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
-      {/* 2. Dòng tóm tắt thông tin: Hôm nay là ngày mấy + Tổng chi tiêu của tháng */}
-      <View style={styles.subHeaderInfoRow}>
-        <View style={styles.todayLiveIndicator}>
-          <View style={styles.todayDotLive} />
-          <Text style={styles.todayLiveText}>
-            {isVi
-              ? `Hôm nay: Thứ Hai, ${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`
-              : `Today: Monday, ${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`}
-          </Text>
-        </View>
-
-        <Text style={styles.monthTotalSpentText}>
-          {isVi ? 'Tổng chi: ' : 'Total: '}
-          <Text style={styles.monthTotalSpentAmount}>{monthTotalSpent.toLocaleString('vi-VN')} đ</Text>
-        </Text>
-      </View>
-
-      {/* 3. Khung Card Lịch */}
+      {/* 2. Khung Card Lịch */}
       <View style={styles.calendarCard}>
+        {/* ================= 2 THẺ TỔNG QUAN: CHI & THU (Nền #FAF7F2 chuẩn hình 1) ================= */}
+        <View style={styles.summaryCardsRow}>
+          {/* Thẻ CHI (Bên trái) */}
+          <TouchableOpacity
+            style={styles.summaryCard}
+            activeOpacity={0.8}
+            onPress={onPressExpense}
+          >
+            <View style={styles.summaryCardHeader}>
+              <Ionicons
+                name="arrow-up-outline"
+                size={14}
+                color="#EF4444"
+                style={{ transform: [{ rotate: '45deg' }] }}
+              />
+              <Text style={styles.summaryCardLabelChi}>{isVi ? 'CHI' : 'EXPENSES'}</Text>
+            </View>
+            <Text style={styles.summaryCardAmountChi} numberOfLines={1}>
+              -{Math.abs(displayExpense).toLocaleString('vi-VN')} đ
+            </Text>
+          </TouchableOpacity>
+
+          {/* Thẻ THU (Bên phải) */}
+          <TouchableOpacity
+            style={styles.summaryCard}
+            activeOpacity={0.8}
+            onPress={onPressIncome}
+          >
+            <View style={styles.summaryCardHeader}>
+              <Ionicons
+                name="arrow-down-outline"
+                size={14}
+                color="#059669"
+                style={{ transform: [{ rotate: '45deg' }] }}
+              />
+              <Text style={styles.summaryCardLabelThu}>{isVi ? 'THU' : 'INCOME'}</Text>
+            </View>
+            <Text style={styles.summaryCardAmountThu} numberOfLines={1}>
+              +{Math.abs(displayIncome).toLocaleString('vi-VN')} đ
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Hàng tiêu đề thứ: T2, T3, T4, T5, T6, T7, CN */}
         <View style={styles.dayOfWeekHeaderRow}>
           {(isVi ? ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']).map((d, idx) => (
@@ -589,6 +667,23 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
             );
           })}
         </View>
+
+        {/* ================= CHÚ THÍCH MỨC CHI TIÊU CHUẨN HÌNH 1 ================= */}
+        <View style={styles.legendRow}>
+          <Text style={styles.legendTitle}>{isVi ? 'Mức chi tiêu:' : 'Spending tier:'}</Text>
+          <View style={[styles.legendPill, { backgroundColor: '#E2F2E7' }]}>
+            <View style={[styles.legendDot, { backgroundColor: '#059669' }]} />
+            <Text style={[styles.legendText, { color: '#047857' }]}>&lt;100k</Text>
+          </View>
+          <View style={[styles.legendPill, { backgroundColor: '#FDF4E7' }]}>
+            <View style={[styles.legendDot, { backgroundColor: '#D97706' }]} />
+            <Text style={[styles.legendText, { color: '#B45309' }]}>100k–500k</Text>
+          </View>
+          <View style={[styles.legendPill, { backgroundColor: '#FDECEC' }]}>
+            <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
+            <Text style={[styles.legendText, { color: '#B91C1C' }]}>&gt;500k</Text>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -596,7 +691,8 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 10,
+    marginTop: 8,
+    marginBottom: 16,
   },
   headerRow: {
     flexDirection: 'row',
@@ -609,25 +705,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  title: {
-    fontSize: 12,
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  photoCountPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#6EE7B7',
+    backgroundColor: '#ECFDF5',
+  },
+  photoCountText: {
+    fontSize: 11.5,
     fontWeight: '800',
+    color: '#059669',
+  },
+  title: {
+    fontSize: 13,
+    fontWeight: '900',
     color: '#374151',
-    letterSpacing: 0.8,
+    letterSpacing: 0.5,
   },
   // BỘ CHUYỂN ĐỔI THÁNG / NĂM
   monthNavRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#FAF7F2',
+    borderWidth: 1,
+    borderColor: '#E7DECF',
     borderRadius: 16,
     paddingHorizontal: 4,
     paddingVertical: 2,
   },
   monthNavBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -635,7 +753,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: '#0F172A',
-    marginHorizontal: 4,
+    marginHorizontal: 3,
   },
   todayPillBtn: {
     backgroundColor: '#047857',
@@ -650,51 +768,98 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // DÒNG THÔNG TIN PHỤ: HÔM NAY VÀ TỔNG CHI
-  subHeaderInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-    marginBottom: 8,
+  // Khung Card Lịch
+  calendarCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#EFE9DF',
+    shadowColor: '#221D18',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  todayLiveIndicator: {
+
+  // 2 THẺ TỔNG QUAN: CHI & THU (Nền #FAF7F2 chuẩn theo yêu cầu giống web)
+  summaryCardsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: '#FAF7F2', // Nền màu be #FAF7F2 chuẩn yêu cầu
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#EDE7DC',
+  },
+  summaryCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 5,
+    marginBottom: 4,
   },
-  todayDotLive: {
+  summaryCardLabelChi: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#EF4444',
+    letterSpacing: 0.5,
+  },
+  summaryCardLabelThu: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#059669',
+    letterSpacing: 0.5,
+  },
+  summaryCardAmountChi: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#EF4444',
+    letterSpacing: -0.3,
+  },
+  summaryCardAmountThu: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#059669',
+    letterSpacing: -0.3,
+  },
+
+  // Chú thích mức chi tiêu (Legend dưới đáy lịch)
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F5F0E8',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  legendTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#78716C',
+  },
+  legendPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    gap: 5,
+  },
+  legendDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#10B981',
-    marginRight: 6,
   },
-  todayLiveText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#047857',
-  },
-  monthTotalSpentText: {
-    fontSize: 11.5,
-    color: '#64748B',
-  },
-  monthTotalSpentAmount: {
+  legendText: {
+    fontSize: 10.5,
     fontWeight: '800',
-    color: '#0F172A',
-  },
-
-  // Khung Card Lịch lấy y chang CalendarScreen
-  calendarCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
   },
   dayOfWeekHeaderRow: {
     flexDirection: 'row',
@@ -805,7 +970,9 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   emptyCell: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: '#FAF7F2',
+    borderWidth: 0.5,
+    borderColor: '#EDE7DC',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 3,

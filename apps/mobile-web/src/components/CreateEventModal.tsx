@@ -26,6 +26,7 @@ interface CreateEventModalProps {
     location?: string;
     estimatedBudget: number;
     description?: string;
+    status?: 'upcoming' | 'ongoing' | 'completed';
   }) => void;
   editingEvent?: MonettEvent | null;
 }
@@ -47,6 +48,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
   const [location, setLocation] = useState('');
   const [budgetStr, setBudgetStr] = useState('');
   const [description, setDescription] = useState('');
+  const [status, setStatus] = useState<'upcoming' | 'ongoing' | 'completed'>('ongoing');
 
   // Mini Calendar Picker State
   const [activePickerField, setActivePickerField] = useState<'start' | 'end' | null>(null);
@@ -65,6 +67,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         setLocation(editingEvent.location || '');
         setBudgetStr(editingEvent.estimatedBudget > 0 ? String(editingEvent.estimatedBudget) : '');
         setDescription(editingEvent.description || '');
+        setStatus(editingEvent.status || 'ongoing');
       } else {
         // Default today's date formatted dd/mm/yyyy
         const today = new Date();
@@ -78,6 +81,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
         setLocation('');
         setBudgetStr('');
         setDescription('');
+        setStatus('ongoing');
       }
       setActivePickerField(null);
       setIsTitleFocused(true);
@@ -139,6 +143,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
       location: location.trim() || undefined,
       estimatedBudget,
       description: description.trim() || undefined,
+      status,
     });
 
     onClose();
@@ -362,7 +367,56 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                     </View>
                   </View>
 
-                  {/* 4. Mô tả */}
+                  {/* 4. Trạng thái sự kiện */}
+                  <View style={styles.formGroup}>
+                    <Text style={[styles.formLabel, { color: labelColor }]}>
+                      {isVi ? 'Trạng thái sự kiện' : 'Event Status'}
+                    </Text>
+                    <View style={styles.statusOptionsRow}>
+                      {[
+                        { key: 'ongoing', label: isVi ? 'Đang diễn ra' : 'Ongoing', color: '#166534', bg: '#D2EADA' },
+                        { key: 'upcoming', label: isVi ? 'Sắp tới' : 'Upcoming', color: '#0284C7', bg: '#D4E5F7' },
+                        { key: 'completed', label: isVi ? 'Hoàn thành' : 'Completed', color: '#6B21A8', bg: '#E3E1EB' },
+                      ].map((item) => {
+                        const isSelected = status === item.key;
+                        return (
+                          <TouchableOpacity
+                            key={item.key}
+                            onPress={() => setStatus(item.key as 'upcoming' | 'ongoing' | 'completed')}
+                            style={[
+                              styles.statusOptionPill,
+                              {
+                                backgroundColor: isSelected ? item.bg : isDark ? '#0F172A' : '#F8FAFC',
+                                borderColor: isSelected ? item.color : isDark ? '#334155' : '#E2E8F0',
+                                borderWidth: isSelected ? 1.5 : 1,
+                              },
+                            ]}
+                            activeOpacity={0.75}
+                          >
+                            <View
+                              style={[
+                                styles.statusDot,
+                                { backgroundColor: isSelected ? item.color : '#94A3B8' },
+                              ]}
+                            />
+                            <Text
+                              style={[
+                                styles.statusOptionText,
+                                {
+                                  color: isSelected ? item.color : isDark ? '#94A3B8' : '#64748B',
+                                  fontWeight: isSelected ? '700' : '600',
+                                },
+                              ]}
+                            >
+                              {item.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  {/* 5. Mô tả */}
                   <View style={styles.formGroup}>
                     <Text style={[styles.formLabel, { color: labelColor }]}>
                       {isVi ? 'Mô tả' : 'Description'}
@@ -608,6 +662,31 @@ const styles = StyleSheet.create({
   dayCellText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  // Status selector pills
+  statusOptionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 4,
+  },
+  statusOptionPill: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    gap: 6,
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  statusOptionText: {
+    fontSize: 13,
   },
   // Footer
   dialogFooter: {

@@ -9,7 +9,7 @@ import { AuthScreen } from './src/screens/web/AuthScreen';
 import { LandingScreen } from './src/screens/web/LandingScreen';
 import { FinancialReportScreen } from './src/screens/web/FinancialReportScreen';
 import { TransactionsScreen } from './src/screens/web/TransactionsScreen';
-import { BudgetScreen } from './src/screens/web/BudgetScreen';
+import { SavingsScreen } from './src/screens/web/SavingsScreen';
 import { EventsScreen } from './src/screens/web/EventsScreen';
 import { RecurringScreen } from './src/screens/web/RecurringScreen';
 import { DebtScreen } from './src/screens/web/DebtScreen';
@@ -140,7 +140,7 @@ function MainApp() {
       case 'events':
         return <EventsScreen onNavigateToTab={setActiveTab} />;
       case 'budget':
-        return <BudgetScreen onNavigateToTab={setActiveTab} />;
+        return <SavingsScreen onNavigateToTab={setActiveTab} />;
       case 'recurring':
         return <RecurringScreen onNavigateToTab={setActiveTab} />;
       case 'debts':

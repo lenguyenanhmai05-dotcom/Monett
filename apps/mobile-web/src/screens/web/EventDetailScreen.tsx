@@ -44,7 +44,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
   const isDesktop = width >= 860;
   const { language } = useLanguage();
   const { isDark } = useTheme();
-  const { addNotification } = useNotifications();
+  const { addNotification, unreadCount, openNotifications } = useNotifications();
   const isVi = language === 'vi';
 
   // State for Edit Event modal
@@ -313,11 +313,43 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
   // Color tokens
   const pageBg = isDark ? '#0B1120' : '#F5F0E8';
   const cardBg = isDark ? '#1E293B' : '#FFFFFF';
-  const eventHeaderCardBg = isDark ? '#1E293B' : '#F3EDE4';
+  const eventHeaderCardBg = isDark ? '#1E293B' : '#ECE5D8';
+  const eventHeaderCardBorder = isDark ? '#334155' : '#DDD6C9';
   const dividerColor = isDark ? '#334155' : '#E8E2D9';
   const textPrimary = isDark ? '#F8FAFC' : '#111827';
-  const textSecondary = isDark ? '#94A3B8' : '#64748B';
+  const textSecondary = isDark ? '#94A3B8' : '#4B5563';
   const tagBg = isDark ? '#334155' : '#F1F5F9';
+
+  const currentStatus = event.status || 'ongoing';
+  const statusConfig = {
+    ongoing: {
+      labelVi: 'Đang diễn ra',
+      labelEn: 'Ongoing',
+      badgeBg: isDark ? 'rgba(34, 197, 94, 0.15)' : '#DCFCE7',
+      badgeColor: '#166534',
+      badgeBorder: isDark ? '#234C34' : '#BFDECA',
+    },
+    upcoming: {
+      labelVi: 'Sắp tới',
+      labelEn: 'Upcoming',
+      badgeBg: isDark ? 'rgba(56, 189, 248, 0.15)' : '#E0F2FE',
+      badgeColor: '#0284C7',
+      badgeBorder: isDark ? '#244365' : '#BAE6FD',
+    },
+    completed: {
+      labelVi: 'Hoàn thành',
+      labelEn: 'Completed',
+      badgeBg: isDark ? 'rgba(168, 85, 247, 0.15)' : '#F3E8FF',
+      badgeColor: '#6B21A8',
+      badgeBorder: isDark ? '#3C354C' : '#DDD6FE',
+    },
+  }[currentStatus] || {
+    labelVi: 'Đang diễn ra',
+    labelEn: 'Ongoing',
+    badgeBg: isDark ? 'rgba(34, 197, 94, 0.15)' : '#DCFCE7',
+    badgeColor: '#166534',
+    badgeBorder: isDark ? '#234C34' : '#BFDECA',
+  };
 
   return (
     <ScrollView
@@ -343,8 +375,25 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
               {isVi ? 'Thêm' : 'Add'}
             </Text>
           </TouchableOpacity>
+
+          {/* Nút chuông thông báo (Khớp ảnh 2) */}
+          <TouchableOpacity
+            style={[styles.topBellBtn, { backgroundColor: cardBg, borderColor: isDark ? '#334155' : '#E8E2D9' }]}
+            onPress={openNotifications}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="notifications-outline" size={18} color={textPrimary} />
+            {unreadCount > 0 && (
+              <View style={styles.topBellBadge}>
+                <Text style={styles.topBellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
       </View>
+
+      {/* ================= THANG CẮT NGANG GIỮA "SỰ KIỆN" VÀ NÚT LÙI SỰ KIỆN (KHỚP ẢNH 2) ================= */}
+      <View style={[styles.topDivider, { backgroundColor: dividerColor }]} />
 
       {/* ================= BACK BREADCRUMB: "← Sự kiện" ================= */}
       <TouchableOpacity
@@ -352,19 +401,46 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
         onPress={onBack}
         activeOpacity={0.7}
       >
-        <Ionicons name="arrow-back" size={16} color={textSecondary} />
-        <Text style={[styles.backBreadcrumbText, { color: textSecondary }]}>
+        <Ionicons name="arrow-back" size={16} color={textPrimary} />
+        <Text style={[styles.backBreadcrumbText, { color: textPrimary }]}>
           {isVi ? 'Sự kiện' : 'Events'}
         </Text>
       </TouchableOpacity>
 
-      {/* ================= EVENT HEADER CARD (KHỚP 100% ẢNH MẪU) ================= */}
-      <View style={[styles.eventHeaderCard, { backgroundColor: eventHeaderCardBg }]}>
+      {/* ================= EVENT HEADER CARD (KHỚP 100% ẢNH 2) ================= */}
+      <View style={[styles.eventHeaderCard, { backgroundColor: eventHeaderCardBg, borderColor: eventHeaderCardBorder }]}>
         <View style={styles.eventHeaderLeft}>
-          {/* Tên sự kiện */}
-          <Text style={[styles.eventTitle, { color: textPrimary }]}>
-            {event.title}
-          </Text>
+          {/* Tên sự kiện + Badge trạng thái (bấm để đổi nhanh) */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 2 }}>
+            <Text style={[styles.eventTitle, { color: textPrimary }]}>
+              {event.title}
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                const nextStatus: Record<'upcoming' | 'ongoing' | 'completed', 'upcoming' | 'ongoing' | 'completed'> = {
+                  upcoming: 'ongoing',
+                  ongoing: 'completed',
+                  completed: 'upcoming',
+                };
+                const newStatus = nextStatus[currentStatus];
+                onUpdateEvent({ ...event, status: newStatus });
+              }}
+              activeOpacity={0.75}
+              style={{
+                backgroundColor: statusConfig.badgeBg,
+                borderColor: statusConfig.badgeBorder,
+                borderWidth: 1,
+                paddingHorizontal: 10,
+                paddingVertical: 3,
+                borderRadius: 12,
+              }}
+              accessibilityLabel="Bấm để đổi trạng thái"
+            >
+              <Text style={{ fontSize: 12, fontWeight: '700', color: statusConfig.badgeColor }}>
+                {isVi ? statusConfig.labelVi : statusConfig.labelEn}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Khoảng ngày diễn ra */}
           <Text style={[styles.eventDateRange, { color: textSecondary }]}>
@@ -375,112 +451,80 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
           {/* Địa điểm */}
           {event.location ? (
             <View style={styles.eventLocationRow}>
-              <Text style={[styles.eventLocationIcon, { color: textSecondary }]}>◎</Text>
+              <Ionicons name="location-outline" size={14} color={textSecondary} style={{ marginRight: 2 }} />
               <Text style={[styles.eventLocationText, { color: textSecondary }]}>
                 {event.location}
               </Text>
             </View>
           ) : null}
 
-          {/* Cụm avatar thành viên tham gia + Nút "+ Mời bạn" */}
-          <View style={styles.memberAvatarGroupRow}>
-            <View style={styles.avatarStack}>
-              {(event.members || []).slice(0, 5).map((m, idx) => (
-                <View
-                  key={m.id || idx}
-                  style={[
-                    styles.stackedAvatarWrap,
-                    {
-                      borderColor: eventHeaderCardBg,
-                      marginLeft: idx === 0 ? 0 : -8,
-                      zIndex: 10 - idx,
-                    },
-                  ]}
-                >
-                  {m.avatarUrl ? (
-                    <Image source={{ uri: m.avatarUrl }} style={styles.stackedAvatarImg} />
-                  ) : (
-                    <View style={[styles.stackedAvatarPlaceholder, { backgroundColor: m.role === 'owner' ? '#059669' : '#3B82F6' }]}>
-                      <Text style={styles.stackedAvatarText}>{m.name.charAt(0).toUpperCase()}</Text>
-                    </View>
-                  )}
-                  {m.role === 'owner' && (
-                    <View style={styles.ownerCrownBadge}>
-                      <Text style={styles.ownerCrownText}>👑</Text>
-                    </View>
-                  )}
-                </View>
-              ))}
-            </View>
+          {/* Cụm avatar thành viên tham gia + Nút "+ Mời bạn" nếu có */}
+          {event.members && event.members.length > 0 && (
+            <View style={styles.memberAvatarGroupRow}>
+              <View style={styles.avatarStack}>
+                {event.members.slice(0, 5).map((m, idx) => (
+                  <View
+                    key={m.id || idx}
+                    style={[
+                      styles.stackedAvatarWrap,
+                      {
+                        borderColor: eventHeaderCardBg,
+                        marginLeft: idx === 0 ? 0 : -8,
+                        zIndex: 10 - idx,
+                      },
+                    ]}
+                  >
+                    {m.avatarUrl ? (
+                      <Image source={{ uri: m.avatarUrl }} style={styles.stackedAvatarImg} />
+                    ) : (
+                      <View style={[styles.stackedAvatarPlaceholder, { backgroundColor: m.role === 'owner' ? '#059669' : '#3B82F6' }]}>
+                        <Text style={styles.stackedAvatarText}>{m.name.charAt(0).toUpperCase()}</Text>
+                      </View>
+                    )}
+                    {m.role === 'owner' && (
+                      <View style={styles.ownerCrownBadge}>
+                        <Text style={styles.ownerCrownText}>👑</Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
 
-            {/* Nút "+ Mời bạn" */}
-            <TouchableOpacity
-              style={styles.invitePillBtn}
-              onPress={() => setIsInviteModalOpen(true)}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="person-add" size={13} color="#064E3B" />
-              <Text style={styles.invitePillBtnText}>
-                {isVi ? 'Mời bạn' : 'Invite'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity
+                style={styles.invitePillBtn}
+                onPress={() => setIsInviteModalOpen(true)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="person-add" size={13} color="#064E3B" />
+                <Text style={styles.invitePillBtnText}>
+                  {isVi ? 'Mời bạn' : 'Invite'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
-        {/* Nút Sửa & Xóa sự kiện + Bộ chuyển vai trò kiểm tra quyền */}
+        {/* Nút Sửa & Xóa sự kiện (Tròn trắng viền nhẹ khớp 100% Ảnh 2) */}
         <View style={styles.eventHeaderActions}>
-          {/* Giả lập vai trò Owner vs Bạn bè để kiểm tra quyền xóa sự kiện */}
-          <View style={[styles.roleSwitcherWrap, { backgroundColor: cardBg }]}>
-            <TouchableOpacity
-              style={[styles.roleSwitchBtn, isOwner && styles.roleSwitchBtnActive]}
-              onPress={() => setCurrentRole('owner')}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.roleSwitchText, isOwner && styles.roleSwitchTextActive]}>
-                👑 {isVi ? 'Chủ' : 'Owner'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.roleSwitchBtn, !isOwner && styles.roleSwitchBtnActive]}
-              onPress={() => setCurrentRole('member')}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.roleSwitchText, !isOwner && styles.roleSwitchTextActive]}>
-                👤 {isVi ? 'Bạn bè' : 'Friend'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           {/* Sửa sự kiện (Pencil) */}
           <TouchableOpacity
-            style={[styles.circleActionBtn, { backgroundColor: cardBg }]}
+            style={[styles.circleActionBtn, { backgroundColor: '#FFFFFF', borderColor: isDark ? '#334155' : '#DDD6C9' }]}
             onPress={() => setIsEditEventModalOpen(true)}
             activeOpacity={0.75}
             accessibilityLabel="Chỉnh sửa sự kiện"
           >
-            <Ionicons name="pencil" size={16} color={textSecondary} />
+            <Ionicons name="create-outline" size={18} color="#475569" />
           </TouchableOpacity>
 
-          {/* Xóa sự kiện (Trash) - CHỈ OWNER MỚI ĐƯỢC XÓA, BẠN BÈ BỊ KHÓA */}
-          {isOwner ? (
-            <TouchableOpacity
-              style={[styles.circleActionBtn, { backgroundColor: cardBg }]}
-              onPress={handleDeleteEventClick}
-              activeOpacity={0.75}
-              accessibilityLabel="Xóa sự kiện (Owner)"
-            >
-              <Ionicons name="trash-outline" size={16} color="#DC2626" />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.circleActionBtnDisabled, { backgroundColor: cardBg }]}
-              onPress={handleDeleteEventClick}
-              activeOpacity={0.7}
-              accessibilityLabel="Không thể xóa sự kiện"
-            >
-              <Ionicons name="lock-closed" size={15} color="#94A3B8" />
-            </TouchableOpacity>
-          )}
+          {/* Xóa sự kiện (Trash) */}
+          <TouchableOpacity
+            style={[styles.circleActionBtn, { backgroundColor: '#FFFFFF', borderColor: isDark ? '#334155' : '#DDD6C9' }]}
+            onPress={handleDeleteEventClick}
+            activeOpacity={0.75}
+            accessibilityLabel="Xóa sự kiện"
+          >
+            <Ionicons name="trash-outline" size={18} color="#EF4444" />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -990,6 +1034,45 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
   },
+  topBellBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  topBellBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -3,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  topBellBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9.5,
+    fontWeight: '900',
+    lineHeight: 11,
+  },
+  topDivider: {
+    height: 1,
+    width: '100%',
+    marginBottom: 16,
+  },
   backBreadcrumb: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1000,11 +1083,12 @@ const styles = StyleSheet.create({
   },
   backBreadcrumbText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  // Thẻ thông tin sự kiện lớn màu kem be khớp ảnh
+  // Thẻ thông tin sự kiện lớn màu kem be khớp ảnh 2
   eventHeaderCard: {
-    borderRadius: 20,
+    borderRadius: 22,
+    borderWidth: 1.5,
     paddingHorizontal: 24,
     paddingVertical: 22,
     flexDirection: 'row',
@@ -1013,9 +1097,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
+    shadowOpacity: 0.04,
     shadowRadius: 8,
-    elevation: 1,
+    elevation: 2,
   },
   eventHeaderLeft: {
     flex: 1,
@@ -1028,7 +1112,7 @@ const styles = StyleSheet.create({
   },
   eventDateRange: {
     fontSize: 13.5,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   eventLocationRow: {
     flexDirection: 'row',
@@ -1053,6 +1137,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',

@@ -27,6 +27,7 @@ import {
   saveCachedBudget,
   notifyBudgetUpdated,
   notifyCalendarUpdated,
+  isIncomeTransactionOrItem,
 } from '../../services/calendarStorage';
 import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
 import {
@@ -266,7 +267,7 @@ export const WebCalendarScreen: React.FC = () => {
 
       const items: DayTransactionItem[] = dayTxList.map((tx: any) => {
         const amt = Math.abs(Number(tx.amount) || 0);
-        const isExp = tx.type === 'expense' || tx.amount < 0;
+        const isExp = !isIncomeTransactionOrItem(tx) && (tx.type === 'expense' || tx.amount < 0 || !tx.type);
         if (isExp) totalExpense += amt;
         else totalIncome += amt;
 

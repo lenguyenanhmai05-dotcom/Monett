@@ -21,7 +21,11 @@ import { ProfileScreen } from './ProfileScreen';
 import { FriendsFeedScreen } from './FriendsFeedScreen';
 import { MessagesScreen } from './MessagesScreen';
 import { DayExpensesScreen } from './DayExpensesScreen';
+import { IncomeManagementScreen } from './IncomeManagementScreen';
 import { EventsScreen } from '../web/EventsScreen';
+import { SavingsScreen } from '../web/SavingsScreen';
+import { DebtScreen } from '../web/DebtScreen';
+import { RecurringScreen } from '../web/RecurringScreen';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { createTransactionApi, getBudgetApi } from '../../services/api';
 import {
@@ -36,7 +40,7 @@ import {
 } from '../../services/calendarStorage';
 import { NotificationModal } from '../../components/NotificationModal';
 
-export type MobileTab = 'home' | 'calendar' | 'analytics' | 'feed' | 'wallets' | 'categories' | 'profile' | 'events';
+export type MobileTab = 'home' | 'calendar' | 'analytics' | 'feed' | 'wallets' | 'categories' | 'profile' | 'events' | 'savings' | 'debt' | 'recurring' | 'income';
 export type ActiveModal = 'none' | 'camera' | 'add_expense' | 'quick_save' | 'detail' | 'day_expenses';
 
 export const MobileNavigator: React.FC = () => {
@@ -90,6 +94,7 @@ export const MobileNavigator: React.FC = () => {
             onNavigateToAnalytics={() => setCurrentTab('analytics')}
             onNavigateToCalendar={() => setCurrentTab('calendar')}
             onNavigateToProfile={() => setCurrentTab('profile')}
+            onNavigateToTab={(tab) => setCurrentTab(tab as any)}
             onNavigateToDayExpenses={(dateStr, label) => {
               setSelectedDayExpensesDate(dateStr);
               setSelectedDayExpensesLabel(label);
@@ -116,16 +121,44 @@ export const MobileNavigator: React.FC = () => {
       case 'feed':
         return (
           <FriendsFeedScreen
-            onBack={() => setCurrentTab('profile')}
+            onBack={() => setCurrentTab('home')}
             onNavigateToMessages={() => setCurrentTab('calendar')}
           />
         );
       case 'wallets':
-        return <WalletsScreen onBack={() => setCurrentTab('profile')} />;
+        return <WalletsScreen onBack={() => setCurrentTab('home')} />;
       case 'categories':
-        return <CategoriesScreen onBack={() => setCurrentTab('profile')} />;
+        return <CategoriesScreen onBack={() => setCurrentTab('home')} />;
       case 'events':
-        return <EventsScreen onNavigateToTab={(tab) => setCurrentTab(tab as any)} />;
+        return (
+          <EventsScreen
+            onNavigateToTab={(tab) => setCurrentTab(tab as any)}
+            onBack={() => setCurrentTab('home')}
+          />
+        );
+      case 'savings':
+        return (
+          <SavingsScreen
+            onNavigateToTab={(tab) => setCurrentTab(tab as any)}
+            onBack={() => setCurrentTab('home')}
+          />
+        );
+      case 'debt':
+        return (
+          <DebtScreen
+            onNavigateToTab={(tab) => setCurrentTab(tab as any)}
+            onBack={() => setCurrentTab('home')}
+          />
+        );
+      case 'recurring':
+        return (
+          <RecurringScreen
+            onNavigateToTab={(tab) => setCurrentTab(tab as any)}
+            onBack={() => setCurrentTab('home')}
+          />
+        );
+      case 'income':
+        return <IncomeManagementScreen onBack={() => setCurrentTab('home')} />;
       case 'profile':
         return (
           <ProfileScreen
@@ -135,7 +168,14 @@ export const MobileNavigator: React.FC = () => {
           />
         );
       default:
-        return <HomeScreen refreshTrigger={refreshKey} />;
+        return (
+          <HomeScreen
+            refreshTrigger={refreshKey}
+            onNavigateToTab={(tab) => setCurrentTab(tab as any)}
+            onNavigateToProfile={() => setCurrentTab('profile')}
+            onNavigateToAnalytics={() => setCurrentTab('analytics')}
+          />
+        );
     }
   };
 
@@ -476,16 +516,16 @@ export const MobileNavigator: React.FC = () => {
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: '#FAFAF9',
+    backgroundColor: '#FAF7F2',
   },
   mainContent: {
     flex: 1,
   },
   bottomNavWrapper: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAF7F2',
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    shadowColor: '#000',
+    borderTopColor: '#E8E0D5',
+    shadowColor: '#221D18',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -496,7 +536,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-around',
     height: 62,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAF7F2',
     paddingHorizontal: 8,
     position: 'relative',
   },
@@ -557,9 +597,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.45,
   } as any,
   socialTopNavWrapper: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAF7F2',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#E8E0D5',
   },
   socialTopNav: {
     flexDirection: 'row',
@@ -577,9 +617,9 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 9,
     borderRadius: 12,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F5EFE6',
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
+    borderColor: '#E8E0D5',
   },
   socialTabBtnActive: {
     backgroundColor: '#ECFDF5',

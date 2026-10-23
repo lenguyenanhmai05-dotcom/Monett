@@ -475,36 +475,184 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
         </View>
       )}
 
-      {/* HEADER MỤC NHẮC NHỞ (Đúng kiểu dáng & kích thước của HomeScreen) */}
-      <View style={styles.sectionHeader}>
-        <View style={styles.headerLeft}>
-          <Ionicons name="notifications-outline" size={15} color="#047857" style={{ marginRight: 5 }} />
-          <Text style={styles.sectionTitle}>{isVi ? 'MỤC NHẮC NHỞ' : 'REMINDERS'}</Text>
-          {pendingCount > 0 ? (
+      {/* KHUNG THẺ NHẮC NHỞ PHONG CÁCH HÌNH 1 (Trong 1 cái khuôn, tiêu đề màu ở trên) */}
+      <View style={[styles.cardContainer, noMargin && { minHeight: 220, flex: 1 }]}>
+        {/* 1. Header Bar Màu Xanh Dương Pastel */}
+        <View style={styles.headerBar}>
+          <View style={styles.headerLeft}>
+            {/* White square icon badge with notifications icon */}
+            <View style={styles.iconBadge}>
+              <Ionicons name="notifications-outline" size={17} color="#0369A1" />
+            </View>
+
+            {/* Title */}
+            <Text style={styles.headerTitle}>
+              {isVi ? 'Nhắc nhở' : 'Reminders'}
+            </Text>
+
+            {/* White count badge */}
             <View style={styles.countBadge}>
-              <Text style={styles.countBadgeText}>{isVi ? `${pendingCount} việc` : `${pendingCount} pending`}</Text>
+              <Text style={styles.countBadgeText}>{pendingCount}</Text>
             </View>
-          ) : (
-            <View style={[styles.countBadge, { backgroundColor: '#ECFDF5' }]}>
-              <Text style={[styles.countBadgeText, { color: '#059669' }]}>{isVi ? 'Đã xong ✓' : 'All done ✓'}</Text>
-            </View>
-          )}
+          </View>
+
+          {/* Nút Thêm lời nhắc dạng pill trắng */}
+          <TouchableOpacity
+            style={styles.viewAllBtn}
+            onPress={handleOpenCreateForm}
+            activeOpacity={0.75}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.viewAllText}>
+              {isVi ? '+ Thêm lời nhắc' : '+ Add reminder'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          onPress={handleOpenCreateForm}
-          activeOpacity={0.7}
-          style={styles.toggleFormBtn}
-        >
-          <Ionicons
-            name="add-circle-outline"
-            size={14}
-            color="#047857"
-            style={{ marginRight: 3 }}
-          />
-          <Text style={styles.viewAllText}>{isVi ? 'Thêm lời nhắc' : 'Add reminder'}</Text>
-        </TouchableOpacity>
+        <View style={styles.headerDivider} />
+
+        {/* 2. Nội dung lời nhắc bên dưới trong cùng 1 khuôn trắng */}
+        <View style={styles.bodyContent}>
+          {isLoading && reminders.length === 0 ? (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator size="small" color="#0369A1" />
+            </View>
+          ) : reminders.length === 0 ? (
+            <TouchableOpacity
+              style={styles.emptyCard}
+              onPress={handleOpenCreateForm}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="notifications-outline" size={24} color="#94A3B8" style={{ marginBottom: 4 }} />
+              <Text style={styles.emptyTitle}>Chưa có nhắc nhở nào</Text>
+              <Text style={styles.emptySub}>
+                Nhấn "+ Thêm lời nhắc" để không quên việc mua sắm, trả tiền hay đi chợ nhé!
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            reminders.map((item, idx) => {
+              const isDone = item.isCompleted;
+
+              return (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.reminderRow,
+                    idx < reminders.length - 1 && styles.reminderRowBorder,
+                    isDone && styles.reminderRowDone,
+                  ]}
+                >
+                  {/* Ô TICK HOÀN THÀNH (✓) */}
+                  <TouchableOpacity
+                    style={[styles.tickBox, isDone && styles.tickBoxChecked]}
+                    onPress={() => handleToggle(item)}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    {isDone ? (
+                      <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                    ) : (
+                      <View style={styles.tickBoxUncheckedDot} />
+                    )}
+                  </TouchableOpacity>
+
+                  {/* NỘI DUNG NHẮC NHỞ */}
+                  <TouchableOpacity
+                    style={styles.itemContent}
+                    onPress={() => handleToggle(item)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.itemTitle,
+                        isDone && styles.itemTitleDone,
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {item.title}
+                    </Text>
+
+                    <View style={styles.itemMetaRow}>
+                      {/* Badge Giờ hẹn */}
+                      <View style={[styles.metaBadge, isDone && styles.metaBadgeDone]}>
+                        <Ionicons
+                          name="time-outline"
+                          size={13}
+                          color={isDone ? '#94A3B8' : '#0369A1'}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text style={[styles.metaBadgeText, isDone && styles.metaBadgeTextDone]}>
+                          {item.time || '12:00'}
+                        </Text>
+                      </View>
+
+                      {/* Badge Báo trước */}
+                      <View style={[styles.metaBadge, { backgroundColor: '#F1F5F9' }]}>
+                        <Ionicons
+                          name="notifications-outline"
+                          size={13}
+                          color={isDone ? '#94A3B8' : '#475569'}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text style={[styles.metaBadgeText, { color: '#475569' }]}>
+                          Báo trước {item.remindBeforeMinutes || 10}p
+                        </Text>
+                      </View>
+
+                      {/* Trạng thái */}
+                      {isDone && (
+                        <Text style={styles.statusDoneText}>Đã hoàn thành</Text>
+                      )}
+                      {pushedReminderId === item.id && (
+                        <Text style={styles.statusPushedText}>Đã gửi lên chuông 🔔</Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* NÚT CÀI THÔNG BÁO VÀO CHUÔNG (🔔) */}
+                  <TouchableOpacity
+                    style={[
+                      styles.bellActionBtn,
+                      pushedReminderId === item.id && styles.bellActionBtnActive,
+                    ]}
+                    onPress={() => handlePushToBell(item)}
+                    activeOpacity={0.6}
+                    hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+                    accessibilityLabel={isVi ? 'Cài thông báo này lên chuông' : 'Push to bell notification'}
+                  >
+                    <Ionicons
+                      name={pushedReminderId === item.id ? 'notifications' : 'notifications-outline'}
+                      size={15}
+                      color={pushedReminderId === item.id ? '#7C3AED' : '#6D28D9'}
+                    />
+                  </TouchableOpacity>
+
+                  {/* NÚT CHỈNH SỬA (✏️) */}
+                  <TouchableOpacity
+                    style={styles.editBtn}
+                    onPress={() => handleStartEdit(item)}
+                    activeOpacity={0.6}
+                    hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+                  >
+                    <Ionicons name="pencil" size={15} color="#0369A1" />
+                  </TouchableOpacity>
+
+                  {/* NÚT XÓA BỎ (✕) */}
+                  <TouchableOpacity
+                    style={styles.deleteBtn}
+                    onPress={() => handleDelete(item.id)}
+                    activeOpacity={0.6}
+                    hitSlop={{ top: 10, bottom: 10, left: 6, right: 10 }}
+                  >
+                    <Ionicons name="close" size={16} color="#64748B" />
+                  </TouchableOpacity>
+                </View>
+              );
+            })
+          )}
+        </View>
       </View>
+
 
       {/* MODAL TẠO / SỬA NHẮC NHỞ */}
       <Modal
@@ -795,193 +943,122 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
         </KeyboardAvoidingView>
       </Modal>
 
-
-      {/* DANH SÁCH LỜI NHẮC */}
-      <View style={styles.listContainer}>
-        {isLoading && reminders.length === 0 ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="small" color="#047857" />
-          </View>
-        ) : reminders.length === 0 ? (
-          <TouchableOpacity
-            style={styles.emptyCard}
-            onPress={handleOpenCreateForm}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="calendar-outline" size={24} color="#94A3B8" style={{ marginBottom: 4 }} />
-            <Text style={styles.emptyTitle}>Chưa có nhắc nhở nào</Text>
-            <Text style={styles.emptySub}>
-              Nhấn "+ Thêm lời nhắc" để không quên việc mua sắm, trả tiền hay đi chợ nhé!
-            </Text>
-          </TouchableOpacity>
-        ) : (
-          reminders.map((item) => {
-            const isDone = item.isCompleted;
-
-            return (
-              <View
-                key={item.id}
-                style={[
-                  styles.reminderItem,
-                  isDone && styles.reminderItemDone,
-                ]}
-              >
-                {/* 1. Ô TICK HOÀN THÀNH (✓) */}
-                <TouchableOpacity
-                  style={[styles.tickBox, isDone && styles.tickBoxChecked]}
-                  onPress={() => handleToggle(item)}
-                  activeOpacity={0.7}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  {isDone ? (
-                    <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-                  ) : (
-                    <View style={styles.tickBoxUncheckedDot} />
-                  )}
-                </TouchableOpacity>
-
-                {/* 2. NỘI DUNG NHẮC NHỞ */}
-                <TouchableOpacity
-                  style={styles.itemContent}
-                  onPress={() => handleToggle(item)}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[
-                      styles.itemTitle,
-                      isDone && styles.itemTitleDone,
-                    ]}
-                    numberOfLines={2}
-                  >
-                    {item.title}
-                  </Text>
-
-                  <View style={styles.itemMetaRow}>
-                    {/* Badge Giờ hẹn */}
-                    <View style={[styles.metaBadge, isDone && styles.metaBadgeDone]}>
-                      <Ionicons
-                        name="time-outline"
-                        size={11}
-                        color={isDone ? '#94A3B8' : '#D97706'}
-                        style={{ marginRight: 3 }}
-                      />
-                      <Text style={[styles.metaBadgeText, isDone && styles.metaBadgeTextDone]}>
-                        {item.time || '12:00'}
-                      </Text>
-                    </View>
-
-                    {/* Badge Báo trước */}
-                    <View style={[styles.metaBadge, { backgroundColor: '#F1F5F9' }]}>
-                      <Ionicons
-                        name="notifications-outline"
-                        size={10}
-                        color={isDone ? '#94A3B8' : '#475569'}
-                        style={{ marginRight: 3 }}
-                      />
-                      <Text style={[styles.metaBadgeText, { color: '#475569' }]}>
-                        Báo trước {item.remindBeforeMinutes || 10}p
-                      </Text>
-                    </View>
-
-                    {/* Trạng thái */}
-                    {isDone && (
-                      <Text style={styles.statusDoneText}>Đã hoàn thành</Text>
-                    )}
-                    {pushedReminderId === item.id && (
-                      <Text style={styles.statusPushedText}>Đã gửi lên chuông 🔔</Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
-
-                {/* 2.4 NÚT CÀI THÔNG BÁO VÀO CHUÔNG (🔔) */}
-                <TouchableOpacity
-                  style={[
-                    styles.bellActionBtn,
-                    pushedReminderId === item.id && styles.bellActionBtnActive,
-                  ]}
-                  onPress={() => handlePushToBell(item)}
-                  activeOpacity={0.6}
-                  hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
-                  accessibilityLabel={isVi ? 'Cài thông báo này lên chuông' : 'Push to bell notification'}
-                >
-                  <Ionicons
-                    name={pushedReminderId === item.id ? 'notifications' : 'notifications-outline'}
-                    size={13}
-                    color={pushedReminderId === item.id ? '#7C3AED' : '#6D28D9'}
-                  />
-                </TouchableOpacity>
-
-                {/* 2.5 NÚT CHỈNH SỬA (✏️) */}
-                <TouchableOpacity
-                  style={styles.editBtn}
-                  onPress={() => handleStartEdit(item)}
-                  activeOpacity={0.6}
-                  hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
-                >
-                  <Ionicons name="pencil" size={12} color="#047857" />
-                </TouchableOpacity>
-
-                {/* 3. NÚT XÓA BỎ (✕) */}
-                <TouchableOpacity
-                  style={styles.deleteBtn}
-                  onPress={() => handleDelete(item.id)}
-                  activeOpacity={0.6}
-                  hitSlop={{ top: 10, bottom: 10, left: 6, right: 10 }}
-                >
-                  <Ionicons name="close" size={14} color="#94A3B8" />
-                </TouchableOpacity>
-              </View>
-            );
-          })
-        )}
-      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 18,
-    marginBottom: 6,
+    width: '100%',
+    marginBottom: 16,
   },
-  sectionHeader: {
+  cardContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+    width: '100%',
+  },
+  headerBar: {
+    backgroundColor: '#E0F2FE', // Màu xanh dương pastel phong cách hình 1
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    justifyContent: 'space-between',
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
-  sectionTitle: {
-    fontSize: 12,
+  iconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 11,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#0369A1',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  headerTitle: {
+    fontSize: 16.5,
     fontWeight: '800',
-    color: '#374151',
-    letterSpacing: 0.8,
+    color: '#0369A1',
+    letterSpacing: -0.2,
   },
   countBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 7,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 10,
-    marginLeft: 7,
+    borderRadius: 12,
+    minWidth: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   countBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#B45309',
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0369A1',
   },
-  toggleFormBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 2,
-    paddingHorizontal: 4,
+  viewAllBtn: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 18,
+    shadowColor: '#0369A1',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
   },
   viewAllText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#047857',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0369A1',
+  },
+  headerDivider: {
+    height: 1,
+    backgroundColor: 'rgba(2, 132, 199, 0.12)',
+  },
+  bodyContent: {
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    backgroundColor: '#FFFFFF',
+    flex: 1,
+  },
+  reminderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  reminderRowBorder: {
+    paddingBottom: 14,
+    marginBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  reminderRowDone: {
+    opacity: 0.7,
+  },
+  editBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6,
   },
 
   // Banner thông báo sắp đến giờ
@@ -1353,16 +1430,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#B45309',
   },
-  editBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#ECFDF5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 6,
-  },
-
   beforeRow: {
     marginBottom: 10,
   },
@@ -1490,15 +1557,15 @@ const styles = StyleSheet.create({
     opacity: 0.75,
   },
   tickBox: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1.8,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: 2,
     borderColor: '#CBD5E1',
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: 14,
   },
   tickBoxChecked: {
     backgroundColor: '#10B981',
@@ -1512,13 +1579,13 @@ const styles = StyleSheet.create({
   },
   itemContent: {
     flex: 1,
-    marginRight: 6,
+    marginRight: 10,
   },
   itemTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1E293B',
-    lineHeight: 18,
+    fontSize: 15.5,
+    fontWeight: '700',
+    color: '#0F172A',
+    lineHeight: 22,
   },
   itemTitleDone: {
     color: '#94A3B8',
@@ -1527,22 +1594,22 @@ const styles = StyleSheet.create({
   itemMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
-    gap: 6,
+    marginTop: 6,
+    gap: 8,
   },
   metaBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
   metaBadgeDone: {
     backgroundColor: '#F1F5F9',
   },
   metaBadgeText: {
-    fontSize: 10.5,
+    fontSize: 12,
     fontWeight: '700',
     color: '#B45309',
   },
@@ -1550,31 +1617,31 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   statusDoneText: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#059669',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   statusPushedText: {
-    fontSize: 10,
+    fontSize: 11,
     color: '#7C3AED',
     fontWeight: '700',
   },
   bellActionBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#F5F3FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 4,
+    marginRight: 6,
   },
   bellActionBtnActive: {
     backgroundColor: '#EDE9FE',
   },
   deleteBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',

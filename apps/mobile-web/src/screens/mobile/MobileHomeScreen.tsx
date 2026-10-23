@@ -359,12 +359,12 @@ export const MobileHomeScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            {/* THE SIGNATURE EMERALD BUDGET CARD (Bản xanh đậm #064E3B + Ếch ôm lịch 3D) */}
+            {/* THE SIGNATURE EMERALD BUDGET CARD (Khả dụng - to rõ như hình 2 + Ếch ôm lịch 3D) */}
             <View style={styles.budgetCard}>
               <View style={styles.cardLeftContent}>
                 <View style={styles.cardHeaderRow}>
                   <View style={styles.cardHeaderLeft}>
-                    <Ionicons name="wallet-outline" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Ionicons name="wallet-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
                     <Text style={styles.cardSubLabel}>{isVi ? 'Khả dụng' : 'Available'}</Text>
                   </View>
                   <TouchableOpacity
@@ -375,9 +375,16 @@ export const MobileHomeScreen: React.FC = () => {
                   >
                     <Ionicons name="pencil" size={11} color="#FFFFFF" />
                   </TouchableOpacity>
+                  <View style={styles.cardStatusBadge}>
+                    <Text style={styles.cardStatusBadgeText}>{isVi ? 'An toàn' : 'Safe'}</Text>
+                  </View>
                 </View>
 
                 <Text style={styles.cardMainBalance}>{formatVND(remainingBudget)}</Text>
+                <View style={styles.cardDividerLine} />
+                <Text style={styles.cardStatusSubText}>
+                  {isVi ? `Chi tiêu an toàn: ~${formatVND(Math.round(remainingBudget / 30))}/ngày` : `Safe spend: ~${formatVND(Math.round(remainingBudget / 30))}/day`}
+                </Text>
               </View>
 
               {/* Chú ếch 3D ôm lịch dễ thương nhô nhẹ lên mép thẻ */}
@@ -393,6 +400,52 @@ export const MobileHomeScreen: React.FC = () => {
                 />
               </TouchableOpacity>
             </View>
+
+            {/* TAB THU NHẬP (màu #BEE3C2) */}
+            <TouchableOpacity
+              style={styles.incomeTabCard}
+              onPress={() => setShowAddModal(true)}
+              activeOpacity={0.88}
+            >
+              <View style={styles.subCardTopRow}>
+                <View style={styles.subCardIconBox}>
+                  <Ionicons
+                    name="arrow-down-outline"
+                    size={16}
+                    color="#047857"
+                    style={{ transform: [{ rotate: '45deg' }] }}
+                  />
+                </View>
+                <Text style={styles.incomeCardLabel}>{isVi ? 'Thu nhập' : 'Income'}</Text>
+              </View>
+              <Text style={styles.subCardAmount} numberOfLines={1}>
+                {formatVND(budgetLimit)}
+              </Text>
+              <Text style={styles.incomeCardSub}>{isVi ? 'tháng này' : 'this month'}</Text>
+            </TouchableOpacity>
+
+            {/* TAB CHI TIÊU (màu #FFC5C5) */}
+            <TouchableOpacity
+              style={styles.expenseTabCard}
+              onPress={() => {}}
+              activeOpacity={0.88}
+            >
+              <View style={styles.subCardTopRow}>
+                <View style={styles.subCardIconBox}>
+                  <Ionicons
+                    name="arrow-up-outline"
+                    size={16}
+                    color="#BE123C"
+                    style={{ transform: [{ rotate: '45deg' }] }}
+                  />
+                </View>
+                <Text style={styles.expenseCardLabel}>{isVi ? 'Chi tiêu' : 'Expenses'}</Text>
+              </View>
+              <Text style={styles.subCardAmount} numberOfLines={1}>
+                {formatVND(totalSpent)}
+              </Text>
+              <Text style={styles.expenseCardSub}>{isVi ? 'tháng này' : 'this month'}</Text>
+            </TouchableOpacity>
 
             {/* WEEKLY CALENDAR STRIP */}
             <View style={styles.calendarStripContainer}>
@@ -861,22 +914,24 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     color: '#FFFFFF',
   },
 
-  // BUDGET CARD (MINIMALIST - Tone xanh đậm #064E3B, chiều cao thu gọn, ếch 3D ôm lịch)
+  // EMERALD BUDGET CARD (Khả dụng - to rõ như hình 2 + ếch 3D ôm lịch)
   budgetCard: {
-    backgroundColor: '#064E3B', // Xanh đậm bản cũ sang trọng, uy tín
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10, // Thu gọn chiều cao cho đỡ chiếm diện tích
-    marginBottom: 14,
+    backgroundColor: '#064E3B', // Xanh đậm sang trọng
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 18,
+    minHeight: 140,
+    marginBottom: 12,
     marginTop: 6,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     shadowColor: '#064E3B',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 10,
-    elevation: 5,
+    elevation: 4,
     borderWidth: 1,
     borderColor: 'rgba(52, 211, 153, 0.25)',
     overflow: 'visible',
@@ -895,10 +950,10 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     alignItems: 'center',
   },
   cardSubLabel: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#FFFFFF', // Chữ Khả dụng màu trắng
     fontWeight: '700',
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
   },
   cardEditBtn: {
     width: 24,
@@ -911,24 +966,120 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.25)',
   },
+  cardStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 10,
+    marginLeft: 10,
+    backgroundColor: '#10B981',
+  },
+  cardStatusBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
   cardMainBalance: {
-    fontSize: 26,
+    fontSize: 30,
     fontWeight: '900',
     color: '#FFFFFF',
-    marginTop: 4,
+    marginTop: 8,
     letterSpacing: -0.5,
+  },
+  cardDividerLine: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    marginVertical: 8,
+    width: '90%',
+  },
+  cardStatusSubText: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
   },
   cardMascotWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -26, // Chú ếch nhô cao hơn khung xanh theo yêu cầu
-    marginBottom: -10,
-    marginRight: -4,
-    marginLeft: 6,
+    marginTop: -20,
+    marginBottom: -8,
+    marginRight: -6,
+    marginLeft: 8,
   },
   cardMascotImage: {
-    width: 96,
-    height: 96,
+    width: 104,
+    height: 104,
+  },
+
+  // TAB THU NHẬP (màu BEE3C2)
+  incomeTabCard: {
+    backgroundColor: '#BEE3C2',
+    borderRadius: 22,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(4, 120, 87, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  // TAB CHI TIÊU (màu FFC5C5)
+  expenseTabCard: {
+    backgroundColor: '#FFC5C5',
+    borderRadius: 22,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(190, 18, 60, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  subCardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  subCardIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  incomeCardLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  expenseCardLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#BE123C',
+  },
+  subCardAmount: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#111827',
+    marginTop: 10,
+    letterSpacing: -0.5,
+  },
+  incomeCardSub: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#2D5A40',
+    marginTop: 4,
+  },
+  expenseCardSub: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#7F3A3A',
+    marginTop: 4,
   },
   progressContainer: {
     marginTop: 4,

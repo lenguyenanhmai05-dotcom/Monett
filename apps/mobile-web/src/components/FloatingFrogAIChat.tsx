@@ -424,9 +424,9 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
         tabKey: 'feed',
       };
     } else if (qLower.includes('ngân sách') || qLower.includes('hạn mức') || qLower.includes('giới hạn') || qLower.includes('vượt')) {
-      replyText = 'Hãy vào mục Ngân Sách trong tab Tích lũy để đặt mức chi tối đa cho từng nhóm như Ăn uống, Mua sắm... nhé!';
+      replyText = 'Bạn có thể theo dõi và quản lý các mục tiêu tài chính tại tab Tích Lũy nhé!';
       actionData = {
-        label: '💳 Đến Trang Ngân Sách',
+        label: '👛 Đến Trang Tích Lũy',
         tabKey: 'budget',
       };
     }

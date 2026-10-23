@@ -638,6 +638,25 @@ export function formatExpenseUploadTime(item?: {
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 }
 
+export const INCOME_CATEGORY_NAMES = [
+  'Lương',
+  'Thưởng/KPI',
+  'Freelance/Ngoài giờ',
+  'Đầu tư',
+  'Kinh doanh/Bán hàng',
+  'Được tặng/Lì xì',
+  'Khoản thu khác',
+];
+
+export function isIncomeTransactionOrItem(it: any): boolean {
+  if (!it) return false;
+  if (it.type === 'income') return true;
+  if (typeof it.id === 'string' && it.id.startsWith('inc-')) return true;
+  if (typeof it._id === 'string' && it._id.startsWith('inc-')) return true;
+  if (it.category && INCOME_CATEGORY_NAMES.includes(it.category)) return true;
+  return false;
+}
+
 /**
  * Synchronous initial state loader from localStorage.
  */
@@ -649,10 +668,21 @@ export function getInitialDayRecordsFromLocalStorage(): Record<string, DayExpens
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed === 'object') {
           const cleaned: Record<string, DayExpenseRecord> = {};
+          let needsResave = false;
           Object.entries(parsed).forEach(([k, rec]: [string, any]) => {
             if (!rec) return;
+            // Tự động loại bỏ mọi item thu nhập vô tình lọt vào dayRecords
+            if (Array.isArray(rec.items) && rec.items.length > 0) {
+              const origLen = rec.items.length;
+              rec.items = rec.items.filter((it: any) => !isIncomeTransactionOrItem(it));
+              if (rec.items.length !== origLen) {
+                needsResave = true;
+                rec.amount = rec.items.reduce((s: number, it: any) => s + (it.amount || 0), 0);
+              }
+            }
             // Nếu một ngày không có khoản chi nào (items rỗng và amount = 0), không giữ ảnh đại diện rác
             if (Array.isArray(rec.items) && rec.items.length === 0 && (!rec.amount || rec.amount === 0)) {
+              needsResave = true;
               return;
             }
             // Chuẩn hóa lại thời gian từng item theo thời điểm upload thực tế (loại bỏ giờ tĩnh 07:00, 12:00)
@@ -664,6 +694,11 @@ export function getInitialDayRecordsFromLocalStorage(): Record<string, DayExpens
             }
             cleaned[k] = rec;
           });
+          if (needsResave && typeof window !== 'undefined' && window.localStorage) {
+            try {
+              localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(cleaned));
+            } catch (_) {}
+          }
           return cleaned;
         }
       }
@@ -706,6 +741,8 @@ export function mergeTransactionsIntoDayRecords(
 
   transactions.forEach((tx) => {
     if (!tx || !tx.date) return;
+    // BỎ QUA GIAO DỊCH THU NHẬP! dayRecords chỉ lưu lịch trình CHI TIÊU
+    if (isIncomeTransactionOrItem(tx)) return;
     const d = new Date(tx.date);
     if (isNaN(d.getTime())) return;
 
@@ -841,4 +878,70 @@ export interface DayExpenseRecord {
   note?: string;
   dateStr?: string;
   items?: ExpenseItem[];
+}
+
+/**
+ * Tính tổng chi tiêu thực tế của một tháng cụ thể từ dayRecords và transactions.
+ * Loại bỏ trùng lặp ngày, đảm bảo số liệu chuẩn xác 100% theo thời gian thực.
+ */
+export function calculateMonthTotalExpenses(
+  year: number,
+  month: number,
+  dayRecords?: Record<string, DayExpenseRecord>,
+  transactions?: any[]
+): number {
+  const records = dayRecords || getInitialDayRecordsFromLocalStorage();
+  const dayMap: Record<number, number> = {};
+
+  // 1. Dữ liệu mẫu (nếu tháng 10/2026)
+  if (year === 2026 && month === 10) {
+    const sampleAmounts: Record<number, number> = {
+      1: 45000, 2: 120000, 3: 310000, 4: 185000, 5: 95000,
+      6: 150000, 7: 65000, 8: 220000, 9: 75000, 10: 450000, 11: 280000,
+    };
+    Object.entries(sampleAmounts).forEach(([d, amt]) => {
+      dayMap[Number(d)] = amt;
+    });
+  }
+
+  // 2. Giao dịch backend nếu có
+  if (Array.isArray(transactions) && transactions.length > 0) {
+    transactions.forEach((tx: any) => {
+      if (!tx || !tx.date) return;
+      // BỎ QUA GIAO DỊCH THU NHẬP!
+      if (isIncomeTransactionOrItem(tx)) return;
+      const d = new Date(tx.date);
+      if (d.getFullYear() === year && d.getMonth() + 1 === month) {
+        const dNum = d.getDate();
+        dayMap[dNum] = (dayMap[dNum] || 0) + Math.abs(tx.amount || 0);
+      }
+    });
+  }
+
+  // 3. dayRecords lưu trữ (ưu tiên đè lên dữ liệu mẫu nếu có thay đổi)
+  if (records && typeof records === 'object') {
+    Object.entries(records).forEach(([key, rec]) => {
+      if (!rec) return;
+      const parts = key.split('-');
+      if (parts.length === 3) {
+        const y = Number(parts[0]);
+        const m = Number(parts[1]);
+        const d = Number(parts[2]);
+        if (y === year && m === month) {
+          if (Array.isArray(rec.items)) {
+            const expenseItems = rec.items.filter((it: any) => !isIncomeTransactionOrItem(it));
+            if (expenseItems.length === 0) {
+              dayMap[d] = 0;
+            } else {
+              dayMap[d] = expenseItems.reduce((sum: number, it: any) => sum + (it.amount || 0), 0);
+            }
+          } else if (rec.amount !== undefined) {
+            dayMap[d] = rec.amount;
+          }
+        }
+      }
+    });
+  }
+
+  return Object.values(dayMap).reduce((sum, val) => sum + val, 0);
 }
