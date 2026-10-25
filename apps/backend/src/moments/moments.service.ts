@@ -347,22 +347,6 @@ export class MomentsService {
         category: '🏖️ Du lịch & Phượt',
         reactions: new Map(),
       },
-      {
-        user: creatorId,
-        photo: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=600&auto=format&fit=crop',
-        caption: "Pizza 4P's Bến Thành cùng bạn bè 🍕",
-        amount: -450000,
-        category: '🍕 Ẩm thực',
-        reactions: new Map(),
-      },
-      {
-        user: creatorId,
-        photo: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?q=80&w=600&auto=format&fit=crop',
-        caption: 'Cà phê sáng chạy deadline ☕',
-        amount: -45000,
-        category: '☕ Cà phê',
-        reactions: new Map(),
-      },
     ];
 
     await this.momentModel.insertMany(demoItems);

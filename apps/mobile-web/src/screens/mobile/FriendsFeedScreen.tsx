@@ -736,15 +736,10 @@ export const MomentFormModal = ({
     }
   }, [visible, editingItem, initialAction]);
 
-  // Mẫu ảnh du lịch & đời sống chất lượng cao
+  // Mẫu ảnh gợi ý
   const samplePhotos = [
     'https://baohaiquanvietnam.vn/storage/users/user_6/N%C4%83m%202022/thang%205-2022/22-5/16052022-anh-9.jpg',
     'https://tripmap.vn/wp-content/uploads/2021/08/vinh-vinh-hy-16294461697-jpg-1024x668.webp',
-    'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=600&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1509042239860-f550ce710b93?q=80&w=600&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?q=80&w=600&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?q=80&w=600&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=600&auto=format&fit=crop',
   ];
 
   // Danh sách đoạn văn mẫu gợi ý theo danh mục đang chọn

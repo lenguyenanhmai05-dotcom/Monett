@@ -46,7 +46,6 @@ const INITIAL_TRANSACTIONS: TransactionItem[] = [
     amount: -450000,
     time: '12:35',
     note: 'Ăn trưa cùng nhóm bạn thân',
-    photoUri: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=600&auto=format&fit=crop',
     type: 'expense',
   },
   {
@@ -57,7 +56,6 @@ const INITIAL_TRANSACTIONS: TransactionItem[] = [
     amount: -65000,
     time: '08:30',
     note: 'Năng lượng chạy deadline',
-    photoUri: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?q=80&w=600&auto=format&fit=crop',
     type: 'expense',
   },
   {

@@ -42,186 +42,8 @@ export interface CalendarDayData {
   }[];
 }
 
-// Dữ liệu mẫu chuẩn xác cho Tháng 10/2026 (CHỈ dành cho các ngày trong quá khứ 1..11, KHÔNG có ngày tương lai)
-export const SAMPLE_DAYS_MAP: Record<number, CalendarDayData> = {
-  1: {
-    dayNum: 1,
-    isCurrentMonth: true,
-    hasPhoto: true,
-    amountText: '45k',
-    rawAmount: 45000,
-    imageUrl: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=250&auto=format&fit=crop&q=80',
-    storeName: 'Cà phê Vợt Phan Đình Phùng',
-    note: 'Cà phê sáng vỉa hè ngắm phố phường thanh bình',
-    category: 'Cà phê & Đồ uống',
-    time: '07:30 AM',
-    dayOfWeekName: 'Thứ Năm',
-    items: [
-      { id: '1-1', title: 'Cà phê sữa đá', subtitle: 'Năng lượng sáng sớm', amount: '-45.000đ', category: 'Cà phê', icon: 'cafe' },
-    ],
-  },
-  2: {
-    dayNum: 2,
-    isCurrentMonth: true,
-    hasPhoto: true,
-    amountText: '120k',
-    rawAmount: 120000,
-    imageUrl: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=250&auto=format&fit=crop&q=80',
-    storeName: 'SaladStop! Vincom',
-    note: 'Bữa trưa healthy cùng đồng nghiệp công ty',
-    category: 'Ẩm thực sức khỏe',
-    time: '12:15 PM',
-    dayOfWeekName: 'Thứ Sáu',
-    items: [
-      { id: '2-1', title: 'Caesar Salad Bò áp chảo', subtitle: 'Ăn trưa dinh dưỡng', amount: '-120.000đ', category: 'Ăn uống', icon: 'nutrition' },
-    ],
-  },
-  3: {
-    dayNum: 3,
-    isCurrentMonth: true,
-    hasPhoto: true,
-    amountText: '310k',
-    rawAmount: 310000,
-    imageUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=250&auto=format&fit=crop&q=80',
-    storeName: 'Haidilao Hotpot',
-    note: 'Lẩu mini cuối tuần thật ấm bụng',
-    category: 'Ẩm thực & Bạn bè',
-    time: '13:00 PM',
-    dayOfWeekName: 'Thứ Bảy',
-    items: [
-      { id: '3-1', title: 'Combo Lẩu Bò Cà Chua', subtitle: 'Ăn trưa thịnh soạn', amount: '-310.000đ', category: 'Ăn uống', icon: 'restaurant' },
-    ],
-  },
-  4: {
-    dayNum: 4,
-    isCurrentMonth: true,
-    hasPhoto: true,
-    amountText: '185k',
-    rawAmount: 185000,
-    imageUrl: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=250&auto=format&fit=crop&q=80',
-    storeName: 'The Running Bean Bakery',
-    note: 'Bánh tart dâu và trà hoa quả thư giãn chủ nhật',
-    category: 'Trà chiều',
-    time: '16:45 PM',
-    dayOfWeekName: 'Chủ Nhật',
-    items: [
-      { id: '4-1', title: 'Bánh Tart Dâu & Trà Đào', subtitle: 'Teatime thư giãn', amount: '-185.000đ', category: 'Trà chiều', icon: 'wine' },
-    ],
-  },
-  5: {
-    dayNum: 5,
-    isCurrentMonth: true,
-    hasPhoto: true,
-    amountText: '95k',
-    rawAmount: 95000,
-    imageUrl: 'https://images.unsplash.com/photo-1552611052-33e04de081de?w=250&auto=format&fit=crop&q=80',
-    storeName: 'Phở Thìn Lò Đúc',
-    note: 'Bát phở tái lăn ngập hành lá thơm nức đầu tuần',
-    category: 'Ăn uống',
-    time: '08:00 AM',
-    dayOfWeekName: 'Thứ Hai',
-    items: [
-      { id: '5-1', title: 'Phở bò tái lăn đặc biệt', subtitle: 'Ăn sáng nạp năng lượng', amount: '-95.000đ', category: 'Ăn uống', icon: 'restaurant' },
-    ],
-  },
-  6: {
-    dayNum: 6,
-    isCurrentMonth: true,
-    hasPhoto: true,
-    amountText: '150k',
-    rawAmount: 150000,
-    imageUrl: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=250&auto=format&fit=crop&q=80',
-    storeName: 'Bún Bò Huế Cô Như',
-    note: 'Tô bún bò thơm nồng cùng đồng nghiệp trưa',
-    category: 'Ăn uống',
-    time: '11:30 AM',
-    dayOfWeekName: 'Thứ Ba',
-    items: [
-      { id: '6-1', title: 'Tô bún bò thập cẩm chả cua', subtitle: 'Ăn trưa no nê', amount: '-150.000đ', category: 'Ăn uống', icon: 'restaurant' },
-    ],
-  },
-  7: {
-    dayNum: 7,
-    isCurrentMonth: true,
-    hasPhoto: true,
-    amountText: '65k',
-    rawAmount: 65000,
-    imageUrl: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=250&auto=format&fit=crop&q=80',
-    storeName: 'Highlands Coffee Landmark',
-    note: 'Ly Freeze Trà Xanh nạp năng lượng tập trung làm việc',
-    category: 'Cà phê & Đồ uống',
-    time: '09:15 AM',
-    dayOfWeekName: 'Thứ Tư',
-    items: [
-      { id: '7-1', title: 'Freeze Trà Xanh cỡ lớn', subtitle: 'Thức uống sáng tập trung', amount: '-65.000đ', category: 'Cà phê', icon: 'cafe' },
-    ],
-  },
-  8: {
-    dayNum: 8,
-    isCurrentMonth: true,
-    hasPhoto: true,
-    amountText: '220k',
-    rawAmount: 220000,
-    imageUrl: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=250&auto=format&fit=crop&q=80',
-    storeName: 'Cơm Niêu Singapore 35',
-    note: 'Cơm niêu xá xíu thơm giòn cháy đáy',
-    category: 'Ẩm thực',
-    time: '12:10 PM',
-    dayOfWeekName: 'Thứ Năm',
-    items: [
-      { id: '8-1', title: 'Cơm niêu xá xíu & Canh chua', subtitle: 'Ăn trưa ngon miệng', amount: '-220.000đ', category: 'Ăn uống', icon: 'restaurant' },
-    ],
-  },
-  9: {
-    dayNum: 9,
-    isCurrentMonth: true,
-    hasPhoto: false,
-    amountText: '75k',
-    rawAmount: 75000,
-    imageUrl: '',
-    storeName: 'Cây xăng Petrolimex 01',
-    note: 'Đổ đầy bình xăng xe máy chạy cả tuần',
-    category: 'Di chuyển & Xăng xe',
-    time: '08:15 AM',
-    dayOfWeekName: 'Thứ Sáu',
-    items: [
-      { id: '9-1', title: 'Đổ xăng Ron 95', subtitle: 'Chi phí đi lại', amount: '-75.000đ', category: 'Di chuyển', icon: 'car' },
-    ],
-  },
-  10: {
-    dayNum: 10,
-    isCurrentMonth: true,
-    hasPhoto: true,
-    amountText: '450k',
-    rawAmount: 450000,
-    imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&auto=format&fit=crop&q=80',
-    storeName: "Pizza 4P's Saigon",
-    note: 'Tự thưởng pizza phô mai thơm lừng mừng cuối tuần!',
-    category: 'Ẩm thực & Bạn bè',
-    time: '19:42 PM',
-    dayOfWeekName: 'Thứ Bảy',
-    items: [
-      { id: '10-1', title: 'Pizza 4 Cheese & Salad bơ', subtitle: 'Ăn tối cuối tuần', amount: '-390.000đ', category: 'Ẩm thực', icon: 'pizza-outline' },
-      { id: '10-2', title: 'Nước ép cam tươi', subtitle: 'Đồ uống giải khát', amount: '-60.000đ', category: 'Đồ uống', icon: 'wine-outline' },
-    ],
-  },
-  11: {
-    dayNum: 11,
-    isCurrentMonth: true,
-    hasPhoto: true,
-    amountText: '280k',
-    rawAmount: 280000,
-    imageUrl: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=250&auto=format&fit=crop&q=80',
-    storeName: 'Co.opmart Nhiêu Lộc',
-    note: 'Đi siêu thị mua rau củ quả tươi cho tuần mới',
-    category: 'Đi chợ & Siêu thị',
-    time: '18:00 PM',
-    dayOfWeekName: 'Chủ Nhật',
-    items: [
-      { id: '11-1', title: 'Thực phẩm tươi sống & Rau củ', subtitle: 'Nấu ăn tuần mới', amount: '-280.000đ', category: 'Đi chợ', icon: 'basket' },
-    ],
-  },
-};
+// Dữ liệu mẫu khởi tạo (đã chuyển 100% sang dữ liệu giao dịch thật)
+export const SAMPLE_DAYS_MAP: Record<number, CalendarDayData> = {};
 
 export interface FinancialCalendarWidgetProps {
   selectedDay?: number;
@@ -323,23 +145,7 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
       latestPhotoTime?: number;
     }> = {};
 
-    // 1. Dữ liệu mẫu khởi tạo (CHỈ áp dụng cho Tháng 10/2026 và các ngày đã qua <= 11)
-    if (viewYear === 2026 && viewMonth === 10) {
-      Object.entries(SAMPLE_DAYS_MAP).forEach(([dayStr, data]) => {
-        const dNum = Number(dayStr);
-        if (dNum <= 11) {
-          map[dNum] = {
-            totalAmount: data.rawAmount || 0,
-            photoUrl: data.imageUrl,
-            count: data.items?.length || 1,
-            amountText: data.amountText || '0k',
-            items: data.items || [],
-          };
-        }
-      });
-    }
-
-    // 2. Cộng dồn các giao dịch thực tế của người dùng trong tháng đang xem từ Backend
+    // 1. Cộng dồn các giao dịch thực tế của người dùng trong tháng đang xem từ Backend
     if (Array.isArray(transactions) && transactions.length > 0) {
       transactions.forEach((tx: any) => {
         if (!tx || !tx.date) return;
@@ -355,7 +161,7 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
           map[dNum].totalAmount = (map[dNum].totalAmount || 0) + amt;
           map[dNum].count += 1;
           map[dNum].items.push(tx);
-          if (tx.photoUri) {
+          if (tx.photoUri && !tx.photoUri.includes('unsplash.com')) {
             const txTime = txDate.getTime();
             if (!map[dNum].latestPhotoTime || txTime >= map[dNum].latestPhotoTime) {
               map[dNum].photoUrl = tx.photoUri;
@@ -394,8 +200,9 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
               map[recD].count = 0;
               map[recD].items = [];
             } else {
-              // Cập nhật theo rec.photoUri (nếu rec.photoUri là undefined thì gỡ bỏ)
-              map[recD].photoUrl = rec.photoUri || undefined;
+              // Cập nhật theo rec.photoUri (loại trừ ảnh mẫu unsplash)
+              const cleanPhoto = rec.photoUri && !rec.photoUri.includes('unsplash.com') ? rec.photoUri : undefined;
+              map[recD].photoUrl = cleanPhoto;
               map[recD].totalAmount = realDayAmount;
               if (expenseItems.length > 0) {
                 map[recD].count = expenseItems.length;

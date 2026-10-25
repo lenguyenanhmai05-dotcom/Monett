@@ -26,18 +26,10 @@ interface WeeklyCalendarWidgetProps {
   onViewAll?: () => void;
 }
 
-const SAMPLE_PHOTO_FALLBACKS = [
-  'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=160&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=160&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=160&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=160&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=160&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1552611052-33e04de081de?w=160&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=160&auto=format&fit=crop&q=80',
-];
+const SAMPLE_PHOTO_FALLBACKS: string[] = [];
 
-const SAMPLE_AMOUNTS = ['65k', '820k', '280k', '220k', '75k', '190k', '450k'];
-const SAMPLE_RAW_AMOUNTS = [65000, 820000, 280000, 220000, 75000, 190000, 450000];
+const SAMPLE_AMOUNTS = ['0đ', '0đ', '0đ', '0đ', '0đ', '0đ', '0đ'];
+const SAMPLE_RAW_AMOUNTS = [0, 0, 0, 0, 0, 0, 0];
 
 export const WeeklyCalendarWidget: React.FC<WeeklyCalendarWidgetProps> = ({
   selectedDay,
@@ -54,10 +46,10 @@ export const WeeklyCalendarWidget: React.FC<WeeklyCalendarWidgetProps> = ({
       date: item.dateStr,
       dayNum: item.dayNum,
       fullDateStr: item.fullDateStr,
-      amount: SAMPLE_AMOUNTS[idx % SAMPLE_AMOUNTS.length],
-      rawAmount: SAMPLE_RAW_AMOUNTS[idx % SAMPLE_RAW_AMOUNTS.length],
-      image: SAMPLE_PHOTO_FALLBACKS[idx % SAMPLE_PHOTO_FALLBACKS.length],
-      hasPhoto: true,
+      amount: '',
+      rawAmount: 0,
+      image: undefined,
+      hasPhoto: false,
       isToday: item.isToday,
     }));
   }, []);

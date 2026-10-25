@@ -91,8 +91,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
     walletIcon: 'cash-outline',
     note: 'Bát đặc biệt thêm chả cua. Ăn trưa cùng bạn.',
     xpReward: '+15 XP',
-    imageUrl:
-      'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=800&auto=format&fit=crop&q=80',
+    imageUrl: '',
   });
 
   useEffect(() => {
@@ -118,7 +117,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
             walletIcon: tx.walletIcon || 'cash-outline',
             note: tx.note || 'Khoảnh khắc chi tiêu đã được ghi nhận',
             xpReward: '+15 XP',
-            imageUrl: tx.photoUri || 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=800&auto=format&fit=crop&q=80',
+            imageUrl: tx.photoUri || '',
           });
         }
       })

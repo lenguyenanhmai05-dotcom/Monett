@@ -65,7 +65,7 @@ interface ExpenseCardItem {
   rawAmount: number;
   time: string;
   category: string;
-  image: string;
+  image?: string;
 }
 
 const DEFAULT_TODAY_EXPENSES: ExpenseCardItem[] = [
@@ -76,7 +76,7 @@ const DEFAULT_TODAY_EXPENSES: ExpenseCardItem[] = [
     rawAmount: 85000,
     time: '12:30',
     category: 'Ăn uống',
-    image: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&auto=format&fit=crop&q=80',
+    image: '',
   },
   {
     id: 'tx_2',
@@ -85,7 +85,7 @@ const DEFAULT_TODAY_EXPENSES: ExpenseCardItem[] = [
     rawAmount: 45000,
     time: '10:15',
     category: 'Cà phê',
-    image: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=200&auto=format&fit=crop&q=80',
+    image: '',
   },
   {
     id: 'tx_3',
@@ -94,7 +94,7 @@ const DEFAULT_TODAY_EXPENSES: ExpenseCardItem[] = [
     rawAmount: 55000,
     time: '08:20',
     category: 'Di chuyển',
-    image: 'https://images.unsplash.com/photo-1527018607912-0ab8dc7ff34c?w=200&auto=format&fit=crop&q=80',
+    image: '',
   },
 ];
 
@@ -297,7 +297,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             rawAmount: Math.abs(it.amount),
             time: it.date ? new Date(it.date).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'Hôm nay',
             category: it.category || 'Ăn uống',
-            image: it.photoUri || 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=200&auto=format&fit=crop&q=80',
+            image: it.photoUri && !it.photoUri.includes('unsplash.com') ? it.photoUri : undefined,
           }));
           setTodayExpenses(formatted);
           const total = formatted.reduce((acc, curr) => acc + curr.rawAmount, 0);

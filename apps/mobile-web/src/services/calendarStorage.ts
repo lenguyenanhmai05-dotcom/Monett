@@ -595,7 +595,9 @@ export function getInitialDayRecordsFromLocalStorage(userId?: string): Record<st
  */
 export function getLatestPhotoFromItems(items?: ExpenseItem[]): string | undefined {
   if (!items || items.length === 0) return undefined;
-  const itemsWithPhoto = items.filter((it) => it.photoUri && it.photoUri.trim().length > 0);
+  const itemsWithPhoto = items.filter(
+    (it) => it.photoUri && it.photoUri.trim().length > 0 && !it.photoUri.includes('unsplash.com')
+  );
   if (itemsWithPhoto.length === 0) return undefined;
 
   const sorted = [...itemsWithPhoto].sort((a, b) => {
@@ -798,18 +800,7 @@ export function calculateMonthTotalExpenses(
   const records = dayRecords || getInitialDayRecordsFromLocalStorage();
   const dayMap: Record<number, number> = {};
 
-  // 1. Dữ liệu mẫu (nếu tháng 10/2026)
-  if (year === 2026 && month === 10) {
-    const sampleAmounts: Record<number, number> = {
-      1: 45000, 2: 120000, 3: 310000, 4: 185000, 5: 95000,
-      6: 150000, 7: 65000, 8: 220000, 9: 75000, 10: 450000, 11: 280000,
-    };
-    Object.entries(sampleAmounts).forEach(([d, amt]) => {
-      dayMap[Number(d)] = amt;
-    });
-  }
-
-  // 2. Giao dịch backend nếu có
+  // 1. Giao dịch backend nếu có
   if (Array.isArray(transactions) && transactions.length > 0) {
     transactions.forEach((tx: any) => {
       if (!tx || !tx.date) return;

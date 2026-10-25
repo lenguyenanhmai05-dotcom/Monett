@@ -519,48 +519,30 @@ export class AnalyticsService {
    * 4 Khoảnh khắc chi tiêu tiêu biểu kèm hình ảnh chất lượng cao
    */
   async getFeaturedMoments(userId: string): Promise<IFeaturedMoment[]> {
-    return [
-      {
-        id: 'moment-1',
-        badge: '+ Thư giãn',
-        badgeColor: '#047857',
-        amount: -65000,
-        title: 'Cà phê sáng làm việc tuần mới',
-        subtitle: '24 Th10 • The Workshop Coffee',
-        photoUri:
-          'https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=700&q=80',
-      },
-      {
-        id: 'moment-2',
-        badge: 'Đầu tư tri thức',
-        badgeColor: '#2563EB',
-        amount: -340000,
-        title: 'Bộ sách Tư Duy Tài Chính Tinh Gọn',
-        subtitle: '20 Th10 • Nhã Nam Bookstore',
-        photoUri:
-          'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=700&q=80',
-      },
-      {
-        id: 'moment-3',
-        badge: 'Healthy Life',
-        badgeColor: '#16A34A',
-        amount: -420000,
-        title: 'Thực phẩm tươi sạch cả tuần',
-        subtitle: '17 Th10 • Annam Gourmet',
-        photoUri:
-          'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=700&q=80',
-      },
-      {
-        id: 'moment-4',
-        badge: 'Sống khỏe',
-        badgeColor: '#D97706',
-        amount: -1180000,
-        title: 'Máy lọc không khí phòng ngủ',
-        subtitle: '18 Th10 • Xiaomi Mall',
-        photoUri:
-          'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=700&q=80',
-      },
-    ];
+    try {
+      const userObjId = new Types.ObjectId(userId);
+      const realTx = await this.transactionModel
+        .find({ user: userObjId, photoUri: { $exists: true, $ne: '' } })
+        .sort({ date: -1 })
+        .limit(4)
+        .exec();
+
+      if (realTx && realTx.length > 0) {
+        return realTx
+          .filter((tx) => tx.photoUri && !tx.photoUri.includes('unsplash.com'))
+          .map((tx) => ({
+            id: tx._id.toString(),
+            badge: tx.category || 'Chi tiêu',
+            badgeColor: '#047857',
+            amount: tx.amount,
+            title: tx.title || 'Khoản chi tiêu',
+            subtitle: `${new Date(tx.date).toLocaleDateString('vi-VN')} • ${tx.note || tx.category || ''}`,
+            photoUri: tx.photoUri || '',
+          }));
+      }
+    } catch (_) {}
+
+    return [];
   }
 
   /**
