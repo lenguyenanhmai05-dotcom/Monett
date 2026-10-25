@@ -2,12 +2,13 @@ import { Platform } from 'react-native';
 import { GoogleAuthDto } from '@monett/shared';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
+import Constants from 'expo-constants';
 
 WebBrowser.maybeCompleteAuthSession();
 
 export const GOOGLE_CLIENT_ID =
   process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ||
-  '445629432994-fvcmcfc2o2ik4ngi9r4vie44hrojkf3v.apps.googleusercontent.com';
+  '736231837435-gpto7efhb6refpinmio7b70coi273e5c.apps.googleusercontent.com';
 
 if (!process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID) {
   console.warn('Thiếu cấu hình EXPO_PUBLIC_GOOGLE_CLIENT_ID trong file .env, đang dùng mặc định');
@@ -120,10 +121,15 @@ export const requestGoogleLogin = async (): Promise<GoogleAuthDto> => {
 
   // 2. NỀN TẢNG NATIVE MOBILE (iOS / Android trong Expo Go)
   try {
-    const proxyRedirectUri = process.env.EXPO_PUBLIC_PROXY_REDIRECT_URI || 'https://auth.expo.io/@tobiezdev/monett-app';
-    if (!process.env.EXPO_PUBLIC_PROXY_REDIRECT_URI) {
-      console.warn('Thiếu cấu hình EXPO_PUBLIC_PROXY_REDIRECT_URI trong file .env, đang dùng mặc định');
-    }
+    const expoOwner =
+      process.env.EXPO_PUBLIC_EXPO_OWNER ||
+      Constants.expoConfig?.owner ||
+      'lenguyenanhmai123';
+    const expoSlug = Constants.expoConfig?.slug || 'monett-app';
+
+    const proxyRedirectUri =
+      process.env.EXPO_PUBLIC_PROXY_REDIRECT_URI ||
+      `https://auth.expo.io/@${expoOwner}/${expoSlug}`;
     const returnUrl = AuthSession.getDefaultReturnUrl();
 
     // Google OAuth URL với redirect_uri trỏ về Expo Auth Proxy đã đăng ký
@@ -146,6 +152,9 @@ export const requestGoogleLogin = async (): Promise<GoogleAuthDto> => {
     console.log('[GoogleAuth] Native Mobile result:', JSON.stringify(result));
 
     if (result.type === 'success' && result.url) {
+      if (result.url.includes('errorCode=cookies-disabled')) {
+        throw new Error('Vui lòng bật Cookies trong cài đặt Safari/Trình duyệt để đăng nhập Google.');
+      }
       let code: string | null = null;
       try {
         const queryIndex = result.url.indexOf('?');

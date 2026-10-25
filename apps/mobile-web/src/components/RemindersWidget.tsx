@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -28,21 +28,22 @@ interface RemindersWidgetProps {
   noMargin?: boolean;
 }
 
-import { playNotificationSound } from '../utils/soundUtils';
+import {
+  sendBrowserNotification,
+  requestBrowserNotificationPermission,
+} from '../utils/browserNotification';
 
-// Dữ liệu mẫu ban đầu để giao diện không bị trống nếu chưa có mạng
-const INITIAL_SAMPLE_REMINDERS: IReminder[] = [
-  {
-    id: 'sample-1',
-    title: 'Xíu nữa đi chợ mua cá & rau tươi',
-    date: new Date().toISOString().split('T')[0],
-    time: '17:30',
-    remindBeforeMinutes: 10,
-    isCompleted: false,
-    isDismissed: false,
-    note: '',
-  },
+// Gợi ý nhanh các việc cần làm phổ biến
+const QUICK_REMINDER_TITLES = [
+  '🛒 Đi chợ mua cá & rau tươi',
+  '💡 Đóng tiền điện & nước',
+  '🏠 Nộp tiền phòng trọ',
+  '💊 Uống thuốc / vitamin',
+  '☕ Cà phê với bạn bè',
 ];
+
+// Dữ liệu mẫu ban đầu: để trống để người dùng tự tạo dữ liệu thật
+const INITIAL_SAMPLE_REMINDERS: IReminder[] = [];
 
 export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr, noMargin }) => {
   const { language } = useLanguage();
@@ -62,17 +63,11 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
 
-  // Danh sách 24 giờ và 60 phút để cuộn lướt
-  const HOURS = useMemo(() => Array.from({ length: 24 }, (_, i) => i), []);
-  const MINUTES = useMemo(() => Array.from({ length: 60 }, (_, i) => i), []);
-
   const nowInit = useMemo(() => {
     const d = new Date();
     d.setMinutes(d.getMinutes() + 30);
     return { h: d.getHours(), m: d.getMinutes() };
   }, []);
-
-  const NOTCH_H = 26;
 
   // Form states
   const [newTitle, setNewTitle] = useState<string>('');
@@ -83,12 +78,65 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
   const [editingReminderId, setEditingReminderId] = useState<string | null>(null);
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
 
+  // Nhập giờ & phút trực tiếp (Tối giản & Siêu nhanh)
+  const hourInputRef = useRef<TextInput>(null);
+  const minuteInputRef = useRef<TextInput>(null);
+  const [hourInputText, setHourInputText] = useState<string>(String(nowInit.h).padStart(2, '0'));
+  const [minuteInputText, setMinuteInputText] = useState<string>(String(nowInit.m).padStart(2, '0'));
+  const [isHourFocused, setIsHourFocused] = useState<boolean>(false);
+  const [isMinuteFocused, setIsMinuteFocused] = useState<boolean>(false);
+
+  useEffect(() => {
+    setHourInputText(String(selectedHour).padStart(2, '0'));
+    setMinuteInputText(String(selectedMinute).padStart(2, '0'));
+  }, [selectedHour, selectedMinute, isFormOpen]);
+
+  const handleHourInputChange = (txt: string) => {
+    const clean = txt.replace(/\D/g, '').slice(0, 2);
+    setHourInputText(clean);
+    if (clean.length > 0) {
+      const num = parseInt(clean, 10);
+      if (!isNaN(num)) {
+        const validH = Math.min(23, Math.max(0, num));
+        setSelectedHour(validH);
+        if (clean.length === 2 || num > 2) {
+          minuteInputRef.current?.focus();
+        }
+      }
+    }
+  };
+
+  const handleHourInputBlur = () => {
+    setIsHourFocused(false);
+    const num = parseInt(hourInputText, 10);
+    const validH = isNaN(num) ? 0 : Math.min(23, Math.max(0, num));
+    setSelectedHour(validH);
+    setHourInputText(String(validH).padStart(2, '0'));
+  };
+
+  const handleMinuteInputChange = (txt: string) => {
+    const clean = txt.replace(/\D/g, '').slice(0, 2);
+    setMinuteInputText(clean);
+    if (clean.length > 0) {
+      const num = parseInt(clean, 10);
+      if (!isNaN(num)) {
+        const validM = Math.min(59, Math.max(0, num));
+        setSelectedMinute(validM);
+      }
+    }
+  };
+
+  const handleMinuteInputBlur = () => {
+    setIsMinuteFocused(false);
+    const num = parseInt(minuteInputText, 10);
+    const validM = isNaN(num) ? 0 : Math.min(59, Math.max(0, num));
+    setSelectedMinute(validM);
+    setMinuteInputText(String(validM).padStart(2, '0'));
+  };
+
   const formattedTime = useMemo(() => {
     return `${String(selectedHour).padStart(2, '0')}:${String(selectedMinute).padStart(2, '0')}`;
   }, [selectedHour, selectedMinute]);
-
-  const hourScrollRef = useRef<ScrollView>(null);
-  const minuteScrollRef = useRef<ScrollView>(null);
 
   // In-app alert banner
   const [activeAlert, setActiveAlert] = useState<{
@@ -102,7 +150,7 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
   const alertedIdsRef = useRef<Set<string>>(new Set());
   const [pushedReminderId, setPushedReminderId] = useState<string | null>(null);
 
-  // Thủ công đưa lời nhắc lên chuông thông báo (Bell Notification)
+  // Thủ công đưa lời nhắc lên chuông thông báo (Bell Notification) và gửi Web Browser Notification
   const handlePushToBell = (item: IReminder) => {
     addNotification({
       id: `reminder-manual-${item.id}-${Date.now()}`,
@@ -117,42 +165,15 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
         targetTab: 'home',
       },
     });
-    playNotificationSound();
+    // Gửi trực tiếp popup ra ngoài màn hình máy tính
+    sendBrowserNotification(`🔔 Nhắc nhở: ${item.title}`, {
+      body: `Đã đến giờ nhắc nhở (${item.time || '17:30'} - Báo trước ${item.remindBeforeMinutes || 10} phút). Đừng quên việc này nhé!`,
+      playSound: false,
+    });
     setPushedReminderId(item.id);
     setTimeout(() => {
       setPushedReminderId(null);
     }, 2500);
-  };
-
-  // Tự động cuộn đến giờ & phút đã chọn khi mở form
-  useEffect(() => {
-    if (isFormOpen) {
-      const timer = setTimeout(() => {
-        hourScrollRef.current?.scrollTo({ y: Math.max(0, selectedHour * NOTCH_H), animated: true });
-        minuteScrollRef.current?.scrollTo({ y: Math.max(0, selectedMinute * NOTCH_H), animated: true });
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [isFormOpen, selectedHour, selectedMinute]);
-
-  const selectHour = (h: number) => {
-    setSelectedHour(h);
-    hourScrollRef.current?.scrollTo({ y: h * NOTCH_H, animated: true });
-  };
-
-  const selectMinute = (m: number) => {
-    setSelectedMinute(m);
-    minuteScrollRef.current?.scrollTo({ y: m * NOTCH_H, animated: true });
-  };
-
-  const stepHour = (delta: number) => {
-    const nextH = (selectedHour + delta + 24) % 24;
-    selectHour(nextH);
-  };
-
-  const stepMinute = (delta: number) => {
-    const nextM = (selectedMinute + delta + 60) % 60;
-    selectMinute(nextM);
   };
 
   // Mở form tạo mới nhắc nhở
@@ -192,22 +213,13 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
       setIsLoading(true);
       const data = await getRemindersApi(effectiveDate);
       if (Array.isArray(data) && data.length > 0) {
-        setReminders(data);
-      } else {
-        // Nếu ngày hôm nay chưa có, giữ sample để trải nghiệm mượt mà
-        if (effectiveDate === todayYMD) {
-          setReminders(INITIAL_SAMPLE_REMINDERS);
-        } else {
-          setReminders([]);
-        }
-      }
-    } catch {
-      // Offline fallback
-      if (effectiveDate === todayYMD) {
-        setReminders(INITIAL_SAMPLE_REMINDERS);
+        const cleanData = data.filter((it) => it.id !== 'sample-1' && !it.title?.includes?.('mua cá & rau tươi'));
+        setReminders(cleanData);
       } else {
         setReminders([]);
       }
+    } catch {
+      setReminders([]);
     } finally {
       setIsLoading(false);
     }
@@ -283,9 +295,6 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                 targetTab: 'home',
               },
             });
-
-            // Phát âm thanh chuông
-            playNotificationSound();
 
             // Kích hoạt Web Notification (nếu người dùng cấp quyền)
             if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
@@ -402,10 +411,8 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
     setNewTitle('');
     setIsFormOpen(false);
 
-    // Xin quyền thông báo ngay nếu người dùng chưa bật
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-      requestBrowserNotification();
-    }
+    // Xin quyền thông báo ngay nếu người dùng chưa cấp quyền
+    requestBrowserNotificationPermission();
 
     try {
       const serverItem = await createReminderApi({
@@ -475,14 +482,14 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
         </View>
       )}
 
-      {/* KHUNG THẺ NHẮC NHỞ PHONG CÁCH HÌNH 1 (Trong 1 cái khuôn, tiêu đề màu ở trên) */}
+      {/* KHUNG THẺ NHẮC NHỞ HIỆN ĐẠI, CAO CẤP */}
       <View style={[styles.cardContainer, noMargin && { minHeight: 220, flex: 1 }]}>
-        {/* 1. Header Bar Màu Xanh Dương Pastel */}
+        {/* 1. Header Bar Màu Xanh Dương Pastel Sang Trọng */}
         <View style={styles.headerBar}>
           <View style={styles.headerLeft}>
-            {/* White square icon badge with notifications icon */}
+            {/* White rounded square icon badge with notifications icon */}
             <View style={styles.iconBadge}>
-              <Ionicons name="notifications-outline" size={17} color="#0369A1" />
+              <Ionicons name="notifications" size={18} color="#0284C7" />
             </View>
 
             {/* Title */}
@@ -492,19 +499,22 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
 
             {/* White count badge */}
             <View style={styles.countBadge}>
-              <Text style={styles.countBadgeText}>{pendingCount}</Text>
+              <Text style={styles.countBadgeText}>
+                {pendingCount} {isVi ? 'việc' : 'tasks'}
+              </Text>
             </View>
           </View>
 
-          {/* Nút Thêm lời nhắc dạng pill trắng */}
+          {/* Nút Thêm lời nhắc dạng pill trắng cao cấp */}
           <TouchableOpacity
             style={styles.viewAllBtn}
             onPress={handleOpenCreateForm}
-            activeOpacity={0.75}
+            activeOpacity={0.8}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
+            <Ionicons name="add" size={15} color="#0284C7" style={{ marginRight: 2 }} />
             <Text style={styles.viewAllText}>
-              {isVi ? '+ Thêm lời nhắc' : '+ Add reminder'}
+              {isVi ? 'Thêm lời nhắc' : 'Add reminder'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -515,7 +525,7 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
         <View style={styles.bodyContent}>
           {isLoading && reminders.length === 0 ? (
             <View style={styles.loadingBox}>
-              <ActivityIndicator size="small" color="#0369A1" />
+              <ActivityIndicator size="small" color="#0284C7" />
             </View>
           ) : reminders.length === 0 ? (
             <TouchableOpacity
@@ -523,10 +533,16 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
               onPress={handleOpenCreateForm}
               activeOpacity={0.8}
             >
-              <Ionicons name="notifications-outline" size={24} color="#94A3B8" style={{ marginBottom: 4 }} />
-              <Text style={styles.emptyTitle}>Chưa có nhắc nhở nào</Text>
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="notifications-outline" size={26} color="#0284C7" />
+              </View>
+              <Text style={styles.emptyTitle}>
+                {isVi ? 'Chưa có lời nhắc nào hôm nay' : 'No reminders for today'}
+              </Text>
               <Text style={styles.emptySub}>
-                Nhấn "+ Thêm lời nhắc" để không quên việc mua sắm, trả tiền hay đi chợ nhé!
+                {isVi
+                  ? 'Bấm "+ Thêm lời nhắc" để không quên việc mua sắm, trả tiền phòng hay đi chợ nhé!'
+                  : 'Tap "+ Add reminder" to schedule alerts for shopping, rent, or chores!'}
               </Text>
             </TouchableOpacity>
           ) : (
@@ -550,7 +566,7 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
                     {isDone ? (
-                      <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                      <Ionicons name="checkmark" size={15} color="#FFFFFF" />
                     ) : (
                       <View style={styles.tickBoxUncheckedDot} />
                     )}
@@ -574,27 +590,27 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
 
                     <View style={styles.itemMetaRow}>
                       {/* Badge Giờ hẹn */}
-                      <View style={[styles.metaBadge, isDone && styles.metaBadgeDone]}>
+                      <View style={[styles.metaBadgeTime, isDone && styles.metaBadgeDone]}>
                         <Ionicons
                           name="time-outline"
                           size={13}
-                          color={isDone ? '#94A3B8' : '#0369A1'}
+                          color={isDone ? '#94A3B8' : '#D97706'}
                           style={{ marginRight: 4 }}
                         />
-                        <Text style={[styles.metaBadgeText, isDone && styles.metaBadgeTextDone]}>
+                        <Text style={[styles.metaBadgeTimeText, isDone && styles.metaBadgeTextDone]}>
                           {item.time || '12:00'}
                         </Text>
                       </View>
 
                       {/* Badge Báo trước */}
-                      <View style={[styles.metaBadge, { backgroundColor: '#F1F5F9' }]}>
+                      <View style={[styles.metaBadgeLead, isDone && styles.metaBadgeDone]}>
                         <Ionicons
                           name="notifications-outline"
                           size={13}
-                          color={isDone ? '#94A3B8' : '#475569'}
+                          color={isDone ? '#94A3B8' : '#7C3AED'}
                           style={{ marginRight: 4 }}
                         />
-                        <Text style={[styles.metaBadgeText, { color: '#475569' }]}>
+                        <Text style={[styles.metaBadgeLeadText, isDone && styles.metaBadgeTextDone]}>
                           Báo trước {item.remindBeforeMinutes || 10}p
                         </Text>
                       </View>
@@ -604,48 +620,51 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                         <Text style={styles.statusDoneText}>Đã hoàn thành</Text>
                       )}
                       {pushedReminderId === item.id && (
-                        <Text style={styles.statusPushedText}>Đã gửi lên chuông 🔔</Text>
+                        <Text style={styles.statusPushedText}>Đã rung chuông 🔔</Text>
                       )}
                     </View>
                   </TouchableOpacity>
 
-                  {/* NÚT CÀI THÔNG BÁO VÀO CHUÔNG (🔔) */}
-                  <TouchableOpacity
-                    style={[
-                      styles.bellActionBtn,
-                      pushedReminderId === item.id && styles.bellActionBtnActive,
-                    ]}
-                    onPress={() => handlePushToBell(item)}
-                    activeOpacity={0.6}
-                    hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
-                    accessibilityLabel={isVi ? 'Cài thông báo này lên chuông' : 'Push to bell notification'}
-                  >
-                    <Ionicons
-                      name={pushedReminderId === item.id ? 'notifications' : 'notifications-outline'}
-                      size={15}
-                      color={pushedReminderId === item.id ? '#7C3AED' : '#6D28D9'}
-                    />
-                  </TouchableOpacity>
+                  {/* NÚT THAO TÁC BÊN PHẢI */}
+                  <View style={styles.actionGroup}>
+                    {/* NÚT CÀI THÔNG BÁO VÀO CHUÔNG / TEST (🔔) */}
+                    <TouchableOpacity
+                      style={[
+                        styles.bellActionBtn,
+                        pushedReminderId === item.id && styles.bellActionBtnActive,
+                      ]}
+                      onPress={() => handlePushToBell(item)}
+                      activeOpacity={0.65}
+                      hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                      accessibilityLabel={isVi ? 'Gửi thông báo ra màn hình' : 'Trigger alert'}
+                    >
+                      <Ionicons
+                        name={pushedReminderId === item.id ? 'notifications' : 'notifications-outline'}
+                        size={15}
+                        color={pushedReminderId === item.id ? '#FFFFFF' : '#7C3AED'}
+                      />
+                    </TouchableOpacity>
 
-                  {/* NÚT CHỈNH SỬA (✏️) */}
-                  <TouchableOpacity
-                    style={styles.editBtn}
-                    onPress={() => handleStartEdit(item)}
-                    activeOpacity={0.6}
-                    hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
-                  >
-                    <Ionicons name="pencil" size={15} color="#0369A1" />
-                  </TouchableOpacity>
+                    {/* NÚT CHỈNH SỬA (✏️) */}
+                    <TouchableOpacity
+                      style={styles.editBtn}
+                      onPress={() => handleStartEdit(item)}
+                      activeOpacity={0.65}
+                      hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                    >
+                      <Ionicons name="pencil" size={14} color="#0284C7" />
+                    </TouchableOpacity>
 
-                  {/* NÚT XÓA BỎ (✕) */}
-                  <TouchableOpacity
-                    style={styles.deleteBtn}
-                    onPress={() => handleDelete(item.id)}
-                    activeOpacity={0.6}
-                    hitSlop={{ top: 10, bottom: 10, left: 6, right: 10 }}
-                  >
-                    <Ionicons name="close" size={16} color="#64748B" />
-                  </TouchableOpacity>
+                    {/* NÚT XÓA BỎ (✕) */}
+                    <TouchableOpacity
+                      style={styles.deleteBtn}
+                      onPress={() => handleDelete(item.id)}
+                      activeOpacity={0.65}
+                      hitSlop={{ top: 8, bottom: 8, left: 6, right: 8 }}
+                    >
+                      <Ionicons name="close" size={16} color="#64748B" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               );
             })
@@ -672,7 +691,7 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
             onPress={handleCancelForm}
           />
 
-          {/* Khung nội dung Modal giữa màn hình */}
+          {/* Khung nội dung Modal giữa màn hình - Kích thước rộng rãi, chuyên nghiệp */}
           <View style={styles.modalContentCard}>
             {/* Header Modal */}
             <View style={styles.modalHeaderRow}>
@@ -680,7 +699,7 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                 <View style={styles.modalHeaderIconBadge}>
                   <Ionicons
                     name={editingReminderId ? 'pencil' : 'notifications'}
-                    size={16}
+                    size={20}
                     color="#047857"
                   />
                 </View>
@@ -692,8 +711,8 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                   </Text>
                   <Text style={styles.modalSubtitleText}>
                     {isVi
-                      ? 'Monett sẽ gửi thông báo chuông trước khi đến giờ hẹn'
-                      : 'Monett will alert you before the scheduled time'}
+                      ? 'Monett sẽ gửi chuông & thông báo trình duyệt trước giờ hẹn'
+                      : 'Monett will alert you with desktop popups before due time'}
                   </Text>
                 </View>
               </View>
@@ -704,7 +723,7 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 activeOpacity={0.7}
               >
-                <Ionicons name="close" size={18} color="#64748B" />
+                <Ionicons name="close" size={19} color="#64748B" />
               </TouchableOpacity>
             </View>
 
@@ -712,16 +731,16 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
             <ScrollView
               showsVerticalScrollIndicator={false}
               bounces={false}
-              contentContainerStyle={{ paddingBottom: 10 }}
+              contentContainerStyle={{ paddingBottom: 12 }}
             >
-              {/* Ô nhập nội dung */}
+              {/* 1. Ô nhập nội dung */}
               <Text style={styles.modalFieldLabel}>
-                {isVi ? 'Nội dung nhắc việc' : 'Reminder Title'}
+                {isVi ? 'Nội dung nhắc việc' : 'Reminder Title'} <Text style={{ color: '#EF4444' }}>*</Text>
               </Text>
               <View style={[styles.inputWrap, isInputFocused && styles.inputWrapFocused]}>
                 <Ionicons
                   name="create-outline"
-                  size={17}
+                  size={18}
                   color={isInputFocused ? '#047857' : '#64748B'}
                   style={styles.inputIcon}
                 />
@@ -740,153 +759,109 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                   autoFocus={true}
                   returnKeyType="done"
                 />
+                {newTitle.length > 0 && (
+                  <TouchableOpacity onPress={() => setNewTitle('')} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+                    <Ionicons name="close-circle" size={17} color="#CBD5E1" />
+                  </TouchableOpacity>
+                )}
               </View>
 
-              {/* Bộ chọn giờ & phút */}
-              <View style={styles.timePickerContainer}>
-                <View style={styles.timePickerHeader}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                    <Ionicons name="time" size={14} color="#047857" />
-                    <Text style={styles.timePickerLabel}>
-                      {isVi ? 'Giờ hẹn (24h : 60p):' : 'Scheduled Time (24h : 60m):'}
+              {/* Các gợi ý nhanh nội dung nhắc việc */}
+              <View style={styles.quickTitlesWrap}>
+                {QUICK_REMINDER_TITLES.map((preset) => (
+                  <TouchableOpacity
+                    key={preset}
+                    style={[
+                      styles.quickTitleChip,
+                      newTitle === preset && styles.quickTitleChipActive,
+                    ]}
+                    onPress={() => setNewTitle(preset)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.quickTitleText,
+                        newTitle === preset && styles.quickTitleTextActive,
+                      ]}
+                    >
+                      {preset}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* 2. Giờ hẹn thông báo (Tối giản: bấm vào số để nhập nhanh) */}
+              <View style={styles.minimalTimeContainer}>
+                <View style={styles.minimalTimeHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                    <View style={styles.timeHeaderIconCircle}>
+                      <Ionicons name="time" size={15} color="#059669" />
+                    </View>
+                    <Text style={styles.minimalTimeTitle}>
+                      {isVi ? 'Giờ hẹn thông báo' : 'Scheduled Time'}
                     </Text>
                   </View>
-                  <View style={styles.timePreviewBadge}>
-                    <Text style={styles.timePreviewText}>{formattedTime}</Text>
+                  <View style={styles.minimalTimeBadge}>
+                    <Text style={styles.minimalTimeBadgeText}>{formattedTime}</Text>
                   </View>
                 </View>
 
-                <View style={styles.compactWheelsCenter}>
-                  {/* Cột nấc Giờ (0 - 23h) */}
-                  <View style={styles.wheelColCompact}>
-                    <TouchableOpacity
-                      style={styles.stepArrowBtn}
-                      onPress={() => stepHour(-1)}
-                      activeOpacity={0.6}
-                      hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
-                    >
-                      <Ionicons name="chevron-up" size={13} color="#047857" />
-                    </TouchableOpacity>
-
-                    <View style={styles.wheelBoxCompact}>
-                      <ScrollView
-                        ref={hourScrollRef}
-                        style={styles.wheelScrollViewCompact}
-                        contentContainerStyle={styles.wheelScrollContentCompact}
-                        showsVerticalScrollIndicator={false}
-                        nestedScrollEnabled={true}
-                        snapToInterval={26}
-                        decelerationRate="fast"
-                        onScroll={(e) => {
-                          const y = e.nativeEvent.contentOffset.y;
-                          const idx = Math.round(y / 26);
-                          if (idx >= 0 && idx < 24 && idx !== selectedHour) {
-                            setSelectedHour(idx);
-                          }
-                        }}
-                        scrollEventThrottle={16}
-                      >
-                        {HOURS.map((h) => {
-                          const isSelected = selectedHour === h;
-                          return (
-                            <TouchableOpacity
-                              key={`hour-${h}`}
-                              style={[styles.notchSquare, isSelected && styles.notchSquareSelected]}
-                              onPress={() => selectHour(h)}
-                              activeOpacity={0.7}
-                            >
-                              <Text style={[styles.notchText, isSelected && styles.notchTextSelected]}>
-                                {String(h).padStart(2, '0')}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </ScrollView>
-                    </View>
-
-                    <TouchableOpacity
-                      style={styles.stepArrowBtn}
-                      onPress={() => stepHour(1)}
-                      activeOpacity={0.6}
-                      hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
-                    >
-                      <Ionicons name="chevron-down" size={13} color="#047857" />
-                    </TouchableOpacity>
-                    <Text style={styles.unitSmallLabel}>{isVi ? 'Giờ' : 'Hour'}</Text>
+                {/* Hai ô nhập số trực tiếp: Giờ : Phút */}
+                <View style={styles.minimalTimeInputRow}>
+                  {/* Ô nhập Giờ */}
+                  <View style={styles.minimalInputBoxWrap}>
+                    <TextInput
+                      ref={hourInputRef}
+                      style={[
+                        styles.minimalNumberInput,
+                        isHourFocused && styles.minimalNumberInputFocused,
+                      ]}
+                      value={hourInputText}
+                      onChangeText={handleHourInputChange}
+                      onBlur={handleHourInputBlur}
+                      onFocus={() => setIsHourFocused(true)}
+                      keyboardType="number-pad"
+                      maxLength={2}
+                      selectTextOnFocus={true}
+                      placeholder="12"
+                      placeholderTextColor="#94A3B8"
+                    />
+                    <Text style={styles.minimalInputSubLabel}>{isVi ? 'Giờ (0 - 23)' : 'Hour'}</Text>
                   </View>
 
-                  {/* Phân cách hai chấm */}
-                  <View style={styles.colonDividerCompact}>
-                    <Text style={styles.colonTextCompact}>:</Text>
-                  </View>
+                  {/* Dấu hai chấm phân cách */}
+                  <Text style={styles.minimalColonText}>:</Text>
 
-                  {/* Cột nấc Phút (0 - 59p) */}
-                  <View style={styles.wheelColCompact}>
-                    <TouchableOpacity
-                      style={styles.stepArrowBtn}
-                      onPress={() => stepMinute(-1)}
-                      activeOpacity={0.6}
-                      hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
-                    >
-                      <Ionicons name="chevron-up" size={13} color="#047857" />
-                    </TouchableOpacity>
-
-                    <View style={styles.wheelBoxCompact}>
-                      <ScrollView
-                        ref={minuteScrollRef}
-                        style={styles.wheelScrollViewCompact}
-                        contentContainerStyle={styles.wheelScrollContentCompact}
-                        showsVerticalScrollIndicator={false}
-                        nestedScrollEnabled={true}
-                        snapToInterval={26}
-                        decelerationRate="fast"
-                        onScroll={(e) => {
-                          const y = e.nativeEvent.contentOffset.y;
-                          const idx = Math.round(y / 26);
-                          if (idx >= 0 && idx < 60 && idx !== selectedMinute) {
-                            setSelectedMinute(idx);
-                          }
-                        }}
-                        scrollEventThrottle={16}
-                      >
-                        {MINUTES.map((m) => {
-                          const isSelected = selectedMinute === m;
-                          return (
-                            <TouchableOpacity
-                              key={`minute-${m}`}
-                              style={[styles.notchSquare, isSelected && styles.notchSquareSelected]}
-                              onPress={() => selectMinute(m)}
-                              activeOpacity={0.7}
-                            >
-                              <Text style={[styles.notchText, isSelected && styles.notchTextSelected]}>
-                                {String(m).padStart(2, '0')}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </ScrollView>
-                    </View>
-
-                    <TouchableOpacity
-                      style={styles.stepArrowBtn}
-                      onPress={() => stepMinute(1)}
-                      activeOpacity={0.6}
-                      hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
-                    >
-                      <Ionicons name="chevron-down" size={13} color="#047857" />
-                    </TouchableOpacity>
-                    <Text style={styles.unitSmallLabel}>{isVi ? 'Phút' : 'Minute'}</Text>
+                  {/* Ô nhập Phút */}
+                  <View style={styles.minimalInputBoxWrap}>
+                    <TextInput
+                      ref={minuteInputRef}
+                      style={[
+                        styles.minimalNumberInput,
+                        isMinuteFocused && styles.minimalNumberInputFocused,
+                      ]}
+                      value={minuteInputText}
+                      onChangeText={handleMinuteInputChange}
+                      onBlur={handleMinuteInputBlur}
+                      onFocus={() => setIsMinuteFocused(true)}
+                      keyboardType="number-pad"
+                      maxLength={2}
+                      selectTextOnFocus={true}
+                      placeholder="00"
+                      placeholderTextColor="#94A3B8"
+                    />
+                    <Text style={styles.minimalInputSubLabel}>{isVi ? 'Phút (0 - 59)' : 'Minute'}</Text>
                   </View>
                 </View>
               </View>
 
-              {/* Chọn số phút báo trước */}
+              {/* 3. Chọn số phút báo trước */}
               <View style={styles.beforeRow}>
                 <Text style={styles.formLabel}>
                   {isVi ? 'Báo trước bạn:' : 'Notify before:'}
                 </Text>
                 <View style={styles.beforeOptions}>
-                  {[5, 10, 15, 30].map((mins) => {
+                  {[0, 5, 10, 15, 30].map((mins) => {
                     const isSelected = newBeforeMinutes === mins;
                     return (
                       <TouchableOpacity
@@ -896,7 +871,7 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                         activeOpacity={0.7}
                       >
                         <Text style={[styles.beforeChipText, isSelected && styles.beforeChipTextActive]}>
-                          {mins} {isVi ? 'phút' : 'min'}
+                          {mins === 0 ? (isVi ? 'Đúng giờ' : 'On time') : `${mins} ${isVi ? 'phút' : 'min'}`}
                         </Text>
                       </TouchableOpacity>
                     );
@@ -925,7 +900,7 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                     <>
                       <Ionicons
                         name={editingReminderId ? 'save-outline' : 'checkmark-circle-outline'}
-                        size={16}
+                        size={17}
                         color="#FFFFFF"
                         style={{ marginRight: 6 }}
                       />
@@ -954,42 +929,44 @@ const styles = StyleSheet.create({
   },
   cardContainer: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 22,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#E2E8F0',
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
     width: '100%',
   },
   headerBar: {
-    backgroundColor: '#E0F2FE', // Màu xanh dương pastel phong cách hình 1
-    paddingHorizontal: 18,
+    backgroundColor: '#F0F9FF',
+    paddingHorizontal: 20,
     paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0F2FE',
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   iconBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#0369A1',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   headerTitle: {
     fontSize: 16.5,
@@ -999,66 +976,188 @@ const styles = StyleSheet.create({
   },
   countBadge: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 9,
+    paddingVertical: 2.5,
     borderRadius: 12,
-    minWidth: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
   },
   countBadgeText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '800',
-    color: '#0369A1',
+    color: '#0284C7',
   },
   viewAllBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
     paddingHorizontal: 14,
     paddingVertical: 7,
-    borderRadius: 18,
-    shadowColor: '#0369A1',
+    borderRadius: 20,
+    shadowColor: '#0284C7',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
     elevation: 1,
   },
   viewAllText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#0284C7',
   },
   headerDivider: {
     height: 1,
-    backgroundColor: 'rgba(2, 132, 199, 0.12)',
+    backgroundColor: 'rgba(2, 132, 199, 0.08)',
   },
   bodyContent: {
-    paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     backgroundColor: '#FFFFFF',
     flex: 1,
   },
   reminderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
   },
   reminderRowBorder: {
-    paddingBottom: 14,
-    marginBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#F1F5F9',
+    marginBottom: 4,
   },
   reminderRowDone: {
-    opacity: 0.7,
+    opacity: 0.72,
+    backgroundColor: '#F8FAFC',
+  },
+  tickBox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  tickBoxChecked: {
+    backgroundColor: '#059669',
+    borderColor: '#059669',
+  },
+  tickBoxUncheckedDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'transparent',
+  },
+  itemContent: {
+    flex: 1,
+    marginRight: 8,
+  },
+  itemTitle: {
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: '#0F172A',
+    lineHeight: 20,
+  },
+  itemTitleDone: {
+    color: '#94A3B8',
+    textDecorationLine: 'line-through',
+  },
+  itemMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 5,
+    gap: 6,
+  },
+  metaBadgeTime: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 7,
+  },
+  metaBadgeTimeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#B45309',
+  },
+  metaBadgeLead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3E8FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 7,
+  },
+  metaBadgeLeadText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#7C3AED',
+  },
+  metaBadgeDone: {
+    backgroundColor: '#F1F5F9',
+  },
+  metaBadgeTextDone: {
+    color: '#94A3B8',
+  },
+  statusDoneText: {
+    fontSize: 11,
+    color: '#059669',
+    fontWeight: '700',
+    marginLeft: 4,
+  },
+  statusPushedText: {
+    fontSize: 11,
+    color: '#7C3AED',
+    fontWeight: '700',
+    marginLeft: 4,
+  },
+  actionGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginLeft: 6,
+  },
+  bellActionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F5F3FF',
+    borderWidth: 1,
+    borderColor: '#E9D5FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  bellActionBtnActive: {
+    backgroundColor: '#7C3AED',
+    borderColor: '#6D28D9',
   },
   editBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 6,
+  },
+  deleteBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   // Banner thông báo sắp đến giờ
@@ -1141,7 +1240,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  // Modal Popup Đặt / Sửa nhắc nhở (Hiện ra giữa màn hình, chống che bàn phím)
+  // Modal Popup Đặt / Sửa nhắc nhở (Rộng rãi, thoáng và cực kỳ chuyên nghiệp)
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.65)',
@@ -1159,17 +1258,17 @@ const styles = StyleSheet.create({
   modalContentCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 18,
+    paddingHorizontal: 28,
+    paddingTop: 24,
+    paddingBottom: 24,
     width: '100%',
-    maxWidth: 420,
-    maxHeight: '88%',
+    maxWidth: 540,
+    maxHeight: '90%',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.22,
+    shadowRadius: 28,
+    elevation: 12,
     overflow: 'hidden',
   },
   modalHeaderRow: {
@@ -1177,7 +1276,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
-    paddingBottom: 12,
+    paddingBottom: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
@@ -1188,85 +1287,39 @@ const styles = StyleSheet.create({
     paddingRight: 10,
   },
   modalHeaderIconBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: '#ECFDF5',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#A7F3D0',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   modalTitleText: {
-    fontSize: 16,
+    fontSize: 18.5,
     fontWeight: '800',
     color: '#0F172A',
   },
   modalSubtitleText: {
-    fontSize: 11.5,
+    fontSize: 12.5,
     color: '#64748B',
     marginTop: 2,
   },
   modalCloseCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalFieldLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
     color: '#334155',
     marginBottom: 6,
-  },
-  modalFormFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 10,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  modalCancelBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalCancelBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  modalSubmitBtn: {
-    flex: 2,
-    flexDirection: 'row',
-    paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: '#047857',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#047857',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  modalSubmitBtnDisabled: {
-    backgroundColor: '#94A3B8',
-    shadowOpacity: 0,
-    elevation: 0,
-  },
-  modalSubmitBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
   inputWrap: {
     flexDirection: 'row',
@@ -1274,10 +1327,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderWidth: 1.5,
     borderColor: '#CBD5E1',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    height: 44,
-    marginBottom: 10,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    height: 48,
+    marginBottom: 8,
   },
   inputWrapFocused: {
     borderColor: '#047857',
@@ -1296,354 +1349,255 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    height: 40,
-    fontSize: 13,
+    height: 44,
+    fontSize: 14.5,
     color: '#1E293B',
     paddingVertical: 0,
     backgroundColor: 'transparent',
     borderWidth: 0,
     outlineWidth: 0,
   },
-  // Bộ cuộn giờ và phút nhỏ gọn chuyên nghiệp dạng nấc ô vuông
-  timePickerContainer: {
-    backgroundColor: '#F8FAFC',
+  quickTitlesWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 14,
+  },
+  quickTitleChip: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginBottom: 10,
   },
-  timePickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  timePickerLabel: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#334155',
-  },
-  timePreviewBadge: {
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-  },
-  timePreviewText: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#047857',
-  },
-  compactWheelsCenter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    paddingVertical: 2,
-  },
-  wheelColCompact: {
-    alignItems: 'center',
-  },
-  stepArrowBtn: {
-    width: 32,
-    height: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  wheelBoxCompact: {
-    width: 52,
-    height: 78,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    overflow: 'hidden',
-  },
-  wheelScrollViewCompact: {
-    height: 78,
-  },
-  wheelScrollContentCompact: {
-    paddingTop: 26,
-    paddingBottom: 26,
-    alignItems: 'center',
-  },
-  notchSquare: {
-    width: 44,
-    height: 24,
-    marginVertical: 1,
-    borderRadius: 5,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  notchSquareSelected: {
+  quickTitleChipActive: {
     backgroundColor: '#ECFDF5',
     borderColor: '#059669',
-    borderWidth: 1.5,
   },
-  notchText: {
-    fontSize: 12.5,
-    fontWeight: '500',
-    color: '#64748B',
-  },
-  notchTextSelected: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#047857',
-  },
-  unitSmallLabel: {
-    fontSize: 9.5,
+  quickTitleText: {
+    fontSize: 11.5,
     fontWeight: '600',
-    color: '#64748B',
-    marginTop: 2,
+    color: '#475569',
   },
-  colonDividerCompact: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingBottom: 14,
-  },
-  colonTextCompact: {
-    fontSize: 18,
-    fontWeight: '800',
+  quickTitleTextActive: {
     color: '#047857',
+    fontWeight: '700',
   },
-  formHeadingRow: {
+  minimalTimeContainer: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 14,
+  },
+  minimalTimeHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
   },
-  editingBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 7,
-    paddingVertical: 1.5,
-    borderRadius: 6,
+  timeHeaderIconCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  editingBadgeText: {
-    fontSize: 10,
+  minimalTimeTitle: {
+    fontSize: 13,
     fontWeight: '700',
-    color: '#B45309',
+    color: '#1E293B',
+  },
+  minimalTimeBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+  },
+  minimalTimeBadgeText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#047857',
+  },
+  minimalTimeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 14,
+    paddingVertical: 6,
+  },
+  minimalInputBoxWrap: {
+    alignItems: 'center',
+  },
+  minimalNumberInput: {
+    width: 94,
+    height: 64,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#0F172A',
+    textAlign: 'center',
+    paddingVertical: 0,
+    outlineWidth: 0,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  minimalNumberInputFocused: {
+    borderColor: '#059669',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+    ...(Platform.OS === 'web' ? {
+      boxShadow: '0 0 0 3px rgba(5, 150, 105, 0.18)',
+    } : {}),
+  },
+  minimalColonText: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#059669',
+    marginTop: -22,
+  },
+  minimalInputSubLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 6,
+    letterSpacing: 0.3,
   },
   beforeRow: {
-    marginBottom: 10,
+    marginBottom: 12,
   },
   formLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
     color: '#475569',
-    marginBottom: 5,
+    marginBottom: 6,
   },
   beforeOptions: {
     flexDirection: 'row',
     gap: 6,
-    height: 36,
+    height: 38,
     alignItems: 'center',
   },
   beforeChip: {
     flex: 1,
-    height: 34,
-    borderRadius: 8,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: '#E2E8F0',
   },
   beforeChipActive: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#059669',
+    backgroundColor: '#047857',
+    borderColor: '#047857',
   },
   beforeChipText: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '600',
     color: '#64748B',
   },
   beforeChipTextActive: {
-    color: '#047857',
+    color: '#FFFFFF',
     fontWeight: '700',
   },
-  formFooter: {
+  modalFormFooter: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
+    marginTop: 6,
+    paddingTop: 14,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
-    paddingTop: 10,
   },
-  cancelBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+  modalCancelBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cancelBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
+  modalCancelBtnText: {
+    fontSize: 13.5,
+    fontWeight: '700',
     color: '#64748B',
   },
-  submitBtn: {
+  modalSubmitBtn: {
+    flex: 2,
+    height: 46,
     flexDirection: 'row',
-    alignItems: 'center',
+    borderRadius: 14,
     backgroundColor: '#047857',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#047857',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  submitBtnDisabled: {
+  modalSubmitBtnDisabled: {
     backgroundColor: '#94A3B8',
+    shadowOpacity: 0,
+    elevation: 0,
   },
-  submitBtnText: {
-    fontSize: 12,
+  modalSubmitBtnText: {
+    fontSize: 13.5,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-
-  // Danh sách items
-  listContainer: {
-    gap: 8,
-  },
-  loadingBox: {
-    padding: 16,
-    alignItems: 'center',
-  },
   emptyCard: {
     backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    borderWidth: 1,
+    borderRadius: 16,
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
     borderStyle: 'dashed',
-    padding: 16,
+    padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  emptyIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#E0F2FE',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   emptyTitle: {
-    fontSize: 12.5,
+    fontSize: 14,
     fontWeight: '700',
-    color: '#475569',
+    color: '#334155',
+    marginBottom: 2,
   },
   emptySub: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#94A3B8',
     textAlign: 'center',
-    marginTop: 2,
-    maxWidth: 280,
+    maxWidth: 320,
+    lineHeight: 18,
   },
-
-  // Từng thẻ nhắc nhở
-  reminderItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  reminderItemDone: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#E2E8F0',
-    opacity: 0.75,
-  },
-  tickBox: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 2,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  tickBoxChecked: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
-  },
-  tickBoxUncheckedDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'transparent',
-  },
-  itemContent: {
-    flex: 1,
-    marginRight: 10,
-  },
-  itemTitle: {
-    fontSize: 15.5,
-    fontWeight: '700',
-    color: '#0F172A',
-    lineHeight: 22,
-  },
-  itemTitleDone: {
-    color: '#94A3B8',
-    textDecorationLine: 'line-through',
-  },
-  itemMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-    gap: 8,
-  },
-  metaBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  metaBadgeDone: {
-    backgroundColor: '#F1F5F9',
-  },
-  metaBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#B45309',
-  },
-  metaBadgeTextDone: {
-    color: '#94A3B8',
-  },
-  statusDoneText: {
-    fontSize: 11,
-    color: '#059669',
-    fontWeight: '700',
-  },
-  statusPushedText: {
-    fontSize: 11,
-    color: '#7C3AED',
-    fontWeight: '700',
-  },
-  bellActionBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F5F3FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 6,
-  },
-  bellActionBtnActive: {
-    backgroundColor: '#EDE9FE',
-  },
-  deleteBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F1F5F9',
-    justifyContent: 'center',
+  loadingBox: {
+    padding: 20,
     alignItems: 'center',
   },
 });
+

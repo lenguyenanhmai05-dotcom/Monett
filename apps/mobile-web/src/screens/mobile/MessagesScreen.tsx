@@ -30,7 +30,6 @@ import {
   sendMessageApi,
   normalizeAvatarUrl,
 } from '../../services/api';
-import { playNotificationSound, playMessageSentSound } from '../../utils/soundUtils';
 
 // Mascot ảnh mèo Monett AI (Bé mèo)
 const FROG_AI_AVATAR = 'https://images.unsplash.com/photo-1535268647677-300dbf3d78d1?w=200&auto=format&fit=crop&q=80';
@@ -663,7 +662,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
       }
       return next;
     });
-    playMessageSentSound();
 
     // Cập nhật lại dòng lastMessage ngoài danh sách và lưu trữ
     setConversations((prev) => {
@@ -716,7 +714,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
           saveToStorage(getChatHistoryStorageKey(currentUserId, activeChat.id), next);
           return next;
         });
-        playNotificationSound();
         setConversations((prev) => {
           const updated = prev.map((c) =>
             c.id === activeChat.id
@@ -773,7 +770,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
       saveToStorage(getAiStorageKey(currentUserId), next);
       return next;
     });
-    playNotificationSound();
 
     // Cập nhật preview câu trả lời của AI vào danh sách hội thoại & lưu trữ
     const previewReply = reply.length > 55 ? reply.slice(0, 52).trim() + '...' : reply;
@@ -834,7 +830,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
       }
       return next;
     });
-    playMessageSentSound();
 
     setConversations((prev) => {
       const updated = prev.map((c) =>

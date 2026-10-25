@@ -4,7 +4,7 @@
  * Hỗ trợ lưu trữ bền vững qua localStorage & đồng bộ với backend / ngân sách tổng
  */
 
-import { createTransactionApi, deleteTransactionApi, getTransactionsApi } from './api';
+import { createTransactionApi, deleteTransactionApi, getTransactionsApi, getStoredUserId } from './api';
 import {
   getCachedBudget,
   saveCachedBudget,
@@ -35,18 +35,24 @@ export interface IncomeRecord {
 export const INCOME_STORAGE_KEY = 'monett_income_records';
 export const INCOME_UPDATED_EVENT = 'monett:income_records_updated';
 
+export function getIncomeStorageKey(userId?: string): string {
+  const uid = userId || getStoredUserId();
+  return uid && uid !== 'guest' ? `monett_income_records_${uid}` : 'monett_income_records';
+}
+
 // Danh sách thu nhập khởi tạo rỗng để người dùng tự thêm
 const INITIAL_INCOME_RECORDS: IncomeRecord[] = [];
 
 /**
- * Lấy danh sách các khoản thu nhập từ storage
+ * Lấy danh sách các khoản thu nhập từ storage theo từng tài khoản
  */
-export function getIncomeRecords(): IncomeRecord[] {
+export function getIncomeRecords(userId?: string): IncomeRecord[] {
   if (typeof window === 'undefined' || !window.localStorage) {
     return [];
   }
   try {
-    const raw = localStorage.getItem(INCOME_STORAGE_KEY);
+    const key = getIncomeStorageKey(userId);
+    const raw = localStorage.getItem(key);
     if (!raw) {
       return [];
     }
@@ -57,7 +63,7 @@ export function getIncomeRecords(): IncomeRecord[] {
         (r) => r && r.id !== 'inc-sample-1' && r.title !== 'Lương hàng tháng'
       );
       if (cleaned.length !== parsed.length) {
-        saveIncomeRecords(cleaned);
+        saveIncomeRecords(cleaned, userId);
       }
       return cleaned;
     }
@@ -68,13 +74,26 @@ export function getIncomeRecords(): IncomeRecord[] {
 }
 
 /**
- * Lưu danh sách các khoản thu nhập vào storage và bắn event thông báo
+ * Lưu danh sách các khoản thu nhập vào storage theo từng tài khoản và bắn event thông báo
  */
-export function saveIncomeRecords(records: IncomeRecord[]): void {
+export function saveIncomeRecords(records: IncomeRecord[], userId?: string): void {
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      localStorage.setItem(INCOME_STORAGE_KEY, JSON.stringify(records));
+      const key = getIncomeStorageKey(userId);
+      localStorage.setItem(key, JSON.stringify(records));
       window.dispatchEvent(new CustomEvent(INCOME_UPDATED_EVENT, { detail: records }));
+    } catch (_) {}
+  }
+}
+
+/**
+ * Xóa sạch cache thu nhập của một tài khoản cụ thể
+ */
+export function clearUserIncomeStorage(userId?: string): void {
+  const uid = userId || getStoredUserId();
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      localStorage.removeItem(getIncomeStorageKey(uid));
     } catch (_) {}
   }
 }
@@ -82,8 +101,8 @@ export function saveIncomeRecords(records: IncomeRecord[]): void {
 /**
  * Tính tổng thu nhập cho tháng và năm cụ thể
  */
-export function getTotalIncomeForMonth(year: number, month: number): number {
-  const records = getIncomeRecords();
+export function getTotalIncomeForMonth(year: number, month: number, userId?: string): number {
+  const records = getIncomeRecords(userId);
   return records
     .filter((r) => {
       const parts = r.date.split('-');

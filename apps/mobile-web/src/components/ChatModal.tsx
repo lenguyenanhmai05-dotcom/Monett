@@ -19,7 +19,6 @@ import { getMessagesApi, sendMessageApi, normalizeAvatarUrl } from '../services/
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSocket } from '../contexts/SocketContext';
-import { playNotificationSound, playMessageSentSound } from '../utils/soundUtils';
 
 interface Message {
   _id: string;
@@ -89,23 +88,12 @@ export const ChatModal: React.FC<ChatModalProps> = ({ visible, onClose, friend }
     }
   }, [visible, friendId]);
 
-  useEffect(() => {
-    if (visible && messages.length > prevMsgCount.current && prevMsgCount.current > 0) {
-      const lastMsg = messages[messages.length - 1];
-      if (lastMsg && String(lastMsg.sender) !== String(currentUserId)) {
-        playNotificationSound();
-      }
-    }
-    prevMsgCount.current = messages.length;
-  }, [messages.length, visible, currentUserId]);
-
   const handleSend = async () => {
     if (!text.trim() || !friendId) return;
     try {
       const currentText = text.trim();
       setText(''); // Optimistic clear
       const newMsg = await sendMessageApi(friendId, currentText);
-      playMessageSentSound();
       setMessages((prev) => [...prev, newMsg]);
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {

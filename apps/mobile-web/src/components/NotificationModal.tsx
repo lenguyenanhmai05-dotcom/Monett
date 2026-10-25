@@ -15,6 +15,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNotifications, AppNotification, NotificationType } from '../contexts/NotificationContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import {
+  isBrowserNotificationSupported,
+  isBrowserNotificationEnabled,
+  setBrowserNotificationEnabled,
+  requestBrowserNotificationPermission,
+  sendBrowserNotification,
+} from '../utils/browserNotification';
 
 interface NotificationModalProps {
   onNavigateToTab?: (tab: any) => void;
@@ -30,7 +37,6 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
     markAllAsRead,
     deleteNotification,
     clearAll,
-    addNotification,
   } = useNotifications();
 
   const { isDark } = useTheme();
@@ -40,6 +46,49 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
   const isDesktop = width >= 860;
 
   const [filterType, setFilterType] = useState<'all' | NotificationType>('all');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [browserNotifsEnabled, setBrowserNotifsEnabled] = useState<boolean>(() => {
+    return isBrowserNotificationEnabled();
+  });
+
+  // Đồng bộ trạng thái bật/tắt thông báo trình duyệt
+  React.useEffect(() => {
+    const handleSync = () => {
+      setBrowserNotifsEnabled(isBrowserNotificationEnabled());
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('monett_browser_notif_toggle', handleSync);
+      return () => window.removeEventListener('monett_browser_notif_toggle', handleSync);
+    }
+  }, []);
+
+  const handleToggleBrowserNotifications = async () => {
+    if (browserNotifsEnabled) {
+      setBrowserNotificationEnabled(false);
+      setBrowserNotifsEnabled(false);
+    } else {
+      const permission = await requestBrowserNotificationPermission();
+      if (permission === 'granted') {
+        setBrowserNotificationEnabled(true);
+        setBrowserNotifsEnabled(true);
+        // Bắn thông báo ngoài màn hình chào mừng ngay lập tức
+        sendBrowserNotification(
+          isVi ? '🔔 Monett: Đã bật thông báo trình duyệt!' : '🔔 Monett: Desktop alerts enabled!',
+          {
+            body: isVi
+              ? 'Tuyệt vời! Bạn sẽ nhận được thông báo ngoài màn hình ngay cả khi đang chuyển tab khác hoặc ẩn trình duyệt.'
+              : 'You will now receive desktop notifications even when working in other tabs.',
+          }
+        );
+      } else if (permission === 'denied') {
+        alert(
+          isVi
+            ? 'Trình duyệt đang chặn quyền thông báo. Bạn vui lòng nhấn vào biểu tượng ổ khóa bên cạnh thanh địa chỉ (URL) trên trình duyệt và chọn "Cho phép" thông báo nhé!'
+            : 'Notifications are blocked by your browser. Please click the lock icon in your address bar and set Notifications to Allow.'
+        );
+      }
+    }
+  };
 
   // Lọc thông báo theo tab
   const filteredNotifications = useMemo(() => {
@@ -121,7 +170,6 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
           subtitle: isVi
             ? 'Khi các mục trong "Mục nhắc nhở" đến giờ hẹn hoặc sắp diễn ra, thông báo sẽ hiển thị tại đây.'
             : 'Scheduled reminders from your planner will appear here when due.',
-          btnText: isVi ? 'Tạo thử thông báo lời nhắc' : 'Generate Reminder Alert',
         };
       case 'friend':
         return {
@@ -129,7 +177,6 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
           subtitle: isVi
             ? 'Khi có lời mời kết bạn mới, bạn bè chấp nhận kết bạn hoặc chia sẻ khoảnh khắc chi tiêu, thông báo sẽ hiển thị tại đây.'
             : 'Friend requests, accepted connections, and friend moments will appear here.',
-          btnText: isVi ? 'Tạo thử thông báo bạn bè' : 'Generate Friend Alert',
         };
       case 'moment':
         return {
@@ -137,7 +184,6 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
           subtitle: isVi
             ? 'Các cập nhật ghi chép chi tiêu và khoảnh khắc đã đăng sẽ hiển thị tại đây.'
             : 'Expense logs and shared moments will appear here.',
-          btnText: isVi ? 'Tạo thử thông báo chi tiêu' : 'Generate Expense Alert',
         };
       case 'system':
         return {
@@ -145,7 +191,6 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
           subtitle: isVi
             ? 'Thông báo chuỗi streak, cảnh báo ngân sách và tin tức hệ thống sẽ hiển thị tại đây.'
             : 'Streak reminders, budget alerts, and system notices will appear here.',
-          btnText: isVi ? 'Tạo thử thông báo hệ thống' : 'Generate System Alert',
         };
       default:
         return {
@@ -153,144 +198,15 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
           subtitle: isVi
             ? 'Khi có sự kiện kết bạn, đăng khoảnh khắc, lời nhắc hẹn hoặc cập nhật chi tiêu, thông báo sẽ hiển thị ở đây.'
             : 'Friend activities, reminders, shared moments, and expense updates will appear here.',
-          btnText: isVi ? 'Tạo thông báo thử nghiệm' : 'Generate Test Alert',
         };
     }
   }, [filterType, isVi]);
 
-  // Tạo thông báo thử nghiệm phù hợp với tab đang chọn
-  const handleCreateTestNotification = () => {
-    if (filterType === 'reminder') {
-      const reminderChoices = [
-        {
-          type: 'reminder' as NotificationType,
-          title: 'Nhắc nhở: Xíu nữa đi chợ mua cá & rau tươi ⏰',
-          message: 'Đã đến giờ nhắc nhở (17:30 - Báo trước 10 phút). Đừng quên ghé chợ mua cá và rau tươi tươi ngon nhé!',
-          iconBg: '#EDE9FE',
-          iconColor: '#7C3AED',
-          metadata: { targetTab: 'home' },
-        },
-        {
-          type: 'reminder' as NotificationType,
-          title: 'Nhắc nhở: Đóng tiền phòng & điện nước 🏠',
-          message: 'Đã đến hạn nộp tiền trọ theo lịch hẹn. Bạn hãy kiểm tra hóa đơn và thanh toán nhé!',
-          iconBg: '#EDE9FE',
-          iconColor: '#7C3AED',
-          metadata: { targetTab: 'home' },
-        },
-      ];
-      addNotification(reminderChoices[Math.floor(Math.random() * reminderChoices.length)]);
-    } else if (filterType === 'friend') {
-      const friendChoices = [
-        {
-          type: 'friend' as NotificationType,
-          title: 'Lời mời kết bạn mới 🤝',
-          message: 'Hoàng Long vừa gửi cho bạn một lời mời kết bạn trên Monett!',
-          iconBg: '#EDE9FE',
-          iconColor: '#8B5CF6',
-          metadata: { targetTab: 'feed' },
-        },
-        {
-          type: 'friend' as NotificationType,
-          title: 'Kết bạn thành công! 🎉',
-          message: 'Phương Thảo đã đồng ý lời mời kết bạn. Giờ hai bạn có thể xem khoảnh khắc chi tiêu của nhau!',
-          iconBg: '#EDE9FE',
-          iconColor: '#8B5CF6',
-          metadata: { targetTab: 'feed' },
-        },
-        {
-          type: 'friend' as NotificationType,
-          title: 'Bạn bè vừa chia sẻ khoảnh khắc 📸',
-          message: 'Minh Quân vừa chia sẻ khoảnh khắc "Cà phê sáng Highlands" (45.000đ) trên Bảng tin bạn bè.',
-          iconBg: '#EDE9FE',
-          iconColor: '#8B5CF6',
-          metadata: { targetTab: 'feed' },
-        },
-      ];
-      addNotification(friendChoices[Math.floor(Math.random() * friendChoices.length)]);
-    } else if (filterType === 'moment') {
-      const expenseChoices = [
-        {
-          type: 'moment' as NotificationType,
-          title: 'Đăng khoảnh khắc chi tiêu thành công 📸',
-          message: 'Khoảnh khắc "Ăn tối cùng hội bạn" đã được đăng lên bảng tin.',
-          iconBg: '#ECFDF5',
-          iconColor: '#059669',
-          metadata: { targetTab: 'feed' },
-        },
-        {
-          type: 'expense' as NotificationType,
-          title: 'Đã lưu chi tiêu mới 💰',
-          message: 'Khoản chi "Đi siêu thị VinMart" (320.000đ) đã được ghi nhận.',
-          iconBg: '#FFF1F2',
-          iconColor: '#E11D48',
-          metadata: { targetTab: 'home' },
-        },
-      ];
-      addNotification(expenseChoices[Math.floor(Math.random() * expenseChoices.length)]);
-    } else if (filterType === 'system') {
-      const systemChoices = [
-        {
-          type: 'system' as NotificationType,
-          title: 'Duy trì chuỗi streak 3 ngày! 🔥',
-          message: 'Tuyệt vời! Bạn đang duy trì thói quen ghi chép tài chính rất tốt.',
-          iconBg: '#FFFBEB',
-          iconColor: '#D97706',
-          metadata: { targetTab: 'home' },
-        },
-        {
-          type: 'budget' as NotificationType,
-          title: 'Cảnh báo hạn mức ngân sách ⚠️',
-          message: 'Chi tiêu tháng này của bạn đã đạt 80% hạn mức mục tiêu.',
-          iconBg: '#FEF2F2',
-          iconColor: '#DC2626',
-          metadata: { targetTab: 'analytics' },
-        },
-      ];
-      addNotification(systemChoices[Math.floor(Math.random() * systemChoices.length)]);
-    } else {
-      const allChoices = [
-        {
-          type: 'reminder' as NotificationType,
-          title: 'Nhắc nhở: Xíu nữa đi chợ mua cá & rau tươi ⏰',
-          message: 'Đã đến giờ nhắc nhở (17:30 - Báo trước 10 phút). Đừng quên ghé chợ mua cá và rau tươi tươi ngon nhé!',
-          iconBg: '#EDE9FE',
-          iconColor: '#7C3AED',
-          metadata: { targetTab: 'home' },
-        },
-        {
-          type: 'friend' as NotificationType,
-          title: 'Lời mời kết bạn mới 🤝',
-          message: 'Hoàng Long vừa gửi cho bạn một lời mời kết bạn trên Monett!',
-          iconBg: '#EDE9FE',
-          iconColor: '#8B5CF6',
-          metadata: { targetTab: 'feed' },
-        },
-        {
-          type: 'moment' as NotificationType,
-          title: 'Đăng khoảnh khắc chi tiêu thành công 📸',
-          message: 'Khoảnh khắc "Ăn tối cùng hội bạn" đã được đăng lên bảng tin.',
-          iconBg: '#ECFDF5',
-          iconColor: '#059669',
-          metadata: { targetTab: 'feed' },
-        },
-        {
-          type: 'expense' as NotificationType,
-          title: 'Đã lưu chi tiêu mới 💰',
-          message: 'Khoản chi "Đi siêu thị VinMart" (320.000đ) đã được ghi nhận.',
-          iconBg: '#FFF1F2',
-          iconColor: '#E11D48',
-          metadata: { targetTab: 'home' },
-        },
-      ];
-      addNotification(allChoices[Math.floor(Math.random() * allChoices.length)]);
-    }
-  };
-
   if (!isOpen) return null;
 
   return (
-    <Modal
+    <>
+      <Modal
       visible={isOpen}
       transparent
       animationType="fade"
@@ -372,7 +288,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
 
                   {notifications.length > 0 && (
                     <TouchableOpacity
-                      onPress={clearAll}
+                      onPress={() => setShowClearConfirm(true)}
                       style={[
                         styles.headerActionBtn,
                         { backgroundColor: isDark ? '#1E293B' : '#F1F5F9' },
@@ -392,6 +308,103 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
                     <Ionicons name="close" size={20} color={isDark ? '#94A3B8' : '#64748B'} />
                   </TouchableOpacity>
                 </View>
+              </View>
+
+              {/* BANNER CÔNG TẮC BẬT / TẮT THÔNG BÁO TRÌNH DUYỆT (DESKTOP NOTIFICATIONS) */}
+              <View
+                style={[
+                  styles.browserNotifBanner,
+                  {
+                    backgroundColor: isDark
+                      ? (browserNotifsEnabled ? 'rgba(5, 150, 105, 0.15)' : '#1E293B')
+                      : (browserNotifsEnabled ? '#F0FDF4' : '#F8FAFC'),
+                    borderColor: isDark
+                      ? (browserNotifsEnabled ? 'rgba(5, 150, 105, 0.4)' : '#334155')
+                      : (browserNotifsEnabled ? '#A7F3D0' : '#E2E8F0'),
+                  },
+                ]}
+              >
+                <View style={styles.browserNotifLeft}>
+                  <View
+                    style={[
+                      styles.browserNotifIconCircle,
+                      {
+                        backgroundColor: browserNotifsEnabled
+                          ? (isDark ? 'rgba(5, 150, 105, 0.25)' : '#DCFCE7')
+                          : (isDark ? '#334155' : '#E2E8F0'),
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={browserNotifsEnabled ? 'notifications' : 'notifications-off-outline'}
+                      size={16}
+                      color={browserNotifsEnabled ? '#059669' : '#64748B'}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text
+                        style={[
+                          styles.browserNotifTitle,
+                          { color: isDark ? '#F8FAFC' : '#0F172A' },
+                        ]}
+                      >
+                        {isVi ? 'Thông báo trình duyệt' : 'Desktop Notifications'}
+                      </Text>
+                      <View
+                        style={[
+                          styles.browserNotifStatusBadge,
+                          {
+                            backgroundColor: browserNotifsEnabled
+                              ? (isDark ? 'rgba(5, 150, 105, 0.3)' : '#DCFCE7')
+                              : (isDark ? 'rgba(100, 116, 139, 0.2)' : '#F1F5F9'),
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.browserNotifStatusText,
+                            { color: browserNotifsEnabled ? '#059669' : '#64748B' },
+                          ]}
+                        >
+                          {browserNotifsEnabled ? (isVi ? 'Đang bật' : 'ON') : (isVi ? 'Đang tắt' : 'OFF')}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text
+                      style={[
+                        styles.browserNotifSub,
+                        { color: isDark ? '#94A3B8' : '#64748B' },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {browserNotifsEnabled
+                        ? (isVi ? 'Hiện popup ngoài màn hình khi có lời nhắc & chi tiêu' : 'Sends desktop alerts for reminders and expenses')
+                        : (isVi ? 'Bật để hiện thông báo ra ngoài màn hình máy tính' : 'Enable to get popups outside the browser')}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Nút công tắc Switch Toggle Bật / Tắt */}
+                <TouchableOpacity
+                  style={[
+                    styles.switchTrack,
+                    browserNotifsEnabled
+                      ? styles.switchTrackOn
+                      : (isDark ? styles.switchTrackOffDark : styles.switchTrackOff),
+                  ]}
+                  onPress={handleToggleBrowserNotifications}
+                  activeOpacity={0.8}
+                  accessibilityRole="switch"
+                  accessibilityState={{ checked: browserNotifsEnabled }}
+                >
+                  <View
+                    style={[
+                      styles.switchThumb,
+                      browserNotifsEnabled ? styles.switchThumbOn : styles.switchThumbOff,
+                    ]}
+                  />
+                </TouchableOpacity>
               </View>
 
               {/* Filter Tabs */}
@@ -495,17 +508,6 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
                     >
                       {emptyStateContent.subtitle}
                     </Text>
-
-                    <TouchableOpacity
-                      style={styles.testBtn}
-                      onPress={handleCreateTestNotification}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="sparkles" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
-                      <Text style={styles.testBtnText}>
-                        {emptyStateContent.btnText}
-                      </Text>
-                    </TouchableOpacity>
                   </View>
                 ) : (
                   filteredNotifications.map((notif) => {
@@ -614,37 +616,106 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
                   })
                 )}
               </ScrollView>
-
-              {/* Footer */}
-              <View
-                style={[
-                  styles.footer,
-                  {
-                    borderTopColor: isDark ? '#1E293B' : '#F1F5F9',
-                    backgroundColor: isDark ? '#0B1120' : '#FAFAFA',
-                  },
-                ]}
-              >
-                <Text style={styles.footerHint}>
-                  {isVi
-                    ? '💡 Tự động thông báo khi có bạn bè hoặc chi tiêu mới'
-                    : '💡 Auto-notifies on new friend or expense events'}
-                </Text>
-                <TouchableOpacity
-                  onPress={handleCreateTestNotification}
-                  style={styles.footerSimulateBtn}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.footerSimulateText}>
-                    {isVi ? '+ Thử thông báo' : '+ Test'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
             </View>
           </TouchableWithoutFeedback>
         </View>
       </TouchableWithoutFeedback>
     </Modal>
+
+    {/* MODAL XÁC NHẬN XÓA TẤT CẢ THÔNG BÁO */}
+    <Modal
+      visible={showClearConfirm}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowClearConfirm(false)}
+    >
+      <TouchableOpacity
+        style={styles.confirmBackdrop}
+        activeOpacity={1}
+        onPress={() => setShowClearConfirm(false)}
+      >
+        <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+          <View
+            style={[
+              styles.confirmCard,
+              {
+                backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+                borderColor: isDark ? '#334155' : '#E2E8F0',
+              },
+            ]}
+          >
+            {/* Icon thùng rác đỏ */}
+            <View
+              style={[
+                styles.confirmIconWrap,
+                { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2' },
+              ]}
+            >
+              <Ionicons name="trash" size={26} color="#EF4444" />
+            </View>
+
+            {/* Tiêu đề & nội dung hỏi người dùng */}
+            <Text
+              style={[
+                styles.confirmTitle,
+                { color: isDark ? '#F8FAFC' : '#0F172A' },
+              ]}
+            >
+              {isVi ? 'Xóa tất cả thông báo?' : 'Delete all notifications?'}
+            </Text>
+            <Text
+              style={[
+                styles.confirmSubtitle,
+                { color: isDark ? '#94A3B8' : '#64748B' },
+              ]}
+            >
+              {isVi
+                ? `Bạn có chắc chắn muốn xóa toàn bộ ${notifications.length} thông báo không? Thao tác này không thể hoàn tác.`
+                : `Are you sure you want to delete all ${notifications.length} notifications? This action cannot be undone.`}
+            </Text>
+
+            {/* Hàng nút lựa chọn */}
+            <View style={styles.confirmBtnRow}>
+              <TouchableOpacity
+                style={[
+                  styles.confirmCancelBtn,
+                  {
+                    backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+                    borderColor: isDark ? '#334155' : '#CBD5E1',
+                  },
+                ]}
+                onPress={() => setShowClearConfirm(false)}
+                activeOpacity={0.75}
+              >
+                <Text
+                  style={[
+                    styles.confirmCancelBtnText,
+                    { color: isDark ? '#E2E8F0' : '#475569' },
+                  ]}
+                >
+                  {isVi ? 'Hủy' : 'Cancel'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.confirmDeleteBtn}
+                onPress={() => {
+                  clearAll();
+                  setShowClearConfirm(false);
+                }}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="trash" size={15} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.confirmDeleteBtnText}>
+                  {isVi ? 'Xóa tất cả' : 'Delete All'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </TouchableOpacity>
+    </Modal>
+  </>
   );
 };
 
@@ -685,6 +756,82 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
+  },
+  browserNotifBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  browserNotifLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    paddingRight: 10,
+    gap: 10,
+  },
+  browserNotifIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  browserNotifTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  browserNotifStatusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+  },
+  browserNotifStatusText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  browserNotifSub: {
+    fontSize: 11,
+    marginTop: 1.5,
+  },
+  switchTrack: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  switchTrackOn: {
+    backgroundColor: '#059669',
+  },
+  switchTrackOff: {
+    backgroundColor: '#CBD5E1',
+  },
+  switchTrackOffDark: {
+    backgroundColor: '#475569',
+  },
+  switchThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  switchThumbOn: {
+    transform: [{ translateX: 20 }],
+  },
+  switchThumbOff: {
+    transform: [{ translateX: 0 }],
   },
   headerTitleRow: {
     flexDirection: 'row',
@@ -900,29 +1047,81 @@ const styles = StyleSheet.create({
     right: 10,
     padding: 4,
   },
-  footer: {
+  confirmBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    zIndex: 100002,
+  },
+  confirmCard: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  confirmIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  confirmTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  confirmSubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 20,
+  },
+  confirmBtnRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 1,
+    gap: 12,
+    width: '100%',
   },
-  footerHint: {
-    fontSize: 11,
-    color: '#94A3B8',
-    fontWeight: '600',
+  confirmCancelBtn: {
     flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
   },
-  footerSimulateBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: 'rgba(5, 150, 105, 0.1)',
-  },
-  footerSimulateText: {
-    fontSize: 11,
+  confirmCancelBtnText: {
+    fontSize: 14,
     fontWeight: '700',
-    color: '#059669',
+  },
+  confirmDeleteBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#DC2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#DC2626',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  confirmDeleteBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
   },
 });

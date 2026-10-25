@@ -39,4 +39,4 @@ async function bootstrap() {
   console.log(`🩺 Health check endpoint: http://localhost:${port}/api/health`);
 }
 bootstrap();
-// Trigger restart: 2026-10-19 22:48
+// Trigger restart with Cloudinary Root Key: 2026-10-25 23:09

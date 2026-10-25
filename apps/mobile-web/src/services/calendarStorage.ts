@@ -5,11 +5,22 @@
  * 2. IndexedDB primary storage (unlimited quota, never loses data or photos on refresh/tab switch).
  * 3. localStorage secondary cache for zero-flicker instant synchronous loading.
  */
+import { getStoredUserId } from './api';
 
 const DB_NAME = 'MonettDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'calendar_data';
 export const CALENDAR_STORAGE_KEY = 'monett_day_records';
+
+export function getCalendarStorageKey(userId?: string): string {
+  const uid = userId || getStoredUserId();
+  return uid && uid !== 'guest' ? `monett_day_records_${uid}` : 'monett_day_records';
+}
+
+export function getBudgetStorageKey(userId?: string): string {
+  const uid = userId || getStoredUserId();
+  return uid && uid !== 'guest' ? `monett_cached_budget_${uid}` : 'monett_cached_budget';
+}
 
 /**
  * Compresses an image File or Blob using HTML5 Canvas.
@@ -84,13 +95,14 @@ function openIndexedDB(): Promise<IDBDatabase> {
   });
 }
 
-export async function idbSaveRecords<T>(value: T): Promise<boolean> {
+export async function idbSaveRecords<T>(value: T, userId?: string): Promise<boolean> {
   try {
     const db = await openIndexedDB();
+    const key = getCalendarStorageKey(userId);
     return new Promise((resolve) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
-      const req = store.put(value, CALENDAR_STORAGE_KEY);
+      const req = store.put(value, key);
       req.onsuccess = () => resolve(true);
       req.onerror = () => resolve(false);
     });
@@ -99,13 +111,14 @@ export async function idbSaveRecords<T>(value: T): Promise<boolean> {
   }
 }
 
-export async function idbLoadRecords<T>(): Promise<T | null> {
+export async function idbLoadRecords<T>(userId?: string): Promise<T | null> {
   try {
     const db = await openIndexedDB();
+    const key = getCalendarStorageKey(userId);
     return new Promise((resolve) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
-      const req = store.get(CALENDAR_STORAGE_KEY);
+      const req = store.get(key);
       req.onsuccess = () => resolve(req.result ?? null);
       req.onerror = () => resolve(null);
     });
@@ -135,10 +148,11 @@ export interface CachedBudgetData {
 /**
  * Lấy ngân sách được lưu đệm trong localStorage để render tức thì 0ms không phải chờ API
  */
-export function getCachedBudget(): CachedBudgetData | null {
+export function getCachedBudget(userId?: string): CachedBudgetData | null {
   if (typeof window === 'undefined' || !window.localStorage) return null;
   try {
-    const raw = localStorage.getItem(BUDGET_STORAGE_KEY);
+    const key = getBudgetStorageKey(userId);
+    const raw = localStorage.getItem(key);
     if (!raw) return null;
     return JSON.parse(raw);
   } catch {
@@ -149,10 +163,11 @@ export function getCachedBudget(): CachedBudgetData | null {
 /**
  * Lưu ngân sách vào localStorage để đồng bộ giữa các tab và màn hình
  */
-export function saveCachedBudget(budget: CachedBudgetData): void {
+export function saveCachedBudget(budget: CachedBudgetData, userId?: string): void {
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      localStorage.setItem(BUDGET_STORAGE_KEY, JSON.stringify(budget));
+      const key = getBudgetStorageKey(userId);
+      localStorage.setItem(key, JSON.stringify(budget));
     } catch (_) {}
   }
 }
@@ -284,7 +299,7 @@ export function subscribeCalendarUpdates(
   };
 
   const handleStorageEvent = (e: StorageEvent) => {
-    if (e.key === CALENDAR_STORAGE_KEY) {
+    if (e.key && (e.key === CALENDAR_STORAGE_KEY || e.key.startsWith('monett_day_records'))) {
       callback(getInitialDayRecordsFromLocalStorage());
     }
   };
@@ -302,22 +317,23 @@ export function subscribeCalendarUpdates(
  * Saves records to IndexedDB (asynchronous unlimited storage)
  * AND synchronizes to localStorage for fast immediate reads.
  */
-export function saveDayRecordsToStorage(records: any): void {
+export function saveDayRecordsToStorage(records: any, userId?: string): void {
+  const key = getCalendarStorageKey(userId);
   // 1. Primary: IndexedDB (Reliable, unlimited quota, persists across tabs/sessions)
-  idbSaveRecords(records).catch((err) => {
+  idbSaveRecords(records, userId).catch((err) => {
     console.warn('[calendarStorage] IndexedDB save error:', err);
   });
 
   // 2. Secondary: localStorage (instant synchronous read on initial render)
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(records));
+      localStorage.setItem(key, JSON.stringify(records));
       // Remove old duplicated key to free up 50% storage space
       localStorage.removeItem('monett_day_photos');
     } catch {
       try {
         localStorage.removeItem('monett_day_photos');
-        localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(records));
+        localStorage.setItem(key, JSON.stringify(records));
       } catch {
         console.warn('[calendarStorage] localStorage quota reached; full records are securely stored in IndexedDB.');
       }
@@ -328,228 +344,86 @@ export function saveDayRecordsToStorage(records: any): void {
   notifyCalendarUpdated(records);
 }
 
-// Dữ liệu mẫu chuẩn đồng bộ cho Tháng 10/2026 giữa Web và Mobile
-export const INITIAL_SAMPLE_RECORDS: Record<string, DayExpenseRecord> = {
-  '2026-10-1': {
-    photoUri: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=250&auto=format&fit=crop&q=80',
-    amount: 45000,
-    category: 'Cà phê & Đồ uống',
-    categoryIcon: '☕',
-    note: 'Cà phê sáng vỉa hè ngắm phố phường thanh bình',
-    dateStr: '2026-10-01',
-    items: [
-      { id: '1-1', time: '07:30', amount: 45000, category: 'Cà phê', categoryIcon: '☕', note: 'Cà phê sữa đá', createdAt: '2026-10-01T07:30:00.000Z' }
-    ]
-  },
-  '2026-10-01': {
-    photoUri: 'https://images.unsplash.com/photo-1509042239860-f550ce710b93?w=250&auto=format&fit=crop&q=80',
-    amount: 45000,
-    category: 'Cà phê & Đồ uống',
-    categoryIcon: '☕',
-    note: 'Cà phê sáng vỉa hè ngắm phố phường thanh bình',
-    dateStr: '2026-10-01',
-    items: [
-      { id: '1-1', time: '07:30', amount: 45000, category: 'Cà phê', categoryIcon: '☕', note: 'Cà phê sữa đá', createdAt: '2026-10-01T07:30:00.000Z' }
-    ]
-  },
-  '2026-10-2': {
-    photoUri: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=250&auto=format&fit=crop&q=80',
-    amount: 120000,
-    category: 'Ăn uống',
-    categoryIcon: '🍜',
-    note: 'Bữa trưa healthy cùng đồng nghiệp công ty',
-    dateStr: '2026-10-02',
-    items: [
-      { id: '2-1', time: '12:15', amount: 120000, category: 'Ăn uống', categoryIcon: '🍜', note: 'Caesar Salad Bò áp chảo', createdAt: '2026-10-02T12:15:00.000Z' }
-    ]
-  },
-  '2026-10-02': {
-    photoUri: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=250&auto=format&fit=crop&q=80',
-    amount: 120000,
-    category: 'Ăn uống',
-    categoryIcon: '🍜',
-    note: 'Bữa trưa healthy cùng đồng nghiệp công ty',
-    dateStr: '2026-10-02',
-    items: [
-      { id: '2-1', time: '12:15', amount: 120000, category: 'Ăn uống', categoryIcon: '🍜', note: 'Caesar Salad Bò áp chảo', createdAt: '2026-10-02T12:15:00.000Z' }
-    ]
-  },
-  '2026-10-3': {
-    photoUri: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=250&auto=format&fit=crop&q=80',
-    amount: 310000,
-    category: 'Ăn uống',
-    categoryIcon: '🍲',
-    note: 'Lẩu mini cuối tuần thật ấm bụng',
-    dateStr: '2026-10-03',
-    items: [
-      { id: '3-1', time: '13:00', amount: 310000, category: 'Ăn uống', categoryIcon: '🍲', note: 'Combo Lẩu Bò Cà Chua', createdAt: '2026-10-03T13:00:00.000Z' }
-    ]
-  },
-  '2026-10-03': {
-    photoUri: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=250&auto=format&fit=crop&q=80',
-    amount: 310000,
-    category: 'Ăn uống',
-    categoryIcon: '🍲',
-    note: 'Lẩu mini cuối tuần thật ấm bụng',
-    dateStr: '2026-10-03',
-    items: [
-      { id: '3-1', time: '13:00', amount: 310000, category: 'Ăn uống', categoryIcon: '🍲', note: 'Combo Lẩu Bò Cà Chua', createdAt: '2026-10-03T13:00:00.000Z' }
-    ]
-  },
-  '2026-10-4': {
-    photoUri: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=250&auto=format&fit=crop&q=80',
-    amount: 185000,
-    category: 'Trà chiều',
-    categoryIcon: '🍰',
-    note: 'Bánh tart dâu và trà hoa quả thư giãn chủ nhật',
-    dateStr: '2026-10-04',
-    items: [
-      { id: '4-1', time: '16:45', amount: 185000, category: 'Trà chiều', categoryIcon: '🍰', note: 'Bánh Tart Dâu & Trà Đào', createdAt: '2026-10-04T16:45:00.000Z' }
-    ]
-  },
-  '2026-10-04': {
-    photoUri: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=250&auto=format&fit=crop&q=80',
-    amount: 185000,
-    category: 'Trà chiều',
-    categoryIcon: '🍰',
-    note: 'Bánh tart dâu và trà hoa quả thư giãn chủ nhật',
-    dateStr: '2026-10-04',
-    items: [
-      { id: '4-1', time: '16:45', amount: 185000, category: 'Trà chiều', categoryIcon: '🍰', note: 'Bánh Tart Dâu & Trà Đào', createdAt: '2026-10-04T16:45:00.000Z' }
-    ]
-  },
-  '2026-10-5': {
-    photoUri: 'https://images.unsplash.com/photo-1552611052-33e04de081de?w=250&auto=format&fit=crop&q=80',
-    amount: 95000,
-    category: 'Ăn uống',
-    categoryIcon: '🍜',
-    note: 'Bát phở tái lăn ngập hành lá thơm nức đầu tuần',
-    dateStr: '2026-10-05',
-    items: [
-      { id: '5-1', time: '08:00', amount: 95000, category: 'Ăn uống', categoryIcon: '🍜', note: 'Phở bò tái lăn đặc biệt', createdAt: '2026-10-05T08:00:00.000Z' }
-    ]
-  },
-  '2026-10-05': {
-    photoUri: 'https://images.unsplash.com/photo-1552611052-33e04de081de?w=250&auto=format&fit=crop&q=80',
-    amount: 95000,
-    category: 'Ăn uống',
-    categoryIcon: '🍜',
-    note: 'Bát phở tái lăn ngập hành lá thơm nức đầu tuần',
-    dateStr: '2026-10-05',
-    items: [
-      { id: '5-1', time: '08:00', amount: 95000, category: 'Ăn uống', categoryIcon: '🍜', note: 'Phở bò tái lăn đặc biệt', createdAt: '2026-10-05T08:00:00.000Z' }
-    ]
-  },
-  '2026-10-6': {
-    photoUri: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=250&auto=format&fit=crop&q=80',
-    amount: 150000,
-    category: 'Ăn uống',
-    categoryIcon: '🍜',
-    note: 'Tô bún bò thơm nồng cùng đồng nghiệp trưa',
-    dateStr: '2026-10-06',
-    items: [
-      { id: '6-1', time: '11:30', amount: 150000, category: 'Ăn uống', categoryIcon: '🍜', note: 'Tô bún bò thập cẩm chả cua', createdAt: '2026-10-06T11:30:00.000Z' }
-    ]
-  },
-  '2026-10-06': {
-    photoUri: 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=250&auto=format&fit=crop&q=80',
-    amount: 150000,
-    category: 'Ăn uống',
-    categoryIcon: '🍜',
-    note: 'Tô bún bò thơm nồng cùng đồng nghiệp trưa',
-    dateStr: '2026-10-06',
-    items: [
-      { id: '6-1', time: '11:30', amount: 150000, category: 'Ăn uống', categoryIcon: '🍜', note: 'Tô bún bò thập cẩm chả cua', createdAt: '2026-10-06T11:30:00.000Z' }
-    ]
-  },
-  '2026-10-7': {
-    photoUri: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=250&auto=format&fit=crop&q=80',
-    amount: 65000,
-    category: 'Cà phê & Đồ uống',
-    categoryIcon: '☕',
-    note: 'Ly Freeze Trà Xanh nạp năng lượng tập trung làm việc',
-    dateStr: '2026-10-07',
-    items: [
-      { id: '7-1', time: '09:15', amount: 65000, category: 'Cà phê', categoryIcon: '☕', note: 'Freeze Trà Xanh cỡ lớn', createdAt: '2026-10-07T09:15:00.000Z' }
-    ]
-  },
-  '2026-10-07': {
-    photoUri: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=250&auto=format&fit=crop&q=80',
-    amount: 65000,
-    category: 'Cà phê & Đồ uống',
-    categoryIcon: '☕',
-    note: 'Ly Freeze Trà Xanh nạp năng lượng tập trung làm việc',
-    dateStr: '2026-10-07',
-    items: [
-      { id: '7-1', time: '09:15', amount: 65000, category: 'Cà phê', categoryIcon: '☕', note: 'Freeze Trà Xanh cỡ lớn', createdAt: '2026-10-07T09:15:00.000Z' }
-    ]
-  },
-  '2026-10-8': {
-    photoUri: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=250&auto=format&fit=crop&q=80',
-    amount: 220000,
-    category: 'Ẩm thực',
-    categoryIcon: '🍚',
-    note: 'Cơm niêu xá xíu thơm giòn cháy đáy',
-    dateStr: '2026-10-08',
-    items: [
-      { id: '8-1', time: '12:10', amount: 220000, category: 'Ẩm thực', categoryIcon: '🍚', note: 'Cơm niêu xá xíu & Canh chua', createdAt: '2026-10-08T12:10:00.000Z' }
-    ]
-  },
-  '2026-10-08': {
-    photoUri: 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=250&auto=format&fit=crop&q=80',
-    amount: 220000,
-    category: 'Ẩm thực',
-    categoryIcon: '🍚',
-    note: 'Cơm niêu xá xíu thơm giòn cháy đáy',
-    dateStr: '2026-10-08',
-    items: [
-      { id: '8-1', time: '12:10', amount: 220000, category: 'Ẩm thực', categoryIcon: '🍚', note: 'Cơm niêu xá xíu & Canh chua', createdAt: '2026-10-08T12:10:00.000Z' }
-    ]
-  },
-  '2026-10-9': {
-    amount: 75000,
-    category: 'Di chuyển & Xăng xe',
-    categoryIcon: '⛽',
-    note: 'Đổ đầy bình xăng xe máy chạy cả tuần',
-    dateStr: '2026-10-09',
-    items: [
-      { id: '9-1', time: '08:15', amount: 75000, category: 'Di chuyển', categoryIcon: '⛽', note: 'Đổ xăng Ron 95', createdAt: '2026-10-09T08:15:00.000Z' }
-    ]
-  },
-  '2026-10-09': {
-    amount: 75000,
-    category: 'Di chuyển & Xăng xe',
-    categoryIcon: '⛽',
-    note: 'Đổ đầy bình xăng xe máy chạy cả tuần',
-    dateStr: '2026-10-09',
-    items: [
-      { id: '9-1', time: '08:15', amount: 75000, category: 'Di chuyển', categoryIcon: '⛽', note: 'Đổ xăng Ron 95', createdAt: '2026-10-09T08:15:00.000Z' }
-    ]
-  },
-  '2026-10-10': {
-    photoUri: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=600&auto=format&fit=crop&q=80',
-    amount: 450000,
-    category: 'Ẩm thực & Bạn bè',
-    categoryIcon: '🍕',
-    note: 'Tự thưởng pizza phô mai thơm lừng mừng cuối tuần!',
-    dateStr: '2026-10-10',
-    items: [
-      { id: '10-1', time: '19:42', amount: 390000, category: 'Ẩm thực', categoryIcon: '🍕', note: 'Pizza 4 Cheese & Salad bơ', createdAt: '2026-10-10T19:42:00.000Z' },
-      { id: '10-2', time: '19:50', amount: 60000, category: 'Đồ uống', categoryIcon: '🍹', note: 'Nước ép cam tươi', createdAt: '2026-10-10T19:50:00.000Z' }
-    ]
-  },
-  '2026-10-11': {
-    photoUri: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=250&auto=format&fit=crop&q=80',
-    amount: 280000,
-    category: 'Đi chợ & Siêu thị',
-    categoryIcon: '🛒',
-    note: 'Đi siêu thị mua rau củ quả tươi cho tuần mới',
-    dateStr: '2026-10-11',
-    items: [
-      { id: '11-1', time: '18:00', amount: 280000, category: 'Đi chợ', categoryIcon: '🛒', note: 'Thực phẩm tươi sống & Rau củ', createdAt: '2026-10-11T18:00:00.000Z' }
-    ]
-  },
-};
+// Dữ liệu ban đầu hoàn toàn rỗng để tài khoản hiển thị 100% dữ liệu chi tiêu thật từ MongoDB
+export const INITIAL_SAMPLE_RECORDS: Record<string, DayExpenseRecord> = {};
+
+/**
+ * Kiểm tra xem một item có phải là dữ liệu mẫu giả lập trước đây hay không
+ */
+export function isSampleRecordItem(item: any): boolean {
+  if (!item) return false;
+  const idStr = String(item.id || item._id || '');
+  if (/^[0-9]+-[0-9]+$/.test(idStr)) return true; // '1-1', '2-1', '10-1', '11-1', etc.
+  if (idStr.startsWith('legacy-')) return true;
+  if (typeof item.photoUri === 'string' && item.photoUri.includes('unsplash.com')) return true;
+  const sampleNotes = [
+    'Cà phê sáng vỉa hè',
+    'Bữa trưa healthy',
+    'Lẩu mini cuối tuần',
+    'Bánh tart dâu',
+    'Bát phở tái lăn',
+    'Tô bún bò thơm nồng',
+    'Freeze Trà Xanh',
+    'Cơm niêu xá xíu',
+    'Đổ xăng Ron 95',
+    'Pizza 4 Cheese',
+    'Đi siêu thị mua rau',
+  ];
+  if (typeof item.note === 'string' && sampleNotes.some((n) => item.note.includes(n))) return true;
+  return false;
+}
+
+/**
+ * Dọn sạch triệt để toàn bộ dữ liệu mẫu demo giả lập khỏi localStorage & IndexedDB cho tất cả tài khoản
+ */
+export function purgeAllLegacySampleData(): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k === CALENDAR_STORAGE_KEY || k.startsWith('monett_day_records'))) {
+        const raw = localStorage.getItem(k);
+        if (raw) {
+          try {
+            const data = JSON.parse(raw);
+            if (data && typeof data === 'object') {
+              const cleaned: Record<string, DayExpenseRecord> = {};
+              let changed = false;
+              Object.entries(data).forEach(([dateKey, rec]: [string, any]) => {
+                if (!rec) return;
+                const items = Array.isArray(rec.items) ? rec.items : [];
+                const realItems = items.filter((it: any) => !isSampleRecordItem(it));
+                if (realItems.length !== items.length) changed = true;
+                if (rec.photoUri && rec.photoUri.includes('unsplash.com')) changed = true;
+
+                if (realItems.length > 0) {
+                  cleaned[dateKey] = {
+                    ...rec,
+                    items: realItems,
+                    amount: realItems.reduce((s: number, it: any) => s + (it.amount || 0), 0),
+                    photoUri: getLatestPhotoFromItems(realItems),
+                  };
+                } else {
+                  changed = true;
+                }
+              });
+
+              if (changed) {
+                localStorage.setItem(k, JSON.stringify(cleaned));
+                idbSaveRecords(cleaned, k.replace('monett_day_records_', ''));
+              }
+            }
+          } catch (_) {}
+        }
+      }
+    }
+  } catch (_) {}
+}
+
+// Tự động dọn dẹp sạch sẽ ngay khi nạp module
+if (typeof window !== 'undefined') {
+  purgeAllLegacySampleData();
+}
 
 /**
  * Trích xuất timestamp chính xác lúc upload/tạo giao dịch (từ createdAt, MongoDB ObjectId, local tempId hoặc date có giờ thực).
@@ -660,10 +534,14 @@ export function isIncomeTransactionOrItem(it: any): boolean {
 /**
  * Synchronous initial state loader from localStorage.
  */
-export function getInitialDayRecordsFromLocalStorage(): Record<string, DayExpenseRecord> {
+export function getInitialDayRecordsFromLocalStorage(userId?: string): Record<string, DayExpenseRecord> {
+  const key = getCalendarStorageKey(userId);
+  const uid = userId || getStoredUserId();
+  const isRealUser = uid && uid !== 'guest';
+
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      const saved = localStorage.getItem(CALENDAR_STORAGE_KEY);
+      const saved = localStorage.getItem(key);
       if (saved !== null) {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed === 'object') {
@@ -671,14 +549,18 @@ export function getInitialDayRecordsFromLocalStorage(): Record<string, DayExpens
           let needsResave = false;
           Object.entries(parsed).forEach(([k, rec]: [string, any]) => {
             if (!rec) return;
-            // Tự động loại bỏ mọi item thu nhập vô tình lọt vào dayRecords
+            // Tự động loại bỏ mọi item thu nhập vô tình lọt vào dayRecords & loại bỏ dữ liệu mẫu cũ
             if (Array.isArray(rec.items) && rec.items.length > 0) {
               const origLen = rec.items.length;
-              rec.items = rec.items.filter((it: any) => !isIncomeTransactionOrItem(it));
+              rec.items = rec.items.filter((it: any) => !isIncomeTransactionOrItem(it) && !isSampleRecordItem(it));
               if (rec.items.length !== origLen) {
                 needsResave = true;
                 rec.amount = rec.items.reduce((s: number, it: any) => s + (it.amount || 0), 0);
               }
+            }
+            if (rec.photoUri && rec.photoUri.includes('unsplash.com')) {
+              rec.photoUri = getLatestPhotoFromItems(rec.items);
+              needsResave = true;
             }
             // Nếu một ngày không có khoản chi nào (items rỗng và amount = 0), không giữ ảnh đại diện rác
             if (Array.isArray(rec.items) && rec.items.length === 0 && (!rec.amount || rec.amount === 0)) {
@@ -696,7 +578,7 @@ export function getInitialDayRecordsFromLocalStorage(): Record<string, DayExpens
           });
           if (needsResave && typeof window !== 'undefined' && window.localStorage) {
             try {
-              localStorage.setItem(CALENDAR_STORAGE_KEY, JSON.stringify(cleaned));
+              localStorage.setItem(key, JSON.stringify(cleaned));
             } catch (_) {}
           }
           return cleaned;
@@ -704,7 +586,8 @@ export function getInitialDayRecordsFromLocalStorage(): Record<string, DayExpens
       }
     } catch (_) {}
   }
-  return { ...INITIAL_SAMPLE_RECORDS };
+  // Bắt đầu rỗng hoàn toàn 100% để nạp dữ liệu chi tiêu thật từ MongoDB
+  return {};
 }
 
 /**
@@ -807,12 +690,34 @@ export function mergeTransactionsIntoDayRecords(
 }
 
 /**
+ * Xây dựng bản ghi lịch chi tiêu sạch sẽ 100% từ danh sách giao dịch MongoDB của đúng tài khoản người dùng
+ */
+export function buildDayRecordsFromTransactions(
+  transactions: any[]
+): Record<string, DayExpenseRecord> {
+  return mergeTransactionsIntoDayRecords({}, transactions);
+}
+
+/**
+ * Xóa sạch bộ nhớ đệm lịch của một tài khoản cụ thể
+ */
+export function clearUserCalendarStorage(userId?: string): void {
+  const uid = userId || getStoredUserId();
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      localStorage.removeItem(getCalendarStorageKey(uid));
+      localStorage.removeItem(getBudgetStorageKey(uid));
+    } catch (_) {}
+  }
+}
+
+/**
  * Xóa một giao dịch khỏi dayRecords và lưu lại vào Storage.
  * - Nếu xóa hết các khoản chi tiêu trong ngày -> xóa luôn ảnh đại diện ô lịch.
  * - Nếu vẫn còn các khoản chi tiêu khác -> tự động lấy ảnh được upload mới nhất để làm ảnh đại diện ô lịch.
  */
-export function removeDayRecordItem(itemId: string): Record<string, DayExpenseRecord> {
-  const current = getInitialDayRecordsFromLocalStorage();
+export function removeDayRecordItem(itemId: string, userId?: string): Record<string, DayExpenseRecord> {
+  const current = getInitialDayRecordsFromLocalStorage(userId);
   const next: Record<string, DayExpenseRecord> = {};
   const matchId = (it: any) => String(it.id || it._id) === String(itemId);
 
@@ -854,7 +759,7 @@ export function removeDayRecordItem(itemId: string): Record<string, DayExpenseRe
     };
   });
 
-  saveDayRecordsToStorage(next);
+  saveDayRecordsToStorage(next, userId);
   notifyCalendarUpdated(next);
   return next;
 }

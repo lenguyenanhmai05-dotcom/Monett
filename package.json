@@ -9,6 +9,8 @@
   ],
   "scripts": {
     "dev": "concurrently -n \"BACKEND,MOBILE\" -c \"blue,green\" \"npm run dev:backend\" \"npm run dev:mobile\"",
+    "dev:all": "node scripts/start-all.js",
+    "dev:lan": "node scripts/start-lan.js",
     "dev:all:tunnel": "concurrently -n \"BACKEND,MOBILE\" -c \"blue,green\" \"npm run dev:backend\" \"npm run dev:mobile:tunnel -- -c\"",
     "dev:backend": "npm run start:dev --workspace=@monett/backend",
     "dev:mobile": "npm run start --workspace=@monett/mobile-web",
@@ -21,6 +23,9 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
-    "jimp": "^1.6.1"
+    "@nestjs/platform-socket.io": "^10.3.8",
+    "@nestjs/websockets": "^10.3.8",
+    "jimp": "^1.6.1",
+    "socket.io": "^4.7.5"
   }
 }

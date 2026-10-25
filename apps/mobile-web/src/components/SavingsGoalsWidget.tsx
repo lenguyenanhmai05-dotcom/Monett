@@ -59,11 +59,6 @@ const SAMPLE_GOALS: ISavingsGoal[] = [
   },
 ];
 
-// Đã tắt hoàn toàn âm thanh theo yêu cầu của người dùng
-const playCoinSound = () => {
-  return;
-};
-
 const formatMoney = (amount: number): string => {
   if (!amount || isNaN(amount)) return '0 đ';
   return amount.toLocaleString('vi-VN') + ' đ';
@@ -123,8 +118,6 @@ export const SavingsGoalsWidget: React.FC<SavingsGoalsWidgetProps> = ({ noMargin
     const addAmt = Number(depositAmount.replace(/\D/g, '')) || 0;
     if (addAmt <= 0) return;
 
-    playCoinSound();
-
     const updated = goals.map((g) => {
       if (g.id === depositingGoal.id) {
         return {
@@ -147,8 +140,6 @@ export const SavingsGoalsWidget: React.FC<SavingsGoalsWidgetProps> = ({ noMargin
     const currentNum = Number(formCurrent.replace(/\D/g, '')) || 0;
 
     if (!titleTrim || targetNum <= 0) return;
-
-    playCoinSound();
 
     if (editingGoalId) {
       const updated = goals.map((g) => {

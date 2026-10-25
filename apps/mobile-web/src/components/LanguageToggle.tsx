@@ -13,92 +13,68 @@ interface LanguageToggleProps {
 
 export const LanguageToggle: React.FC<LanguageToggleProps> = ({ style }) => {
   const { language, setLanguage } = useLanguage();
+  const isVi = language === 'vi';
+
+  const toggleLang = () => {
+    setLanguage(isVi ? 'en' : 'vi');
+  };
 
   return (
-    <View style={[styles.container, style]}>
-      {/* VI Button */}
-      <TouchableOpacity
-        style={[styles.toggleBtn, language === 'vi' && styles.toggleBtnActive]}
-        onPress={() => setLanguage('vi')}
-        activeOpacity={0.8}
-        accessibilityLabel="Chuyển sang Tiếng Việt"
-      >
-        <Text style={[styles.langText, language === 'vi' && styles.langTextActive]}>
-          VI
-        </Text>
-        <Image
-          source={{ uri: VIETNAM_FLAG_BASE64 }}
-          style={styles.flagIcon}
-          resizeMode="cover"
-        />
-      </TouchableOpacity>
-
-      {/* EN Button */}
-      <TouchableOpacity
-        style={[styles.toggleBtn, language === 'en' && styles.toggleBtnActive]}
-        onPress={() => setLanguage('en')}
-        activeOpacity={0.8}
-        accessibilityLabel="Switch to English"
-      >
-        <Text style={[styles.langText, language === 'en' && styles.langTextActive]}>
-          EN
-        </Text>
-        <Image
-          source={{ uri: US_FLAG_BASE64 }}
-          style={styles.flagIcon}
-          resizeMode="cover"
-        />
-      </TouchableOpacity>
-    </View>
+    <TouchableOpacity
+      style={[styles.singleFlagBtn, style]}
+      onPress={toggleLang}
+      activeOpacity={0.75}
+      accessibilityLabel={isVi ? 'Chuyển sang Tiếng Anh' : 'Switch to Vietnamese'}
+      // @ts-ignore
+      title={isVi ? 'Đổi sang Tiếng Anh (Click to switch to English)' : 'Đổi sang Tiếng Việt (Click to switch to Vietnamese)'}
+    >
+      <Image
+        source={{ uri: isVi ? VIETNAM_FLAG_BASE64 : US_FLAG_BASE64 }}
+        style={styles.flagIcon}
+        resizeMode="cover"
+      />
+      <Text style={styles.langCodeText}>{isVi ? 'VI' : 'EN'}</Text>
+    </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  singleFlagBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#E2E8F0',
-    borderRadius: 24,
-    padding: 3,
-  },
-  toggleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 5,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 20,
     gap: 6,
-  },
-  toggleBtnActive: {
-    backgroundColor: '#FFFFFF',
+    cursor: 'pointer' as any,
     ...Platform.select({
       web: {
-        boxShadow: '0px 2px 4px rgba(0,0,0,0.15)',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+        transition: 'all 0.2s ease',
       } as any,
       default: {
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-        elevation: 3,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.08,
+        shadowRadius: 3,
+        elevation: 2,
       },
     }),
   },
-  langText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748B',
-    letterSpacing: 0.3,
-  },
-  langTextActive: {
-    color: '#0F172A',
-    fontWeight: '800',
-  },
   flagIcon: {
-    width: 20,
-    height: 14,
-    borderRadius: 2,
+    width: 22,
+    height: 15,
+    borderRadius: 3,
     borderWidth: 0.5,
-    borderColor: 'rgba(0,0,0,0.1)',
+    borderColor: 'rgba(0,0,0,0.12)',
+  },
+  langCodeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#334155',
+    letterSpacing: 0.4,
   },
 });

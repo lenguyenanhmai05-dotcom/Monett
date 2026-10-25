@@ -23,66 +23,27 @@ export interface DebtItem {
 
 const STORAGE_PREFIX = '@monett_debt_items_';
 
-export const DEFAULT_INITIAL_DEBTS: DebtItem[] = [
-  {
-    id: 'debt_sample_lent_1',
-    personName: 'Anh Tuấn (Đồng nghiệp)',
-    amount: 5000000,
-    paidAmount: 2000000,
-    type: 'lent',
-    startDate: '10/10/2026',
-    dueDate: '30/11/2026',
-    note: 'Mượn đóng tiền cọc phòng trọ',
-    isSettled: false,
-    createdAt: new Date().toISOString(),
-    payments: [
-      { id: 'pay_1', amount: 2000000, date: '15/10/2026', note: 'Chuyển khoản trả đợt 1' },
-    ],
-  },
-  {
-    id: 'debt_sample_lent_2',
-    personName: 'Hoàng Minh',
-    amount: 1500000,
-    paidAmount: 1500000,
-    type: 'lent',
-    startDate: '01/09/2026',
-    dueDate: '20/09/2026',
-    note: 'Tiền vé xem hòa nhạc',
-    isSettled: true,
-    createdAt: new Date().toISOString(),
-    payments: [
-      { id: 'pay_2', amount: 1500000, date: '19/09/2026', note: 'Đã trả qua MoMo' },
-    ],
-  },
-  {
-    id: 'debt_sample_borrowed_1',
-    personName: 'Chị Lan (Chị gái)',
-    amount: 10000000,
-    paidAmount: 4000000,
-    type: 'borrowed',
-    startDate: '05/10/2026',
-    dueDate: '25/12/2026',
-    note: 'Vay phụ tiền sắm laptop làm việc',
-    isSettled: false,
-    createdAt: new Date().toISOString(),
-    payments: [
-      { id: 'pay_3', amount: 4000000, date: '18/10/2026', note: 'Trích lương tháng 10 trả bớt' },
-    ],
-  },
-];
+export const DEFAULT_INITIAL_DEBTS: DebtItem[] = [];
 
 export const loadDebtItems = (userId?: string): DebtItem[] => {
   if (typeof window === 'undefined' || !window.localStorage) {
-    return DEFAULT_INITIAL_DEBTS;
+    return [];
   }
   try {
     const key = `${STORAGE_PREFIX}${userId || 'guest'}`;
     const raw = window.localStorage.getItem(key);
-    if (!raw) return DEFAULT_INITIAL_DEBTS;
+    if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : DEFAULT_INITIAL_DEBTS;
+    if (Array.isArray(parsed)) {
+      const cleaned = parsed.filter((d) => d && !String(d.id).startsWith('debt_sample_'));
+      if (cleaned.length !== parsed.length) {
+        saveDebtItems(cleaned, userId);
+      }
+      return cleaned;
+    }
+    return [];
   } catch {
-    return DEFAULT_INITIAL_DEBTS;
+    return [];
   }
 };
 

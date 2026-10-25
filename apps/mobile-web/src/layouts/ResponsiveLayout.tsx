@@ -271,7 +271,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   );
 };
 
-// ---- Separate component for desktop nav tabs to enable hover state ----
+// ---- Separate component for desktop nav tabs to enable hover state & minimalist green underline ----
 const NavTabs: React.FC<{
   tabs: { key: TabKey; labelVi: string; labelEn: string; icon: keyof typeof Ionicons.glyphMap }[];
   activeTab: TabKey;
@@ -281,22 +281,24 @@ const NavTabs: React.FC<{
   styles: ReturnType<typeof getStyles>;
 }> = ({ tabs, activeTab, onSelectTab, language, isDark, styles }) => {
   const [hoveredTab, setHoveredTab] = useState<TabKey | null>(null);
+
   return (
     <View style={styles.navCenter}>
       {tabs.map((tab) => {
         const isActive = activeTab === tab.key;
         const isHovered = hoveredTab === tab.key;
         const label = language === 'vi' ? tab.labelVi : tab.labelEn;
+        const activeColor = isDark ? '#34D399' : '#047857';
+        const hoverColor = isDark ? '#6EE7B7' : '#059669';
+        const idleColor = isDark ? '#94A3B8' : '#64748B';
+        const currentColor = isActive ? activeColor : isHovered ? hoverColor : idleColor;
+
         return (
           <TouchableOpacity
             key={tab.key}
-            style={[
-              styles.navTabBtn,
-              isHovered && !isActive && styles.navTabBtnHover,
-              isActive && styles.navTabBtnActive,
-            ]}
+            style={styles.navTabBtn}
             onPress={() => onSelectTab(tab.key)}
-            activeOpacity={0.85}
+            activeOpacity={0.8}
             // @ts-ignore - web-only hover events
             onMouseEnter={() => setHoveredTab(tab.key)}
             // @ts-ignore
@@ -305,18 +307,27 @@ const NavTabs: React.FC<{
             <Ionicons
               name={tab.icon}
               size={17}
-              color={isActive ? '#FFFFFF' : isHovered ? (isDark ? '#E2E8F0' : '#1C3D2E') : (isDark ? '#94A3B8' : '#64748B')}
+              color={currentColor}
             />
             <Text
               style={[
                 styles.navTabText,
-                isHovered && !isActive && styles.navTabTextHover,
-                isActive && styles.navTabTextActive,
+                { color: currentColor },
+                (isActive || isHovered) && styles.navTabTextActive,
               ]}
               numberOfLines={1}
             >
               {label}
             </Text>
+
+            {/* Dấu gạch dưới màu xanh lá khi hover hoặc khi ấn vào (Active) */}
+            <View
+              style={[
+                styles.navTabUnderline,
+                isHovered && !isActive && styles.navTabUnderlineHover,
+                isActive && styles.navTabUnderlineActive,
+              ]}
+            />
           </TouchableOpacity>
         );
       })}
@@ -362,45 +373,55 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   navCenter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
+    height: '100%',
   },
   navTabBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 7,
-    paddingHorizontal: 13,
-    borderRadius: 8,
+    gap: 7,
+    paddingHorizontal: 12,
+    height: '100%',
+    position: 'relative',
+    backgroundColor: 'transparent',
     cursor: 'pointer',
-    transitionProperty: 'background-color, box-shadow',
-    transitionDuration: '150ms',
-    transitionTimingFunction: 'ease',
-  } as any,
-  navTabBtnHover: {
-    backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : '#EDE7DC',
-    boxShadow: isDark ? 'none' : '0 1px 4px rgba(0,0,0,0.07)',
-  } as any,
-  navTabBtnActive: {
-    backgroundColor: isDark ? '#065F46' : '#166534',
-    boxShadow: isDark
-      ? '0 2px 8px rgba(4,120,87,0.35)'
-      : '0 2px 8px rgba(22,101,52,0.28)',
+    justifyContent: 'center',
   } as any,
   navTabText: {
     fontSize: 13.5,
-    fontWeight: '500',
-    color: isDark ? '#94A3B8' : '#475569',
-    transitionProperty: 'color, font-weight',
-    transitionDuration: '150ms',
+    fontWeight: '600',
+    color: isDark ? '#94A3B8' : '#64748B',
+    transitionProperty: 'color',
+    transitionDuration: '180ms',
   } as any,
-  navTabTextHover: {
-    color: isDark ? '#E2E8F0' : '#1C3D2E',
-    fontWeight: '700',
-  },
   navTabTextActive: {
-    color: '#FFFFFF',
     fontWeight: '700',
   },
+  navTabUnderline: {
+    position: 'absolute',
+    bottom: 0,
+    left: 8,
+    right: 8,
+    height: 3,
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
+    backgroundColor: 'transparent',
+    transitionProperty: 'background-color, transform, opacity',
+    transitionDuration: '200ms',
+    transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
+    opacity: 0,
+    transform: 'scaleX(0.4)',
+  } as any,
+  navTabUnderlineHover: {
+    backgroundColor: isDark ? '#34D399' : '#10B981',
+    opacity: 0.85,
+    transform: 'scaleX(1)',
+  } as any,
+  navTabUnderlineActive: {
+    backgroundColor: isDark ? '#34D399' : '#047857',
+    opacity: 1,
+    transform: 'scaleX(1)',
+  } as any,
   navRight: {
     flexDirection: 'row',
     alignItems: 'center',

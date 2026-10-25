@@ -37,6 +37,7 @@ import {
   createTransactionApi,
   updateTransactionApi,
   deleteTransactionApi,
+  uploadReceiptApi,
 } from '../../services/api';
 import {
   compressImageFile,
@@ -44,6 +45,7 @@ import {
   idbLoadRecords,
   getInitialDayRecordsFromLocalStorage,
   mergeTransactionsIntoDayRecords,
+  buildDayRecordsFromTransactions,
   subscribeCalendarUpdates,
   getLatestPhotoFromItems,
   getCachedBudget,
@@ -141,6 +143,15 @@ export const CATEGORY_THEMES: Record<
     textLight: '#4338CA',
     textDark: '#A5B4FC',
   },
+  housing: {
+    primary: '#0D9488',
+    bgLight: '#F0FDFA',
+    bgDark: 'rgba(13, 148, 136, 0.16)',
+    circleLight: '#CCFBF1',
+    circleDark: 'rgba(13, 148, 136, 0.28)',
+    textLight: '#0F766E',
+    textDark: '#5EEAD4',
+  },
   entertainment: {
     primary: '#D97706',
     bgLight: '#FFFBEB',
@@ -149,6 +160,33 @@ export const CATEGORY_THEMES: Record<
     circleDark: 'rgba(217, 119, 6, 0.28)',
     textLight: '#B45309',
     textDark: '#FCD34D',
+  },
+  health: {
+    primary: '#10B981',
+    bgLight: '#ECFDF5',
+    bgDark: 'rgba(16, 185, 129, 0.16)',
+    circleLight: '#D1FAE5',
+    circleDark: 'rgba(16, 185, 129, 0.28)',
+    textLight: '#047857',
+    textDark: '#6EE7B7',
+  },
+  beauty: {
+    primary: '#A855F7',
+    bgLight: '#FAF5FF',
+    bgDark: 'rgba(168, 85, 247, 0.16)',
+    circleLight: '#F3E8FF',
+    circleDark: 'rgba(168, 85, 247, 0.28)',
+    textLight: '#7E22CE',
+    textDark: '#D8B4FE',
+  },
+  education: {
+    primary: '#3B82F6',
+    bgLight: '#EFF6FF',
+    bgDark: 'rgba(59, 130, 246, 0.16)',
+    circleLight: '#DBEAFE',
+    circleDark: 'rgba(59, 130, 246, 0.28)',
+    textLight: '#1D4ED8',
+    textDark: '#93C5FD',
   },
   other: {
     primary: '#64748B',
@@ -171,7 +209,11 @@ export const resolveCategoryKey = (category?: string, categoryIcon?: string): st
     if (catLower === 'shopping' || catLower.includes('mua sắm') || catLower.includes('sắm') || catLower.includes('quần áo')) return 'shopping';
     if (catLower === 'transport' || catLower.includes('di chuyển') || catLower.includes('xăng') || catLower.includes('xe') || catLower.includes('grab')) return 'transport';
     if (catLower === 'bills' || catLower.includes('hóa đơn') || catLower.includes('điện') || catLower.includes('tiền') || catLower.includes('bill')) return 'bills';
+    if (catLower === 'housing' || catLower.includes('nhà') || catLower.includes('phòng') || catLower.includes('thuê') || catLower.includes('trọ')) return 'housing';
     if (catLower === 'entertainment' || catLower.includes('giải trí') || catLower.includes('phim') || catLower.includes('game') || catLower.includes('cinema')) return 'entertainment';
+    if (catLower === 'health' || catLower.includes('y tế') || catLower.includes('thuốc') || catLower.includes('sức khỏe') || catLower.includes('khám')) return 'health';
+    if (catLower === 'beauty' || catLower.includes('làm đẹp') || catLower.includes('mỹ phẩm') || catLower.includes('spa') || catLower.includes('tóc') || catLower.includes('skincare')) return 'beauty';
+    if (catLower === 'education' || catLower.includes('học') || catLower.includes('sách') || catLower.includes('khóa học') || catLower.includes('trường')) return 'education';
     if (catLower.includes('khoảnh khắc') || catLower.includes('camera') || catLower.includes('ảnh')) return 'camera';
     if (catLower === 'other' || catLower.includes('khác')) return 'other';
   }
@@ -182,7 +224,11 @@ export const resolveCategoryKey = (category?: string, categoryIcon?: string): st
     if (categoryIcon === '🛍️') return 'shopping';
     if (categoryIcon === '🛵' || categoryIcon === '🚗' || categoryIcon === '⛽') return 'transport';
     if (categoryIcon === '🧾' || categoryIcon === '💰') return 'bills';
+    if (categoryIcon === '🏠' || categoryIcon === '🏡') return 'housing';
     if (categoryIcon === '🎬') return 'entertainment';
+    if (categoryIcon === '💊' || categoryIcon === '🩺') return 'health';
+    if (categoryIcon === '💅' || categoryIcon === '💄' || categoryIcon === '🧴') return 'beauty';
+    if (categoryIcon === '📚' || categoryIcon === '🎓' || categoryIcon === '📖') return 'education';
     if (categoryIcon === '📸' || categoryIcon === '📷') return 'camera';
     if (categoryIcon === '✨') return 'other';
   }
@@ -320,6 +366,22 @@ export const CategorySvgIcon: React.FC<{
         </Svg>
       );
     }
+    case 'housing': {
+      const strokeColor = color || '#0D9488';
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+            stroke={strokeColor}
+            strokeWidth={isSelected ? 2.4 : 2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill={isSelected ? 'rgba(13, 148, 136, 0.28)' : 'rgba(13, 148, 136, 0.12)'}
+          />
+          <Polyline points="9 22 9 12 15 12 15 22" stroke={strokeColor} strokeWidth={isSelected ? 2.4 : 2} strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+    }
     case 'entertainment': {
       const strokeColor = color || '#D97706';
       return (
@@ -340,6 +402,60 @@ export const CategorySvgIcon: React.FC<{
           <Line x1="8" y1="4" x2="6" y2="9" stroke={strokeColor} strokeWidth={isSelected ? 2.4 : 2} strokeLinecap="round" />
           <Line x1="14" y1="4" x2="12" y2="9" stroke={strokeColor} strokeWidth={isSelected ? 2.4 : 2} strokeLinecap="round" />
           <Line x1="20" y1="4" x2="18" y2="9" stroke={strokeColor} strokeWidth={isSelected ? 2.4 : 2} strokeLinecap="round" />
+        </Svg>
+      );
+    }
+    case 'health': {
+      const strokeColor = color || '#10B981';
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Rect
+            x="3"
+            y="3"
+            width="18"
+            height="18"
+            rx="5"
+            stroke={strokeColor}
+            strokeWidth={isSelected ? 2.4 : 2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill={isSelected ? 'rgba(16, 185, 129, 0.28)' : 'rgba(16, 185, 129, 0.12)'}
+          />
+          <Line x1="12" y1="8" x2="12" y2="16" stroke={strokeColor} strokeWidth={2.4} strokeLinecap="round" />
+          <Line x1="8" y1="12" x2="16" y2="12" stroke={strokeColor} strokeWidth={2.4} strokeLinecap="round" />
+        </Svg>
+      );
+    }
+    case 'beauty': {
+      const strokeColor = color || '#A855F7';
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Circle cx="12" cy="12" r="8" stroke={strokeColor} strokeWidth={isSelected ? 2.4 : 2} fill={isSelected ? 'rgba(168, 85, 247, 0.28)' : 'rgba(168, 85, 247, 0.12)'} />
+          <Path d="M12 4v4M12 16v4M4 12h4M16 12h4" stroke={strokeColor} strokeWidth={1.8} strokeLinecap="round" />
+        </Svg>
+      );
+    }
+    case 'education': {
+      const strokeColor = color || '#3B82F6';
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"
+            stroke={strokeColor}
+            strokeWidth={isSelected ? 2.4 : 2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Path
+            d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
+            stroke={strokeColor}
+            strokeWidth={isSelected ? 2.4 : 2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill={isSelected ? 'rgba(59, 130, 246, 0.28)' : 'rgba(59, 130, 246, 0.12)'}
+          />
+          <Line x1="9" y1="7" x2="15" y2="7" stroke={strokeColor} strokeWidth={1.8} strokeLinecap="round" />
+          <Line x1="9" y1="11" x2="15" y2="11" stroke={strokeColor} strokeWidth={1.8} strokeLinecap="round" />
         </Svg>
       );
     }
@@ -386,7 +502,11 @@ export const EXPENSE_CATEGORIES = [
   { id: 'shopping', name: 'Mua sắm', icon: '🛍️' },
   { id: 'transport', name: 'Di chuyển & Xăng', icon: '🛵' },
   { id: 'bills', name: 'Hóa đơn', icon: '🧾' },
+  { id: 'housing', name: 'Nhà cửa & Phòng', icon: '🏠' },
   { id: 'entertainment', name: 'Giải trí', icon: '🎬' },
+  { id: 'health', name: 'Y tế & Sức khỏe', icon: '💊' },
+  { id: 'beauty', name: 'Làm đẹp & Bản thân', icon: '💅' },
+  { id: 'education', name: 'Học tập & Sách', icon: '📚' },
   { id: 'other', name: 'Khác', icon: '✨' },
 ];
 
@@ -410,6 +530,10 @@ export const formatAmountShort = (amount?: number): string => {
 const WebEmeraldBalanceCard: React.FC<{
   availableBalance: number;
   totalMonthIncome: number;
+  totalMonthSpent?: number;
+  recordedDays?: number;
+  dailyAvg?: number;
+  budgetLimit?: number;
   budgetStatus: 'safe' | 'warning' | 'danger';
   safeDailySpend: number;
   language: 'vi' | 'en';
@@ -417,6 +541,10 @@ const WebEmeraldBalanceCard: React.FC<{
 }> = ({
   availableBalance,
   totalMonthIncome,
+  totalMonthSpent = 0,
+  recordedDays = 0,
+  dailyAvg = 0,
+  budgetLimit = 0,
   budgetStatus,
   safeDailySpend,
   language,
@@ -425,15 +553,22 @@ const WebEmeraldBalanceCard: React.FC<{
   const isVi = language === 'vi';
   const [isBalanceHidden, setIsBalanceHidden] = useState(false);
 
+  // Tính % ngân sách hoặc thu nhập đã sử dụng
+  const effectiveBase = totalMonthIncome > 0 ? totalMonthIncome : budgetLimit;
+  const spentPercent = effectiveBase > 0 ? Math.min(100, Math.round((totalMonthSpent / effectiveBase) * 100)) : 0;
+
   return (
     <View style={emeraldStyles.budgetCard}>
-      <View style={emeraldStyles.cardLeftContent}>
-        {/* Hàng 1: Icon ví + Khả dụng + Con mắt + Bút chì ✏️ + Badge trạng thái */}
+      {/* ZONE 1 (BÊN TRÁI): SỐ DƯ KHẢ DỤNG & CÔNG CỤ ĐIỀU KHIỂN */}
+      <View style={emeraldStyles.zoneBalance}>
+        {/* Hàng nhãn + Icon ví + Mắt ẩn hiện + Bút chỉnh sửa + Trạng thái */}
         <View style={emeraldStyles.cardHeaderRow}>
-          <View style={emeraldStyles.cardHeaderLeft}>
-            <Ionicons name="wallet-outline" size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
-            <Text style={emeraldStyles.cardSubLabel}>{isVi ? 'Khả dụng' : 'Available'}</Text>
+          <View style={emeraldStyles.walletIconBadge}>
+            <Ionicons name="wallet" size={14} color="#34D399" />
           </View>
+          <Text style={emeraldStyles.cardSubLabel}>
+            {isVi ? 'Khả dụng' : 'Available'}
+          </Text>
 
           {/* Nút ẩn/hiện số dư */}
           <TouchableOpacity
@@ -445,50 +580,58 @@ const WebEmeraldBalanceCard: React.FC<{
             <Ionicons
               name={isBalanceHidden ? 'eye-off-outline' : 'eye-outline'}
               size={13}
-              color="#FFFFFF"
+              color="#A7F3D0"
             />
           </TouchableOpacity>
 
-          {/* Bấm icon cây bút nhảy ra trang tổng thu nhập luôn */}
+          {/* Bấm icon cây bút nhảy ra trang tổng thu nhập */}
           <TouchableOpacity
             style={emeraldStyles.cardEditBtn}
             onPress={onOpenIncome}
             activeOpacity={0.7}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="pencil" size={12} color="#FFFFFF" />
+            <Ionicons name="pencil" size={12} color="#A7F3D0" />
           </TouchableOpacity>
 
-          {/* Badge trạng thái */}
+          {/* Badge trạng thái thu chi */}
           <View
             style={[
               emeraldStyles.cardStatusBadge,
               totalMonthIncome === 0
-                ? { backgroundColor: '#10B981' }
+                ? { backgroundColor: 'rgba(255, 255, 255, 0.16)', borderColor: 'rgba(255, 255, 255, 0.28)' }
                 : budgetStatus === 'danger'
-                ? { backgroundColor: '#EF4444' }
+                ? { backgroundColor: 'rgba(239, 68, 68, 0.25)', borderColor: '#EF4444' }
                 : budgetStatus === 'warning'
-                ? { backgroundColor: '#F59E0B' }
-                : { backgroundColor: '#10B981' },
+                ? { backgroundColor: 'rgba(245, 158, 11, 0.25)', borderColor: '#F59E0B' }
+                : { backgroundColor: 'rgba(16, 185, 129, 0.25)', borderColor: '#10B981' },
             ]}
           >
-            <Text style={emeraldStyles.cardStatusBadgeText}>
+            <Text
+              style={[
+                emeraldStyles.cardStatusBadgeText,
+                totalMonthIncome === 0
+                  ? { color: '#E2E8F0' }
+                  : budgetStatus === 'danger'
+                  ? { color: '#FCA5A5' }
+                  : budgetStatus === 'warning'
+                  ? { color: '#FCD34D' }
+                  : { color: '#6EE7B7' },
+              ]}
+            >
               {totalMonthIncome === 0
                 ? (isVi ? 'Chưa có thu' : 'No Income')
                 : budgetStatus === 'danger'
-                ? (isVi ? 'Vượt' : 'Exceeded')
+                ? (isVi ? 'Vượt hạn mức' : 'Exceeded')
                 : budgetStatus === 'warning'
-                ? (isVi ? 'Gần đủ' : 'Warning')
+                ? (isVi ? 'Gần giới hạn' : 'Warning')
                 : (isVi ? 'An toàn' : 'Safe')}
             </Text>
           </View>
         </View>
 
-        {/* Số dư khả dụng to */}
-        <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={onOpenIncome}
-        >
+        {/* Số dư khả dụng cỡ lớn */}
+        <TouchableOpacity activeOpacity={0.85} onPress={onOpenIncome}>
           <Text style={emeraldStyles.cardMainBalance}>
             {isBalanceHidden
               ? '•••••••• đ'
@@ -497,24 +640,87 @@ const WebEmeraldBalanceCard: React.FC<{
               : `-${Math.abs(availableBalance).toLocaleString('vi-VN')} đ`}
           </Text>
         </TouchableOpacity>
-
-        <View style={emeraldStyles.cardDividerLine} />
-
-        <Text style={emeraldStyles.cardStatusSubText}>
-          {totalMonthIncome === 0
-            ? (isVi ? 'Bấm ✏️ để thêm thu nhập và bắt đầu quản lý' : 'Tap ✏️ to add income & track budget')
-            : budgetStatus === 'danger'
-            ? (isVi ? 'Chi đang vượt thu tháng này' : 'Expenses exceed income this month')
-            : (isVi ? `Chi tiêu an toàn: ~${safeDailySpend.toLocaleString('vi-VN')} đ/ngày` : `Safe spend: ~${safeDailySpend.toLocaleString('vi-VN')} đ/day`)}
-        </Text>
       </View>
 
-      {/* Chú ếch 3D ôm lịch dễ thương nhô nhẹ lên mép thẻ */}
+      {/* VÁCH NGĂN TINH TẾ GIỮA ZONE 1 VÀ ZONE 2 */}
+      <View style={emeraldStyles.zoneDivider} />
+
+      {/* ZONE 2 (CHÍNH GIỮA): NHỊP ĐIỆU TÀI CHÍNH THÁNG NÀY (XÓA BỎ HOÀN TOÀN KHOẢNG TRỐNG) */}
+      <View style={emeraldStyles.zoneVitals}>
+        {/* 2 Thẻ Mini Thống Kê Glassmorphic: Thu nhập & Chi tiêu */}
+        <View style={emeraldStyles.vitalsRow}>
+          {/* Mini Card: Thu tháng */}
+          <TouchableOpacity
+            style={emeraldStyles.vitalCard}
+            activeOpacity={0.82}
+            onPress={onOpenIncome}
+          >
+            <View style={emeraldStyles.vitalIconThu}>
+              <Ionicons name="arrow-up" size={13} color="#10B981" />
+            </View>
+            <View style={emeraldStyles.vitalTextCol}>
+              <Text style={emeraldStyles.vitalLabel}>{isVi ? 'Tổng thu tháng' : 'Month Income'}</Text>
+              <Text style={emeraldStyles.vitalThuValue}>
+                {isBalanceHidden ? '••••••' : `+${totalMonthIncome.toLocaleString('vi-VN')} đ`}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          {/* Mini Card: Chi tháng */}
+          <TouchableOpacity
+            style={emeraldStyles.vitalCard}
+            activeOpacity={0.82}
+            onPress={onOpenIncome}
+          >
+            <View style={emeraldStyles.vitalIconChi}>
+              <Ionicons name="arrow-down" size={13} color="#F87171" />
+            </View>
+            <View style={emeraldStyles.vitalTextCol}>
+              <Text style={emeraldStyles.vitalLabel}>{isVi ? 'Tổng đã chi' : 'Total Spent'}</Text>
+              <Text style={emeraldStyles.vitalChiValue}>
+                {isBalanceHidden ? '••••••' : `-${totalMonthSpent.toLocaleString('vi-VN')} đ`}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Hàng 2: Đã ghi nhận (Màu be) & Trung bình / ngày (Màu vàng) */}
+        <View style={emeraldStyles.vitalsRow}>
+          {/* Mini Card: Đã ghi nhận (Icon & Số màu be chuẩn theo yêu cầu) */}
+          <View style={emeraldStyles.vitalCard}>
+            <View style={emeraldStyles.vitalIconRecorded}>
+              <Ionicons name="camera-outline" size={13} color="#F5E6CA" />
+            </View>
+            <View style={emeraldStyles.vitalTextCol}>
+              <Text style={emeraldStyles.vitalLabel}>{isVi ? 'Đã ghi nhận' : 'Recorded'}</Text>
+              <Text style={emeraldStyles.vitalRecordedValue}>
+                {recordedDays} <Text style={emeraldStyles.vitalUnit}>{isVi ? 'ngày' : 'days'}</Text>
+              </Text>
+            </View>
+          </View>
+
+          {/* Mini Card: Trung bình / ngày */}
+          <View style={emeraldStyles.vitalCard}>
+            <View style={emeraldStyles.vitalIconAvg}>
+              <Ionicons name="flash-outline" size={13} color="#FBBF24" />
+            </View>
+            <View style={emeraldStyles.vitalTextCol}>
+              <Text style={emeraldStyles.vitalLabel}>{isVi ? 'Trung bình / ngày' : 'Daily Avg'}</Text>
+              <Text style={emeraldStyles.vitalAvgValue}>
+                {dailyAvg.toLocaleString('vi-VN')} đ
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* ZONE 3 (BÊN PHẢI): MASCOT ẾCH 3D VỚI ÁNH HÀO QUANG */}
       <TouchableOpacity
         activeOpacity={0.9}
         onPress={onOpenIncome}
-        style={emeraldStyles.cardMascotWrapper}
+        style={emeraldStyles.zoneMascot}
       >
+        <View style={emeraldStyles.mascotAura} />
         <Image
           source={require('../../../assets/frogs/frog-calendar-mascot.png')}
           style={emeraldStyles.cardMascotImage}
@@ -527,105 +733,220 @@ const WebEmeraldBalanceCard: React.FC<{
 
 const emeraldStyles = StyleSheet.create({
   budgetCard: {
-    backgroundColor: '#064E3B', // Xanh đậm sang trọng chuẩn mobile
+    backgroundColor: '#064E3B',
     borderRadius: 24,
     paddingHorizontal: 28,
-    paddingTop: 24,
-    paddingBottom: 22,
-    minHeight: 145,
+    paddingVertical: 20,
+    minHeight: 140,
     marginBottom: 20,
     marginTop: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     shadowColor: '#064E3B',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 14,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(52, 211, 153, 0.25)',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 18,
+    elevation: 5,
+    borderWidth: 1.5,
+    borderColor: 'rgba(52, 211, 153, 0.28)',
     overflow: 'visible',
     position: 'relative',
+    gap: 16,
+    flexWrap: 'wrap',
   },
-  cardLeftContent: {
-    flex: 1,
+  zoneBalance: {
+    flex: 1.1,
+    minWidth: 260,
     justifyContent: 'center',
   },
   cardHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
   },
-  cardHeaderLeft: {
-    flexDirection: 'row',
+  walletIconBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(52, 211, 153, 0.18)',
+    justifyContent: 'center',
     alignItems: 'center',
   },
   cardSubLabel: {
     fontSize: 14,
     color: '#FFFFFF',
     fontWeight: '700',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   cardEyeBtn: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
   },
   cardEditBtn: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.25)',
+    borderColor: 'rgba(255, 255, 255, 0.22)',
   },
   cardStatusBadge: {
     paddingHorizontal: 9,
     paddingVertical: 3,
     borderRadius: 10,
-    marginLeft: 10,
+    borderWidth: 1,
   },
   cardStatusBadgeText: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#FFFFFF',
   },
   cardMainBalance: {
-    fontSize: 34,
+    fontSize: 33,
     fontWeight: '900',
     color: '#FFFFFF',
-    marginTop: 8,
-    letterSpacing: -0.5,
+    marginTop: 6,
+    letterSpacing: -0.6,
   },
-  cardDividerLine: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    marginVertical: 10,
-    width: '85%',
+  guidanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
   },
   cardStatusSubText: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 12.5,
+    color: 'rgba(255, 255, 255, 0.88)',
     fontWeight: '500',
+    flex: 1,
   },
-  cardMascotWrapper: {
+  zoneDivider: {
+    width: 1,
+    height: 74,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    marginHorizontal: 2,
+  },
+  zoneVitals: {
+    flex: 1.9,
+    minWidth: 320,
+    justifyContent: 'center',
+    gap: 10,
+  },
+  vitalsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  vitalCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.14)',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  vitalIconThu: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(16, 185, 129, 0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(52, 211, 153, 0.4)',
+  },
+  vitalIconChi: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(239, 68, 68, 0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(248, 113, 113, 0.4)',
+  },
+  vitalTextCol: {
+    flex: 1,
+  },
+  vitalLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.72)',
+    marginBottom: 2,
+  },
+  vitalThuValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#6EE7B7',
+  },
+  vitalChiValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FCA5A5',
+  },
+  vitalIconRecorded: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(245, 230, 202, 0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 230, 202, 0.45)',
+  },
+  vitalRecordedValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#F5E6CA',
+  },
+  vitalIconAvg: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(251, 191, 36, 0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(251, 191, 36, 0.4)',
+  },
+  vitalUnit: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  vitalAvgValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FDE68A',
+  },
+  zoneMascot: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -28,
-    marginBottom: -12,
-    marginRight: 6,
-    marginLeft: 16,
+    marginTop: -24,
+    marginBottom: -10,
+    position: 'relative',
+    marginLeft: 4,
+  },
+  mascotAura: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(52, 211, 153, 0.14)',
   },
   cardMascotImage: {
-    width: 125,
-    height: 125,
+    width: 122,
+    height: 122,
   },
 });
 
@@ -1460,11 +1781,13 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
   // Selected day for preview/upload
   const [selectedDay, setSelectedDay] = useState<number>(todayDate > 0 ? todayDate : 1);
 
-  // Records map: key is `${year}-${month+1}-${day}` -> DayExpenseRecord
+  const currentUserId = user?.id || (user as any)?._id;
+
+  // Records map: key is `${year}-${month+1}-${day}` -> DayExpenseRecord (cô lập theo từng User)
   const [dayRecords, setDayRecords] = useState<Record<string, DayExpenseRecord>>(() => {
     const records: Record<string, DayExpenseRecord> = {};
     try {
-      const raw = getInitialDayRecordsFromLocalStorage();
+      const raw = getInitialDayRecordsFromLocalStorage(currentUserId);
       Object.entries(raw).forEach(([key, val]: [string, any]) => {
         if (val) {
           // Nếu ô lịch rỗng không có chi tiêu và amount = 0 -> không giữ ảnh đại diện rác
@@ -1503,27 +1826,15 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
   // Asynchronous hydration from IndexedDB to guarantee persistence across tabs/sessions
   useEffect(() => {
     let isMounted = true;
-    idbLoadRecords<Record<string, DayExpenseRecord>>().then((stored) => {
+    idbLoadRecords<Record<string, DayExpenseRecord>>(currentUserId).then((stored) => {
       if (isMounted && stored && Object.keys(stored).length > 0) {
-        setDayRecords((prev) => {
-          const merged = { ...prev };
-          Object.entries(stored).forEach(([k, v]) => {
-            if (v) {
-              if (Array.isArray(v.items) && v.items.length === 0 && (!v.amount || v.amount === 0)) {
-                delete merged[k];
-                return;
-              }
-              merged[k] = { ...merged[k], ...v };
-            }
-          });
-          return merged;
-        });
+        setDayRecords(stored);
       }
     }).catch(() => { });
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [currentUserId]);
 
   // Đồng bộ hai chiều với Backend (giao dịch & hình ảnh từ Mobile và các thiết bị khác)
   const syncWithBackend = useCallback(async () => {
@@ -1532,24 +1843,30 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
         .then((bData) => {
           if (bData && bData.limit) {
             setBudget(bData);
-            saveCachedBudget(bData);
+            saveCachedBudget(bData, currentUserId);
           }
         })
         .catch(() => {});
 
       const res: any = await getTransactionsApi({ limit: 500 });
       const txList = Array.isArray(res) ? res : (res?.data || res?.items || []);
-      if (Array.isArray(txList) && txList.length > 0) {
-        setDayRecords((prev) => {
-          const merged = mergeTransactionsIntoDayRecords(prev, txList);
-          saveDayRecordsToStorage(merged);
-          return merged;
-        });
+      if (Array.isArray(txList)) {
+        // Xây dựng tập dữ liệu chính xác 100% của riêng user này từ MongoDB
+        const built = buildDayRecordsFromTransactions(txList);
+        setDayRecords(built);
+        saveDayRecordsToStorage(built, currentUserId);
       }
     } catch (e) {
       console.warn('[HomeScreen Web] Sync transactions error:', e);
     }
-  }, []);
+  }, [currentUserId]);
+
+  // Khi tài khoản đăng nhập thay đổi hoặc chuyển đổi user -> reload sạch sẽ dữ liệu của user mới
+  useEffect(() => {
+    const userRecords = getInitialDayRecordsFromLocalStorage(currentUserId);
+    setDayRecords(userRecords);
+    syncWithBackend();
+  }, [currentUserId, syncWithBackend]);
 
   useEffect(() => {
     syncWithBackend();
@@ -1692,6 +2009,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
   // Day Timeline Modal State (Xem tất cả chi tiêu của ngày)
   const [timelineModalVisible, setTimelineModalVisible] = useState<boolean>(false);
   const [timelineDayNum, setTimelineDayNum] = useState<number>(todayDate > 0 ? todayDate : 1);
+  const [selectedTimelineItem, setSelectedTimelineItem] = useState<ExpenseItem | null>(null);
 
   // Full-image lightbox preview
   const [lightboxUri, setLightboxUri] = useState<string | null>(null);
@@ -1760,6 +2078,10 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
   const handleOpenTimelineForDay = (dayNum: number) => {
     setTimelineDayNum(dayNum);
     setSelectedDay(dayNum);
+    const photoKey = `${currentYear}-${currentMonth + 1}-${dayNum}`;
+    const items = dayRecords[photoKey]?.items || [];
+    const firstWithPhoto = items.find((it) => it.photoUri);
+    setSelectedTimelineItem(firstWithPhoto || items[0] || null);
     setTimelineModalVisible(true);
   };
 
@@ -1870,7 +2192,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
       };
 
       const next = { ...prev, [photoKey]: updatedRecord, [paddedKey]: updatedRecord };
-      saveDayRecordsToStorage(next);
+      saveDayRecordsToStorage(next, currentUserId);
       return next;
     });
 
@@ -1889,39 +2211,57 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
       }
     }
     const targetIsoDate = new Date(currentYear, currentMonth, quickDayNum, targetHour, targetMin, now.getSeconds()).toISOString();
-    createTransactionApi({
-      title: quickNote.trim() || quickCategory,
-      amount: -Math.abs(numericAmount),
-      type: 'expense',
-      category: quickCategory,
-      categoryIcon: quickCategoryIcon,
-      note: quickNote.trim(),
-      photoUri: quickPhotoUri || undefined,
-      date: targetIsoDate,
-    }).then((createdTx: any) => {
-      if (createdTx && (createdTx._id || createdTx.id)) {
-        const realId = String(createdTx._id || createdTx.id);
-        setDayRecords((prev) => {
-          const rec = prev[photoKey];
-          if (!rec || !rec.items) return prev;
-          const updatedItems = rec.items.map((it) => (it.id === tempId ? { ...it, id: realId } : it));
-          const next = { ...prev, [photoKey]: { ...rec, items: updatedItems }, [paddedKey]: { ...rec, items: updatedItems } };
-          saveDayRecordsToStorage(next);
-          return next;
-        });
-      }
-      getBudgetApi()
-        .then((fresh) => {
-          if (fresh && fresh.limit) {
-            setBudget(fresh);
-            saveCachedBudget(fresh);
-            notifyBudgetUpdated(fresh);
+
+    const syncTransactionToCloud = async () => {
+      let finalPhotoUri = quickPhotoUri || undefined;
+      // Nếu có ảnh Base64 nén từ máy, upload lên Cloudinary / Storage để lấy link ảnh CDN tối ưu WebP
+      if (quickPhotoUri && quickPhotoUri.startsWith('data:')) {
+        try {
+          const uploadedUrl = await uploadReceiptApi(quickPhotoUri, 'image/jpeg', `receipt_${Date.now()}.jpg`);
+          if (uploadedUrl) {
+            finalPhotoUri = uploadedUrl;
           }
-        })
-        .catch(() => {});
-    }).catch((err) => {
-      console.warn('[HomeScreen Web] Lưu giao dịch backend ngầm thất bại (tiếp tục dùng local):', err);
-    });
+        } catch (uploadErr) {
+          console.warn('[HomeScreen Web] Upload Cloudinary/Backend thất bại, giữ ảnh nén cục bộ:', uploadErr);
+        }
+      }
+
+      try {
+        const createdTx: any = await createTransactionApi({
+          title: quickNote.trim() || quickCategory,
+          amount: -Math.abs(numericAmount),
+          type: 'expense',
+          category: quickCategory,
+          categoryIcon: quickCategoryIcon,
+          note: quickNote.trim(),
+          photoUri: finalPhotoUri,
+          date: targetIsoDate,
+        });
+
+        if (createdTx && (createdTx._id || createdTx.id)) {
+          const realId = String(createdTx._id || createdTx.id);
+          setDayRecords((prev) => {
+            const rec = prev[photoKey];
+            if (!rec || !rec.items) return prev;
+            const updatedItems = rec.items.map((it) => (it.id === tempId ? { ...it, id: realId, photoUri: finalPhotoUri || it.photoUri } : it));
+            const next = { ...prev, [photoKey]: { ...rec, items: updatedItems, photoUri: finalPhotoUri || rec.photoUri }, [paddedKey]: { ...rec, items: updatedItems, photoUri: finalPhotoUri || rec.photoUri } };
+            saveDayRecordsToStorage(next, currentUserId);
+            return next;
+          });
+        }
+
+        const fresh = await getBudgetApi();
+        if (fresh && fresh.limit) {
+          setBudget(fresh);
+          saveCachedBudget(fresh, currentUserId);
+          notifyBudgetUpdated(fresh);
+        }
+      } catch (err) {
+        console.warn('[HomeScreen Web] Lưu giao dịch backend ngầm thất bại (tiếp tục dùng local):', err);
+      }
+    };
+
+    syncTransactionToCloud();
 
     const isMoment = Boolean(quickPhotoUri);
     addNotification({
@@ -2150,6 +2490,100 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
     }
   };
 
+  const handleSetCoverPhoto = (photoUri: string) => {
+    if (!photoUri) return;
+    const photoKey = `${currentYear}-${currentMonth + 1}-${timelineDayNum}`;
+    const paddedKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(timelineDayNum).padStart(2, '0')}`;
+    setDayRecords((prev) => {
+      const existing = prev[photoKey] || prev[paddedKey] || {
+        amount: 0,
+        category: 'Khoảnh khắc',
+        categoryIcon: '📸',
+        items: [],
+        dateStr: `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(timelineDayNum).padStart(2, '0')}`,
+      };
+      const updated = { ...existing, photoUri };
+      const next = { ...prev, [photoKey]: updated, [paddedKey]: updated };
+      saveDayRecordsToStorage(next, currentUserId);
+      return next;
+    });
+
+    addNotification({
+      type: 'moment',
+      title: language === 'vi' ? 'Đã đặt làm ảnh đại diện ô lịch ⭐' : 'Cover Photo Set ⭐',
+      message: language === 'vi'
+        ? `Đã đặt ảnh này làm ảnh đại diện cho ngày ${timelineDayNum}/${currentMonth + 1}.`
+        : `Cover photo updated for ${timelineDayNum}/${currentMonth + 1}.`,
+      iconBg: '#EDE9FE',
+      iconColor: '#8B5CF6',
+      metadata: { targetTab: 'home' },
+    });
+  };
+
+  const handlePickPhotoForExpenseItem = (item: ExpenseItem) => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = async (e: any) => {
+        const file = e.target?.files?.[0];
+        if (file) {
+          try {
+            const compressedBase64 = await compressImageFile(file);
+            const photoKey = `${currentYear}-${currentMonth + 1}-${timelineDayNum}`;
+            const paddedKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(timelineDayNum).padStart(2, '0')}`;
+            setDayRecords((prev) => {
+              const existing = prev[photoKey] || prev[paddedKey];
+              if (!existing || !existing.items) return prev;
+              const updatedItems = existing.items.map((it) =>
+                it.id === item.id ? { ...it, photoUri: compressedBase64 } : it
+              );
+              const next = {
+                ...prev,
+                [photoKey]: { ...existing, items: updatedItems },
+                [paddedKey]: { ...existing, items: updatedItems },
+              };
+              saveDayRecordsToStorage(next, currentUserId);
+              return next;
+            });
+            setSelectedTimelineItem((prev) => (prev && prev.id === item.id ? { ...prev, photoUri: compressedBase64 } : prev));
+            if (item.id && !item.id.startsWith('exp-') && !item.id.startsWith('legacy-')) {
+              updateTransactionApi(item.id, { photoUri: compressedBase64 }).catch(() => {});
+            }
+          } catch (err) {
+            console.error('Error adding photo to expense item:', err);
+          }
+        }
+      };
+      input.click();
+    }
+  };
+
+  const handleRemovePhotoFromExpenseItem = (item: ExpenseItem) => {
+    const photoKey = `${currentYear}-${currentMonth + 1}-${timelineDayNum}`;
+    const paddedKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(timelineDayNum).padStart(2, '0')}`;
+    setDayRecords((prev) => {
+      const existing = prev[photoKey] || prev[paddedKey];
+      if (!existing || !existing.items) return prev;
+      const updatedItems = existing.items.map((it) =>
+        it.id === item.id ? { ...it, photoUri: undefined } : it
+      );
+      const wasCover = existing.photoUri === item.photoUri;
+      const nextCover = wasCover ? updatedItems.find((it) => it.photoUri)?.photoUri : existing.photoUri;
+      const next = {
+        ...prev,
+        [photoKey]: { ...existing, items: updatedItems, photoUri: nextCover },
+        [paddedKey]: { ...existing, items: updatedItems, photoUri: nextCover },
+      };
+      saveDayRecordsToStorage(next, currentUserId);
+      return next;
+    });
+    setSelectedTimelineItem((prev) => (prev && prev.id === item.id ? { ...prev, photoUri: undefined } : prev));
+    if (item.id && !item.id.startsWith('exp-') && !item.id.startsWith('legacy-')) {
+      updateTransactionApi(item.id, { photoUri: '' }).catch(() => {});
+    }
+  };
+
   const handlePrevMonth = () => {
     setCurrentDate(new Date(currentYear, currentMonth - 1, 1));
   };
@@ -2285,12 +2719,19 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
       {/* ===================== PHẦN ĐẦU TRANG TỔNG QUAN (LIỀN MẠCH, THÔNG THOÁNG, KHÔNG ĐÓNG KHUNG) ===================== */}
       <View style={styles.overviewSection}>
         {/* 1. Header: Avatar + Tên + Badge + Streak liên tục */}
-        <UserProfileHeader onQuickSave={() => handleOpenQuickSave(todayDate > 0 ? todayDate : 1)} />
+        <UserProfileHeader
+          onQuickSave={() => handleOpenQuickSave(todayDate > 0 ? todayDate : 1)}
+          onOpenIncome={() => setIsIncomeScreenOpen(true)}
+        />
 
         {/* 2. THANH XANH EMERALD KÈM MASCOT (Đồng bộ 100% với mobile) */}
         <WebEmeraldBalanceCard
           availableBalance={availableBalance}
           totalMonthIncome={totalMonthIncome}
+          totalMonthSpent={realMonthSpent}
+          recordedDays={monthlyStats.countDays}
+          dailyAvg={monthlyStats.avgPerDay}
+          budgetLimit={budget?.limit || 0}
           budgetStatus={budgetStatus}
           safeDailySpend={safeDailySpend}
           language={language as any}
@@ -2298,93 +2739,17 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
         />
       </View>
 
-      {/* ===================== ROW 2: LỊCH THU CHI (FULL WIDTH) ===================== */}
+      {/* ===================== ROW 2: LỊCH TÀI CHÍNH (FULL WIDTH) ===================== */}
       <View style={[styles.card, styles.fullWidthCard]} nativeID="financial-calendar-section" {...({ id: 'financial-calendar-section' } as any)}>
         <View style={styles.scheduleHeader}>
           <Text style={styles.scheduleTitle}>
-            {language === 'vi' ? 'Lịch thu chi' : 'Financial Calendar'}
+            {language === 'vi' ? 'Lịch tài chính' : 'Financial Calendar'}
           </Text>
-        </View>
-
-        {/* ================= 2 THẺ TỔNG QUAN: CHI & THU (Nền #FAF7F2 chuẩn như mobile) ================= */}
-        <View style={styles.webSummaryCardsRow}>
-          {/* Thẻ CHI (Bên trái) */}
-          <TouchableOpacity
-            style={styles.webSummaryCard}
-            activeOpacity={0.8}
-            onPress={() => onNavigateToTab?.('analytics')}
-          >
-            <View style={styles.webSummaryCardHeader}>
-              <Ionicons
-                name="arrow-up-outline"
-                size={15}
-                color="#EF4444"
-                style={{ transform: [{ rotate: '45deg' }] }}
-              />
-              <Text style={styles.webSummaryCardLabelChi}>{language === 'vi' ? 'CHI' : 'EXPENSES'}</Text>
-            </View>
-            <Text style={styles.webSummaryCardAmountChi} numberOfLines={1}>
-              -{realMonthSpent.toLocaleString('vi-VN')} đ
-            </Text>
-          </TouchableOpacity>
-
-          {/* Thẻ THU (Bên phải) */}
-          <TouchableOpacity
-            style={styles.webSummaryCard}
-            activeOpacity={0.8}
-            onPress={() => setIsIncomeScreenOpen(true)}
-          >
-            <View style={styles.webSummaryCardHeader}>
-              <Ionicons
-                name="arrow-down-outline"
-                size={15}
-                color="#059669"
-                style={{ transform: [{ rotate: '45deg' }] }}
-              />
-              <Text style={styles.webSummaryCardLabelThu}>{language === 'vi' ? 'THU' : 'INCOME'}</Text>
-            </View>
-            <Text style={styles.webSummaryCardAmountThu} numberOfLines={1}>
-              +{totalMonthIncome.toLocaleString('vi-VN')} đ
-            </Text>
-          </TouchableOpacity>
         </View>
 
         {/* Real Calendar Grid */}
         <View style={styles.streakJourneyBox}>
-          {/* Quick Monthly Stats Summary Strip */}
-          <View style={styles.monthlyStatsBar}>
-            <View style={styles.monthStatCol}>
-              <Text style={styles.monthStatLabel}>
-                {language === 'vi' ? '💸 TỔNG CHI THÁNG' : '💸 MONTHLY SPENT'}
-              </Text>
-              <Text style={styles.monthStatValue}>
-                {monthlyStats.totalSpending.toLocaleString('vi-VN')} <Text style={styles.monthStatCurrency}>đ</Text>
-              </Text>
-            </View>
-
-            <View style={styles.monthStatDivider} />
-
-            <View style={styles.monthStatCol}>
-              <Text style={styles.monthStatLabel}>
-                {language === 'vi' ? '📸 ĐÃ GHI NHẬN' : '📸 RECORDED'}
-              </Text>
-              <Text style={styles.monthStatValue}>
-                {monthlyStats.countDays} <Text style={styles.monthStatUnit}>{language === 'vi' ? 'ngày' : 'days'}</Text>
-              </Text>
-            </View>
-
-            <View style={styles.monthStatDivider} />
-
-            <View style={styles.monthStatCol}>
-              <Text style={styles.monthStatLabel}>
-                {language === 'vi' ? '⚡ TRUNG BÌNH / NGÀY' : '⚡ DAILY AVG'}
-              </Text>
-              <Text style={styles.monthStatValue}>
-                {monthlyStats.avgPerDay.toLocaleString('vi-VN')} <Text style={styles.monthStatCurrency}>đ</Text>
-              </Text>
-            </View>
-          </View>
-
+          {/* Calendar Header with Month Navigation */}
           <View style={styles.journeyHeader}>
             <View style={styles.monthNavRow}>
               <Text style={styles.journeyTitle}>
@@ -2618,26 +2983,29 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
         onRequestClose={() => setQuickSaveModalVisible(false)}
       >
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalFormCard}>
+          <View style={[styles.modalFormCard, isDesktop ? styles.quickSaveModalCardDesktop : styles.quickSaveModalCardMobile]}>
             {/* Header */}
-            <View style={styles.modalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={styles.quickSaveHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <View style={styles.quickSaveModalIconCircle}>
-                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="#FFFFFF">
+                  <Svg width={20} height={20} viewBox="0 0 24 24" fill="#FFFFFF">
                     <Path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
                   </Svg>
                 </View>
                 <View>
-                  <Text style={styles.modalTitle}>
-                    {language === 'vi' ? 'Lưu nhanh chi tiêu' : 'Quick Save Expense'}
-                  </Text>
-                  <Text style={styles.modalSubtitle}>
-                    {language === 'vi'
-                      ? `Tự động cộng dồn vào ngày ${quickDayNum < 10 ? '0' + quickDayNum : quickDayNum}/${currentMonth + 1}/${currentYear}`
-                      : `Auto-accumulates into ${quickDayNum < 10 ? '0' + quickDayNum : quickDayNum}/${currentMonth + 1}/${currentYear}`}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <Text style={styles.quickSaveModalTitle}>
+                      {language === 'vi' ? 'Lưu nhanh chi tiêu' : 'Quick Save Expense'}
+                    </Text>
+                    <View style={styles.quickSaveDateBadge}>
+                      <Text style={styles.quickSaveDateBadgeText}>
+                        📅 {quickDayNum < 10 ? '0' + quickDayNum : quickDayNum}/{pickerMonth + 1}/{pickerYear}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
               </View>
+
               <TouchableOpacity
                 onPress={() => setQuickSaveModalVisible(false)}
                 style={styles.modalCloseBtn}
@@ -2650,617 +3018,854 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 560 }}>
-              {/* Ngày & Giờ chi tiêu */}
-              <View style={styles.modalFormSection}>
-                <View style={{ flexDirection: 'row', gap: 12 }}>
-                  {/* Ngày */}
-                  <View style={{ flex: 1.3 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                      <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                        <Rect x="3" y="4" width="18" height="18" rx="2" stroke="#059669" strokeWidth="2" />
-                        <Line x1="16" y1="2" x2="16" y2="6" stroke="#059669" strokeWidth="2" strokeLinecap="round" />
-                        <Line x1="8" y1="2" x2="8" y2="6" stroke="#059669" strokeWidth="2" strokeLinecap="round" />
-                        <Line x1="3" y1="10" x2="21" y2="10" stroke="#059669" strokeWidth="2" />
-                      </Svg>
-                      <Text style={styles.modalFormLabel}>
-                        {language === 'vi' ? 'Ngày chi tiêu' : 'Expense Date'}
-                      </Text>
-                    </View>
-                    <View style={styles.dateSelectorRow}>
-                      <TouchableOpacity
-                        style={styles.dateArrowMiniBtn}
-                        onPress={() => setQuickDayNum((d) => Math.max(1, d - 1))}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Text style={{ fontSize: 13, fontWeight: '800' }}>‹</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.dateSelectorCenterBtn}
-                        onPress={() => setShowMiniDatePicker((v) => !v)}
-                        activeOpacity={0.75}
-                      >
-                        <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                          <Rect x="3" y="4" width="18" height="18" rx="2" stroke="#059669" strokeWidth="2" />
-                          <Line x1="16" y1="2" x2="16" y2="6" stroke="#059669" strokeWidth="2" strokeLinecap="round" />
-                          <Line x1="8" y1="2" x2="8" y2="6" stroke="#059669" strokeWidth="2" strokeLinecap="round" />
-                          <Line x1="3" y1="10" x2="21" y2="10" stroke="#059669" strokeWidth="2" />
-                        </Svg>
-                        <Text style={styles.dateSelectorText}>
-                          {quickDayNum < 10 ? '0' + quickDayNum : quickDayNum}/{pickerMonth + 1}/{pickerYear}
+            {/* Scrollable Container for Form (fluid height, no cramped inner box) */}
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              style={{ maxHeight: isDesktop ? 620 : 540 }}
+              contentContainerStyle={{ paddingBottom: 6 }}
+            >
+              <View style={[styles.quickSaveLayoutRow, !isDesktop && styles.quickSaveLayoutCol]}>
+                
+                {/* ========== CỘT TRÁI (LEFT COLUMN): SỐ TIỀN & DANH MỤC CHI TIÊU ========== */}
+                <View style={[styles.quickSaveLeftCol, !isDesktop && { width: '100%' }]}>
+                  {/* 1. Số tiền chi tiêu */}
+                  <View style={styles.quickSaveSectionCard}>
+                    <View style={styles.sectionHeaderRow}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={[styles.sectionIconBadge, { backgroundColor: isDark ? 'rgba(217, 119, 6, 0.2)' : '#FEF3C7' }]}>
+                          <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+                            <Circle cx="12" cy="12" r="10" stroke="#D97706" strokeWidth="2.2" />
+                            <Path d="M12 6v12M15 9.5a2.5 2.5 0 0 0-5 0c0 3 5 2 5 5a2.5 2.5 0 0 1-5 0" stroke="#D97706" strokeWidth="2.2" strokeLinecap="round" />
+                          </Svg>
+                        </View>
+                        <Text style={styles.modalFormLabel}>
+                          {language === 'vi' ? 'Số tiền (VNĐ)' : 'Amount (VND)'}
                         </Text>
-                        <Text style={styles.dateSelectorChevron}>{showMiniDatePicker ? '▲' : '▼'}</Text>
-                      </TouchableOpacity>
+                        <Text style={{ color: '#EF4444', fontWeight: '800', fontSize: 14 }}>*</Text>
+                      </View>
 
+                      {quickAmountStr && parseInt(quickAmountStr.replace(/\D/g, ''), 10) > 0 ? (
+                        <View style={styles.amountLiveBadge}>
+                          <Text style={styles.amountLiveBadgeText}>
+                            = {parseInt(quickAmountStr.replace(/\D/g, ''), 10).toLocaleString('vi-VN')} đ
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    {/* Amount Input with Currency Symbol */}
+                    <View style={styles.amountInputWrap}>
+                      <Text style={styles.amountCurrencyPrefix}>₫</Text>
+                      <TextInput
+                        style={styles.amountLargeInput}
+                        value={quickAmountStr}
+                        onChangeText={setQuickAmountStr}
+                        placeholder="0"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="numeric"
+                        autoFocus
+                      />
+                    </View>
+
+                    {/* Quick Add Chips */}
+                    <View style={styles.quickAmountRow}>
+                      {[20000, 50000, 100000, 200000, 500000].map((val) => (
+                        <TouchableOpacity
+                          key={val}
+                          style={styles.quickAmountChip}
+                          onPress={() => handleAddQuickAmount(val)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.quickAmountText}>+{formatAmountShort(val)}</Text>
+                        </TouchableOpacity>
+                      ))}
                       <TouchableOpacity
-                        style={styles.dateArrowMiniBtn}
-                        onPress={() => setQuickDayNum((d) => Math.min(totalDaysInMonth, d + 1))}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={styles.quickAmountClearChip}
+                        onPress={() => setQuickAmountStr('')}
+                        activeOpacity={0.7}
                       >
-                        <Text style={{ fontSize: 13, fontWeight: '800' }}>›</Text>
+                        <Text style={styles.quickAmountClearText}>{language === 'vi' ? 'Xóa' : 'Clear'}</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
 
-                  {/* Giờ chi tiêu */}
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                      <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                        <Circle cx="12" cy="12" r="10" stroke="#059669" strokeWidth="2" />
-                        <Polyline points="12 6 12 12 16 14" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      </Svg>
-                      <Text style={styles.modalFormLabel}>
-                        {language === 'vi' ? 'Giờ chi' : 'Time'}
+                  {/* 2. Danh mục chi tiêu */}
+                  <View style={[styles.quickSaveSectionCard, { marginTop: 14 }]}>
+                    <View style={styles.sectionHeaderRow}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={[styles.sectionIconBadge, { backgroundColor: isDark ? 'rgba(5, 150, 105, 0.2)' : '#ECFDF5' }]}>
+                          <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+                            <Path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                            <Circle cx="7" cy="7" r="1.5" fill="#059669" />
+                          </Svg>
+                        </View>
+                        <Text style={styles.modalFormLabel}>
+                          {language === 'vi' ? 'Danh mục chi tiêu' : 'Expense Category'}
+                        </Text>
+                      </View>
+                      <View style={styles.selectedCategoryPill}>
+                        <Text style={styles.selectedCategoryPillText}>{quickCategory}</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.categoryGrid}>
+                      {EXPENSE_CATEGORIES.map((cat) => {
+                        const isSelected = quickCategory === cat.name;
+                        const theme = CATEGORY_THEMES[cat.id] || CATEGORY_THEMES.other;
+                        return (
+                          <TouchableOpacity
+                            key={cat.id}
+                            style={[
+                              styles.categoryChip,
+                              isSelected && {
+                                borderColor: theme.primary,
+                                borderWidth: 2,
+                                backgroundColor: isDark ? theme.bgDark : theme.bgLight,
+                                shadowColor: theme.primary,
+                                shadowOffset: { width: 0, height: 4 },
+                                shadowOpacity: 0.25,
+                                shadowRadius: 10,
+                                elevation: 4,
+                              },
+                            ]}
+                            onPress={() => {
+                              setQuickCategory(cat.name);
+                              setQuickCategoryIcon(cat.icon);
+                            }}
+                            activeOpacity={0.75}
+                          >
+                            <View
+                              style={[
+                                styles.categoryIconCircle,
+                                isSelected && {
+                                  backgroundColor: isDark ? theme.circleDark : theme.circleLight,
+                                },
+                              ]}
+                            >
+                              <CategorySvgIcon categoryId={cat.id} size={24} isSelected={isSelected} />
+                            </View>
+                            <Text
+                              style={[
+                                styles.categoryChipText,
+                                isSelected && {
+                                  fontWeight: '900',
+                                  color: isDark ? theme.textDark : theme.textLight,
+                                },
+                              ]}
+                              numberOfLines={2}
+                            >
+                              {cat.name}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </View>
+
+                {/* ========== CỘT PHẢI (RIGHT COLUMN): NGÀY/GIỜ, GHI CHÚ, ẢNH HÓA ĐƠN ========== */}
+                <View style={[styles.quickSaveRightCol, !isDesktop && { width: '100%', marginTop: 14 }]}>
+                  {/* 3. Ngày & Giờ chi tiêu */}
+                  <View style={styles.quickSaveSectionCard}>
+                    <View style={styles.sectionHeaderRow}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={[styles.sectionIconBadge, { backgroundColor: isDark ? 'rgba(5, 150, 105, 0.2)' : '#DCFCE7' }]}>
+                          <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+                            <Rect x="3" y="4" width="18" height="18" rx="2" stroke="#059669" strokeWidth="2.2" />
+                            <Line x1="16" y1="2" x2="16" y2="6" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" />
+                            <Line x1="8" y1="2" x2="8" y2="6" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" />
+                            <Line x1="3" y1="10" x2="21" y2="10" stroke="#059669" strokeWidth="2.2" />
+                          </Svg>
+                        </View>
+                        <Text style={styles.modalFormLabel}>
+                          {language === 'vi' ? 'Thời gian chi tiêu' : 'Expense Time'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                      {/* Ngày chi tiêu */}
+                      <View style={{ flex: 1.4 }}>
+                        <View style={styles.dateSelectorRow}>
+                          <TouchableOpacity
+                            style={styles.dateArrowMiniBtn}
+                            onPress={() => setQuickDayNum((d) => Math.max(1, d - 1))}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Text style={{ fontSize: 13, fontWeight: '800', color: colors.textPrimary }}>‹</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.dateSelectorCenterBtn}
+                            onPress={() => setShowMiniDatePicker((v) => !v)}
+                            activeOpacity={0.75}
+                          >
+                            <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" style={{ marginRight: 4 }}>
+                              <Rect x="3" y="4" width="18" height="18" rx="2" stroke="#059669" strokeWidth="2" />
+                              <Line x1="16" y1="2" x2="16" y2="6" stroke="#059669" strokeWidth="2" strokeLinecap="round" />
+                              <Line x1="8" y1="2" x2="8" y2="6" stroke="#059669" strokeWidth="2" strokeLinecap="round" />
+                              <Line x1="3" y1="10" x2="21" y2="10" stroke="#059669" strokeWidth="2" />
+                            </Svg>
+                            <Text style={styles.dateSelectorText}>
+                              {quickDayNum < 10 ? '0' + quickDayNum : quickDayNum}/{pickerMonth + 1}/{pickerYear}
+                            </Text>
+                            <Text style={styles.dateSelectorChevron}>{showMiniDatePicker ? '▲' : '▼'}</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.dateArrowMiniBtn}
+                            onPress={() => setQuickDayNum((d) => Math.min(totalDaysInMonth, d + 1))}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          >
+                            <Text style={{ fontSize: 13, fontWeight: '800', color: colors.textPrimary }}>›</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+
+                      {/* Giờ chi tiêu */}
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.timeInputBox}>
+                          <Svg width={13} height={13} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
+                            <Circle cx="12" cy="12" r="10" stroke="#059669" strokeWidth="2" />
+                            <Polyline points="12 6 12 12 16 14" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </Svg>
+                          <TextInput
+                            style={styles.timeInputField}
+                            value={quickTimeStr}
+                            onChangeText={setQuickTimeStr}
+                            placeholder="12:00"
+                            placeholderTextColor="#94A3B8"
+                          />
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Dropdown Mini Lịch */}
+                    {showMiniDatePicker && (
+                      <View style={styles.miniCalDropdown}>
+                        <View style={styles.miniCalHeader}>
+                          <TouchableOpacity
+                            style={styles.miniCalArrowBtn}
+                            onPress={handlePrevPickerMonth}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={styles.miniCalArrowText}>‹</Text>
+                          </TouchableOpacity>
+
+                          <Text style={styles.miniCalTitle}>
+                            {language === 'vi'
+                              ? `Tháng ${pickerMonth + 1}, ${pickerYear}`
+                              : `${new Date(pickerYear, pickerMonth).toLocaleString('en-US', { month: 'long' })} ${pickerYear}`}
+                          </Text>
+
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <TouchableOpacity
+                              style={styles.miniCalTodayBtn}
+                              onPress={handlePickerToday}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={styles.miniCalTodayText}>
+                                {language === 'vi' ? 'Hôm nay' : 'Today'}
+                              </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                              style={styles.miniCalArrowBtn}
+                              onPress={handleNextPickerMonth}
+                              activeOpacity={0.7}
+                            >
+                              <Text style={styles.miniCalArrowText}>›</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+
+                        <View style={styles.miniCalDowRow}>
+                          {(language === 'vi' ? ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']).map((dow, idx) => (
+                            <View key={dow + idx} style={styles.miniCalDowCell}>
+                              <Text style={[styles.miniCalDowText, (idx === 5 || idx === 6) && styles.miniCalWeekendText]}>
+                                {dow}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+
+                        <View style={styles.miniCalGrid}>
+                          {(() => {
+                            const daysInMonth = new Date(pickerYear, pickerMonth + 1, 0).getDate();
+                            const firstDow = (new Date(pickerYear, pickerMonth, 1).getDay() + 6) % 7;
+                            const cells: (number | null)[] = [];
+                            for (let i = 0; i < firstDow; i++) cells.push(null);
+                            for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+                            return cells.map((day, idx) => {
+                              if (day === null) {
+                                return <View key={`empty-${idx}`} style={styles.miniCalCell} />;
+                              }
+
+                              const isSelected =
+                                day === quickDayNum &&
+                                pickerMonth === currentMonth &&
+                                pickerYear === currentYear;
+                              const isTodayDate =
+                                today.getFullYear() === pickerYear &&
+                                today.getMonth() === pickerMonth &&
+                                today.getDate() === day;
+
+                              return (
+                                <TouchableOpacity
+                                  key={`day-${day}`}
+                                  style={[
+                                    styles.miniCalCell,
+                                    isTodayDate && styles.miniCalCellToday,
+                                    isSelected && styles.miniCalCellSelected,
+                                  ]}
+                                  onPress={() => {
+                                    setQuickDayNum(day);
+                                    setShowMiniDatePicker(false);
+                                  }}
+                                  activeOpacity={0.7}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.miniCalCellText,
+                                      isTodayDate && styles.miniCalCellTextToday,
+                                      isSelected && styles.miniCalCellTextSelected,
+                                    ]}
+                                  >
+                                    {day}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            });
+                          })()}
+                        </View>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* 4. Ghi chú / Tên món */}
+                  <View style={[styles.quickSaveSectionCard, { marginTop: 14 }]}>
+                    <View style={styles.sectionHeaderRow}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={[styles.sectionIconBadge, { backgroundColor: isDark ? 'rgba(100, 116, 139, 0.2)' : '#F1F5F9' }]}>
+                          <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+                            <Path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="#64748B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                            <Path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#64748B" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                          </Svg>
+                        </View>
+                        <Text style={styles.modalFormLabel}>
+                          {language === 'vi' ? 'Ghi chú / Tên món' : 'Note / Description'}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 11, color: '#94A3B8', fontWeight: '600' }}>
+                        {language === 'vi' ? 'Tùy chọn' : 'Optional'}
                       </Text>
                     </View>
                     <TextInput
-                      style={[styles.modalInput, { textAlign: 'center', fontWeight: '700' }]}
-                      value={quickTimeStr}
-                      onChangeText={setQuickTimeStr}
-                      placeholder="12:00"
+                      style={[styles.modalInput, { marginTop: 8 }]}
+                      value={quickNote}
+                      onChangeText={setQuickNote}
+                      placeholder={language === 'vi' ? 'Ví dụ: Cơm trưa, Cà phê Highland...' : 'E.g. Lunch, Coffee...'}
                       placeholderTextColor="#94A3B8"
                     />
                   </View>
-                </View>
 
-                {/* Dropdown Mini Lịch chuyên nghiệp */}
-                {showMiniDatePicker && (
-                  <View style={styles.miniCalDropdown}>
-                    {/* Header Month / Year controls */}
-                    <View style={styles.miniCalHeader}>
-                      <TouchableOpacity
-                        style={styles.miniCalArrowBtn}
-                        onPress={handlePrevPickerMonth}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.miniCalArrowText}>‹</Text>
-                      </TouchableOpacity>
-
-                      <Text style={styles.miniCalTitle}>
-                        {language === 'vi'
-                          ? `Tháng ${pickerMonth + 1}, ${pickerYear}`
-                          : `${new Date(pickerYear, pickerMonth).toLocaleString('en-US', { month: 'long' })} ${pickerYear}`}
-                      </Text>
-
+                  {/* 5. Ảnh hóa đơn / khoảnh khắc */}
+                  <View style={[styles.quickSaveSectionCard, { marginTop: 14 }]}>
+                    <View style={styles.sectionHeaderRow}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <TouchableOpacity
-                          style={styles.miniCalTodayBtn}
-                          onPress={handlePickerToday}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.miniCalTodayText}>
-                            {language === 'vi' ? 'Hôm nay' : 'Today'}
-                          </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={styles.miniCalArrowBtn}
-                          onPress={handleNextPickerMonth}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={styles.miniCalArrowText}>›</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-
-                    {/* Day of Week Header */}
-                    <View style={styles.miniCalDowRow}>
-                      {(language === 'vi' ? ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']).map((dow, idx) => (
-                        <View key={dow + idx} style={styles.miniCalDowCell}>
-                          <Text style={[styles.miniCalDowText, (idx === 5 || idx === 6) && styles.miniCalWeekendText]}>
-                            {dow}
-                          </Text>
+                        <View style={[styles.sectionIconBadge, { backgroundColor: isDark ? 'rgba(5, 150, 105, 0.2)' : '#ECFDF5' }]}>
+                          <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+                            <Path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                            <Circle cx="12" cy="13" r="4" stroke="#059669" strokeWidth="2.2" />
+                          </Svg>
                         </View>
-                      ))}
+                        <Text style={styles.modalFormLabel}>
+                          {language === 'vi' ? 'Ảnh hóa đơn / khoảnh khắc' : 'Receipt / Moment Photo'}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 11, color: '#94A3B8', fontWeight: '600' }}>
+                        {language === 'vi' ? 'Tùy chọn' : 'Optional'}
+                      </Text>
                     </View>
 
-                    {/* Day Grid Matrix */}
-                    <View style={styles.miniCalGrid}>
-                      {(() => {
-                        const daysInMonth = new Date(pickerYear, pickerMonth + 1, 0).getDate();
-                        const firstDow = (new Date(pickerYear, pickerMonth, 1).getDay() + 6) % 7; // Monday = 0
-                        const cells: (number | null)[] = [];
-                        for (let i = 0; i < firstDow; i++) cells.push(null);
-                        for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-
-                        return cells.map((day, idx) => {
-                          if (day === null) {
-                            return <View key={`empty-${idx}`} style={styles.miniCalCell} />;
-                          }
-
-                          const isSelected =
-                            day === quickDayNum &&
-                            pickerMonth === currentMonth &&
-                            pickerYear === currentYear;
-                          const isTodayDate =
-                            today.getFullYear() === pickerYear &&
-                            today.getMonth() === pickerMonth &&
-                            today.getDate() === day;
-
-                          return (
-                            <TouchableOpacity
-                              key={`day-${day}`}
-                              style={[
-                                styles.miniCalCell,
-                                isTodayDate && styles.miniCalCellToday,
-                                isSelected && styles.miniCalCellSelected,
-                              ]}
-                              onPress={() => {
-                                setQuickDayNum(day);
-                                setShowMiniDatePicker(false);
-                              }}
-                              activeOpacity={0.7}
-                            >
-                              <Text
-                                style={[
-                                  styles.miniCalCellText,
-                                  isTodayDate && styles.miniCalCellTextToday,
-                                  isSelected && styles.miniCalCellTextSelected,
-                                ]}
-                              >
-                                {day}
+                    {isCompressingPhoto ? (
+                      <View style={styles.quickPhotoUploadingBox}>
+                        <Text style={{ fontSize: 22 }}>⏳</Text>
+                        <Text style={styles.quickPhotoUploadingText}>
+                          {language === 'vi' ? 'Đang nén và tối ưu hóa ảnh...' : 'Compressing and optimizing photo...'}
+                        </Text>
+                      </View>
+                    ) : quickPhotoUri ? (
+                      <View style={{ marginTop: 8 }}>
+                        <View style={styles.quickPhotoThumbBox}>
+                          <Image source={{ uri: quickPhotoUri }} style={styles.quickPhotoThumb} resizeMode="cover" />
+                          <View style={styles.quickPhotoOverlayBar}>
+                            <View style={styles.quickPhotoBadge}>
+                              <Text style={styles.quickPhotoBadgeText}>
+                                {language === 'vi' ? '🖼️ Đã chọn ảnh bìa' : '🖼️ Cover Attached'}
                               </Text>
-                            </TouchableOpacity>
-                          );
-                        });
-                      })()}
-                    </View>
-                  </View>
-                )}
-              </View>
-
-              {/* 1. Số tiền chi tiêu */}
-              <View style={styles.modalFormSection}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                      <Circle cx="12" cy="12" r="10" stroke="#D97706" strokeWidth="2" />
-                      <Path d="M12 6v12M15 9.5a2.5 2.5 0 0 0-5 0c0 3 5 2 5 5a2.5 2.5 0 0 1-5 0" stroke="#D97706" strokeWidth="2" strokeLinecap="round" />
-                    </Svg>
-                    <Text style={styles.modalFormLabel}>
-                      {language === 'vi' ? 'Số tiền (VNĐ)' : 'Amount (VND)'} *
-                    </Text>
-                  </View>
-                  {quickAmountStr && parseInt(quickAmountStr.replace(/\D/g, ''), 10) > 0 ? (
-                    <Text style={styles.modalAmountFormatted}>
-                      = {parseInt(quickAmountStr.replace(/\D/g, ''), 10).toLocaleString('vi-VN')} đ
-                    </Text>
-                  ) : null}
-                </View>
-
-                <TextInput
-                  style={[styles.modalInput, styles.modalAmountInput]}
-                  value={quickAmountStr}
-                  onChangeText={setQuickAmountStr}
-                  placeholder="0"
-                  placeholderTextColor="#94A3B8"
-                  keyboardType="numeric"
-                  autoFocus
-                />
-
-                {/* Quick Add Buttons */}
-                <View style={styles.quickAmountRow}>
-                  {[20000, 50000, 100000, 200000, 500000].map((val) => (
-                    <TouchableOpacity
-                      key={val}
-                      style={styles.quickAmountChip}
-                      onPress={() => handleAddQuickAmount(val)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.quickAmountText}>+{formatAmountShort(val)}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  <TouchableOpacity
-                    style={[styles.quickAmountChip, { borderColor: '#FECACA', backgroundColor: '#FEF2F2' }]}
-                    onPress={() => setQuickAmountStr('')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={[styles.quickAmountText, { color: '#DC2626' }]}>Xóa</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* 2. Danh mục chi tiêu */}
-              <View style={styles.modalFormSection}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-                  <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                    <Path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    <Circle cx="7" cy="7" r="1.5" fill="#059669" />
-                  </Svg>
-                  <Text style={styles.modalFormLabel}>
-                    {language === 'vi' ? 'Danh mục chi tiêu' : 'Category'}
-                  </Text>
-                </View>
-                <View style={styles.categoryGrid}>
-                  {EXPENSE_CATEGORIES.map((cat) => {
-                    const isSelected = quickCategory === cat.name;
-                    const theme = CATEGORY_THEMES[cat.id] || CATEGORY_THEMES.other;
-                    return (
+                            </View>
+                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                              <TouchableOpacity
+                                style={styles.photoControlBtnChange}
+                                onPress={handleUploadPhotoInQuickSave}
+                                activeOpacity={0.8}
+                              >
+                                <Text style={styles.photoControlTextChange}>
+                                  🔄 {language === 'vi' ? 'Đổi ảnh' : 'Change'}
+                                </Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={styles.photoControlBtnRemove}
+                                onPress={() => setQuickPhotoUri('')}
+                                activeOpacity={0.8}
+                              >
+                                <Text style={styles.photoControlTextRemove}>
+                                  🗑️ {language === 'vi' ? 'Bỏ ảnh' : 'Remove'}
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        </View>
+                      </View>
+                    ) : (
                       <TouchableOpacity
-                        key={cat.id}
-                        style={[
-                          styles.categoryChip,
-                          isSelected && {
-                            borderColor: theme.primary,
-                            borderWidth: 2,
-                            backgroundColor: isDark ? theme.bgDark : theme.bgLight,
-                            shadowColor: theme.primary,
-                            shadowOffset: { width: 0, height: 4 },
-                            shadowOpacity: 0.22,
-                            shadowRadius: 10,
-                            elevation: 4,
-                          },
-                        ]}
-                        onPress={() => {
-                          setQuickCategory(cat.name);
-                          setQuickCategoryIcon(cat.icon);
-                        }}
+                        style={styles.quickPhotoUploadCard}
+                        onPress={handleUploadPhotoInQuickSave}
                         activeOpacity={0.75}
                       >
-                        <View
-                          style={[
-                            styles.categoryIconCircle,
-                            isSelected && {
-                              backgroundColor: isDark ? theme.circleDark : theme.circleLight,
-                            },
-                          ]}
-                        >
-                          <CategorySvgIcon categoryId={cat.id} size={28} isSelected={isSelected} />
+                        <View style={styles.quickPhotoUploadIconCircle}>
+                          <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+                            <Path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                            <Circle cx="12" cy="13" r="4" stroke="#059669" strokeWidth="2" />
+                          </Svg>
                         </View>
-                        <Text
-                          style={[
-                            styles.categoryChipText,
-                            isSelected && {
-                              fontWeight: '900',
-                              color: isDark ? theme.textDark : theme.textLight,
-                            },
-                          ]}
-                          numberOfLines={2}
-                        >
-                          {cat.name}
-                        </Text>
+                        <View style={{ alignItems: 'center', gap: 4 }}>
+                          <Text style={styles.quickPhotoUploadCardTitle}>
+                            {language === 'vi' ? '+ Đính kèm ảnh hóa đơn hoặc khoảnh khắc' : '+ Attach photo receipt or moment'}
+                          </Text>
+                          <Text style={styles.quickPhotoUploadCardSub}>
+                            {language === 'vi'
+                              ? 'Nhấn để chọn ảnh • Tự động hiển thị bìa ảnh trên ô lịch & lưu Cloud'
+                              : 'Click to upload • Auto displays as day cover on calendar'}
+                          </Text>
+                        </View>
+                        <View style={styles.quickPhotoFormatPill}>
+                          <Text style={styles.quickPhotoFormatPillText}>
+                            {language === 'vi' ? 'JPG, PNG, WebP • Tự động nén tối ưu' : 'JPG, PNG, WebP • Auto-optimized'}
+                          </Text>
+                        </View>
                       </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* 3. Ghi chú / Tên món (Tùy chọn) */}
-              <View style={styles.modalFormSection}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-                  <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                    <Path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    <Path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" stroke="#64748B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </Svg>
-                  <Text style={styles.modalFormLabel}>
-                    {language === 'vi' ? 'Ghi chú / Tên món (Tùy chọn)' : 'Note (Optional)'}
-                  </Text>
-                </View>
-                <TextInput
-                  style={styles.modalInput}
-                  value={quickNote}
-                  onChangeText={setQuickNote}
-                  placeholder={language === 'vi' ? 'Ví dụ: Cơm trưa, Cà phê Highland...' : 'E.g. Lunch, Coffee...'}
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-
-              {/* 4. Ảnh hóa đơn / khoảnh khắc (Tùy chọn, KHÔNG BẮT BUỘC) */}
-              <View style={styles.modalFormSection}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
-                  <Svg width={15} height={15} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                    <Path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    <Circle cx="12" cy="13" r="4" stroke="#059669" strokeWidth="2" />
-                  </Svg>
-                  <Text style={styles.modalFormLabel}>
-                    {language === 'vi' ? 'Ảnh hóa đơn / khoảnh khắc (Tùy chọn)' : 'Photo Receipt (Optional)'}
-                  </Text>
-                </View>
-                {isCompressingPhoto ? (
-                  <View style={[styles.quickPhotoUploadBtn, { opacity: 0.85, borderColor: '#059669', backgroundColor: '#ECFDF5' }]}>
-                    <Text style={{ fontSize: 16 }}>⏳</Text>
-                    <Text style={[styles.quickPhotoUploadText, { color: '#047857', fontWeight: '700' }]}>
-                      {language === 'vi' ? 'Đang nén và tối ưu ảnh...' : 'Compressing and optimizing photo...'}
-                    </Text>
+                    )}
                   </View>
-                ) : quickPhotoUri ? (
-                  <View style={{ marginTop: 6 }}>
-                    <View style={styles.quickPhotoThumbBox}>
-                      <Image source={{ uri: quickPhotoUri }} style={styles.quickPhotoThumb} resizeMode="cover" />
-                    </View>
-                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
-                      <TouchableOpacity
-                        style={styles.photoControlBtnChange}
-                        onPress={handleUploadPhotoInQuickSave}
-                      >
-                        <Text style={styles.photoControlTextChange}>🔄 {language === 'vi' ? 'Đổi ảnh' : 'Change'}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.photoControlBtnRemove}
-                        onPress={() => setQuickPhotoUri('')}
-                      >
-                        <Text style={styles.photoControlTextRemove}>🗑️ {language === 'vi' ? 'Bỏ ảnh' : 'Remove'}</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.quickPhotoUploadBtn}
-                    onPress={handleUploadPhotoInQuickSave}
-                    activeOpacity={0.75}
-                  >
-                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none" style={{ marginRight: 6 }}>
-                      <Path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      <Circle cx="12" cy="13" r="4" stroke="#059669" strokeWidth="2" />
-                    </Svg>
-                    <Text style={styles.quickPhotoUploadText}>
-                      {language === 'vi' ? '+ Đính kèm ảnh nếu có (Không bắt buộc)' : '+ Attach photo if available (Optional)'}
-                    </Text>
-                  </TouchableOpacity>
-                )}
+                </View>
+
               </View>
             </ScrollView>
 
-            {/* Modal Actions */}
-            <View style={styles.modalActionRow}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={() => setQuickSaveModalVisible(false)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.modalCancelBtnText}>{language === 'vi' ? 'Hủy' : 'Cancel'}</Text>
-              </TouchableOpacity>
+            {/* Modal Actions Footer */}
+            <View style={[styles.quickSaveModalFooter, { justifyContent: 'flex-end' }]}>
+              <View style={styles.quickSaveFooterBtnGroup}>
+                <TouchableOpacity
+                  style={styles.quickSaveCancelBtn}
+                  onPress={() => setQuickSaveModalVisible(false)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.quickSaveCancelBtnText}>{language === 'vi' ? 'Hủy' : 'Cancel'}</Text>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.modalSaveBtn}
-                onPress={handleSaveQuickExpense}
-                activeOpacity={0.85}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Svg width={16} height={16} viewBox="0 0 24 24" fill="#FFFFFF">
-                    <Path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                  </Svg>
-                  <Text style={styles.modalSaveBtnText}>
-                    {language === 'vi' ? 'Lưu chi tiêu' : 'Save Expense'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickSaveSaveBtn}
+                  onPress={handleSaveQuickExpense}
+                  activeOpacity={0.85}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Svg width={16} height={16} viewBox="0 0 24 24" fill="#FFFFFF">
+                      <Path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    </Svg>
+                    <Text style={styles.quickSaveSaveBtnText}>
+                      {language === 'vi' ? 'Lưu chi tiêu' : 'Save Expense'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
             </View>
+
           </View>
         </View>
       </Modal>
 
-      {/* ===================== 2. MODAL XEM TẤT CẢ CHI TIÊU CỦA NGÀY (TIMELINE CHI TIẾT) ===================== */}
-      <Modal
-        visible={timelineModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setTimelineModalVisible(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalFormCard, { maxWidth: 620, maxHeight: '90vh' as any }]}>
-            {/* Header: Date + Total */}
-            <View style={styles.timelineModalHeader}>
-              <View style={{ flex: 1, paddingRight: 10 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-                    <Rect x="3" y="4" width="18" height="18" rx="2" stroke="#059669" strokeWidth="2" />
-                    <Line x1="16" y1="2" x2="16" y2="6" stroke="#059669" strokeWidth="2" strokeLinecap="round" />
-                    <Line x1="8" y1="2" x2="8" y2="6" stroke="#059669" strokeWidth="2" strokeLinecap="round" />
-                    <Line x1="3" y1="10" x2="21" y2="10" stroke="#059669" strokeWidth="2" />
-                  </Svg>
-                  <Text style={styles.timelineModalTitle}>
-                    {language === 'vi'
-                      ? `Chi tiêu ngày ${timelineDayNum < 10 ? '0' + timelineDayNum : timelineDayNum}/${currentMonth + 1}/${currentYear}`
-                      : `Expenses on ${timelineDayNum < 10 ? '0' + timelineDayNum : timelineDayNum}/${currentMonth + 1}/${currentYear}`}
-                  </Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <View style={styles.timelineTotalPill}>
-                    <Text style={styles.timelineTotalLabel}>{language === 'vi' ? 'Tổng chi:' : 'Total:'}</Text>
-                    <Text style={styles.timelineTotalAmount}>
-                      {(dayRecords[`${currentYear}-${currentMonth + 1}-${timelineDayNum}`]?.amount || 0).toLocaleString('vi-VN')} đ
-                    </Text>
-                  </View>
-                  <Text style={styles.timelineCountText}>
-                    {(dayRecords[`${currentYear}-${currentMonth + 1}-${timelineDayNum}`]?.items || []).length}{' '}
-                    {language === 'vi' ? 'khoản chi' : 'records'}
-                  </Text>
-                </View>
-              </View>
+      {/* ===================== 2. MODAL XEM TẤT CẢ CHI TIÊU CỦA NGÀY (SPLIT 2-COLUMN MASTER-DETAIL) ===================== */}
+      {(() => {
+        const photoKey = `${currentYear}-${currentMonth + 1}-${timelineDayNum}`;
+        const paddedKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(timelineDayNum).padStart(2, '0')}`;
+        const currentRecord = dayRecords[photoKey] || dayRecords[paddedKey];
+        const dayItems = currentRecord?.items || [];
+        const activeItem = dayItems.find((it) => it.id === selectedTimelineItem?.id) || dayItems.find((it) => it.photoUri) || dayItems[0] || null;
 
-              {/* Action Buttons: + Lưu nhanh & Đóng */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <TouchableOpacity
-                  style={styles.timelineAddBtn}
-                  onPress={() => {
-                    setTimelineModalVisible(false);
-                    handleOpenQuickSave(timelineDayNum);
-                  }}
-                  activeOpacity={0.82}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <Svg width={13} height={13} viewBox="0 0 24 24" fill="#FFFFFF">
-                      <Path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-                    </Svg>
-                    <Text style={styles.timelineAddBtnText}>
-                      {language === 'vi' ? '+ Lưu nhanh' : '+ Add'}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => setTimelineModalVisible(false)}
-                  style={styles.modalCloseBtn}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
-                    <Line x1="18" y1="6" x2="6" y2="18" stroke="#64748B" strokeWidth="2.5" strokeLinecap="round" />
-                    <Line x1="6" y1="6" x2="18" y2="18" stroke="#64748B" strokeWidth="2.5" strokeLinecap="round" />
-                  </Svg>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 490, marginVertical: 8 }}>
-              {/* Cover Photo Bar on Top of Timeline (if any) */}
-              {dayRecords[`${currentYear}-${currentMonth + 1}-${timelineDayNum}`]?.photoUri ? (
-                <View style={styles.timelineCoverCard}>
-                  <Image
-                    source={{ uri: dayRecords[`${currentYear}-${currentMonth + 1}-${timelineDayNum}`]?.photoUri }}
-                    style={styles.timelineCoverImg}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.timelineCoverOverlay}>
-                    <Text style={styles.timelineCoverBadge}>
-                      📷 {language === 'vi' ? 'Ảnh đại diện ô lịch' : 'Calendar Cell Cover'}
-                    </Text>
-                    <View style={{ flexDirection: 'row', gap: 6 }}>
-                      <TouchableOpacity
-                        style={styles.timelineCoverActionBtn}
-                        onPress={() => handlePickCoverPhotoForDay(timelineDayNum)}
-                      >
-                        <Text style={styles.timelineCoverActionText}>🔄 {language === 'vi' ? 'Đổi ảnh' : 'Change'}</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.timelineCoverActionBtn, { backgroundColor: 'rgba(239, 68, 68, 0.85)' }]}
-                        onPress={() => setDeletingCoverDay(timelineDayNum)}
-                        accessibilityLabel={language === 'vi' ? 'Gỡ ảnh đại diện ô lịch' : 'Remove cover photo'}
-                      >
-                        <Text style={styles.timelineCoverActionText}>🗑️</Text>
-                      </TouchableOpacity>
+        return (
+          <Modal
+            visible={timelineModalVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setTimelineModalVisible(false)}
+          >
+            <View style={styles.modalBackdrop}>
+              <View
+                style={[
+                  styles.timelineMasterModalCard,
+                  {
+                    width: width >= 1100 ? 1040 : width >= 768 ? '94%' : '96%',
+                    maxWidth: 1060,
+                    height: width >= 768 ? 680 : undefined,
+                    maxHeight: '92vh' as any,
+                  },
+                ]}
+              >
+                {/* Header: Date + Total + Add & Close */}
+                <View style={styles.timelineModalHeader}>
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <View style={styles.timelineCalendarIconBadge}>
+                        <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                          <Rect x="3" y="4" width="18" height="18" rx="2" stroke="#059669" strokeWidth="2.2" />
+                          <Line x1="16" y1="2" x2="16" y2="6" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" />
+                          <Line x1="8" y1="2" x2="8" y2="6" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" />
+                          <Line x1="3" y1="10" x2="21" y2="10" stroke="#059669" strokeWidth="2.2" />
+                        </Svg>
+                      </View>
+                      <Text style={styles.timelineModalTitle}>
+                        {language === 'vi'
+                          ? `Chi tiêu ngày ${timelineDayNum < 10 ? '0' + timelineDayNum : timelineDayNum}/${currentMonth + 1}/${currentYear}`
+                          : `Expenses on ${timelineDayNum < 10 ? '0' + timelineDayNum : timelineDayNum}/${currentMonth + 1}/${currentYear}`}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <View style={styles.timelineTotalPill}>
+                        <Text style={styles.timelineTotalLabel}>{language === 'vi' ? 'Tổng chi:' : 'Total:'}</Text>
+                        <Text style={styles.timelineTotalAmount}>
+                          {(currentRecord?.amount || 0).toLocaleString('vi-VN')} đ
+                        </Text>
+                      </View>
+                      <View style={styles.timelineCountPill}>
+                        <Text style={styles.timelineCountText}>
+                          {dayItems.length} {language === 'vi' ? 'khoản chi tiêu' : 'records'}
+                        </Text>
+                      </View>
                     </View>
                   </View>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={styles.timelineAddCoverBtn}
-                  onPress={() => handlePickCoverPhotoForDay(timelineDayNum)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={{ fontSize: 16 }}>📷</Text>
-                  <Text style={styles.timelineAddCoverText}>
-                    {language === 'vi' ? '+ Thêm ảnh đại diện cho ô lịch ngày này' : '+ Add photo cover for this day cell'}
-                  </Text>
-                </TouchableOpacity>
-              )}
 
-              {/* Timeline Items List */}
-              {(!dayRecords[`${currentYear}-${currentMonth + 1}-${timelineDayNum}`]?.items ||
-                dayRecords[`${currentYear}-${currentMonth + 1}-${timelineDayNum}`]!.items!.length === 0) ? (
-                <View style={styles.timelineEmptyBox}>
-                  <Text style={{ fontSize: 32, marginBottom: 8 }}>🍃</Text>
-                  <Text style={styles.timelineEmptyTitle}>
-                    {language === 'vi' ? 'Chưa có khoản chi nào trong ngày này' : 'No expenses recorded yet'}
-                  </Text>
-                  <Text style={styles.timelineEmptySubtitle}>
-                    {language === 'vi'
-                      ? 'Bấm nút "Lưu nhanh" ở trên để ghi chép chi tiêu với thời gian chính xác!'
-                      : 'Tap "Quick Save" above to record expenses with precise time!'}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.timelineList}>
-                  {dayRecords[`${currentYear}-${currentMonth + 1}-${timelineDayNum}`]!.items!.map((it, idx) => (
-                    <View key={it.id || idx} style={styles.timelineRow}>
-                      {/* Left: Time indicator */}
-                      <View style={styles.timelineTimeCol}>
-                        <View style={styles.timelineTimeBadge}>
-                          <Text style={styles.timelineTimeText}>{formatExpenseUploadTime(it)}</Text>
-                        </View>
-                        {idx < dayRecords[`${currentYear}-${currentMonth + 1}-${timelineDayNum}`]!.items!.length - 1 && (
-                          <View style={styles.timelineConnectorLine} />
-                        )}
+                  {/* Action Buttons: + Lưu nhanh & Đóng */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <TouchableOpacity
+                      style={styles.timelineAddBtn}
+                      onPress={() => {
+                        setTimelineModalVisible(false);
+                        handleOpenQuickSave(timelineDayNum);
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Svg width={14} height={14} viewBox="0 0 24 24" fill="#FFFFFF">
+                          <Path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                        </Svg>
+                        <Text style={styles.timelineAddBtnText}>
+                          {language === 'vi' ? '+ Lưu nhanh' : '+ Add'}
+                        </Text>
                       </View>
+                    </TouchableOpacity>
 
-                      {/* Right: Expense Card */}
-                      <View style={styles.timelineCard}>
-                        <View style={styles.timelineCardTop}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                            <CategorySvgIcon categoryId={it.category} categoryIcon={it.categoryIcon} size={18} />
-                            <Text style={styles.timelineCardCategory}>{it.category || 'Ăn uống'}</Text>
+                    <TouchableOpacity
+                      onPress={() => setTimelineModalVisible(false)}
+                      style={styles.modalCloseBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                        <Line x1="18" y1="6" x2="6" y2="18" stroke="#64748B" strokeWidth="2.5" strokeLinecap="round" />
+                        <Line x1="6" y1="6" x2="18" y2="18" stroke="#64748B" strokeWidth="2.5" strokeLinecap="round" />
+                      </Svg>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* TWO-COLUMN BODY */}
+                <View style={[styles.timelineSplitBody, width < 768 && { flexDirection: 'column', height: 'auto' }]}>
+                  {/* LEFT COLUMN: LIST OF EXPENSES (ONLY LIST) */}
+                  <View style={[styles.timelineLeftCol, width < 768 && { flex: undefined, width: '100%', maxHeight: 260 }]}>
+                    {/* Subheading */}
+                    <View style={styles.timelineListSubheader}>
+                      <Text style={styles.timelineListSubheaderText}>
+                        {language === 'vi' ? 'DANH SÁCH CHI TIÊU' : 'TRANSACTIONS'} ({dayItems.length})
+                      </Text>
+                      <Text style={styles.timelineListSubheaderHint}>
+                        {language === 'vi' ? 'Ấn để xem chi tiết →' : 'Tap item to view →'}
+                      </Text>
+                    </View>
+
+                    {/* Scrollable list */}
+                    {dayItems.length === 0 ? (
+                      <View style={styles.timelineEmptyBox}>
+                        <Text style={{ fontSize: 32, marginBottom: 8 }}>🍃</Text>
+                        <Text style={styles.timelineEmptyTitle}>
+                          {language === 'vi' ? 'Chưa có khoản chi nào' : 'No expenses recorded yet'}
+                        </Text>
+                        <Text style={styles.timelineEmptySubtitle}>
+                          {language === 'vi'
+                            ? 'Bấm nút "+ Lưu nhanh" để ghi chép khoản chi đầu tiên!'
+                            : 'Tap "+ Add" above to record an expense!'}
+                        </Text>
+                      </View>
+                    ) : (
+                      <ScrollView showsVerticalScrollIndicator={true} style={styles.timelineListScroll}>
+                        {dayItems.map((it, idx) => {
+                          const isSelected = activeItem?.id === it.id;
+                          return (
+                            <TouchableOpacity
+                              key={it.id || idx}
+                              style={[
+                                styles.timelineInteractiveCard,
+                                isSelected && styles.timelineInteractiveCardSelected,
+                              ]}
+                              onPress={() => setSelectedTimelineItem(it)}
+                              activeOpacity={0.85}
+                            >
+                              {/* Top row: Time + Category + Amount */}
+                              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, paddingRight: 8 }}>
+                                  <View style={[styles.timelineSmallTimeBadge, isSelected && styles.timelineSmallTimeBadgeSelected]}>
+                                    <Text style={[styles.timelineSmallTimeText, isSelected && styles.timelineSmallTimeTextSelected]}>
+                                      {formatExpenseUploadTime(it)}
+                                    </Text>
+                                  </View>
+                                  <CategorySvgIcon categoryId={it.category} categoryIcon={it.categoryIcon} size={16} />
+                                  <Text style={[styles.timelineItemCategoryName, isSelected && styles.timelineItemCategoryNameSelected]} numberOfLines={1}>
+                                    {it.category || 'Ăn uống'}
+                                  </Text>
+                                </View>
+
+                                <Text style={[styles.timelineItemAmountText, isSelected && styles.timelineItemAmountTextSelected]}>
+                                  -{(it.amount || 0).toLocaleString('vi-VN')} đ
+                                </Text>
+                              </View>
+
+                              {/* Bottom row: Note preview + Photo badge + Delete btn */}
+                              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <Text style={[styles.timelineItemNotePreview, isSelected && { color: isDark ? '#E2E8F0' : '#1E293B' }]} numberOfLines={1}>
+                                  {it.note ? `📝 ${it.note}` : (language === 'vi' ? 'Không có ghi chú' : 'No note')}
+                                </Text>
+
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 8 }}>
+                                  {it.photoUri ? (
+                                    <View style={styles.timelineHasPhotoPill}>
+                                      <Text style={styles.timelineHasPhotoText}>📷 {language === 'vi' ? 'Có ảnh' : 'Photo'}</Text>
+                                    </View>
+                                  ) : null}
+                                  <TouchableOpacity
+                                    onPress={(e) => {
+                                      e.stopPropagation();
+                                      setDeletingExpense({ dayNum: timelineDayNum, item: it });
+                                    }}
+                                    style={styles.timelineItemQuickDeleteBtn}
+                                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                  >
+                                    <Text style={{ fontSize: 11 }}>🗑️</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    )}
+                  </View>
+
+                  {/* RIGHT COLUMN: SELECTED ITEM DETAILS */}
+                  <View style={[styles.timelineRightCol, width < 768 && { flex: undefined, width: '100%', minHeight: 320 }]}>
+                    {activeItem ? (
+                      <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+                        {/* Section Tag */}
+                        <View style={styles.detailHeaderRow}>
+                          <View style={styles.detailHeaderBadge}>
+                            <Text style={styles.detailHeaderBadgeText}>
+                              💎 {language === 'vi' ? 'CHI TIẾT KHOẢN TIỀN' : 'EXPENSE DETAILS'}
+                            </Text>
                           </View>
+                          <Text style={styles.detailTimeMeta}>
+                            🕒 {formatExpenseUploadTime(activeItem)} • {timelineDayNum < 10 ? '0' + timelineDayNum : timelineDayNum}/{currentMonth + 1}/{currentYear}
+                          </Text>
+                        </View>
 
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                            <Text style={styles.timelineCardAmount}>
-                              -{(it.amount || 0).toLocaleString('vi-VN')} đ
+                        {/* Large Image Showcase (Ấn trực tiếp vào ảnh để mở to xem full) */}
+                        {activeItem.photoUri ? (
+                          <View style={{ marginBottom: 14 }}>
+                            <TouchableOpacity
+                              style={styles.detailPhotoShowcaseCard}
+                              onPress={() => setLightboxUri(activeItem.photoUri!)}
+                              activeOpacity={0.92}
+                            >
+                              <Image
+                                source={{ uri: activeItem.photoUri }}
+                                style={styles.detailShowcaseImage}
+                                resizeMode="cover"
+                              />
+                            </TouchableOpacity>
+
+                            {/* Photo Actions Row: Đặt làm ảnh ô lịch + Đổi ảnh + Gỡ ảnh */}
+                            <View style={styles.detailPhotoActionBar}>
+                              <TouchableOpacity
+                                style={[
+                                  styles.detailPhotoActionBtn,
+                                  currentRecord?.photoUri === activeItem.photoUri && styles.detailPhotoActionBtnActive,
+                                ]}
+                                onPress={() => handleSetCoverPhoto(activeItem.photoUri!)}
+                                activeOpacity={0.85}
+                              >
+                                <Text style={[
+                                  styles.detailPhotoActionBtnText,
+                                  currentRecord?.photoUri === activeItem.photoUri && { color: '#059669', fontWeight: '800' },
+                                ]}>
+                                  {currentRecord?.photoUri === activeItem.photoUri
+                                    ? (language === 'vi' ? '⭐ Đang là ảnh ô lịch' : '⭐ Cell cover')
+                                    : (language === 'vi' ? '⭐ Đặt làm ảnh ô lịch' : '⭐ Set as cover')}
+                                </Text>
+                              </TouchableOpacity>
+
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <TouchableOpacity
+                                  style={styles.detailPhotoActionBtn}
+                                  onPress={() => handlePickPhotoForExpenseItem(activeItem)}
+                                  activeOpacity={0.85}
+                                >
+                                  <Text style={styles.detailPhotoActionBtnText}>
+                                    🔄 {language === 'vi' ? 'Đổi ảnh' : 'Change'}
+                                  </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                  style={[styles.detailPhotoActionBtn, { backgroundColor: isDark ? '#334155' : '#FEE2E2', borderColor: isDark ? '#475569' : '#FECACA' }]}
+                                  onPress={() => handleRemovePhotoFromExpenseItem(activeItem)}
+                                  activeOpacity={0.85}
+                                >
+                                  <Text style={[styles.detailPhotoActionBtnText, { color: '#DC2626' }]}>
+                                    🗑️ {language === 'vi' ? 'Gỡ ảnh' : 'Remove'}
+                                  </Text>
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          </View>
+                        ) : (
+                          /* Placeholder when no photo */
+                          <View style={styles.detailNoPhotoBox}>
+                            <View style={styles.detailNoPhotoIconWrap}>
+                              <Text style={{ fontSize: 28 }}>🧾</Text>
+                            </View>
+                            <Text style={styles.detailNoPhotoTitle}>
+                              {language === 'vi' ? 'Khoản chi tiêu này chưa có ảnh' : 'No receipt photo attached'}
+                            </Text>
+                            <Text style={styles.detailNoPhotoSubtitle}>
+                              {language === 'vi'
+                                ? 'Bạn có thể tải ảnh hóa đơn hoặc hình chụp sản phẩm để lưu giữ kỷ niệm'
+                                : 'You can attach a receipt or moment photo for this record'}
                             </Text>
                             <TouchableOpacity
-                              onPress={() => setDeletingExpense({ dayNum: timelineDayNum, item: it })}
-                              style={styles.timelineItemDeleteBtn}
-                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                              accessibilityLabel={language === 'vi' ? 'Xóa khoản chi tiêu' : 'Delete expense'}
+                              style={styles.detailAttachPhotoBtn}
+                              onPress={() => handlePickPhotoForExpenseItem(activeItem)}
+                              activeOpacity={0.85}
                             >
-                              <Text style={{ fontSize: 12 }}>🗑️</Text>
+                              <Text style={styles.detailAttachPhotoBtnText}>
+                                📷 {language === 'vi' ? '+ Thêm ảnh hóa đơn cho khoản này' : '+ Attach Receipt Photo'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+
+                        {/* Financial Details Card */}
+                        <View style={styles.detailMainInfoCard}>
+                          {/* Category Row */}
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                            <View style={styles.detailCategoryIconWrap}>
+                              <CategorySvgIcon categoryId={activeItem.category} categoryIcon={activeItem.categoryIcon} size={24} />
+                            </View>
+                            <View>
+                              <Text style={styles.detailCategoryLabel}>
+                                {language === 'vi' ? 'Danh mục chi tiêu' : 'Expense Category'}
+                              </Text>
+                              <Text style={styles.detailCategoryName}>
+                                {activeItem.category || 'Ăn uống'}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* Big Amount Box */}
+                          <View style={styles.detailAmountBox}>
+                            <Text style={styles.detailAmountLabel}>
+                              {language === 'vi' ? 'Số tiền thanh toán' : 'Amount Paid'}
+                            </Text>
+                            <Text style={styles.detailAmountValue}>
+                              -{(activeItem.amount || 0).toLocaleString('vi-VN')} <Text style={{ fontSize: 20 }}>đ</Text>
+                            </Text>
+                          </View>
+
+                          {/* Full Note */}
+                          <View style={styles.detailNoteCard}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                              <Text style={{ fontSize: 13 }}>📝</Text>
+                              <Text style={styles.detailNoteHeading}>
+                                {language === 'vi' ? 'Ghi chú chi tiết' : 'Detailed Note'}
+                              </Text>
+                            </View>
+                            <Text style={styles.detailNoteContent}>
+                              {activeItem.note || (language === 'vi' ? 'Khoản chi tiêu này không có ghi chú.' : 'No detailed note.')}
+                            </Text>
+                          </View>
+
+                          {/* Bottom Action Buttons */}
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+                            <TouchableOpacity
+                              style={styles.detailDeleteBtn}
+                              onPress={() => setDeletingExpense({ dayNum: timelineDayNum, item: activeItem })}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={styles.detailDeleteBtnText}>
+                                🗑️ {language === 'vi' ? 'Xóa khoản chi này' : 'Delete expense'}
+                              </Text>
                             </TouchableOpacity>
                           </View>
                         </View>
-
-                        {/* Note (if any) */}
-                        {it.note ? (
-                          <Text style={styles.timelineCardNote}>
-                            📝 {it.note}
-                          </Text>
-                        ) : null}
-
-                        {/* Photo: nếu có ảnh thì hiển thị, nếu không có ảnh thì thôi */}
-                        {it.photoUri ? (
-                          <TouchableOpacity
-                            style={styles.timelineItemPhotoWrapper}
-                            onPress={() => setLightboxUri(it.photoUri!)}
-                            activeOpacity={0.9}
-                          >
-                            <Image
-                              source={{ uri: it.photoUri }}
-                              style={styles.timelineItemPhoto}
-                              resizeMode="cover"
-                            />
-                            <View style={styles.timelinePhotoZoomBadge}>
-                              <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '700' }}>🔍 Phóng to</Text>
-                            </View>
-                          </TouchableOpacity>
-                        ) : null}
+                      </ScrollView>
+                    ) : (
+                      /* When no item selected */
+                      <View style={styles.detailSelectPromptBox}>
+                        <Text style={{ fontSize: 44, marginBottom: 12 }}>👈</Text>
+                        <Text style={styles.detailSelectPromptTitle}>
+                          {language === 'vi' ? 'Chọn một khoản chi bên trái' : 'Select an expense on the left'}
+                        </Text>
+                        <Text style={styles.detailSelectPromptSubtitle}>
+                          {language === 'vi'
+                            ? 'Nội dung chi tiết, số tiền và hình ảnh hóa đơn sẽ hiển thị rõ ràng tại đây.'
+                            : 'Details, amount and photo receipt will appear here.'}
+                        </Text>
                       </View>
-                    </View>
-                  ))}
+                    )}
+                  </View>
                 </View>
-              )}
-            </ScrollView>
 
-            {/* Modal Bottom Close */}
-            <View style={styles.timelineModalBottom}>
-              <TouchableOpacity
-                style={styles.timelineCloseBtn}
-                onPress={() => setTimelineModalVisible(false)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.timelineCloseBtnText}>{language === 'vi' ? 'Đóng' : 'Close'}</Text>
-              </TouchableOpacity>
+                {/* Modal Bottom Bar */}
+                <View style={styles.timelineModalBottom}>
+                  <TouchableOpacity
+                    style={styles.timelineCloseBtn}
+                    onPress={() => setTimelineModalVisible(false)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.timelineCloseBtnText}>{language === 'vi' ? 'Đóng' : 'Close'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-          </View>
-        </View>
-      </Modal>
+          </Modal>
+        );
+      })()}
 
       {/* ===================== 3. MODAL PHÓNG TO ẢNH (LIGHTBOX PREVIEW) ===================== */}
       <Modal
@@ -3269,7 +3874,11 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
         animationType="fade"
         onRequestClose={() => setLightboxUri(null)}
       >
-        <View style={styles.lightboxBackdrop}>
+        <TouchableOpacity
+          style={styles.lightboxBackdrop}
+          activeOpacity={1}
+          onPress={() => setLightboxUri(null)}
+        >
           <TouchableOpacity
             style={styles.lightboxCloseBtn}
             onPress={() => setLightboxUri(null)}
@@ -3284,7 +3893,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
               resizeMode="contain"
             />
           )}
-        </View>
+        </TouchableOpacity>
       </Modal>
 
       {/* ===================== 4. MODAL XÁC NHẬN XÓA CHI TIÊU ===================== */}
@@ -3767,24 +4376,26 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   },
   incomeModalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
   },
   incomeModalContent: {
     width: '100%',
-    maxWidth: 620,
-    height: '90%',
-    maxHeight: 760,
+    maxWidth: 520,
+    height: '86%',
+    maxHeight: 680,
     backgroundColor: '#FAF7F2',
     borderRadius: 24,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
+    shadowColor: '#064E3B',
+    shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 8,
+    shadowRadius: 24,
+    elevation: 12,
+    borderWidth: 1,
+    borderColor: '#EFE9DF',
   },
   monthlyStatsBar: {
     flexDirection: 'row',
@@ -4145,25 +4756,96 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 16,
     zIndex: 9999,
   },
   modalFormCard: {
-    backgroundColor: isDark ? '#1E293B' : '#F5F0E8',
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
     borderRadius: 24,
     padding: 24,
     width: '100%',
     maxWidth: 630,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.28,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: isDark ? 0.4 : 0.16,
+    shadowRadius: 28,
+    elevation: 12,
     borderWidth: 1,
-    borderColor: isDark ? '#334155' : '#E8E0D5',
+    borderColor: isDark ? '#334155' : '#E2E8F0',
+  },
+  quickSaveModalCardDesktop: {
+    maxWidth: 960,
+    padding: 26,
+    borderRadius: 24,
+  },
+  quickSaveModalCardMobile: {
+    maxWidth: 520,
+    padding: 18,
+    borderRadius: 20,
+  },
+  quickSaveHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 18,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: isDark ? '#334155' : '#F1F5F9',
+  },
+  quickSaveModalIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#059669',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  quickSaveModalTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: colors.textPrimary,
+    letterSpacing: -0.3,
+  },
+  quickSaveDateBadge: {
+    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.2)' : '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: isDark ? '#059669' : '#86EFAC',
+  },
+  quickSaveDateBadgeText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: isDark ? '#6EE7B7' : '#15803D',
+  },
+  quickSaveModalSubtitle: {
+    fontSize: 12.5,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  modalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: isDark ? '#334155' : '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    cursor: 'pointer' as any,
+  },
+  modalCloseText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#64748B',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -4181,42 +4863,86 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     color: '#64748B',
     marginTop: 2,
   },
-  modalCloseBtn: {
-    width: 32,
-    height: 32,
+  quickSaveLayoutRow: {
+    flexDirection: 'row',
+    gap: 18,
+    alignItems: 'flex-start',
+  },
+  quickSaveLayoutCol: {
+    flexDirection: 'column',
+  },
+  quickSaveLeftCol: {
+    flex: 1.15,
+  },
+  quickSaveRightCol: {
+    flex: 1,
+  },
+  quickSaveSectionCard: {
+    backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
     borderRadius: 16,
-    backgroundColor: isDark ? '#334155' : '#E8E0D5',
-    justifyContent: 'center',
+    padding: 14,
+    borderWidth: 1,
+    borderColor: isDark ? '#1E293B' : '#EDF2F7',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  modalCloseText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  modalFormSection: {
-    marginBottom: 16,
+  sectionIconBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalFormLabel: {
     fontSize: 13,
     fontWeight: '800',
     color: colors.textPrimary,
   },
-  modalAmountFormatted: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#059669',
-  },
-  modalInput: {
-    backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+  amountLiveBadge: {
+    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.25)' : '#DCFCE7',
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: isDark ? '#334155' : '#CBD5E1',
-    borderRadius: 12,
+    borderColor: isDark ? '#059669' : '#86EFAC',
+  },
+  amountLiveBadgeText: {
+    fontSize: 12.5,
+    fontWeight: '900',
+    color: isDark ? '#34D399' : '#15803D',
+  },
+  amountInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#059669',
+    borderRadius: 14,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: colors.textPrimary,
+    paddingVertical: 4,
+    marginTop: 8,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  amountCurrencyPrefix: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#059669',
+    marginRight: 8,
+  },
+  amountLargeInput: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: '900',
+    color: isDark ? '#F8FAFC' : '#0F172A',
     outlineStyle: 'none' as any,
+    paddingVertical: 6,
   },
   modalAmountInput: {
     fontSize: 24,
@@ -4224,43 +4950,88 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     color: '#059669',
     paddingVertical: 12,
   },
+  modalAmountFormatted: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  modalInput: {
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: isDark ? '#334155' : '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    fontSize: 14,
+    color: colors.textPrimary,
+    outlineStyle: 'none' as any,
+  },
+  modalFormSection: {
+    marginBottom: 16,
+  },
   quickAmountRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
     marginTop: 8,
   },
   quickAmountChip: {
-    backgroundColor: isDark ? '#334155' : '#EAE3D7',
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
     borderWidth: 1,
-    borderColor: isDark ? '#475569' : '#D1D5DB',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
+    borderColor: isDark ? '#334155' : '#E2E8F0',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 8,
+    cursor: 'pointer' as any,
   },
   quickAmountText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#059669',
+  },
+  quickAmountClearChip: {
+    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2',
+    borderWidth: 1,
+    borderColor: isDark ? '#991B1B' : '#FECACA',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    cursor: 'pointer' as any,
+  },
+  quickAmountClearText: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  selectedCategoryPill: {
+    backgroundColor: isDark ? '#1E293B' : '#E2E8F0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  selectedCategoryPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
   },
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    marginTop: 10,
+    gap: 8,
+    marginTop: 8,
     justifyContent: 'space-between',
   },
   categoryChip: {
-    width: Platform.OS === 'web' ? ('calc((100% - 30px) / 4)' as any) : '22.8%',
+    width: Platform.OS === 'web' ? ('calc((100% - 24px) / 4)' as any) : '23%',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 10,
     paddingHorizontal: 4,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: isDark ? '#334155' : '#E2E8F0',
-    backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+    borderColor: isDark ? '#1E293B' : '#E2E8F0',
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
     cursor: 'pointer' as any,
   },
   categoryChipActive: {
@@ -4273,53 +5044,335 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     elevation: 3,
   },
   categoryIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 5,
   },
   categoryIconCircleActive: {
     backgroundColor: isDark ? 'rgba(5, 150, 105, 0.35)' : '#D1FAE5',
   },
   categoryBigIcon: {
-    fontSize: 28,
+    fontSize: 24,
   },
   categoryChipText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#475569',
     textAlign: 'center',
-    lineHeight: 16,
+    lineHeight: 14,
   },
   categoryChipTextActive: {
     fontWeight: '900',
     color: '#065F46',
   },
-  modalPreviewPhotoBox: {
-    width: '100%',
-    height: 160,
+  dateSelectorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: isDark ? '#334155' : '#E2E8F0',
     borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#000',
-    marginBottom: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
   },
-  modalPreviewImage: {
+  dateArrowMiniBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: isDark ? '#334155' : '#F1F5F9',
+    cursor: 'pointer' as any,
+  },
+  dateSelectorCenterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
+    cursor: 'pointer' as any,
+  },
+  dateSelectorIcon: {
+    fontSize: 14,
+  },
+  dateSelectorText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    letterSpacing: 0.2,
+  },
+  dateSelectorChevron: {
+    fontSize: 8,
+    color: '#64748B',
+    marginLeft: 2,
+  },
+  timeInputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: isDark ? '#334155' : '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    height: 40,
+  },
+  timeInputField: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    textAlign: 'center',
+    outlineStyle: 'none' as any,
+  },
+  miniCalDropdown: {
+    marginTop: 8,
+    width: '100%',
+    backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: isDark ? '#334155' : '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    elevation: 6,
+  },
+  miniCalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: isDark ? '#334155' : '#F1F5F9',
+  },
+  miniCalTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  miniCalArrowBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: isDark ? '#334155' : '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer' as any,
+  },
+  miniCalArrowText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  miniCalTodayBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.25)' : '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    cursor: 'pointer' as any,
+  },
+  miniCalTodayText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#15803D',
+  },
+  miniCalDowRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  miniCalDowCell: {
+    width: '14.28%',
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  miniCalDowText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  miniCalWeekendText: {
+    color: '#EF4444',
+  },
+  miniCalGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  miniCalCell: {
+    width: '14.28%',
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    marginVertical: 1,
+    cursor: 'pointer' as any,
+  },
+  miniCalCellToday: {
+    borderWidth: 1.5,
+    borderColor: '#D97706',
+    backgroundColor: '#FFFBEB',
+  },
+  miniCalCellSelected: {
+    backgroundColor: '#059669',
+  },
+  miniCalCellText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  miniCalCellTextToday: {
+    color: '#B45309',
+    fontWeight: '800',
+  },
+  miniCalCellTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+  quickPhotoUploadCard: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: isDark ? '#059669' : '#10B981',
+    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.08)' : 'rgba(5, 150, 105, 0.035)',
+    borderRadius: 16,
+    paddingVertical: 22,
+    paddingHorizontal: 16,
+    marginTop: 8,
+    cursor: 'pointer' as any,
+  },
+  quickPhotoUploadIconCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.25)' : '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  quickPhotoUploadCardTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#059669',
+    textAlign: 'center',
+  },
+  quickPhotoUploadCardSub: {
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  quickPhotoFormatPill: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  quickPhotoFormatPillText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  quickPhotoUploadingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    borderWidth: 1.5,
+    borderColor: '#059669',
+    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.15)' : '#ECFDF5',
+    borderRadius: 16,
+    paddingVertical: 32,
+    marginTop: 8,
+  },
+  quickPhotoUploadingText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  quickPhotoThumbBox: {
+    width: '100%',
+    height: 185,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#0F172A',
+    position: 'relative',
+    borderWidth: 1.5,
+    borderColor: isDark ? '#334155' : '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  quickPhotoThumb: {
     width: '100%',
     height: '100%',
   },
-  modalPhotoControlsRow: {
+  quickPhotoOverlayBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  quickPhotoBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  quickPhotoBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  quickPhotoUploadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#059669',
+    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.08)' : 'rgba(5, 150, 105, 0.05)',
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginTop: 6,
+  },
+  quickPhotoUploadText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#059669',
   },
   photoControlBtnChange: {
     backgroundColor: '#059669',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
+    cursor: 'pointer' as any,
   },
   photoControlTextChange: {
     color: '#FFFFFF',
@@ -4327,45 +5380,90 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     fontWeight: '700',
   },
   photoControlBtnRemove: {
-    backgroundColor: '#FEE2E2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
+    backgroundColor: '#DC2626',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
+    cursor: 'pointer' as any,
   },
   photoControlTextRemove: {
-    color: '#DC2626',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
   },
-  uploadPromptCard: {
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: '#059669',
-    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.1)' : 'rgba(5, 150, 105, 0.05)',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+  quickSaveModalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    marginBottom: 14,
+    marginTop: 18,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: isDark ? '#334155' : '#F1F5F9',
+    flexWrap: 'wrap',
+    gap: 12,
   },
-  uploadPromptTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#059669',
+  quickSaveFooterTip: {
+    flex: 1,
+    minWidth: 240,
   },
-  uploadPromptSubtitle: {
-    fontSize: 11,
+  quickSaveFooterTipText: {
+    fontSize: 11.5,
     color: '#64748B',
+    fontWeight: '500',
+  },
+  quickSaveFooterBtnGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  quickSaveCancelBtn: {
+    backgroundColor: isDark ? '#334155' : '#F1F5F9',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    cursor: 'pointer' as any,
+  },
+  quickSaveCancelBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  quickSaveSaveBtn: {
+    backgroundColor: '#059669',
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+    borderRadius: 12,
+    cursor: 'pointer' as any,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  quickSaveSaveBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '800',
   },
   modalActionRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 10,
     marginTop: 16,
+  },
+  modalCancelBtn: {
+    backgroundColor: isDark ? '#334155' : '#E2E8F0',
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
+  modalCancelBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
   },
   modalSaveBtn: {
     backgroundColor: '#059669',
@@ -4397,215 +5495,79 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  quickSaveModalIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#059669',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dateSelectorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: isDark ? '#334155' : '#CBD5E1',
+  modalPreviewPhotoBox: {
+    width: '100%',
+    height: 160,
     borderRadius: 12,
-    paddingHorizontal: 6,
-    paddingVertical: 5,
-    marginTop: 4,
-  },
-  dateArrowMiniBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: isDark ? '#334155' : '#EAE3D7',
-  },
-  dateSelectorCenterBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : '#F8FAFC',
-    cursor: 'pointer' as any,
-  },
-  dateSelectorIcon: {
-    fontSize: 14,
-  },
-  dateSelectorText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textPrimary,
-    letterSpacing: 0.2,
-  },
-  dateSelectorChevron: {
-    fontSize: 9,
-    color: '#64748B',
-    marginLeft: 2,
-  },
-  miniCalDropdown: {
-    marginTop: 8,
-    width: '100%',
-    backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1.5,
-    borderColor: isDark ? '#334155' : '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  miniCalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-    paddingBottom: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: isDark ? '#334155' : '#F1F5F9',
-  },
-  miniCalTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  miniCalArrowBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: isDark ? '#334155' : '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  miniCalArrowText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  miniCalTodayBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.25)' : '#DCFCE7',
-    borderWidth: 1,
-    borderColor: '#86EFAC',
-  },
-  miniCalTodayText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#15803D',
-  },
-  miniCalDowRow: {
-    flexDirection: 'row',
-    marginBottom: 4,
-  },
-  miniCalDowCell: {
-    width: '14.28%',
-    alignItems: 'center',
-    paddingVertical: 2,
-  },
-  miniCalDowText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#94A3B8',
-  },
-  miniCalWeekendText: {
-    color: '#EF4444',
-  },
-  miniCalGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  miniCalCell: {
-    width: '14.28%',
-    height: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 17,
-    marginVertical: 1,
-  },
-  miniCalCellToday: {
-    borderWidth: 1.5,
-    borderColor: '#D97706',
-    backgroundColor: '#FFFBEB',
-  },
-  miniCalCellSelected: {
-    backgroundColor: '#059669',
-  },
-  miniCalCellText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textPrimary,
-  },
-  miniCalCellTextToday: {
-    color: '#B45309',
-    fontWeight: '800',
-  },
-  miniCalCellTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: '900',
-  },
-  quickPhotoThumbBox: {
-    width: '100%',
-    height: 120,
-    borderRadius: 10,
     overflow: 'hidden',
     backgroundColor: '#000',
+    marginBottom: 8,
   },
-  quickPhotoThumb: {
+  modalPreviewImage: {
     width: '100%',
     height: '100%',
   },
-  quickPhotoUploadBtn: {
+  modalPhotoControlsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     gap: 8,
+  },
+  uploadPromptCard: {
     borderWidth: 1.5,
     borderStyle: 'dashed',
     borderColor: '#059669',
-    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.08)' : 'rgba(5, 150, 105, 0.05)',
-    borderRadius: 10,
-    paddingVertical: 10,
-    marginTop: 6,
-  },
-  quickPhotoUploadText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  modalCancelBtn: {
-    backgroundColor: isDark ? '#334155' : '#E2E8F0',
-    paddingVertical: 11,
-    paddingHorizontal: 16,
+    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.1)' : 'rgba(5, 150, 105, 0.05)',
     borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    flex: 1,
+    gap: 4,
+    marginBottom: 14,
   },
-  modalCancelBtnText: {
+  uploadPromptTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '800',
+    color: '#059669',
+  },
+  uploadPromptSubtitle: {
+    fontSize: 11,
     color: '#64748B',
   },
 
-  // ==================== TIMELINE MODAL STYLES ====================
+  // ==================== TIMELINE MODAL STYLES (MASTER-DETAIL) ====================
+  timelineMasterModalCard: {
+    backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+    borderRadius: 24,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: isDark ? '#334155' : '#E8E0D5',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.22,
+    shadowRadius: 40,
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+  },
   timelineModalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingBottom: 12,
+    alignItems: 'center',
+    paddingBottom: 14,
     borderBottomWidth: 1,
     borderBottomColor: isDark ? '#334155' : '#E8E0D5',
   },
+  timelineCalendarIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.2)' : '#ECFDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   timelineModalTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '900',
     color: colors.textPrimary,
   },
@@ -4630,15 +5592,21 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     fontWeight: '900',
     color: '#15803D',
   },
+  timelineCountPill: {
+    backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
   timelineCountText: {
     fontSize: 12,
     color: '#64748B',
-    fontWeight: '600',
+    fontWeight: '700',
   },
   timelineAddBtn: {
     backgroundColor: '#064E3B',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#34D399',
@@ -4648,13 +5616,26 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
   },
-  timelineCoverCard: {
+  timelineSplitBody: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 18,
+    marginTop: 14,
+    minHeight: 0,
+  },
+  timelineLeftCol: {
+    flex: 1,
+    minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  timelineCoverCardMini: {
     width: '100%',
-    height: 120,
+    height: 84,
     borderRadius: 12,
     overflow: 'hidden',
     position: 'relative',
-    marginBottom: 12,
+    marginBottom: 10,
     backgroundColor: '#000',
   },
   timelineCoverImg: {
@@ -4666,9 +5647,9 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.55)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -4700,12 +5681,343 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
     paddingVertical: 8,
     borderRadius: 10,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   timelineAddCoverText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#64748B',
+  },
+  timelineListSubheader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+    marginBottom: 6,
+  },
+  timelineListSubheaderText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    color: '#64748B',
+  },
+  timelineListSubheaderHint: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontStyle: 'italic',
+  },
+  timelineListScroll: {
+    flex: 1,
+    paddingRight: 4,
+  },
+  timelineInteractiveCard: {
+    backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1.5,
+    borderColor: isDark ? '#334155' : '#E2E8F0',
+  },
+  timelineInteractiveCardSelected: {
+    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.16)' : '#ECFDF5',
+    borderColor: '#059669',
+    borderLeftWidth: 4.5,
+    borderLeftColor: '#059669',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+  },
+  timelineSmallTimeBadge: {
+    backgroundColor: isDark ? '#334155' : '#E2E8F0',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  timelineSmallTimeBadgeSelected: {
+    backgroundColor: '#059669',
+  },
+  timelineSmallTimeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: isDark ? '#E2E8F0' : '#475569',
+  },
+  timelineSmallTimeTextSelected: {
+    color: '#FFFFFF',
+  },
+  timelineItemCategoryName: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    flexShrink: 1,
+  },
+  timelineItemCategoryNameSelected: {
+    color: '#059669',
+  },
+  timelineItemAmountText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#DC2626',
+  },
+  timelineItemAmountTextSelected: {
+    color: '#B91C1C',
+    fontSize: 14,
+  },
+  timelineItemNotePreview: {
+    fontSize: 11,
+    color: '#64748B',
+    flex: 1,
+    marginRight: 6,
+  },
+  timelineHasPhotoPill: {
+    backgroundColor: isDark ? 'rgba(139, 92, 246, 0.25)' : '#EDE9FE',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: isDark ? '#8B5CF6' : '#C4B5FD',
+  },
+  timelineHasPhotoText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#7C3AED',
+  },
+  timelineItemQuickDeleteBtn: {
+    padding: 4,
+    borderRadius: 4,
+    backgroundColor: isDark ? '#334155' : '#FEE2E2',
+  },
+  timelineRightCol: {
+    flex: 1.15,
+    minWidth: 0,
+    backgroundColor: isDark ? 'rgba(30, 41, 59, 0.6)' : '#F8FAFC',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: isDark ? '#334155' : '#E2E8F0',
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  detailHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: isDark ? '#334155' : '#E2E8F0',
+  },
+  detailHeaderBadge: {
+    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.2)' : '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  detailHeaderBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#059669',
+    letterSpacing: 0.5,
+  },
+  detailTimeMeta: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  detailPhotoShowcaseCard: {
+    width: '100%',
+    height: 250,
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+    marginBottom: 14,
+    backgroundColor: '#0F172A',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+  },
+  detailShowcaseImage: {
+    width: '100%',
+    height: '100%',
+  },
+  detailPhotoActionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  detailPhotoActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: isDark ? '#334155' : '#F1F5F9',
+    borderWidth: 1,
+    borderColor: isDark ? '#475569' : '#CBD5E1',
+  },
+  detailPhotoActionBtnActive: {
+    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.25)' : '#DCFCE7',
+    borderColor: '#059669',
+  },
+  detailPhotoActionBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  detailNoPhotoBox: {
+    width: '100%',
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: isDark ? '#475569' : '#CBD5E1',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.015)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  detailNoPhotoIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: isDark ? '#334155' : '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  detailNoPhotoTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  detailNoPhotoSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 12,
+    maxWidth: 320,
+  },
+  detailAttachPhotoBtn: {
+    backgroundColor: isDark ? '#334155' : '#FFFFFF',
+    borderWidth: 1,
+    borderColor: isDark ? '#475569' : '#CBD5E1',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  detailAttachPhotoBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  detailMainInfoCard: {
+    backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: isDark ? '#334155' : '#E2E8F0',
+  },
+  detailCategoryIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: isDark ? '#1E293B' : '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailCategoryLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  detailCategoryName: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  detailAmountBox: {
+    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.12)' : '#FEF2F2',
+    borderRadius: 12,
+    padding: 12,
+    marginVertical: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#EF4444',
+  },
+  detailAmountLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#991B1B',
+    marginBottom: 2,
+  },
+  detailAmountValue: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#DC2626',
+  },
+  detailNoteCard: {
+    backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: isDark ? '#334155' : '#E2E8F0',
+    marginTop: 4,
+  },
+  detailNoteHeading: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  detailNoteContent: {
+    fontSize: 13,
+    color: colors.textPrimary,
+    lineHeight: 18,
+  },
+  detailChangePhotoBtn: {
+    backgroundColor: isDark ? '#334155' : '#F1F5F9',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  detailChangePhotoText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  detailDeleteBtn: {
+    backgroundColor: isDark ? 'rgba(239, 68, 68, 0.15)' : '#FEE2E2',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  detailDeleteBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  detailSelectPromptBox: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  detailSelectPromptTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  detailSelectPromptSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    textAlign: 'center',
+    maxWidth: 260,
+    lineHeight: 16,
   },
   timelineEmptyBox: {
     paddingVertical: 36,
@@ -4724,99 +6036,9 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     textAlign: 'center',
     maxWidth: 320,
   },
-  timelineList: {
-    paddingVertical: 4,
-  },
-  timelineRow: {
-    flexDirection: 'row',
-    marginBottom: 10,
-  },
-  timelineTimeCol: {
-    width: 60,
-    alignItems: 'center',
-    position: 'relative',
-    paddingTop: 2,
-  },
-  timelineTimeBadge: {
-    backgroundColor: isDark ? '#334155' : '#EAE3D7',
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  timelineTimeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#059669',
-  },
-  timelineConnectorLine: {
-    position: 'absolute',
-    top: 24,
-    bottom: -10,
-    width: 2,
-    backgroundColor: isDark ? '#334155' : '#E2E8F0',
-  },
-  timelineCard: {
-    flex: 1,
-    backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
-    borderRadius: 12,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: isDark ? '#334155' : '#E8E0D5',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-  },
-  timelineCardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  timelineCardCategory: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.textPrimary,
-  },
-  timelineCardAmount: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#DC2626',
-  },
-  timelineItemDeleteBtn: {
-    padding: 4,
-    borderRadius: 4,
-    backgroundColor: isDark ? '#1E293B' : '#FEE2E2',
-  },
-  timelineCardNote: {
-    fontSize: 12,
-    color: '#64748B',
-    fontStyle: 'italic',
-    marginTop: 4,
-  },
-  timelineItemPhotoWrapper: {
-    marginTop: 8,
-    width: '100%',
-    height: 120,
-    borderRadius: 8,
-    overflow: 'hidden',
-    position: 'relative',
-    backgroundColor: '#000',
-  },
-  timelineItemPhoto: {
-    width: '100%',
-    height: '100%',
-  },
-  timelinePhotoZoomBadge: {
-    position: 'absolute',
-    right: 6,
-    bottom: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
   timelineModalBottom: {
-    paddingTop: 10,
+    paddingTop: 12,
+    marginTop: 8,
     borderTopWidth: 1,
     borderTopColor: isDark ? '#334155' : '#E8E0D5',
     alignItems: 'center',

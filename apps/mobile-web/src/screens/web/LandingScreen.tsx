@@ -48,6 +48,65 @@ const GooglePlayIcon = () => {
   return <Image source={{ uri: GOOGLE_PLAY_LOGO_URI }} style={styles.storeIcon} resizeMode="contain" />;
 };
 
+const STATS_DATA = [
+  {
+    icon: '👥',
+    iconBg: '#FEF3C7',
+    val: '12.000+',
+    labelVi: 'Gia đình & nhóm tin dùng',
+    labelEn: 'Families & teams trust',
+  },
+  {
+    icon: '⚡',
+    iconBg: '#E0F2FE',
+    val: '< 1 giây',
+    labelVi: 'Đồng bộ thời gian thực',
+    labelEn: 'Real-time cloud sync',
+  },
+  {
+    icon: '⭐',
+    iconBg: '#FEF9C3',
+    val: '4.9 / 5',
+    labelVi: 'Điểm đánh giá người dùng',
+    labelEn: 'Average user rating',
+  },
+];
+
+const MARQUEE_ROW_1 = [
+  { icon: '✈️', labelVi: 'Du lịch', labelEn: 'Travel' },
+  { icon: '🐷', labelVi: 'Tiết kiệm chung', labelEn: 'Savings' },
+  { icon: '🛒', labelVi: 'Đi chợ', labelEn: 'Groceries' },
+  { icon: '🎁', labelVi: 'Quà tặng', labelEn: 'Gifts' },
+  { icon: '🍽️', labelVi: 'Ăn uống', labelEn: 'Dining' },
+  { icon: '🏠', labelVi: 'Tiền nhà', labelEn: 'Rent' },
+  { icon: '⚡', labelVi: 'Hóa đơn điện nước', labelEn: 'Utilities' },
+  { icon: '☕', labelVi: 'Cà phê', labelEn: 'Coffee' },
+  { icon: '🛍️', labelVi: 'Mua sắm', labelEn: 'Shopping' },
+  { icon: '⛽', labelVi: 'Xăng xe', labelEn: 'Fuel' },
+  { icon: '📚', labelVi: 'Sách & Học tập', labelEn: 'Books' },
+];
+
+const MARQUEE_ROW_2 = [
+  { icon: '🚗', labelVi: 'Đi lại', labelEn: 'Transport' },
+  { icon: '🎓', labelVi: 'Học phí', labelEn: 'Tuition' },
+  { icon: '💖', labelVi: 'Sức khỏe', labelEn: 'Health' },
+  { icon: '🐶', labelVi: 'Thú cưng', labelEn: 'Pets' },
+  { icon: '🎬', labelVi: 'Giải trí', labelEn: 'Entertainment' },
+  { icon: '💵', labelVi: 'Lương & thưởng', labelEn: 'Income' },
+  { icon: '📈', labelVi: 'Đầu tư', labelEn: 'Investment' },
+  { icon: '🎉', labelVi: 'Tiệc tùng', labelEn: 'Parties' },
+  { icon: '⚽', labelVi: 'Thể thao', labelEn: 'Sports' },
+  { icon: '💄', labelVi: 'Làm đẹp', labelEn: 'Beauty' },
+  { icon: '💻', labelVi: 'Công nghệ', labelEn: 'Gadgets' },
+];
+
+const NAV_ITEMS = [
+  { id: 'features', labelVi: 'Tính năng', labelEn: 'Features', targetId: 'features-section' },
+  { id: 'calendar', labelVi: 'Lịch chi tiêu', labelEn: 'Calendar', targetId: 'calendar-section' },
+  { id: 'download', labelVi: 'Tải App Mobile', labelEn: 'Download App', targetId: 'download-section' },
+  { id: 'reviews', labelVi: 'Đánh giá', labelEn: 'Reviews', targetId: 'reviews-section' },
+];
+
 interface LandingScreenProps {
   onNavigateToAuth: (mode: 'login' | 'register') => void;
 }
@@ -61,54 +120,170 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
 
   const isVi = language === 'vi';
 
-  // Hiệu ứng chú ếch chạy lon ton từ dưới lên trên (Vertical Streak Runway)
-  const frogRunY = useRef(new Animated.Value(0)).current; // 0 (bước 1 ở dưới) -> 1 (bước 3 ở trên)
-  const frogHopX = useRef(new Animated.Value(0)).current;
+  // Điều hướng Navbar: Active & Hover State
+  const [activeNav, setActiveNav] = useState<string | null>(null);
+  const [hoveredNav, setHoveredNav] = useState<string | null>(null);
 
   useEffect(() => {
-    const runAnim = Animated.loop(
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+
+    const handleScroll = () => {
+      const scrollPos = window.scrollY + 220;
+      for (let i = NAV_ITEMS.length - 1; i >= 0; i--) {
+        const el = document.getElementById(NAV_ITEMS[i].targetId);
+        if (el && el.offsetTop <= scrollPos) {
+          setActiveNav(NAV_ITEMS[i].id);
+          return;
+        }
+      }
+      setActiveNav(null);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Hiệu ứng chữ động Canva (Kinetic Staggered Typography)
+  const animTitleLine1 = useRef(new Animated.Value(0)).current;
+  const animTitleLine2 = useRef(new Animated.Value(0)).current;
+  const animTitleLine3 = useRef(new Animated.Value(0)).current;
+  const animHeroContent = useRef(new Animated.Value(0)).current;
+  const animPhoneEntrance = useRef(new Animated.Value(0)).current;
+  const floatingBadgeY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Kích hoạt hiệu ứng Canva xếp chữ mượt mà khi vào trang
+    Animated.stagger(130, [
+      Animated.timing(animTitleLine1, {
+        toValue: 1,
+        duration: 700,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(animTitleLine2, {
+        toValue: 1,
+        duration: 700,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(animTitleLine3, {
+        toValue: 1,
+        duration: 700,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(animHeroContent, {
+        toValue: 1,
+        duration: 650,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+      Animated.timing(animPhoneEntrance, {
+        toValue: 1,
+        duration: 800,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }),
+    ]).start();
+
+    // Hiệu ứng nhấp nhô nhẹ nhàng cho các huy hiệu nổi trên mockup
+    Animated.loop(
       Animated.sequence([
-        // Chú ếch chạy vọt từ dưới lên trên
-        Animated.parallel([
-          Animated.timing(frogRunY, {
-            toValue: 1,
-            duration: 3400,
-            easing: Easing.bezier(0.4, 0, 0.2, 1),
-            useNativeDriver: false,
-          }),
-          // Nhảy nhót nhịp nhàng khi chạy
-          Animated.loop(
-            Animated.sequence([
-              Animated.timing(frogHopX, { toValue: -4, duration: 170, useNativeDriver: false }),
-              Animated.timing(frogHopX, { toValue: 4, duration: 170, useNativeDriver: false }),
-              Animated.timing(frogHopX, { toValue: 0, duration: 170, useNativeDriver: false }),
-            ]),
-            { iterations: 7 }
-          ),
-        ]),
-        // Dừng lại ở đỉnh ăn mừng, đạt mốc Vương Miện Cấp 12
-        Animated.delay(1000),
-        // Lướt nhanh về vạch xuất phát dưới chân
-        Animated.timing(frogRunY, {
-          toValue: 0,
-          duration: 350,
+        Animated.timing(floatingBadgeY, {
+          toValue: -6,
+          duration: 2200,
+          easing: Easing.inOut(Easing.quad),
           useNativeDriver: false,
         }),
-        Animated.delay(400),
+        Animated.timing(floatingBadgeY, {
+          toValue: 0,
+          duration: 2200,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: false,
+        }),
       ])
-    );
-
-    runAnim.start();
-    return () => runAnim.stop();
-  }, [frogRunY, frogHopX]);
+    ).start();
+  }, [animTitleLine1, animTitleLine2, animTitleLine3, animHeroContent, animPhoneEntrance, floatingBadgeY]);
 
   return (
     <View style={styles.rootContainer}>
+      {/* Dynamic Keyframes & Hover Rules for Web */}
+      {Platform.OS === 'web' && (
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              @keyframes continuousTickerLeft {
+                0% { transform: translate3d(0, 0, 0); }
+                100% { transform: translate3d(-50%, 0, 0); }
+              }
+              @keyframes continuousTickerRight {
+                0% { transform: translate3d(-50%, 0, 0); }
+                100% { transform: translate3d(0, 0, 0); }
+              }
+              .monett-ticker-track-1 {
+                display: flex !important;
+                flex-direction: row !important;
+                width: max-content !important;
+                animation: continuousTickerLeft 26s linear infinite !important;
+                will-change: transform;
+              }
+              .monett-ticker-track-2 {
+                display: flex !important;
+                flex-direction: row !important;
+                width: max-content !important;
+                animation: continuousTickerRight 26s linear infinite !important;
+                will-change: transform;
+              }
+              .monett-nav-btn {
+                position: relative !important;
+                display: inline-flex !important;
+                align-items: center !important;
+                justifyContent: center !important;
+                padding: 10px 6px !important;
+                cursor: pointer !important;
+                text-decoration: none !important;
+              }
+              .monett-nav-btn::after {
+                content: '' !important;
+                position: absolute !important;
+                bottom: 0px !important;
+                left: 4px !important;
+                right: 4px !important;
+                height: 3px !important;
+                background-color: #059669 !important;
+                border-radius: 3px !important;
+                transform: scaleX(0) !important;
+                transform-origin: center !important;
+                transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.22s ease !important;
+                opacity: 0 !important;
+              }
+              .monett-nav-btn:hover::after,
+              .monett-nav-btn.active::after {
+                transform: scaleX(1) !important;
+                opacity: 1 !important;
+              }
+              .monett-nav-btn:hover *,
+              .monett-nav-btn.active * {
+                color: #047857 !important;
+              }
+              .monett-stat-card {
+                transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.22s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.22s ease !important;
+              }
+              .monett-stat-card:hover {
+                transform: translateY(-4px) !important;
+                box-shadow: 0 12px 28px rgba(16, 185, 129, 0.16) !important;
+                border-color: #059669 !important;
+              }
+            `,
+          }}
+        />
+      )}
+
       {/* ============================================================ */}
       {/* 1. STICKY TOP NAVBAR (GLASSMORPHISM) */}
       {/* ============================================================ */}
       <View style={styles.navbarWrapper}>
-        <View style={[styles.navbarInner, isDesktop ? styles.desktopNavInner : styles.mobileNavInner, { maxWidth: containerMaxWidth }]}>
+        <View style={[styles.navbarInner, isDesktop ? styles.desktopNavInner : styles.mobileNavInner]}>
           {/* Brand Logo */}
           <TouchableOpacity
             style={styles.logoBtn}
@@ -126,49 +301,70 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
             />
           </TouchableOpacity>
 
-          {/* Center Navigation Links (Desktop) */}
+          {/* Center Navigation Links (Desktop) with Green Underline on Hover & Active */}
           {isDesktop && (
-            <View style={styles.navLinksRow}>
-              <TouchableOpacity
-                onPress={() => {
-                  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-                    document.getElementById('features-section')?.scrollIntoView({ behavior: 'smooth' });
-                  }
-                }}
-              >
-                <Text style={styles.navLinkText}>{isVi ? 'Tính năng' : 'Features'}</Text>
-              </TouchableOpacity>
+            Platform.OS === 'web' ? (
+              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 32 }}>
+                {NAV_ITEMS.map((item) => {
+                  const isHovered = hoveredNav === item.id;
+                  const isActive = activeNav === item.id;
+                  const isHighlighted = isActive || isHovered;
 
-              <TouchableOpacity
-                onPress={() => {
-                  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-                    document.getElementById('photobooth-section')?.scrollIntoView({ behavior: 'smooth' });
-                  }
-                }}
-              >
-                <Text style={styles.navLinkText}>{isVi ? 'Photobooth 📸' : 'Photobooth 📸'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => {
-                  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-                    document.getElementById('download-section')?.scrollIntoView({ behavior: 'smooth' });
-                  }
-                }}
-              >
-                <Text style={styles.navLinkText}>{isVi ? 'Tải App Mobile' : 'Download App'}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => {
-                  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-                    document.getElementById('reviews-section')?.scrollIntoView({ behavior: 'smooth' });
-                  }
-                }}
-              >
-                <Text style={styles.navLinkText}>{isVi ? 'Đánh giá' : 'Reviews'}</Text>
-              </TouchableOpacity>
-            </View>
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`monett-nav-btn ${isHighlighted ? 'active' : ''}`}
+                      onMouseEnter={() => setHoveredNav(item.id)}
+                      onMouseLeave={() => setHoveredNav(null)}
+                      onClick={() => {
+                        setActiveNav(item.id);
+                        if (typeof document !== 'undefined') {
+                          document.getElementById(item.targetId)?.scrollIntoView({ behavior: 'smooth' });
+                        }
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        outline: 'none',
+                        padding: '10px 4px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        position: 'relative',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 15,
+                          fontWeight: isHighlighted ? 700 : 600,
+                          color: isHighlighted ? '#047857' : '#475569',
+                          transition: 'color 0.2s ease',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        {isVi ? item.labelVi : item.labelEn}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <View style={styles.navLinksRow}>
+                {NAV_ITEMS.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    onPress={() => setActiveNav(item.id)}
+                    style={styles.navLinkBtn}
+                  >
+                    <Text style={[styles.navLinkText, activeNav === item.id && styles.navLinkTextActive]}>
+                      {isVi ? item.labelVi : item.labelEn}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )
           )}
 
           {/* Right Controls: Language & Auth CTAs */}
@@ -207,361 +403,798 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* HERO SECTION */}
+        {/* HERO SECTION - BENTO STYLE 2026 WITH CANVA KINETIC TYPOGRAPHY */}
         <View style={styles.heroSection}>
-          <View style={[styles.heroContainer, isDesktop ? styles.heroDesktopRow : styles.heroMobileCol, { maxWidth: containerMaxWidth }, isLarge && { gap: 48 }]}>
-            {/* Left Hero Text */}
-            <View style={[styles.heroLeft, isDesktop ? { flex: 1.1 } : { width: '100%' }]}>
+          {/* Subtle soft emerald background glow on left */}
+          <View style={styles.heroLeftEmeraldGlow} />
+
+          <View style={[styles.heroContainer, isDesktop ? styles.heroDesktopRow : styles.heroMobileCol, { maxWidth: containerMaxWidth }]}>
+            {/* Left Hero Text Column */}
+            <View style={[styles.heroLeft, isDesktop ? styles.heroLeftDesktop : styles.heroLeftMobile]}>
+              {/* Badge: Sổ Thu Chi & Nhật Ký Ảnh Thông Minh */}
               <View style={styles.pillBadge}>
-                <Text style={styles.pillBadgeEmoji}>✨</Text>
+                <View style={styles.pillBadgeDot} />
                 <Text style={styles.pillBadgeText}>
-                  {isVi
-                    ? 'Fintech × Nhật Ký Ảnh Đầu Tiên'
-                    : 'The First Visual Photo Diary Fintech'}
+                  {isVi ? '✨ Sổ Thu Chi & Nhật Ký Ảnh Thông Minh' : '✨ Smart Expense Tracker & Photo Diary'}
                 </Text>
               </View>
 
-              <Text style={styles.heroTitle}>
-                {isVi ? (
-                  <>
-                    Ghi chép chi tiêu bằng{' '}
-                    <Text style={styles.heroTitleHighlight}>hình ảnh khoảnh khắc</Text>
-                  </>
-                ) : (
-                  <>
-                    Capture daily spending with{' '}
-                    <Text style={styles.heroTitleHighlight}>visual money moments</Text>
-                  </>
-                )}
-              </Text>
-
-              <Text style={styles.heroSubtitle}>
-                {isVi
-                  ? 'Tạm biệt những bảng tính khô khan và cảm giác tội lỗi khi chi tiêu. Monett biến từng cốc cà phê, bữa ăn ngon hay món quà tặng thành một ký ức đáng nhớ, giúp bạn xây dựng thói quen tài chính an vui mỗi ngày.'
-                  : 'Say goodbye to boring spreadsheets and stressful expense tracking. Monett transforms every coffee cup, delicious meal, and memory into a vibrant keepsake while building joyful money habits.'}
-              </Text>
-
-              {/* Dual CTAs */}
-              <View style={styles.heroCtaGroup}>
-                <TouchableOpacity
-                  style={styles.heroPrimaryCta}
-                  activeOpacity={0.85}
-                  onPress={() => onNavigateToAuth('register')}
+              {/* Title with Canva-like kinetic staggered entrance */}
+              <View style={styles.heroTitleWrap}>
+                {/* Line 1: Ghi chép chi tiêu */}
+                <Animated.View
+                  style={[
+                    styles.kineticLine,
+                    {
+                      opacity: animTitleLine1,
+                      transform: [
+                        {
+                          translateY: animTitleLine1.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [28, 0],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
                 >
-                  <Text style={styles.heroPrimaryCtaText}>
-                    {isVi ? 'Bắt đầu miễn phí ➔' : 'Start for Free ➔'}
+                  <Text style={[styles.heroTitleLine, isDesktop ? styles.heroTitleDesktop : styles.heroTitleMobile]}>
+                    {isVi ? 'Ghi chép chi tiêu' : 'Capture daily spending'}
                   </Text>
-                </TouchableOpacity>
+                </Animated.View>
 
-                <TouchableOpacity
-                  style={styles.heroSecondaryCta}
-                  activeOpacity={0.8}
-                  onPress={() => {
-                    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-                      document.getElementById('download-section')?.scrollIntoView({ behavior: 'smooth' });
-                    }
-                  }}
+                {/* Line 2: bằng từng khoảnh khắc ảnh */}
+                <Animated.View
+                  style={[
+                    styles.kineticLine,
+                    {
+                      opacity: animTitleLine2,
+                      transform: [
+                        {
+                          translateY: animTitleLine2.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [28, 0],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
                 >
-                  <Text style={styles.heroSecondaryCtaText}>
-                    {isVi ? '📱 Tải App Mobile' : '📱 Download Mobile App'}
+                  <View style={{ flexDirection: 'row', alignItems: 'baseline', flexWrap: isDesktop ? 'nowrap' : 'wrap' }}>
+                    <Text style={[styles.heroTitleLine, isDesktop ? styles.heroTitleDesktop : styles.heroTitleMobile]}>
+                      {isVi ? 'bằng ' : 'with '}
+                    </Text>
+                    <View style={styles.highlightWordWrap}>
+                      <Text style={[styles.heroTitleGreen, isDesktop ? styles.heroTitleDesktop : styles.heroTitleMobile]}>
+                        {isVi ? 'từng khoảnh khắc ảnh' : 'visual photo moments'}
+                      </Text>
+                      {/* Green brush underline */}
+                      {Platform.OS === 'web' ? (
+                        <svg
+                          width="100%"
+                          height="12"
+                          viewBox="0 0 240 12"
+                          fill="none"
+                          preserveAspectRatio="none"
+                          style={{ position: 'absolute', bottom: -3, left: 0 }}
+                        >
+                          <path
+                            d="M3 9C65 2.5 160 11 237 5.5"
+                            stroke="#059669"
+                            strokeWidth="4"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      ) : (
+                        <View style={styles.nativeUnderline} />
+                      )}
+                    </View>
+                  </View>
+                </Animated.View>
+
+                {/* Line 3: an vui mỗi ngày */}
+                <Animated.View
+                  style={[
+                    styles.kineticLine,
+                    {
+                      opacity: animTitleLine3,
+                      transform: [
+                        {
+                          translateY: animTitleLine3.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [28, 0],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <Text style={[styles.heroTitleLine, isDesktop ? styles.heroTitleDesktop : styles.heroTitleMobile]}>
+                    {isVi ? 'an vui mỗi ngày' : 'joyful every day'}
                   </Text>
-                </TouchableOpacity>
+                </Animated.View>
               </View>
 
-              {/* Trust & Social Proof Badges */}
-              <View style={styles.heroTrustRow}>
-                <View style={styles.trustItem}>
-                  <Text style={styles.trustStars}>⭐️⭐️⭐️⭐️⭐️</Text>
-                  <Text style={styles.trustText}>
-                    <Text style={{ fontWeight: '700', color: '#0F172A' }}>4.9/5</Text>{' '}
-                    {isVi ? 'xếp hạng yêu thích' : 'user rating'}
-                  </Text>
+              {/* Monett Subtitle Paragraph */}
+              <Animated.View
+                style={{
+                  opacity: animHeroContent,
+                  transform: [
+                    {
+                      translateY: animHeroContent.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [20, 0],
+                      }),
+                    },
+                  ],
+                }}
+              >
+                <Text style={[styles.heroSubtitle, isDesktop ? styles.heroSubtitleDesktop : styles.heroSubtitleMobile]}>
+                  {isVi
+                    ? 'Tạm biệt những bảng tính khô khan và cảm giác tội lỗi khi chi tiêu. Monett biến từng cốc cà phê, bữa ăn ngon hay món quà tặng thành một ký ức đáng nhớ, giúp bạn xây dựng thói quen tài chính an vui mỗi ngày.'
+                    : 'Say goodbye to boring spreadsheets and stressful expense tracking. Monett transforms every coffee cup, delicious meal, and memory into a vibrant keepsake while building joyful money habits.'}
+                </Text>
+
+                {/* Single Green CTA Button: Bắt đầu miễn phí */}
+                <View style={styles.heroCtaGroup}>
+                  <TouchableOpacity
+                    style={styles.heroPrimaryCta}
+                    activeOpacity={0.85}
+                    onPress={() => onNavigateToAuth('register')}
+                  >
+                    <Text style={styles.heroPrimaryCtaText}>
+                      {isVi ? 'Bắt đầu miễn phí ➔' : 'Start for Free ➔'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-                <View style={styles.trustDivider} />
-                <View style={styles.trustItem}>
-                  <Text style={styles.trustNumber}>45.000+</Text>
-                  <Text style={styles.trustText}>
-                    {isVi ? 'khoảnh khắc đã lưu' : 'moments captured'}
-                  </Text>
+
+                {/* Trust & Social Proof Row */}
+                <View style={styles.heroTrustRow}>
+                  {/* 4 Overlapping Avatar Circles (B, M, C, Y) */}
+                  <View style={styles.heroAvatarStack}>
+                    <View style={[styles.avatarCircle, { backgroundColor: '#F59E0B' }]}>
+                      <Text style={styles.avatarText}>B</Text>
+                    </View>
+                    <View style={[styles.avatarCircle, { backgroundColor: '#F43F5E', marginLeft: -8 }]}>
+                      <Text style={styles.avatarText}>M</Text>
+                    </View>
+                    <View style={[styles.avatarCircle, { backgroundColor: '#06B6D4', marginLeft: -8 }]}>
+                      <Text style={styles.avatarText}>C</Text>
+                    </View>
+                    <View style={[styles.avatarCircle, { backgroundColor: '#10B981', marginLeft: -8 }]}>
+                      <Text style={styles.avatarText}>Y</Text>
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'column' }}>
+                    <Text style={styles.trustUserCount}>
+                      {isVi ? '12.000+ gia đình' : '12,000+ families'}
+                    </Text>
+                    <Text style={styles.trustSubtext}>
+                      {isVi ? '& nhóm tin dùng' : '& teams trust'}
+                    </Text>
+                  </View>
+
+                  <View style={styles.trustDivider} />
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={styles.trustStars}>★★★★★</Text>
+                    <Text style={styles.trustRatingText}>4.9 / 5</Text>
+                  </View>
                 </View>
-                <View style={styles.trustDivider} />
-                <View style={styles.trustItem}>
-                  <Text style={styles.trustNumber}>18 ngày</Text>
-                  <Text style={styles.trustText}>
-                    {isVi ? 'chuỗi giữ lửa trung bình' : 'avg streak'}
-                  </Text>
-                </View>
-              </View>
+              </Animated.View>
             </View>
 
-            {/* Right Hero Artwork with Mascot & Floating Badges */}
-            <View style={[styles.heroRight, isDesktop ? { flex: 0.9 } : { width: '100%', marginTop: 36 }]}>
-              <View style={styles.heroArtBackdrop}>
-                {/* Glow halos */}
-                <View style={styles.heroArtGlow} />
-
-                {/* Central Frog Mascot with Conical Hat & "M" Coin */}
-                <Image
-                  source={require('../../../assets/frogs/frog-mascot-m.png')}
-                  style={styles.heroMascotImage}
-                  resizeMode="contain"
-                />
-
-                {/* Floating Card 1: Coffee Moment */}
-                <View style={[styles.floatingCard, styles.floatingCardTopRight]}>
-                  <View style={styles.floatingCardIconBox}>
-                    <Text style={{ fontSize: 20 }}>☕</Text>
+            {/* Right: Phone Bento Mockup with Emerald Green Accents */}
+            <View style={[styles.heroRight, isDesktop ? styles.heroRightDesktop : styles.heroRightMobile]}>
+              <Animated.View
+                style={[
+                  styles.bentoPhoneWrapper,
+                  {
+                    opacity: animPhoneEntrance,
+                    transform: [
+                      {
+                        translateY: animPhoneEntrance.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [32, 0],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                {/* Floating AI Badge (Top Left) */}
+                <Animated.View
+                  style={[
+                    styles.floatingAiBadge,
+                    {
+                      transform: [{ translateY: floatingBadgeY }],
+                    },
+                  ]}
+                >
+                  <View style={styles.floatingAiIcon}>
+                    <Text style={{ fontSize: 13 }}>⚡</Text>
                   </View>
-                  <View>
-                    <Text style={styles.floatingCardTitle}>
-                      {isVi ? 'Cà phê sáng với bạn' : 'Morning Cafe'}
-                    </Text>
-                    <Text style={styles.floatingCardAmount}>-45.000 đ</Text>
+                  <Text style={styles.floatingAiText}>
+                    {isVi ? 'AI vừa quét hóa đơn' : 'AI receipt scanned'}
+                  </Text>
+                </Animated.View>
+
+                {/* Floating Income Badge (Bottom Right - Converted from Yellow to Green) */}
+                <Animated.View
+                  style={[
+                    styles.floatingIncomeBadge,
+                    {
+                      transform: [
+                        {
+                          translateY: floatingBadgeY.interpolate({
+                            inputRange: [-6, 0],
+                            outputRange: [0, -6],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <Text style={styles.floatingIncomeIcon}>💵</Text>
+                  <Text style={styles.floatingIncomeText}>
+                    +15.000.000 đ · {isVi ? 'Lương' : 'Salary'}
+                  </Text>
+                </Animated.View>
+
+                {/* Phone Outer Bezel */}
+                <View style={styles.phoneOuterCard}>
+                  {/* Dynamic Island */}
+                  <View style={styles.phoneDynamicIsland} />
+
+                  {/* Phone Screen Body */}
+                  <View style={styles.phoneScreenBody}>
+                    {/* 1. Header */}
+                    <View style={styles.phoneHeader}>
+                      <View>
+                        <Text style={styles.phoneGreetSub}>
+                          {isVi ? 'Xin chào' : 'Welcome'}
+                        </Text>
+                        <Text style={styles.phoneGreetName}>
+                          {isVi ? 'Monett' : 'Monett'}
+                        </Text>
+                      </View>
+                      <View style={styles.phoneHeaderRight}>
+                        <View style={styles.phoneBellBtn}>
+                          <Text style={{ fontSize: 13 }}>🔔</Text>
+                          <View style={styles.phoneBellBadge}>
+                            <Text style={styles.phoneBellBadgeText}>2</Text>
+                          </View>
+                        </View>
+                        <View style={styles.phoneAvatarCircle}>
+                          <Text style={styles.phoneAvatarLetter}>M</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* 2. Bento Charcoal Card: SỐ DƯ THÁNG NÀY */}
+                    <View style={styles.bentoHeroCard}>
+                      <View style={styles.bentoHeroTop}>
+                        <Text style={styles.bentoHeroLabel}>
+                          {isVi ? 'SỐ DƯ THÁNG NÀY' : 'MONTHLY BALANCE'}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: '#9CA3AF' }}>👁</Text>
+                      </View>
+                      <Text style={styles.bentoHeroBalance}>13.430.000 đ</Text>
+                      <View style={styles.bentoHeroGrowthPill}>
+                        <Text style={styles.bentoHeroGrowthText}>
+                          +12% {isVi ? 'so với thu nhập' : 'vs income'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* 3. Row of 2 Bento mini-cards: Thu nhập & Chi tiêu */}
+                    <View style={styles.bentoSplitRow}>
+                      {/* Thu nhập */}
+                      <View style={styles.bentoIncomeCard}>
+                        <View style={styles.bentoMiniCardTop}>
+                          <Text style={styles.bentoMiniArrowGreen}>↙</Text>
+                          <Text style={styles.bentoMiniLabelGreen}>
+                            {isVi ? 'Thu nhập' : 'Income'}
+                          </Text>
+                        </View>
+                        <Text style={styles.bentoMiniValGreen}>15.000.000</Text>
+                      </View>
+
+                      {/* Chi tiêu */}
+                      <View style={styles.bentoExpenseCard}>
+                        <View style={styles.bentoMiniCardTop}>
+                          <Text style={styles.bentoMiniArrowRed}>↗</Text>
+                          <Text style={styles.bentoMiniLabelRed}>
+                            {isVi ? 'Chi tiêu' : 'Expense'}
+                          </Text>
+                        </View>
+                        <Text style={styles.bentoMiniValRed}>1.570.000</Text>
+                      </View>
+                    </View>
+
+                    {/* 4. Middle Bento Row: Chi tuần này (Green) & 18 ngày liên tục (Purple) */}
+                    <View style={styles.bentoMiddleRow}>
+                      {/* Chi tuần này - converted from yellow to emerald green */}
+                      <View style={styles.bentoWeekCard}>
+                        <View style={styles.bentoWeekHeader}>
+                          <Text style={styles.bentoWeekTitle}>
+                            {isVi ? 'Chi tuần này' : 'This week'}
+                          </Text>
+                          <Text style={styles.bentoWeekTotal}>1,2tr</Text>
+                        </View>
+                        {/* Mini 7-day Bar Chart */}
+                        <View style={styles.bentoBarChart}>
+                          <View style={[styles.bentoBar, { height: 10 }]} />
+                          <View style={[styles.bentoBar, { height: 16 }]} />
+                          <View style={[styles.bentoBar, { height: 12 }]} />
+                          <View style={[styles.bentoBar, { height: 24 }]} />
+                          <View style={[styles.bentoBar, { height: 20 }]} />
+                          <View style={[styles.bentoBar, { height: 30 }]} />
+                          <View style={[styles.bentoBarActive, { height: 36 }]} />
+                        </View>
+                      </View>
+
+                      {/* 18 ngày liên tục (Streak card) */}
+                      <View style={styles.bentoStreakCard}>
+                        <View style={styles.bentoStreakIconWrap}>
+                          <Text style={{ fontSize: 13 }}>🔥</Text>
+                        </View>
+                        <Text style={styles.bentoStreakDays}>
+                          18 {isVi ? 'ngày' : 'days'}
+                        </Text>
+                        <Text style={styles.bentoStreakSub}>
+                          {isVi ? 'liên tục' : 'streak'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* 5. Mini Navigation Pill Bar */}
+                    <View style={styles.phoneMiniNavBar}>
+                      <View style={styles.miniNavBtnActive}>
+                        <Text style={{ fontSize: 13, color: '#FFFFFF', fontWeight: '800' }}>+</Text>
+                      </View>
+                      <Text style={styles.miniNavIcon}>📋</Text>
+                      <Text style={styles.miniNavIcon}>⏱️</Text>
+                      <Text style={styles.miniNavIcon}>💬</Text>
+                      <Text style={styles.miniNavIcon}>🏠</Text>
+                    </View>
+
+                    {/* 6. Recent Transactions List */}
+                    <View style={styles.phoneTxList}>
+                      {/* Item 1 */}
+                      <View style={styles.phoneTxItem}>
+                        <View style={[styles.phoneTxIconCircle, { backgroundColor: '#DCFCE7' }]}>
+                          <Text style={{ fontSize: 13 }}>☕</Text>
+                        </View>
+                        <View style={styles.phoneTxInfo}>
+                          <Text style={styles.phoneTxTitle}>{isVi ? 'Cà phê sáng' : 'Morning Cafe'}</Text>
+                          <Text style={styles.phoneTxSub}>{isVi ? 'Ăn uống · Khoảnh khắc' : 'Food & Drinks'}</Text>
+                        </View>
+                        <Text style={styles.phoneTxAmountExpense}>-45.000</Text>
+                      </View>
+
+                      {/* Item 2 */}
+                      <View style={styles.phoneTxItem}>
+                        <View style={[styles.phoneTxIconCircle, { backgroundColor: '#ECFDF5' }]}>
+                          <Text style={{ fontSize: 13 }}>💼</Text>
+                        </View>
+                        <View style={styles.phoneTxInfo}>
+                          <Text style={styles.phoneTxTitle}>{isVi ? 'Lương tháng' : 'Monthly Salary'}</Text>
+                          <Text style={styles.phoneTxSub}>{isVi ? 'Thu nhập chính' : 'Main Income'}</Text>
+                        </View>
+                        <Text style={styles.phoneTxAmountIncome}>+15.000.000</Text>
+                      </View>
+
+                      {/* Item 3 */}
+                      <View style={styles.phoneTxItem}>
+                        <View style={[styles.phoneTxIconCircle, { backgroundColor: '#FEE2E2' }]}>
+                          <Text style={{ fontSize: 13 }}>🎁</Text>
+                        </View>
+                        <View style={styles.phoneTxInfo}>
+                          <Text style={styles.phoneTxTitle}>{isVi ? 'Món quà tặng' : 'Special Gift'}</Text>
+                          <Text style={styles.phoneTxSub}>{isVi ? 'Kỷ niệm đáng nhớ' : 'Memories'}</Text>
+                        </View>
+                        <Text style={styles.phoneTxAmountExpense}>-320.000</Text>
+                      </View>
+                    </View>
+
+                    {/* 7. Bottom Action Bar with Green Center Button */}
+                    <View style={styles.phoneBottomBar}>
+                      <Text style={{ fontSize: 13, color: '#9CA3AF' }}>🏠</Text>
+                      <Text style={{ fontSize: 13, color: '#9CA3AF' }}>✉️</Text>
+                      <View style={styles.phoneBottomCenterPlus}>
+                        <Text style={{ fontSize: 16, color: '#FFFFFF', fontWeight: '900' }}>+</Text>
+                      </View>
+                      <Text style={{ fontSize: 13, color: '#9CA3AF' }}>⏱️</Text>
+                      <Text style={{ fontSize: 13, color: '#9CA3AF' }}>💬</Text>
+                    </View>
                   </View>
                 </View>
-
-                {/* Floating Card 2: Streak Level */}
-                <View style={[styles.floatingCard, styles.floatingCardBottomLeft]}>
-                  <View style={[styles.floatingCardIconBox, { backgroundColor: '#FEF3C7' }]}>
-                    <Text style={{ fontSize: 20 }}>🔥</Text>
-                  </View>
-                  <View>
-                    <Text style={styles.floatingCardTitle}>
-                      {isVi ? 'Chuỗi 18 Ngày Giữ Lửa' : '18-Day Streak Active'}
-                    </Text>
-                    <Text style={[styles.floatingCardSub, { color: '#D97706' }]}>
-                      {isVi ? 'Bé Ếch Lên Cấp 12 ✨' : 'Level 12 Explorer ✨'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Floating Card 3: Safe Budget Shield */}
-                <View style={[styles.floatingCard, styles.floatingCardBottomRight]}>
-                  <View style={[styles.floatingCardIconBox, { backgroundColor: '#ECFDF5' }]}>
-                    <Text style={{ fontSize: 20 }}>🛡️</Text>
-                  </View>
-                  <View>
-                    <Text style={styles.floatingCardTitle}>
-                      {isVi ? 'Hạn Mức An Toàn' : 'Safe Spending'}
-                    </Text>
-                    <Text style={[styles.floatingCardSub, { color: '#059669' }]}>
-                      {isVi ? 'Còn lại 68% tháng' : '68% left this month'}
-                    </Text>
-                  </View>
-                </View>
-              </View>
+              </Animated.View>
             </View>
           </View>
         </View>
 
         {/* ============================================================ */}
-        {/* 3. PHOTOBOOTH & CAMERA MOMENTS SHOWCASE */}
+        {/* 2. STATS CARDS & CONTINUOUS GREEN MARQUEE TICKER */}
+        {/* ============================================================ */}
+        <View style={styles.statsSection}>
+          <View style={styles.statsRow}>
+            {STATS_DATA.map((item, idx) => (
+              <View
+                key={idx}
+                // @ts-ignore
+                className="monett-stat-card"
+                style={styles.statCard}
+              >
+                <View style={[styles.statIconCircle, { backgroundColor: item.iconBg }]}>
+                  <Text style={{ fontSize: 15 }}>{item.icon}</Text>
+                </View>
+                <Text style={styles.statNumber}>{item.val}</Text>
+                <Text style={styles.statLabel}>{isVi ? item.labelVi : item.labelEn}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Green Continuous Marquee Strip (Converted from Yellow to Monett Emerald Green) */}
+        <View style={styles.marqueeGreenStrip}>
+          {/* Row 1: Continuous horizontal ticker running without stopping to the LEFT */}
+          <div style={{ width: '100%', overflow: 'hidden' }}>
+            <div
+              className="monett-ticker-track-1"
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                width: 'max-content',
+                animation: 'continuousTickerLeft 26s linear infinite',
+              }}
+            >
+              {[...MARQUEE_ROW_1, ...MARQUEE_ROW_1].map((chip, idx) => (
+                <View key={`r1-${idx}`} style={styles.marqueePill}>
+                  <Text style={styles.marqueePillIcon}>{chip.icon}</Text>
+                  <Text style={styles.marqueePillText}>{isVi ? chip.labelVi : chip.labelEn}</Text>
+                </View>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 2: Continuous horizontal ticker running without stopping to the RIGHT */}
+          <div style={{ width: '100%', overflow: 'hidden' }}>
+            <div
+              className="monett-ticker-track-2"
+              style={{
+                display: 'flex',
+                flexDirection: 'row',
+                width: 'max-content',
+                animation: 'continuousTickerRight 26s linear infinite',
+              }}
+            >
+              {[...MARQUEE_ROW_2, ...MARQUEE_ROW_2].map((chip, idx) => (
+                <View key={`r2-${idx}`} style={styles.marqueePill}>
+                  <Text style={styles.marqueePillIcon}>{chip.icon}</Text>
+                  <Text style={styles.marqueePillText}>{isVi ? chip.labelVi : chip.labelEn}</Text>
+                </View>
+              ))}
+            </div>
+          </div>
+        </View>
+
+        {/* ============================================================ */}
+        {/* 3. CALENDAR & EXPENSE TIMELINE SHOWCASE */}
         {/* ============================================================ */}
         <View
           // @ts-ignore
-          nativeID="photobooth-section"
-          id="photobooth-section"
+          nativeID="calendar-section"
+          id="calendar-section"
           style={styles.sectionContainer}
         >
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTagBadge}>
               <Text style={styles.sectionTagText}>
-                {isVi ? '🎞️ PHOTOBOOTH & CAMERA' : '🎞️ PHOTOBOOTH & CAMERA'}
+                {isVi ? '📅 LỊCH CHI TIÊU & DÒNG TIỀN' : '📅 EXPENSE CALENDAR & TIMELINE'}
               </Text>
             </View>
             <Text style={styles.sectionTitle}>
               {isVi
-                ? 'Không chỉ là những con số — Mỗi hóa đơn là một mẩu chuyện đời!'
-                : 'Not just plain numbers — Every receipt is a joyful memory!'}
+                ? 'Theo Dõi Dòng Tiền Từng Ngày — Trực Quan & Đầy Đủ'
+                : 'Track Daily Cashflow at a Glance — Crystal Clear & Intuitive'}
             </Text>
             <Text style={styles.sectionDesc}>
               {isVi
-                ? 'Lấy cảm hứng từ những dải ảnh Photobooth Life4Cuts thịnh hành của giới trẻ, Monett mang đến trải nghiệm lưu trữ tài chính chân thực, sinh động và đầy ắp kỷ niệm.'
-                : 'Inspired by beloved Life4Cuts photostrips, Monett makes your financial records tangible, stylish, and full of heartfelt stories.'}
+                ? 'Không cần cộng trừ phức tạp. Lịch chi tiêu Monett giúp bạn nhìn thấu tổng thu, tổng chi và số dư của từng ngày trong tháng chỉ với một ánh nhìn.'
+                : 'No complex accounting needed. Monett’s calendar visualizes your income, expenses, and daily balance effortlessly in a clean timeline.'}
             </Text>
           </View>
 
           <View style={[styles.photoboothRow, isDesktop ? styles.photoboothDesktop : styles.photoboothMobile, { maxWidth: containerMaxWidth }]}>
-            {/* Left: The Photobooth Strip (Authentic 4-cut photostrip with pin badge & tilt) */}
-            <View style={styles.photoboothStripCard}>
-              <View style={styles.photoboothPinBadge}>
-                <Text style={{ fontSize: 16 }}>📌</Text>
-                <Text style={styles.photoboothPinText}>
-                  {isVi ? 'Dải Ảnh Photobooth Độc Quyền' : 'Exclusive Photostrip'}
-                </Text>
+            {/* Left: Interactive Financial Calendar & Daily Logs Card */}
+            <View style={styles.calendarWidgetCard}>
+              {/* Card Header: Month Selector */}
+              <View style={styles.calendarCardTop}>
+                <View>
+                  <Text style={styles.calendarMonthTitle}>
+                    {isVi ? 'Tháng 10, 2026' : 'October 2026'}
+                  </Text>
+                  <Text style={styles.calendarMonthSub}>
+                    {isVi ? 'Tổng chi: 1.570.000 đ' : 'Total spent: 1,570,000 đ'}
+                  </Text>
+                </View>
+                <View style={styles.calendarMonthNav}>
+                  <View style={styles.calendarNavBtn}>
+                    <Text style={{ fontSize: 13, color: '#475569' }}>‹</Text>
+                  </View>
+                  <View style={styles.calendarActiveMonthPill}>
+                    <Text style={styles.calendarActiveMonthPillText}>
+                      {isVi ? 'Hôm nay' : 'Today'}
+                    </Text>
+                  </View>
+                  <View style={styles.calendarNavBtn}>
+                    <Text style={{ fontSize: 13, color: '#475569' }}>›</Text>
+                  </View>
+                </View>
               </View>
 
-              <View style={styles.photoboothImageFrame}>
-                <Image
-                  source={require('../../../assets/frogs/frog-photobooth-strip.png')}
-                  style={styles.photoboothStripImg}
-                  resizeMode="contain"
-                />
+              {/* Weekday Names Row */}
+              <View style={styles.calendarWeekdaysRow}>
+                {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((day, idx) => (
+                  <Text key={idx} style={styles.calendarWeekdayLabel}>{day}</Text>
+                ))}
               </View>
 
-              <View style={styles.photoboothCaption}>
-                <Text style={styles.photoboothDate}>
-                  {isVi ? 'Monett Life4Cuts • 4 Khoảnh Khắc Vui Tươi' : 'Monett Life4Cuts • 4 Happy Moments'}
-                </Text>
-                <Text style={styles.photoboothSub}>
-                  {isVi
-                    ? 'Chụp ảnh cùng bé ếch để ghi dấu từng cột mốc chi tiêu!'
-                    : 'Smile with your companion frog as you manage your money!'}
-                </Text>
+              {/* Calendar Grid Sample Days (19 to 31) */}
+              <View style={styles.calendarDaysGrid}>
+                {[
+                  { day: 19, status: 'normal' },
+                  { day: 20, status: 'expense' },
+                  { day: 21, status: 'normal' },
+                  { day: 22, status: 'expense' },
+                  { day: 23, status: 'income' },
+                  { day: 24, status: 'expense' },
+                  { day: 25, status: 'today' },
+                  { day: 26, status: 'normal' },
+                  { day: 27, status: 'normal' },
+                  { day: 28, status: 'normal' },
+                  { day: 29, status: 'normal' },
+                  { day: 30, status: 'normal' },
+                  { day: 31, status: 'normal' },
+                  { day: 1, status: 'next' },
+                ].map((item, idx) => (
+                  <View
+                    key={idx}
+                    style={[
+                      styles.calendarDayCell,
+                      item.status === 'today' && styles.calendarDayCellToday,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.calendarDayNum,
+                        item.status === 'today' && styles.calendarDayNumToday,
+                        item.status === 'next' && { color: '#CBD5E1' },
+                      ]}
+                    >
+                      {item.day}
+                    </Text>
+                    {item.status === 'today' && (
+                      <View style={styles.calendarDotToday} />
+                    )}
+                    {item.status === 'expense' && (
+                      <View style={styles.calendarDotExpense} />
+                    )}
+                    {item.status === 'income' && (
+                      <View style={styles.calendarDotIncome} />
+                    )}
+                  </View>
+                ))}
+              </View>
+
+              {/* Selected Day Transaction Breakdown Detail Card */}
+              <View style={styles.calendarDayDetailBox}>
+                <View style={styles.dayDetailHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 13 }}>📌</Text>
+                    <Text style={styles.dayDetailDateTitle}>
+                      {isVi ? 'Chi tiết: 25 Tháng 10' : 'Details: Oct 25, 2026'}
+                    </Text>
+                  </View>
+                  <View style={styles.dayDetailBadge}>
+                    <Text style={styles.dayDetailBadgeText}>3 {isVi ? 'khoản chi' : 'records'}</Text>
+                  </View>
+                </View>
+
+                {/* Day summary row */}
+                <View style={styles.dayDetailTotalsRow}>
+                  <View style={styles.dayTotalCol}>
+                    <Text style={styles.dayTotalLabel}>{isVi ? 'Tổng chi hôm nay' : 'Daily Expense'}</Text>
+                    <Text style={styles.dayTotalExpenseVal}>-165.000 đ</Text>
+                  </View>
+                  <View style={styles.dayTotalDivider} />
+                  <View style={styles.dayTotalCol}>
+                    <Text style={styles.dayTotalLabel}>{isVi ? 'Thu nhập' : 'Income'}</Text>
+                    <Text style={styles.dayTotalIncomeVal}>+15.000.000 đ</Text>
+                  </View>
+                </View>
+
+                {/* Day Mini Items */}
+                <View style={styles.dayMiniItemsList}>
+                  <View style={styles.dayMiniItem}>
+                    <View style={[styles.dayMiniIconCircle, { backgroundColor: '#DCFCE7' }]}>
+                      <Text style={{ fontSize: 12 }}>☕</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.dayMiniItemTitle}>{isVi ? 'Cà phê sáng' : 'Morning Cafe'}</Text>
+                      <Text style={styles.dayMiniItemSub}>{isVi ? '08:30 · Ăn uống' : '08:30 · Dining'}</Text>
+                    </View>
+                    <Text style={styles.dayMiniItemExpense}>-45.000 đ</Text>
+                  </View>
+
+                  <View style={styles.dayMiniItem}>
+                    <View style={[styles.dayMiniIconCircle, { backgroundColor: '#FEF3C7' }]}>
+                      <Text style={{ fontSize: 12 }}>🍲</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.dayMiniItemTitle}>{isVi ? 'Bữa trưa văn phòng' : 'Office Lunch'}</Text>
+                      <Text style={styles.dayMiniItemSub}>{isVi ? '12:15 · Ăn uống' : '12:15 · Dining'}</Text>
+                    </View>
+                    <Text style={styles.dayMiniItemExpense}>-75.000 đ</Text>
+                  </View>
+
+                  <View style={styles.dayMiniItem}>
+                    <View style={[styles.dayMiniIconCircle, { backgroundColor: '#F3E8FF' }]}>
+                      <Text style={{ fontSize: 12 }}>🛒</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.dayMiniItemTitle}>{isVi ? 'Mua sắm siêu thị' : 'Supermarket'}</Text>
+                      <Text style={styles.dayMiniItemSub}>{isVi ? '18:40 · Tiêu dùng' : '18:40 · Groceries'}</Text>
+                    </View>
+                    <Text style={styles.dayMiniItemExpense}>-45.000 đ</Text>
+                  </View>
+                </View>
               </View>
             </View>
 
-            {/* Right: Big Phone Mockup & Vertical Frog Runway */}
-            <View style={styles.cameraFlowCard}>
+            {/* Right: Smart Spending Analytics & Budget Allocation Card */}
+            <View style={styles.smartAnalyticsCard}>
               {/* Header Badge & Title */}
-              <View style={styles.cameraFlowHeader}>
-                <View style={styles.flowHeaderBadge}>
-                  <Text style={{ fontSize: 13 }}>🏃‍♂️</Text>
-                  <Text style={styles.flowHeaderBadgeText}>
-                    {isVi ? 'ĐƯỜNG CHẠY KỶ LUẬT • NUÔI ẾCH TỪNG NGÀY' : 'STREAK RUNWAY • DAILY COMPANION'}
+              <View style={styles.analyticsHeader}>
+                <View style={styles.analyticsBadge}>
+                  <Text style={{ fontSize: 13 }}>📊</Text>
+                  <Text style={styles.analyticsBadgeText}>
+                    {isVi ? 'PHÂN TÍCH & BÁO CÁO THU CHI' : 'SPENDING ANALYTICS & INSIGHTS'}
                   </Text>
                 </View>
-                <Text style={styles.cameraFlowTitle}>
+                <Text style={styles.analyticsTitle}>
                   {isVi
-                    ? 'Chạm điện thoại là ếch chạy — Càng chi tiêu càng vui!'
-                    : 'Snap on mobile, watch your companion frog level up!'}
+                    ? 'Tự Động Phân Nhóm — Nhìn Thấu Mọi Dòng Tiền'
+                    : 'Auto-Categorized Breakdown — Total Peace of Mind'}
                 </Text>
               </View>
 
-              {/* Two-Column Layout: Big Phone (Left) + Vertical Runway & Steps (Right) */}
-              <View style={[styles.showcaseTwoCol, isDesktop ? styles.showcaseDesktopRow : styles.showcaseMobileCol]}>
-                {/* 1. BIG PHONE MOCKUP (TO RÕ NHƯ ĐIỆN THOẠI THẬT) */}
-                <View style={styles.bigPhoneCol}>
-                  <View style={styles.bigPhoneFrame}>
-                    <Image
-                      source={require('../../../assets/monett-phone-mockup.png')}
-                      style={styles.bigPhoneImg}
-                      resizeMode="contain"
-                    />
+              {/* 1. Monthly Budget Health Status Card */}
+              <View style={styles.budgetHealthCard}>
+                <View style={styles.budgetHealthTop}>
+                  <View>
+                    <Text style={styles.budgetHealthLabel}>
+                      {isVi ? 'NGÂN SÁCH THÁNG 10' : 'OCTOBER BUDGET HEALTH'}
+                    </Text>
+                    <Text style={styles.budgetHealthAmount}>1.570.000 / 6.000.000 đ</Text>
                   </View>
-                  <View style={styles.phoneStorePill}>
-                    <Text style={styles.phoneStorePillText}>
-                      {isVi ? '📱 Giao diện App Mobile Monett' : '📱 Monett Mobile App'}
+                  <View style={styles.budgetHealthStatusPill}>
+                    <Text style={styles.budgetHealthStatusText}>
+                      {isVi ? '🛡️ An toàn (26%)' : '🛡️ Safe (26%)'}
                     </Text>
                   </View>
                 </View>
 
-                {/* 2. ĐƯỜNG CHẠY BÊN CẠNH ĐIỆN THOẠI: BÉ ẾCH CHẠY TỪ DƯỚI LÊN TRÊN */}
-                <View style={styles.verticalRunwayCol}>
-                  {/* Cột Vạch Đường Chạy & Chú Ếch Chạy Nhảy */}
-                  <View style={styles.trackLane}>
-                    {/* Vạch nền mờ */}
-                    <View style={styles.trackLineBg} />
-
-                    {/* Vạch tiến độ xanh ngọc chạy từ dưới lên trên */}
-                    <Animated.View
-                      style={[
-                        styles.trackLineFill,
-                        {
-                          height: frogRunY.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: ['0%', '88%'],
-                          }),
-                        },
-                      ]}
-                    />
-
-                    {/* Điểm mốc 1 (Dưới cùng - Xuất phát) */}
-                    <View style={[styles.trackMilestoneDot, styles.dotBottom]}>
-                      <Text style={{ fontSize: 11 }}>📸</Text>
-                    </View>
-
-                    {/* Điểm mốc 2 (Ở giữa) */}
-                    <View style={[styles.trackMilestoneDot, styles.dotMiddle]}>
-                      <Text style={{ fontSize: 11 }}>🏷️</Text>
-                    </View>
-
-                    {/* Điểm mốc 3 (Trên cùng - Đích đến) */}
-                    <View style={[styles.trackMilestoneDot, styles.dotTop]}>
-                      <Text style={{ fontSize: 11 }}>👑</Text>
-                    </View>
-
-                    {/* Chú ếch đang chạy lon ton TỪ DƯỚI LÊN TRÊN */}
-                    <Animated.View
-                      style={[
-                        styles.animatedRunnerFrogBox,
-                        {
-                          bottom: frogRunY.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [6, 360],
-                          }),
-                          transform: [{ translateX: frogHopX }],
-                        },
-                      ]}
-                    >
-                      <Image
-                        source={require('../../../assets/frogs/frog-snap.png')}
-                        style={styles.runnerFrogSprite}
-                        resizeMode="contain"
-                      />
-                      <View style={styles.runnerDustBox}>
-                        <Text style={{ fontSize: 9 }}>💨</Text>
-                      </View>
-                    </Animated.View>
+                {/* Multi-segment Progress Bar (50/30/20 Rule) */}
+                <View style={styles.budgetProgressBarTrack}>
+                  <View style={[styles.budgetProgressSegment, { width: '42%', backgroundColor: '#F97316' }]} />
+                  <View style={[styles.budgetProgressSegment, { width: '28%', backgroundColor: '#8B5CF6' }]} />
+                  <View style={[styles.budgetProgressSegment, { width: '20%', backgroundColor: '#0284C7' }]} />
+                  <View style={[styles.budgetProgressSegment, { width: '10%', backgroundColor: '#10B981' }]} />
+                </View>
+                <View style={styles.budgetLegendRow}>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: '#F97316' }]} />
+                    <Text style={styles.legendText}>{isVi ? 'Ăn uống (42%)' : 'Dining (42%)'}</Text>
                   </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: '#8B5CF6' }]} />
+                    <Text style={styles.legendText}>{isVi ? 'Mua sắm (28%)' : 'Shopping (28%)'}</Text>
+                  </View>
+                  <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: '#0284C7' }]} />
+                    <Text style={styles.legendText}>{isVi ? 'Hóa đơn (20%)' : 'Bills (20%)'}</Text>
+                  </View>
+                </View>
+              </View>
 
-                  {/* 3 Thẻ Bước Tương Ứng Với 3 Mốc Đường Chạy */}
-                  <View style={styles.verticalStepsColumn}>
-                    {/* Bước 3 (Trên cùng - Đích vương miện) */}
-                    <View style={[styles.verticalStepCard, styles.stepCardTarget]}>
-                      <View style={styles.stepCardHeader}>
-                        <Text style={styles.stepNumBadgeTarget}>3</Text>
-                        <Text style={styles.stepCardName}>
-                          {isVi ? 'Nuôi Ếch Giữ Lửa Tài Chính' : 'Fuel Your Streak & Frog Level'}
-                        </Text>
-                        <View style={styles.rewardTagTarget}>
-                          <Text style={styles.rewardTagTextTarget}>👑 Cấp 12 • 18N</Text>
-                        </View>
-                      </View>
-                      <Text style={styles.stepCardDescription}>
-                        {isVi
-                          ? 'Khoản chi tự động gom vào album cuộc đời và tích lũy điểm streak nuôi bé ếch.'
-                          : 'Expenses saved into your life moments, unlocking crowns and companion streak.'}
-                      </Text>
+              {/* 2. Top Spending Categories List */}
+              <View style={styles.topCategoriesList}>
+                <Text style={styles.categoriesSectionLabel}>
+                  {isVi ? 'CƠ CẤU CHI TIÊU HÀNG ĐẦU' : 'TOP EXPENSE CATEGORIES'}
+                </Text>
+
+                {/* Category 1: Ăn uống & Cà phê */}
+                <View style={styles.categoryItemRow}>
+                  <View style={[styles.categoryIconCircle, { backgroundColor: '#FFEDD5' }]}>
+                    <Text style={{ fontSize: 13 }}>🍽️</Text>
+                  </View>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <View style={styles.categoryItemHeader}>
+                      <Text style={styles.categoryItemName}>{isVi ? 'Ăn uống & Cà phê' : 'Food & Coffee'}</Text>
+                      <Text style={styles.categoryItemVal}>659.000 đ</Text>
                     </View>
-
-                    {/* Bước 2 (Ở giữa) */}
-                    <View style={styles.verticalStepCard}>
-                      <View style={styles.stepCardHeader}>
-                        <Text style={styles.stepNumBadgeMid}>2</Text>
-                        <Text style={styles.stepCardName}>
-                          {isVi ? 'Gắn Số Tiền & Cảm Xúc' : 'Tag Amount & Feelings'}
-                        </Text>
-                        <View style={styles.rewardTagMid}>
-                          <Text style={styles.rewardTagTextMid}>🪙 +20 Coin</Text>
-                        </View>
-                      </View>
-                      <Text style={styles.stepCardDescription}>
-                        {isVi
-                          ? 'Nhập nhanh số tiền, chọn icon cảm xúc (Tự thưởng, Thư giãn, Cần thiết) trong 3 giây.'
-                          : 'Quickly set price and emotional tag (Treat Yourself, Work, Fun) in 3 seconds.'}
-                      </Text>
-                    </View>
-
-                    {/* Bước 1 (Dưới cùng - Điểm xuất phát) */}
-                    <View style={styles.verticalStepCard}>
-                      <View style={styles.stepCardHeader}>
-                        <Text style={styles.stepNumBadgeBot}>1</Text>
-                        <Text style={styles.stepCardName}>
-                          {isVi ? 'Chụp 1 Tấm Ảnh Bất Kỳ' : 'Snap Any Photo in 1 Second'}
-                        </Text>
-                        <View style={styles.rewardTagBot}>
-                          <Text style={styles.rewardTagTextBot}>✨ Bắt đầu</Text>
-                        </View>
-                      </View>
-                      <Text style={styles.stepCardDescription}>
-                        {isVi
-                          ? 'Bát phở sáng, cốc trà sữa hay chiếc áo mới — giơ máy lên và chụp trong tích tắc.'
-                          : 'A morning coffee, dinner receipt, or shopping cart — snap instantly in 1 tap.'}
-                      </Text>
+                    <View style={styles.categoryBarTrack}>
+                      <View style={[styles.categoryBarFill, { width: '42%', backgroundColor: '#F97316' }]} />
                     </View>
                   </View>
                 </View>
+
+                {/* Category 2: Mua sắm & Tạp hóa */}
+                <View style={styles.categoryItemRow}>
+                  <View style={[styles.categoryIconCircle, { backgroundColor: '#F3E8FF' }]}>
+                    <Text style={{ fontSize: 13 }}>🛍️</Text>
+                  </View>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <View style={styles.categoryItemHeader}>
+                      <Text style={styles.categoryItemName}>{isVi ? 'Mua sắm & Tiêu dùng' : 'Shopping & Retail'}</Text>
+                      <Text style={styles.categoryItemVal}>440.000 đ</Text>
+                    </View>
+                    <View style={styles.categoryBarTrack}>
+                      <View style={[styles.categoryBarFill, { width: '28%', backgroundColor: '#8B5CF6' }]} />
+                    </View>
+                  </View>
+                </View>
+
+                {/* Category 3: Tiền điện nước & Dịch vụ */}
+                <View style={styles.categoryItemRow}>
+                  <View style={[styles.categoryIconCircle, { backgroundColor: '#E0F2FE' }]}>
+                    <Text style={{ fontSize: 13 }}>⚡</Text>
+                  </View>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <View style={styles.categoryItemHeader}>
+                      <Text style={styles.categoryItemName}>{isVi ? 'Hóa đơn & Tiện ích' : 'Bills & Utilities'}</Text>
+                      <Text style={styles.categoryItemVal}>314.000 đ</Text>
+                    </View>
+                    <View style={styles.categoryBarTrack}>
+                      <View style={[styles.categoryBarFill, { width: '20%', backgroundColor: '#0284C7' }]} />
+                    </View>
+                  </View>
+                </View>
+
+                {/* Category 4: Di chuyển & Đi lại */}
+                <View style={styles.categoryItemRow}>
+                  <View style={[styles.categoryIconCircle, { backgroundColor: '#DCFCE7' }]}>
+                    <Text style={{ fontSize: 13 }}>🚗</Text>
+                  </View>
+                  <View style={{ flex: 1, gap: 4 }}>
+                    <View style={styles.categoryItemHeader}>
+                      <Text style={styles.categoryItemName}>{isVi ? 'Di chuyển & Xăng xe' : 'Transportation'}</Text>
+                      <Text style={styles.categoryItemVal}>157.000 đ</Text>
+                    </View>
+                    <View style={styles.categoryBarTrack}>
+                      <View style={[styles.categoryBarFill, { width: '10%', backgroundColor: '#10B981' }]} />
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* 3. Monett Smart AI Coach Advice Box */}
+              <View style={styles.smartCoachBox}>
+                <View style={styles.smartCoachHeader}>
+                  <Text style={{ fontSize: 16 }}>💡</Text>
+                  <Text style={styles.smartCoachTitle}>
+                    {isVi ? 'Gợi Ý Quản Lý Dòng Tiền Hôm Nay' : 'Daily Cash Flow Insight'}
+                  </Text>
+                </View>
+                <Text style={styles.smartCoachDesc}>
+                  {isVi
+                    ? 'Bạn đang chi tiêu đúng tiến độ mục tiêu tháng 10. Tỷ lệ tiết kiệm duy trì ở mức 32%, cao hơn dự kiến 7%!'
+                    : 'You are on track with your October budget goals. Savings rate maintained at 32%, 7% higher than projected!'}
+                </Text>
               </View>
             </View>
           </View>
@@ -978,7 +1611,7 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
               <View style={styles.footerLinkCol}>
                 <Text style={styles.footerLinkHeader}>{isVi ? 'Sản Phẩm' : 'Product'}</Text>
                 <Text style={styles.footerLinkItem}>{isVi ? 'Nhật Ký Ảnh' : 'Photo Moments'}</Text>
-                <Text style={styles.footerLinkItem}>{isVi ? 'Photobooth 4-Cut' : 'Life4Cuts'}</Text>
+                <Text style={styles.footerLinkItem}>{isVi ? 'Lịch Chi Tiêu' : 'Spending Calendar'}</Text>
                 <Text style={styles.footerLinkItem}>{isVi ? 'Chuỗi Streaks' : 'Mindful Streaks'}</Text>
                 <Text style={styles.footerLinkItem}>{isVi ? 'Bản Đồ Dòng Tiền' : 'Cashflow Blueprint'}</Text>
               </View>
@@ -1031,20 +1664,20 @@ const styles = StyleSheet.create({
     backdropFilter: 'blur(12px)',
   },
   navbarInner: {
-    maxWidth: 1200,
     width: '100%',
-    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 32,
     paddingVertical: 12,
   },
   desktopNavInner: {
     height: 72,
+    paddingHorizontal: 36,
   },
   mobileNavInner: {
     height: 64,
+    paddingHorizontal: 16,
   },
   logoBtn: {
     flexDirection: 'row',
@@ -1057,14 +1690,44 @@ const styles = StyleSheet.create({
   navLinksRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 28,
+    gap: 32,
+  },
+  navLinkBtn: {
+    position: 'relative',
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   navLinkText: {
     fontSize: 15,
     fontWeight: '600',
     color: '#475569',
     // @ts-ignore
-    transition: 'color 0.2s',
+    transition: 'color 0.2s ease',
+  },
+  navLinkTextActive: {
+    color: '#047857',
+    fontWeight: '700',
+  },
+  navUnderline: {
+    position: 'absolute',
+    bottom: 0,
+    left: 2,
+    right: 2,
+    height: 3,
+    backgroundColor: '#059669',
+    borderRadius: 2,
+    opacity: 0,
+    // @ts-ignore
+    transform: [{ scaleX: 0 }],
+    // @ts-ignore
+    transition: 'all 0.22s cubic-bezier(0.4, 0, 0.2, 1)',
+  },
+  navUnderlineActive: {
+    opacity: 1,
+    // @ts-ignore
+    transform: [{ scaleX: 1 }],
   },
   navRightGroup: {
     flexDirection: 'row',
@@ -1126,221 +1789,716 @@ const styles = StyleSheet.create({
 
   // Hero Section
   heroSection: {
-    backgroundColor: '#F8FAFD',
+    backgroundColor: '#FAFAF8',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
-    paddingVertical: 48,
-    paddingHorizontal: 20,
+    paddingVertical: 64,
+    paddingHorizontal: 24,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  heroLeftEmeraldGlow: {
+    position: 'absolute',
+    top: -80,
+    left: -120,
+    width: 480,
+    height: 480,
+    borderRadius: 240,
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    // @ts-ignore
+    filter: 'blur(60px)',
   },
   heroContainer: {
-    maxWidth: 1200,
+    maxWidth: 1260,
     width: '100%',
     alignSelf: 'center',
     alignItems: 'center',
   },
   heroDesktopRow: {
     flexDirection: 'row',
-    gap: 40,
+    justifyContent: 'space-between',
+    gap: 48,
     paddingVertical: 20,
+    alignItems: 'center',
   },
   heroMobileCol: {
     flexDirection: 'column',
+    gap: 36,
   },
   heroLeft: {
     alignItems: 'flex-start',
   },
+  heroLeftDesktop: {
+    flex: 1.35,
+    maxWidth: 780,
+  },
+  heroLeftMobile: {
+    width: '100%',
+  },
   pillBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#D1FAE5',
+    backgroundColor: '#ECFDF5',
     borderWidth: 1,
     borderColor: '#A7F3D0',
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 20,
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    borderRadius: 24,
     gap: 8,
-    marginBottom: 20,
+    marginBottom: 22,
   },
-  pillBadgeEmoji: {
-    fontSize: 14,
+  pillBadgeDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
   },
   pillBadgeText: {
     fontSize: 13,
     fontWeight: '700',
     color: '#047857',
   },
-  heroTitle: {
-    fontSize: 42,
-    lineHeight: 52,
+  heroTitleWrap: {
+    marginBottom: 24,
+    gap: 6,
+  },
+  kineticLine: {
+    overflow: 'visible',
+  },
+  heroTitleLine: {
     fontWeight: '900',
     color: '#0F172A',
-    marginBottom: 18,
-    letterSpacing: -0.5,
   },
-  heroTitleHighlight: {
+  heroTitleGreen: {
+    fontWeight: '900',
     color: '#047857',
   },
+  heroTitleDesktop: {
+    fontSize: 52,
+    lineHeight: 64,
+    letterSpacing: -1,
+  },
+  heroTitleMobile: {
+    fontSize: 36,
+    lineHeight: 46,
+    letterSpacing: -0.6,
+  },
+  highlightWordWrap: {
+    position: 'relative',
+    paddingBottom: 4,
+  },
+  nativeUnderline: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 4,
+    backgroundColor: '#10B981',
+    borderRadius: 2,
+  },
   heroSubtitle: {
-    fontSize: 16,
-    lineHeight: 26,
     color: '#475569',
-    marginBottom: 28,
-    maxWidth: 560,
+  },
+  heroSubtitleDesktop: {
+    fontSize: 17.5,
+    lineHeight: 29,
+    marginBottom: 30,
+    maxWidth: 640,
+  },
+  heroSubtitleMobile: {
+    fontSize: 15,
+    lineHeight: 25,
+    marginBottom: 24,
+    maxWidth: '100%',
   },
   heroCtaGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 14,
-    marginBottom: 36,
+    marginBottom: 12,
   },
   heroPrimaryCta: {
     backgroundColor: '#047857',
-    paddingVertical: 14,
-    paddingHorizontal: 26,
-    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 36,
+    borderRadius: 16,
     shadowColor: '#047857',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
     elevation: 4,
+    cursor: 'pointer' as any,
   },
   heroPrimaryCtaText: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
     color: '#FFFFFF',
-  },
-  heroSecondaryCta: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    paddingVertical: 14,
-    paddingHorizontal: 22,
-    borderRadius: 14,
-  },
-  heroSecondaryCtaText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#334155',
+    letterSpacing: 0.2,
   },
   heroTrustRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 18,
-    paddingTop: 16,
+    gap: 16,
+    marginTop: 26,
+    paddingTop: 20,
     borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
-    width: '100%',
   },
-  trustItem: {
-    flexDirection: 'column',
+  heroAvatarStack: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  trustStars: {
-    fontSize: 12,
-    letterSpacing: 2,
-    marginBottom: 2,
+  avatarCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  trustNumber: {
-    fontSize: 16,
+  avatarText: {
+    fontSize: 11,
     fontWeight: '800',
-    color: '#047857',
+    color: '#FFFFFF',
   },
-  trustText: {
-    fontSize: 13,
+  trustUserCount: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  trustSubtext: {
+    fontSize: 12,
     color: '#64748B',
   },
   trustDivider: {
     width: 1,
     height: 28,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#CBD5E1',
+  },
+  trustStars: {
+    fontSize: 13,
+    color: '#F59E0B',
+    letterSpacing: 2,
+  },
+  trustRatingText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#0F172A',
   },
 
-  // Hero Artwork
+  // Bento Phone Mockup Styles
   heroRight: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heroArtBackdrop: {
+  heroRightDesktop: {
+    flex: 0.95,
+    maxWidth: 440,
+  },
+  heroRightMobile: {
     width: '100%',
-    maxWidth: 460,
-    height: 440,
-    backgroundColor: '#ECFDF5',
-    borderRadius: 36,
+    marginTop: 24,
+  },
+  bentoPhoneWrapper: {
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
-    borderWidth: 2,
-    borderColor: '#A7F3D0',
-    shadowColor: '#047857',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    elevation: 3,
+    width: '100%',
+    maxWidth: 420,
   },
-  heroArtGlow: {
+  floatingAiBadge: {
     position: 'absolute',
-    width: 280,
-    height: 280,
-    borderRadius: 140,
-    backgroundColor: 'rgba(52, 211, 153, 0.25)',
-  },
-  heroMascotImage: {
-    width: 280,
-    height: 280,
-    zIndex: 2,
-  },
-  floatingCard: {
-    position: 'absolute',
+    top: 60,
+    left: -24,
+    zIndex: 20,
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 7,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 5,
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 4,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    zIndex: 10,
+    borderColor: '#F1F5F9',
   },
-  floatingCardTopRight: {
-    top: 24,
-    right: -10,
-  },
-  floatingCardBottomLeft: {
-    bottom: 24,
-    left: -12,
-  },
-  floatingCardBottomRight: {
-    bottom: 90,
-    right: -16,
-  },
-  floatingCardIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: '#FEF3C7',
+  floatingAiIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#E0F2FE',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  floatingCardTitle: {
+  floatingAiText: {
     fontSize: 12,
     fontWeight: '700',
     color: '#0F172A',
   },
-  floatingCardAmount: {
-    fontSize: 14,
+  floatingIncomeBadge: {
+    position: 'absolute',
+    bottom: 84,
+    right: -24,
+    zIndex: 20,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#34D399',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 14,
+    elevation: 4,
+  },
+  floatingIncomeIcon: {
+    fontSize: 13,
+  },
+  floatingIncomeText: {
+    fontSize: 12,
     fontWeight: '800',
+    color: '#047857',
+  },
+  phoneOuterCard: {
+    width: 380,
+    maxWidth: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 40,
+    padding: 16,
+    borderWidth: 7,
+    borderColor: '#0F172A',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.12,
+    shadowRadius: 34,
+    elevation: 6,
+  },
+  phoneDynamicIsland: {
+    width: 76,
+    height: 16,
+    backgroundColor: '#0F172A',
+    borderRadius: 10,
+    alignSelf: 'center',
+    marginBottom: 10,
+  },
+  phoneScreenBody: {
+    gap: 10,
+  },
+  phoneHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  phoneGreetSub: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  phoneGreetName: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  phoneHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  phoneBellBtn: {
+    position: 'relative',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  phoneBellBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#EF4444',
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  phoneBellBadgeText: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: '#FFFFFF',
+  },
+  phoneAvatarCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#1E293B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  phoneAvatarLetter: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  bentoHeroCard: {
+    backgroundColor: '#18181B',
+    borderRadius: 18,
+    padding: 16,
+    gap: 4,
+  },
+  bentoHeroTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  bentoHeroLabel: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#9CA3AF',
+    letterSpacing: 0.8,
+  },
+  bentoHeroBalance: {
+    fontSize: 23,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+  },
+  bentoHeroGrowthPill: {
+    backgroundColor: 'rgba(16, 185, 129, 0.16)',
+    alignSelf: 'flex-start',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    marginTop: 2,
+  },
+  bentoHeroGrowthText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#34D399',
+  },
+  bentoSplitRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  bentoIncomeCard: {
+    flex: 1,
+    backgroundColor: '#DCFCE7',
+    borderRadius: 15,
+    padding: 10,
+    gap: 2,
+  },
+  bentoExpenseCard: {
+    flex: 1,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 15,
+    padding: 10,
+    gap: 2,
+  },
+  bentoMiniCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  bentoMiniArrowGreen: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#16A34A',
+  },
+  bentoMiniLabelGreen: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#166534',
+  },
+  bentoMiniValGreen: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#14532D',
+  },
+  bentoMiniArrowRed: {
+    fontSize: 12,
+    fontWeight: '900',
     color: '#DC2626',
   },
-  floatingCardSub: {
-    fontSize: 12,
+  bentoMiniLabelRed: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#991B1B',
+  },
+  bentoMiniValRed: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#7F1D1D',
+  },
+  bentoMiddleRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  bentoWeekCard: {
+    flex: 1.25,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 15,
+    padding: 10,
+    justifyContent: 'space-between',
+  },
+  bentoWeekHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  bentoWeekTitle: {
+    fontSize: 10.5,
     fontWeight: '700',
+    color: '#065F46',
+  },
+  bentoWeekTotal: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  bentoBarChart: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    height: 38,
+    paddingHorizontal: 2,
+  },
+  bentoBar: {
+    width: 7,
+    backgroundColor: '#6EE7B7',
+    borderRadius: 4,
+  },
+  bentoBarActive: {
+    width: 7,
+    backgroundColor: '#047857',
+    borderRadius: 4,
+  },
+  bentoStreakCard: {
+    flex: 0.95,
+    backgroundColor: '#EDE9FE',
+    borderRadius: 15,
+    padding: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 2,
+  },
+  bentoStreakIconWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#DDD6FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bentoStreakDays: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#6D28D9',
+  },
+  bentoStreakSub: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#7C3AED',
+  },
+  phoneMiniNavBar: {
+    backgroundColor: '#18181B',
+    height: 36,
+    borderRadius: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: 8,
+  },
+  miniNavBtnActive: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#059669',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniNavIcon: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  phoneTxList: {
+    gap: 5,
+  },
+  phoneTxItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    gap: 8,
+  },
+  phoneTxIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  phoneTxIconLetter: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  phoneTxInfo: {
+    flex: 1,
+  },
+  phoneTxTitle: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  phoneTxSub: {
+    fontSize: 9.5,
+    color: '#64748B',
+  },
+  phoneTxAmountExpense: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  phoneTxAmountIncome: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#047857',
+  },
+  phoneBottomBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    backgroundColor: '#18181B',
+    borderRadius: 18,
+    height: 40,
+    paddingHorizontal: 10,
+    marginTop: 2,
+  },
+  phoneBottomCenterPlus: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#059669',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -10,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+
+  // Stats Section (Centered, compact, emerald green borders)
+  statsSection: {
+    backgroundColor: '#FAFAF8',
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  statsRow: {
+    width: '100%',
+    maxWidth: 820,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 18,
+    justifyContent: 'center',
+  },
+  statCard: {
+    flex: 1,
+    minWidth: 190,
+    maxWidth: 255,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderWidth: 1.5,
+    borderColor: '#10B981',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 3,
+    alignItems: 'flex-start',
+  },
+  statIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  statNumber: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.4,
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+    lineHeight: 16,
+  },
+
+  // Green Marquee Strip (Converted from Yellow to Monett Emerald Green)
+  marqueeGreenStrip: {
+    backgroundColor: '#059669',
+    paddingVertical: 18,
+    gap: 12,
+    overflow: 'hidden',
+    borderTopWidth: 1,
+    borderTopColor: '#047857',
+    borderBottomWidth: 1,
+    borderBottomColor: '#047857',
+    position: 'relative',
+  },
+  marqueeTrackWrapper: {
+    width: '100%',
+    overflow: 'hidden',
+  },
+  marqueeRowFlex: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  marqueePill: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingVertical: 9,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginRight: 12,
+    shadowColor: 'rgba(0,0,0,0.1)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  marqueePillIcon: {
+    fontSize: 16,
+  },
+  marqueePillText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
   },
 
   // Section Common
@@ -1385,7 +2543,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // Photobooth Section
+  // Calendar Section
   photoboothRow: {
     maxWidth: 1200,
     width: '100%',
@@ -1400,9 +2558,9 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
   },
-  photoboothStripCard: {
+  calendarWidgetCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+    borderRadius: 28,
     padding: 24,
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -1411,64 +2569,227 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 20,
     elevation: 3,
-    alignItems: 'center',
-    flex: 0.75,
+    flex: 1,
     width: '100%',
-    maxWidth: 380,
+    maxWidth: 480,
+    gap: 16,
   },
-  photoboothPinBadge: {
+  calendarCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  calendarMonthTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  calendarMonthSub: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#059669',
+    marginTop: 2,
+  },
+  calendarMonthNav: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+  },
+  calendarNavBtn: {
+    width: 28,
+    height: 28,
     borderRadius: 14,
-    marginBottom: 16,
-  },
-  photoboothPinText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#DC2626',
-  },
-  photoboothImageFrame: {
-    width: '100%',
-    height: 480,
+    backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FAFAF9',
-    borderRadius: 16,
-    padding: 10,
+  },
+  calendarActiveMonthPill: {
+    backgroundColor: '#ECFDF5',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+  },
+  calendarActiveMonthPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  calendarWeekdaysRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 6,
+  },
+  calendarWeekdayLabel: {
+    width: 38,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#94A3B8',
+  },
+  calendarDaysGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 6,
+  },
+  calendarDayCell: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    position: 'relative',
+  },
+  calendarDayCellToday: {
+    backgroundColor: '#047857',
+    shadowColor: '#047857',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  calendarDayNum: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  calendarDayNumToday: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  calendarDotToday: {
+    position: 'absolute',
+    bottom: 3,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#A7F3D0',
+  },
+  calendarDotExpense: {
+    position: 'absolute',
+    bottom: 3,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#F87171',
+  },
+  calendarDotIncome: {
+    position: 'absolute',
+    bottom: 3,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#10B981',
+  },
+  calendarDayDetailBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#F5F5F4',
+    borderColor: '#E2E8F0',
+    gap: 12,
   },
-  photoboothStripImg: {
-    width: '100%',
-    height: '100%',
-    // @ts-ignore
-    transform: 'rotate(-1.5deg)',
-  },
-  photoboothCaption: {
-    marginTop: 16,
+  dayDetailHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  photoboothDate: {
-    fontSize: 14,
+  dayDetailDateTitle: {
+    fontSize: 13,
     fontWeight: '800',
     color: '#0F172A',
-    marginBottom: 4,
   },
-  photoboothSub: {
-    fontSize: 12,
+  dayDetailBadge: {
+    backgroundColor: '#E2E8F0',
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+  },
+  dayDetailBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  dayDetailTotalsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  dayTotalCol: {
+    flex: 1,
+  },
+  dayTotalLabel: {
+    fontSize: 10.5,
     color: '#64748B',
-    textAlign: 'center',
+    fontWeight: '600',
+  },
+  dayTotalExpenseVal: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#EF4444',
+    marginTop: 1,
+  },
+  dayTotalIncomeVal: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#059669',
+    marginTop: 1,
+  },
+  dayTotalDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#E2E8F0',
+    marginHorizontal: 10,
+  },
+  dayMiniItemsList: {
+    gap: 8,
+  },
+  dayMiniItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  dayMiniIconCircle: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayMiniItemTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  dayMiniItemSub: {
+    fontSize: 10.5,
+    color: '#94A3B8',
+  },
+  dayMiniItemExpense: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#EF4444',
   },
 
-  // Big Phone & Vertical Frog Runway Showcase
-  cameraFlowCard: {
-    flex: 1.35,
+  // Smart Spending Analytics & Breakdown Showcase (Section 3 Right Card)
+  smartAnalyticsCard: {
+    flex: 1.3,
     backgroundColor: '#FFFFFF',
     borderRadius: 28,
     padding: 24,
@@ -1480,11 +2801,12 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     elevation: 3,
     width: '100%',
+    gap: 16,
   },
-  cameraFlowHeader: {
-    marginBottom: 16,
+  analyticsHeader: {
+    gap: 6,
   },
-  flowHeaderBadge: {
+  analyticsBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -1493,256 +2815,170 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 14,
     alignSelf: 'flex-start',
-    marginBottom: 8,
     borderWidth: 1,
     borderColor: '#A7F3D0',
   },
-  flowHeaderBadgeText: {
+  analyticsBadgeText: {
     fontSize: 11,
     fontWeight: '800',
     color: '#065F46',
     letterSpacing: 0.4,
   },
-  cameraFlowTitle: {
-    fontSize: 17,
+  analyticsTitle: {
+    fontSize: 18,
     fontWeight: '800',
     color: '#0F172A',
-    lineHeight: 24,
+    lineHeight: 25,
   },
 
-  // Two columns: Big Phone & Vertical Runway
-  showcaseTwoCol: {
-    width: '100%',
-    gap: 20,
-    alignItems: 'center',
-  },
-  showcaseDesktopRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-  },
-  showcaseMobileCol: {
-    flexDirection: 'column',
-  },
-
-  // 1. Big Phone Col
-  bigPhoneCol: {
-    flex: 0.9,
-    alignItems: 'center',
-    justifyContent: 'center',
+  // 1. Monthly Budget Health Status Card
+  budgetHealthCard: {
     backgroundColor: '#F8FAFC',
-    borderRadius: 24,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#F1F5F9',
-  },
-  bigPhoneFrame: {
-    width: 260,
-    height: 510,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bigPhoneImg: {
-    width: '100%',
-    height: '100%',
-    // @ts-ignore
-    filter: 'drop-shadow(0px 16px 28px rgba(15, 23, 42, 0.16))',
-  },
-  phoneStorePill: {
-    marginTop: 8,
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    borderRadius: 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    gap: 12,
   },
-  phoneStorePillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#475569',
-  },
-
-  // 2. Vertical Runway Col
-  verticalRunwayCol: {
-    flex: 1.25,
+  budgetHealthTop: {
     flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: 14,
-    paddingVertical: 4,
-  },
-  trackLane: {
-    width: 44,
-    position: 'relative',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  trackLineBg: {
-    position: 'absolute',
-    top: 24,
-    bottom: 24,
-    width: 6,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 3,
-  },
-  trackLineFill: {
-    position: 'absolute',
-    bottom: 24,
-    width: 6,
-    backgroundColor: '#10B981',
-    borderRadius: 3,
-  },
-  trackMilestoneDot: {
-    position: 'absolute',
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  dotBottom: {
-    bottom: 16,
-    backgroundColor: '#047857',
-  },
-  dotMiddle: {
-    top: '48%',
-    marginTop: -13,
-    backgroundColor: '#10B981',
-  },
-  dotTop: {
-    top: 16,
-    backgroundColor: '#F59E0B',
-  },
-  animatedRunnerFrogBox: {
-    position: 'absolute',
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-  runnerFrogSprite: {
-    width: 42,
-    height: 42,
-  },
-  runnerDustBox: {
-    position: 'absolute',
-    bottom: -2,
-    right: -4,
-  },
-
-  // 3 Vertical Step Cards
-  verticalStepsColumn: {
-    flex: 1,
     justifyContent: 'space-between',
-    gap: 10,
-  },
-  verticalStepCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  stepCardTarget: {
-    backgroundColor: '#FFFBEB',
-    borderColor: '#FDE68A',
-  },
-  stepCardHeader: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 4,
-    flexWrap: 'wrap',
   },
-  stepNumBadgeBot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#047857',
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  stepNumBadgeMid: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#10B981',
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  stepNumBadgeTarget: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#F59E0B',
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  stepCardName: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#0F172A',
-    flex: 1,
-  },
-  rewardTagBot: {
-    backgroundColor: '#EFF6FF',
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-  },
-  rewardTagTextBot: {
-    fontSize: 10,
+  budgetHealthLabel: {
+    fontSize: 10.5,
     fontWeight: '700',
-    color: '#2563EB',
+    color: '#64748B',
+    letterSpacing: 0.3,
   },
-  rewardTagMid: {
+  budgetHealthAmount: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginTop: 2,
+  },
+  budgetHealthStatusPill: {
     backgroundColor: '#ECFDF5',
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    borderRadius: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: '#A7F3D0',
   },
-  rewardTagTextMid: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  rewardTagTarget: {
-    backgroundColor: '#FEF3C7',
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FCD34D',
-  },
-  rewardTagTextTarget: {
-    fontSize: 10,
+  budgetHealthStatusText: {
+    fontSize: 11,
     fontWeight: '800',
-    color: '#D97706',
+    color: '#047857',
   },
-  stepCardDescription: {
+  budgetProgressBarTrack: {
+    height: 10,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 6,
+    flexDirection: 'row',
+    overflow: 'hidden',
+  },
+  budgetProgressSegment: {
+    height: '100%',
+  },
+  budgetLegendRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 14,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
+  },
+
+  // 2. Top Spending Categories List
+  topCategoriesList: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    gap: 10,
+  },
+  categoriesSectionLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#475569',
+    letterSpacing: 0.4,
+    marginBottom: 2,
+  },
+  categoryItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  categoryIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  categoryItemName: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  categoryItemVal: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  categoryBarTrack: {
+    height: 6,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  categoryBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+
+  // 3. Monett Smart AI Coach Advice Box
+  smartCoachBox: {
+    backgroundColor: '#F0FDF4',
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    gap: 6,
+  },
+  smartCoachHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  smartCoachTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  smartCoachDesc: {
     fontSize: 11.5,
-    color: '#64748B',
-    lineHeight: 17,
+    lineHeight: 18,
+    color: '#166534',
+    fontWeight: '500',
   },
 
   // Bento Grid

@@ -18,6 +18,7 @@ import { StorageModule } from './storage/storage.module';
 import { OcrModule } from './ocr/ocr.module';
 import { RemindersModule } from './reminders/reminders.module';
 import { BillsAndDebtsModule } from './bills-and-debts/bills-and-debts.module';
+import { AdminModule } from './admin/admin.module';
 
 import * as dotenv from 'dotenv';
 import * as path from 'path';
@@ -94,6 +95,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
     OcrModule,
     RemindersModule,
     BillsAndDebtsModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],
@@ -104,9 +106,9 @@ export class AppModule implements OnModuleInit {
   async onModuleInit() {
     try {
       await this.seedService.seedAdmin();
-      await this.seedService.seedSampleTransactions();
+      await this.seedService.purgeSampleTransactions();
     } catch (error) {
-      console.error('Lỗi khi khởi tạo admin/sample seed:', error);
+      console.error('Lỗi khi khởi tạo admin/purge sample seed:', error);
     }
   }
 }

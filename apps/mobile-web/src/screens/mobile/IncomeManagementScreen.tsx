@@ -81,7 +81,14 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
 
         <Text style={styles.headerTitle}>Quản Lý Thu Nhập</Text>
 
-        <View style={styles.headerRightPlaceholder} />
+        <TouchableOpacity
+          style={styles.closeBtn}
+          onPress={onBack}
+          activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="close" size={18} color="#64748B" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -248,8 +255,20 @@ const styles = StyleSheet.create({
     color: '#064E3B',
     letterSpacing: -0.3,
   },
-  headerRightPlaceholder: {
+  closeBtn: {
     width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E8E0D5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#221D18',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   scrollView: {
     flex: 1,

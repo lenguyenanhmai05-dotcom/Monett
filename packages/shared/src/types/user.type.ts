@@ -70,3 +70,16 @@ export interface AuthResponse {
   accessToken: string;
 }
 
+export interface IAdminStats {
+  totalUsers: number;
+  totalAdmins: number;
+  googleUsers: number;
+  localUsers: number;
+  proUsers: number;
+  totalTransactions: number;
+  totalIncome: number;
+  totalExpense: number;
+  totalMoments: number;
+  activeUsersToday: number;
+}
+

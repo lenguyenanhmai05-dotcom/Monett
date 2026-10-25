@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Image, Platform, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Image, Platform, useWindowDimensions, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { ResponsiveLayout, TabKey } from './src/layouts/ResponsiveLayout';
@@ -19,6 +19,8 @@ import { FriendsFeedScreen } from './src/screens/mobile/FriendsFeedScreen';
 import { WebFeedScreen } from './src/screens/web/WebFeedScreen';
 import { MobileAuthScreen } from './src/screens/mobile/MobileAuthScreen';
 import { MobileNavigator } from './src/screens/mobile/MobileNavigator';
+import { UserRole } from '@monett/shared';
+import { AdminDashboardScreen } from './src/screens/admin/AdminDashboardScreen';
 import { TransactionProvider } from './src/contexts/TransactionContext';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { SocketProvider } from './src/contexts/SocketContext';
@@ -61,6 +63,10 @@ function MainApp() {
     Platform.OS === 'web' ? 'landing' : 'auth'
   );
   const [authInitialMode, setAuthInitialMode] = useState<'login' | 'register'>('login');
+
+  const isSystemAdmin =
+    user?.role === UserRole.ADMIN ||
+    user?.email?.toLowerCase().trim() === 'lenguyenanhmai05@gmail.com';
 
   const handleNavigateToAuth = (mode: 'login' | 'register') => {
     setAuthInitialMode(mode);
@@ -115,7 +121,12 @@ function MainApp() {
     );
   }
 
-  // Khi người dùng ĐÃ đăng nhập trên thiết bị Mobile (Điện thoại hoặc màn hình nhỏ):
+  // Khi tài khoản là ADMIN: Luôn mở trực tiếp Trang Quản trị Hệ thống (Admin Dashboard)
+  if (isSystemAdmin) {
+    return <AdminDashboardScreen />;
+  }
+
+  // Khi người dùng ĐÃ đăng nhập trên thiết bị Mobile:
   if (isMobileScreen) {
     return (
       <TransactionProvider>

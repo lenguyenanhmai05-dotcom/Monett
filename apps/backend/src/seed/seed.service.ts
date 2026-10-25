@@ -152,6 +152,15 @@ export class SeedService {
     const adminName = process.env.ADMIN_NAME || 'Monett Admin';
 
     try {
+      // Đồng thời đảm bảo tài khoản Google lenguyenanhmai05@gmail.com luôn có role ADMIN
+      const googleAdminEmail = 'lenguyenanhmai05@gmail.com';
+      const existingGoogleAdmin = await this.userModel.findOne({ email: googleAdminEmail }).exec();
+      if (existingGoogleAdmin && existingGoogleAdmin.role !== UserRole.ADMIN) {
+        existingGoogleAdmin.role = UserRole.ADMIN;
+        await existingGoogleAdmin.save();
+        this.logger.log(`✅ Cập nhật role ADMIN cho tài khoản Google: ${googleAdminEmail}`);
+      }
+
       // Kiểm tra admin đã tồn tại chưa
       const existingAdmin = await this.userModel.findOne({ email: adminEmail }).exec();
       if (existingAdmin) {
@@ -199,27 +208,33 @@ export class SeedService {
     }
   }
 
-  async seedSampleTransactions(): Promise<void> {
+  async purgeSampleTransactions(): Promise<void> {
     try {
-      const users = await this.userModel.find().exec();
-      for (const user of users) {
-        for (const item of SAMPLE_TRANSACTIONS) {
-          const exists = await this.transactionModel.findOne({
-            user: user._id,
-            title: item.title,
-            date: item.date,
-          });
-          if (!exists) {
-            await this.transactionModel.create({
-              ...item,
-              user: user._id,
-            });
-          }
-        }
+      const sampleTitles = [
+        'Cà phê sữa đá',
+        'Caesar Salad Bò áp chảo',
+        'Combo Lẩu Bò Cà Chua',
+        'Bánh Tart Dâu & Trà Đào',
+        'Phở bò tái lăn đặc biệt',
+        'Tô bún bò thập cẩm chả cua',
+        'Freeze Trà Xanh cỡ lớn',
+        'Cơm niêu xá xíu & Canh chua',
+        'Đổ xăng Ron 95',
+        'Pizza 4 Cheese & Salad bơ',
+        'Nước ép cam tươi',
+        'Thực phẩm tươi sống & Rau củ',
+      ];
+      const res = await this.transactionModel.deleteMany({
+        $or: [
+          { title: { $in: sampleTitles } },
+          { photoUri: { $regex: 'unsplash.com' } },
+        ],
+      }).exec();
+      if (res.deletedCount > 0) {
+        this.logger.log(`🧹 Đã xóa sạch triệt để ${res.deletedCount} giao dịch mẫu giả khỏi MongoDB cho tất cả tài khoản!`);
       }
-      this.logger.log('✅ Đã kiểm tra và đồng bộ chi tiêu mẫu cho tất cả tài khoản');
     } catch (err: any) {
-      this.logger.error(`Lỗi khi seed giao dịch mẫu: ${err.message}`);
+      this.logger.error(`Lỗi khi dọn dẹp giao dịch mẫu: ${err.message}`);
     }
   }
 }

@@ -219,9 +219,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   const greetingSub = React.useMemo(() => {
     const h = new Date().getHours();
-    if (h < 12) return isVi ? 'Chào buổi sáng,' : 'Good morning,';
-    if (h < 18) return isVi ? 'Chào buổi chiều,' : 'Good afternoon,';
-    return isVi ? 'Chào buổi tối,' : 'Good evening,';
+    if (h >= 5 && h < 11) return isVi ? 'Chào buổi sáng,' : 'Good morning,';
+    if (h >= 11 && h < 14) return isVi ? 'Chào buổi trưa,' : 'Good noon,';
+    if (h >= 14 && h < 18) return isVi ? 'Chào buổi chiều,' : 'Good afternoon,';
+    if (h >= 18 && h < 22) return isVi ? 'Chào buổi tối,' : 'Good evening,';
+    return isVi ? 'Chào bạn đêm muộn,' : 'Late night greetings,';
   }, [isVi]);
 
   // Tính số ngày còn lại trong tháng và gợi ý chi an toàn hàng ngày

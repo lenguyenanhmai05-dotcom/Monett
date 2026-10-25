@@ -2412,6 +2412,7 @@ const styles = StyleSheet.create({
     color: '#1E293B',
   },
 
+
   // Terms Footer
   termsFooter: {
     marginTop: 6,

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { playNotificationSound } from '../utils/soundUtils';
+import { sendBrowserNotification } from '../utils/browserNotification';
 import { useAuth } from './AuthContext';
 import { getStreakApi, getFriendRequestsApi } from '../services/api';
 
@@ -102,43 +102,13 @@ export const sanitizeNotifications = (list: AppNotification[], streak: number = 
     });
   }
 
-  // Đảm bảo luôn có thông báo lời nhắc "Xíu nữa đi chợ mua cá & rau tươi" lên chuông thông báo
-  const hasMarketReminder = result.some(
-    (n) => n.id === 'seed-notif-reminder' || n.title.includes('mua cá & rau tươi') || n.message.includes('mua cá & rau tươi')
+  // Lọc bỏ các thông báo mẫu cũ không còn dùng (ví dụ: sample reminder mua cá & rau tươi)
+  return result.filter(
+    (n) => n.id !== 'seed-notif-reminder' && !n.title.includes('mua cá & rau tươi') && !n.message.includes('mua cá & rau tươi')
   );
-  if (!hasMarketReminder) {
-    result.unshift({
-      id: 'seed-notif-reminder',
-      type: 'reminder',
-      title: 'Nhắc nhở: Xíu nữa đi chợ mua cá & rau tươi ⏰',
-      message: 'Đã đến giờ nhắc nhở (17:30 - Báo trước 10 phút). Đừng quên ghé chợ mua cá và rau tươi cho bữa tối nhé!',
-      createdAt: new Date().toISOString(),
-      read: false,
-      iconBg: '#EDE9FE',
-      iconColor: '#7C3AED',
-      metadata: {
-        targetTab: 'home',
-      },
-    });
-  }
-
-  return result;
 };
 
 const INITIAL_NOTIFICATIONS: AppNotification[] = [
-  {
-    id: 'seed-notif-reminder',
-    type: 'reminder',
-    title: 'Nhắc nhở: Xíu nữa đi chợ mua cá & rau tươi ⏰',
-    message: 'Đã đến giờ nhắc nhở (17:30 - Báo trước 10 phút). Đừng quên ghé chợ mua cá và rau tươi cho bữa tối nhé!',
-    createdAt: new Date().toISOString(),
-    read: false,
-    iconBg: '#EDE9FE',
-    iconColor: '#7C3AED',
-    metadata: {
-      targetTab: 'home',
-    },
-  },
   {
     id: 'seed-notif-1',
     type: 'friend',
@@ -376,9 +346,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     setNotifications((prev) => [newNotif, ...prev]);
 
-    // Tự động phát âm thanh chuông "ting ting" khi có thông báo mới
+    // Gửi Web Browser Notification khi có thông báo mới (không kèm âm thanh)
     if (!newNotif.read) {
-      playNotificationSound();
+      sendBrowserNotification(newNotif.title, {
+        body: newNotif.message,
+        playSound: false,
+      });
     }
 
     return newNotif;
@@ -411,7 +384,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 iconColor: '#059669',
                 metadata: { targetTab: 'home' },
               });
-              playNotificationSound();
             }
           }
         }

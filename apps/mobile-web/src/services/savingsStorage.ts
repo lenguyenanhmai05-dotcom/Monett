@@ -28,42 +28,31 @@ export const getFutureDateFormatted = (daysFromNow: number): string => {
   return `${dd}/${mm}/${yyyy}`;
 };
 
-export const INITIAL_SAVINGS_GOALS: ISavingsGoal[] = [
-  {
-    id: 'goal-sample-1',
-    title: 'Du văn lịch',
-    targetAmount: 2000000,
-    currentAmount: 0,
-    deadline: getFutureDateFormatted(6), // Còn đúng 6 ngày như trong ảnh mẫu
-    note: 'Chuyến đi du lịch nghỉ dưỡng cùng bạn bè',
-    icon: 'flag-outline',
-    color: '#0284C7',
-    createdAt: new Date().toISOString(),
-    deposits: [],
-  },
-];
+export const INITIAL_SAVINGS_GOALS: ISavingsGoal[] = [];
 
 const STORAGE_PREFIX = '@monett_savings_goals_';
 
 export const loadSavingsGoals = (userId?: string): ISavingsGoal[] => {
   if (typeof window === 'undefined' || !window.localStorage) {
-    return INITIAL_SAVINGS_GOALS;
+    return [];
   }
   try {
     const key = `${STORAGE_PREFIX}${userId || 'guest'}`;
     const raw = window.localStorage.getItem(key);
     if (!raw) {
-      window.localStorage.setItem(key, JSON.stringify(INITIAL_SAVINGS_GOALS));
-      return INITIAL_SAVINGS_GOALS;
+      return [];
     }
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
+    if (Array.isArray(parsed)) {
+      const cleaned = parsed.filter((g) => g && g.id !== 'goal-sample-1');
+      if (cleaned.length !== parsed.length) {
+        saveSavingsGoals(cleaned, userId);
+      }
+      return cleaned;
     }
-    window.localStorage.setItem(key, JSON.stringify(INITIAL_SAVINGS_GOALS));
-    return INITIAL_SAVINGS_GOALS;
+    return [];
   } catch {
-    return INITIAL_SAVINGS_GOALS;
+    return [];
   }
 };
 

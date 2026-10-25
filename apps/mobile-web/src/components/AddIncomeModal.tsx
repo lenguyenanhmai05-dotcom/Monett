@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,15 @@ import {
   PRESET_INCOME_TITLES,
 } from './IncomeCategorySvgIcon';
 import { addIncomeRecord, IncomeCategoryType } from '../services/incomeStorage';
+
+export const PRESET_INCOME_AMOUNTS = [
+  { label: '500K', value: 500000 },
+  { label: '1Tr', value: 1000000 },
+  { label: '2Tr', value: 2000000 },
+  { label: '5Tr', value: 5000000 },
+  { label: '10Tr', value: 10000000 },
+  { label: '20Tr', value: 20000000 },
+];
 
 interface AddIncomeModalProps {
   visible: boolean;
@@ -40,9 +49,20 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
   const [date, setDate] = useState<string>(todayStr);
   const [note, setNote] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const inputRef = useRef<TextInput>(null);
 
   const numericAmount = parseInt(rawAmount.replace(/\D/g, '') || '0', 10);
   const formattedDisplay = numericAmount > 0 ? numericAmount.toLocaleString('vi-VN') : '0';
+  // Đảm bảo chiều rộng textinput ôm sát các chữ số để dấu + và chữ đ luôn sát bên cạnh
+  const inputWidth = Math.max(38, formattedDisplay.length * 20 + 8);
+
+  const handleSelectPresetAmount = (val: number) => {
+    if (numericAmount === val) {
+      setRawAmount('');
+    } else {
+      setRawAmount(String(val));
+    }
+  };
 
   const handleAmountChange = (text: string) => {
     const cleaned = text.replace(/\D/g, '');
@@ -133,10 +153,16 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
             {/* ================= 1. SỐ TIỀN THU VÀO ================= */}
             <View style={styles.amountBox}>
               <Text style={styles.amountLabel}>SỐ TIỀN THU VÀO</Text>
-              <View style={styles.amountInputRow}>
+              
+              <TouchableOpacity
+                activeOpacity={1}
+                onPress={() => inputRef.current?.focus()}
+                style={styles.amountInputRow}
+              >
                 <Text style={styles.amountPlusSign}>+</Text>
                 <TextInput
-                  style={styles.amountInput}
+                  ref={inputRef}
+                  style={[styles.amountInput, { width: inputWidth }]}
                   value={rawAmount ? numericAmount.toLocaleString('vi-VN') : ''}
                   onChangeText={handleAmountChange}
                   placeholder="0"
@@ -146,6 +172,42 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
                   selectTextOnFocus={true}
                 />
                 <Text style={styles.amountCurrency}>đ</Text>
+              </TouchableOpacity>
+
+              {/* Các nút chọn số tiền nhanh */}
+              <View style={styles.presetAmountsRow}>
+                {PRESET_INCOME_AMOUNTS.map((preset) => {
+                  const isSelected = numericAmount === preset.value;
+                  return (
+                    <TouchableOpacity
+                      key={preset.label}
+                      style={[
+                        styles.presetAmountChip,
+                        isSelected && styles.presetAmountChipSelected,
+                      ]}
+                      onPress={() => handleSelectPresetAmount(preset.value)}
+                      activeOpacity={0.75}
+                    >
+                      <Text
+                        style={[
+                          styles.presetAmountText,
+                          isSelected && styles.presetAmountTextSelected,
+                        ]}
+                      >
+                        {preset.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                {numericAmount > 0 && (
+                  <TouchableOpacity
+                    style={[styles.presetAmountChip, styles.presetAmountChipClear]}
+                    onPress={() => setRawAmount('')}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={styles.presetAmountTextClear}>Xóa</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
 
@@ -292,8 +354,10 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
   },
   backdrop: {
     position: 'absolute',
@@ -304,17 +368,21 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    borderRadius: 24,
+    width: '100%',
+    maxWidth: 520,
     maxHeight: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 10,
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 22,
+    shadowColor: '#064E3B',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+    elevation: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
   },
   headerRow: {
     flexDirection: 'row',
@@ -365,20 +433,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'center',
+    paddingVertical: 2,
   },
   amountPlusSign: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '900',
     color: '#059669',
-    marginRight: 4,
+    marginRight: 6,
   },
   amountInput: {
-    fontSize: 32,
+    fontSize: 34,
     fontWeight: '900',
     color: '#047857',
-    minWidth: 80,
     textAlign: 'center',
     padding: 0,
+    margin: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    outlineStyle: 'none' as any,
     letterSpacing: -0.5,
   },
   amountCurrency: {
@@ -386,26 +459,55 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#059669',
     marginLeft: 6,
+    paddingBottom: 2,
   },
   presetAmountsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 12,
+    gap: 8,
+    marginTop: 14,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   presetAmountChip: {
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
+    borderWidth: 1.2,
     borderColor: '#A7F3D0',
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 18,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  presetAmountChipSelected: {
+    backgroundColor: '#059669',
+    borderColor: '#047857',
+    shadowColor: '#047857',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  presetAmountChipClear: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
   },
   presetAmountText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: '#047857',
+  },
+  presetAmountTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  presetAmountTextClear: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#DC2626',
   },
 
   // 2. Section Block

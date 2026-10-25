@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, useState, useRef, useCallb
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { getBaseUrl } from '../services/api';
-import { playNotificationSound, playMessageSentSound } from '../utils/soundUtils';
 
 export interface SocketMessagePayload {
   _id: string;
@@ -148,12 +147,6 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           [String(msg.sender)]: false,
         }));
       }
-
-      // Phát tiếng chuông ting ting khi nhận tin nhắn từ người khác
-      const myId = String(userRef.current?.id || (userRef.current as any)?._id || '');
-      if (msg?.sender && String(msg.sender) !== myId) {
-        playNotificationSound();
-      }
     });
 
     return () => {
@@ -195,7 +188,6 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           { receiverId, text, type, billData },
           (response: any) => {
             if (response?.success && response?.data) {
-              playMessageSentSound();
               resolve(response.data);
             } else {
               resolve(null);

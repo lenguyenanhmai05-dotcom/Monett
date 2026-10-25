@@ -25,7 +25,6 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 import * as ImagePicker from 'expo-image-picker';
 import QRCode from 'react-qr-code';
-import { playNotificationSound } from '../../utils/soundUtils';
 import {
   getMomentsFeedApi,
   reactMomentApi,
@@ -157,7 +156,6 @@ export const MomentCard = ({
       }
 
       setReplyText('');
-      playNotificationSound();
       showToast(`Đã gửi qua tin nhắn cho ${item.user?.name || 'bạn'}! 💬`);
     } catch (e: any) {
       Alert.alert('Lỗi', e.message || 'Không thể gửi phản hồi');
@@ -1143,13 +1141,6 @@ export const MomentChatModal = ({
 
   const comments = moment?.comments || [];
 
-  useEffect(() => {
-    if (visible && comments.length > previousCommentsLength.current && previousCommentsLength.current > 0) {
-      playNotificationSound();
-    }
-    previousCommentsLength.current = comments.length;
-  }, [comments.length, visible]);
-
   if (!moment) return null;
 
   const handleSend = async () => {
@@ -1172,7 +1163,6 @@ export const MomentChatModal = ({
       }
 
       setText('');
-      playNotificationSound();
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
       }, 100);

@@ -4,6 +4,18 @@ import { Model } from 'mongoose';
 import { User, UserDocument } from './schemas/user.schema';
 import { Moment, MomentDocument } from '../moments/schemas/moment.schema';
 
+import { UserRole } from '@monett/shared';
+
+const ADMIN_EMAILS = [
+  'lenguyenanhmai05@gmail.com',
+  (process.env.ADMIN_EMAIL || 'admin@monett.vn').toLowerCase().trim(),
+];
+
+export const isSystemAdminEmail = (email?: string): boolean => {
+  if (!email) return false;
+  return ADMIN_EMAILS.includes(email.toLowerCase().trim());
+};
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -17,15 +29,30 @@ export class UsersService {
   }
 
   async findByEmail(email: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ email: email.toLowerCase().trim() }).exec();
+    const user = await this.userModel.findOne({ email: email.toLowerCase().trim() }).exec();
+    if (user && isSystemAdminEmail(user.email) && user.role !== UserRole.ADMIN) {
+      user.role = UserRole.ADMIN;
+      await user.save();
+    }
+    return user;
   }
 
   async findById(id: string): Promise<UserDocument | null> {
-    return this.userModel.findById(id).exec();
+    const user = await this.userModel.findById(id).exec();
+    if (user && isSystemAdminEmail(user.email) && user.role !== UserRole.ADMIN) {
+      user.role = UserRole.ADMIN;
+      await user.save();
+    }
+    return user;
   }
 
   async findByGoogleId(googleId: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ googleId }).exec();
+    const user = await this.userModel.findOne({ googleId }).exec();
+    if (user && isSystemAdminEmail(user.email) && user.role !== UserRole.ADMIN) {
+      user.role = UserRole.ADMIN;
+      await user.save();
+    }
+    return user;
   }
 
   async findOrCreateGoogleUser(data: {
@@ -35,12 +62,21 @@ export class UsersService {
     avatarUrl?: string;
   }): Promise<UserDocument> {
     const normalizedEmail = data.email.toLowerCase().trim();
+    const shouldBeAdmin = isSystemAdminEmail(normalizedEmail);
 
     // 1. Tìm theo googleId trước
     let user = await this.findByGoogleId(data.googleId);
     if (user) {
+      let needsSave = false;
       if (data.avatarUrl && !user.avatarUrl) {
         user.avatarUrl = data.avatarUrl;
+        needsSave = true;
+      }
+      if (shouldBeAdmin && user.role !== UserRole.ADMIN) {
+        user.role = UserRole.ADMIN;
+        needsSave = true;
+      }
+      if (needsSave) {
         await user.save();
       }
       return user;
@@ -53,6 +89,9 @@ export class UsersService {
       if (data.avatarUrl && !user.avatarUrl) {
         user.avatarUrl = data.avatarUrl;
       }
+      if (shouldBeAdmin && user.role !== UserRole.ADMIN) {
+        user.role = UserRole.ADMIN;
+      }
       return user.save();
     }
 
@@ -64,6 +103,7 @@ export class UsersService {
       googleId: data.googleId,
       authProvider: 'google',
       currency: 'VND',
+      role: shouldBeAdmin ? UserRole.ADMIN : UserRole.USER,
     });
   }
 
