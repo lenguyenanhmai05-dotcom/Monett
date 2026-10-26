@@ -66,7 +66,8 @@ function extractTxItemsFromDayRecords(
       rec.items.forEach((it: any) => {
         if (!it) return;
         const amt = it.amount || 0;
-        const isIncome = it.type === 'income' || amt > 0;
+        // Day records represent expenses by design unless explicitly marked as income
+        const isIncome = it.type === 'income';
         const time = formatExpenseUploadTime(it);
 
         const uploadD = getUploadTimestamp(it);
@@ -120,7 +121,7 @@ function formatBackendTransactions(
 ): Array<TxItem & { timestamp: number }> {
   return (txList || []).map((it: any) => {
     const rawAmt = Number(it.amount) || 0;
-    const isIncome = it.type === 'income' || rawAmt > 0;
+    const isIncome = it.type === 'income' || (rawAmt > 0 && it.type !== 'expense');
     const dateObj = it.date ? new Date(it.date) : (it.createdAt ? new Date(it.createdAt) : new Date());
     const timeStr = !isNaN(dateObj.getTime())
       ? dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
@@ -266,39 +267,40 @@ export const RecentTransactionsWidget: React.FC<RecentTransactionsWidgetProps> =
             const initialChar = (item.title || 'Đ').charAt(0).toUpperCase();
 
             return (
-              <View
-                key={item.id || idx}
-                style={[
-                  styles.itemRow,
-                  idx < displayItems.length - 1 && styles.itemRowBorder,
-                ]}
-              >
-                {/* Avatar tròn màu vàng pastel khớp mobile */}
-                <View style={styles.avatarCircle}>
-                  <Text style={styles.avatarText}>
-                    {item.categoryIcon && item.categoryIcon.length === 1 ? item.categoryIcon : initialChar}
+              <React.Fragment key={item.id || idx}>
+                <View style={styles.itemRow}>
+                  {/* Avatar tròn màu vàng pastel khớp mobile */}
+                  <View style={styles.avatarCircle}>
+                    <Text style={styles.avatarText}>
+                      {item.categoryIcon && item.categoryIcon.length === 1 ? item.categoryIcon : initialChar}
+                    </Text>
+                  </View>
+
+                  {/* Thông tin giao dịch */}
+                  <View style={styles.itemInfo}>
+                    <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={styles.itemMeta}>
+                      {item.category} · {item.date || (isVi ? 'Hôm qua' : 'Yesterday')}
+                    </Text>
+                  </View>
+
+                  {/* Số tiền */}
+                  <Text
+                    style={[
+                      styles.itemAmount,
+                      { color: isExpense ? '#DC2626' : '#047857' },
+                    ]}
+                  >
+                    {isExpense ? '-' : '+'}
+                    {Math.abs(item.amount).toLocaleString('vi-VN')} đ
                   </Text>
                 </View>
 
-                {/* Thông tin giao dịch */}
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemTitle} numberOfLines={1}>{item.title}</Text>
-                  <Text style={styles.itemMeta}>
-                    {item.category} · {item.date || (isVi ? 'Hôm qua' : 'Yesterday')}
-                  </Text>
-                </View>
-
-                {/* Số tiền */}
-                <Text
-                  style={[
-                    styles.itemAmount,
-                    { color: isExpense ? '#DC2626' : '#047857' },
-                  ]}
-                >
-                  {isExpense ? '-' : '+'}
-                  {Math.abs(item.amount).toLocaleString('vi-VN')} đ
-                </Text>
-              </View>
+                {/* Đường phân cách chuẩn xác - Đảm bảo không bao giờ bị dính hàng */}
+                {idx < displayItems.length - 1 && (
+                  <View style={styles.rowDivider} />
+                )}
+              </React.Fragment>
             );
           })
         )}
@@ -392,19 +394,19 @@ const styles = StyleSheet.create({
   },
   bodyContent: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 8,
     backgroundColor: '#FFFFFF',
     flex: 1,
   },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 11,
   },
-  itemRowBorder: {
-    paddingBottom: 12,
-    marginBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+  rowDivider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    width: '100%',
   },
   avatarCircle: {
     width: 44,

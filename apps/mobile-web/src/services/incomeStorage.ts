@@ -244,3 +244,49 @@ export function subscribeIncomeUpdates(callback: (records: IncomeRecord[]) => vo
     window.removeEventListener('storage', handleStorage);
   };
 }
+
+/**
+ * Đồng bộ danh sách các khoản thu nhập từ các giao dịch trên MongoDB Backend
+ */
+export function syncIncomesFromBackendTransactions(
+  txList: any[],
+  userId?: string
+): IncomeRecord[] {
+  if (!Array.isArray(txList) || txList.length === 0) return getIncomeRecords(userId);
+
+  const incomeTxs = txList.filter(
+    (t) => t && (t.type === 'income' || (t.amount && Number(t.amount) > 0 && t.type !== 'expense'))
+  );
+
+  if (incomeTxs.length === 0) return getIncomeRecords(userId);
+
+  const existing = getIncomeRecords(userId);
+  const existingMap = new Map<string, IncomeRecord>();
+  existing.forEach((r) => {
+    if (r.id) existingMap.set(r.id, r);
+  });
+
+  incomeTxs.forEach((t) => {
+    const id = String(t._id || t.id);
+    const dateObj = t.date ? new Date(t.date) : (t.createdAt ? new Date(t.createdAt) : new Date());
+    const dateStr = !isNaN(dateObj.getTime())
+      ? dateObj.toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0];
+
+    const rec: IncomeRecord = {
+      id,
+      title: t.title || t.note || 'Thu nhập',
+      amount: Math.abs(Number(t.amount) || 0),
+      category: t.category || 'Lương',
+      date: dateStr,
+      note: t.note || '',
+      createdAt: isNaN(dateObj.getTime()) ? Date.now() : dateObj.getTime(),
+    };
+    existingMap.set(id, rec);
+  });
+
+  const merged = Array.from(existingMap.values()).sort((a, b) => b.createdAt - a.createdAt);
+  saveIncomeRecords(merged, userId);
+  syncIncomeWithBudget(merged);
+  return merged;
+}

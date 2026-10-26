@@ -658,6 +658,8 @@ export function mergeTransactionsIntoDayRecords(
       amount: Math.abs(tx.amount || 0),
       category: tx.category || 'Ăn uống',
       categoryIcon: tx.categoryIcon || '🍜',
+      title: tx.title || tx.note || '',
+      type: (tx.type || 'expense') as 'expense' | 'income',
       note: tx.note || tx.title || '',
       photoUri: tx.photoUri || undefined,
       createdAt: tx.createdAt || (getUploadTimestamp(tx) ? getUploadTimestamp(tx)!.toISOString() : d.toISOString()),
@@ -772,6 +774,8 @@ export interface ExpenseItem {
   amount: number;
   category: string;
   categoryIcon: string;
+  title?: string;
+  type?: 'expense' | 'income';
   note?: string;
   photoUri?: string;
   createdAt: string;

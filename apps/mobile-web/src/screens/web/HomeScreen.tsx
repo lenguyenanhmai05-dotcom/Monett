@@ -26,10 +26,15 @@ import {
   getTotalIncomeForMonth,
   subscribeIncomeUpdates,
   syncIncomeWithBudget,
+  syncIncomesFromBackendTransactions,
 } from '../../services/incomeStorage';
 import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
 import { loadRecurringItems, getFrequencyLabel } from '../../services/recurringStorage';
-import { loadEventsFromStorage } from '../../services/eventsStorage';
+import {
+  loadEventsFromStorage,
+  saveEventsToStorage,
+  MonettEvent,
+} from '../../services/eventsStorage';
 import {
   getBudgetApi,
   BudgetData,
@@ -38,6 +43,7 @@ import {
   updateTransactionApi,
   deleteTransactionApi,
   uploadReceiptApi,
+  getEventsApi,
 } from '../../services/api';
 import {
   compressImageFile,
@@ -62,6 +68,8 @@ export interface ExpenseItem {
   amount: number;
   category: string;
   categoryIcon: string;
+  title?: string;
+  type?: 'expense' | 'income';
   note?: string;
   photoUri?: string;
   createdAt: string;
@@ -981,9 +989,43 @@ const HomeRecurringEventsRow: React.FC<{
     }, 0);
   }, [recurringItems]);
 
-  const events = React.useMemo(() => {
-    return loadEventsFromStorage().slice(0, 3);
-  }, []);
+  const [events, setEvents] = useState<MonettEvent[]>(() => {
+    return loadEventsFromStorage(userEmail, userId).slice(0, 3);
+  });
+
+  const fetchEvents = useCallback(async () => {
+    try {
+      const apiEvents = await getEventsApi();
+      if (Array.isArray(apiEvents) && apiEvents.length > 0) {
+        setEvents(apiEvents.slice(0, 3));
+        saveEventsToStorage(apiEvents, userEmail, userId);
+      } else {
+        const local = loadEventsFromStorage(userEmail, userId);
+        setEvents(local.slice(0, 3));
+      }
+    } catch {
+      const local = loadEventsFromStorage(userEmail, userId);
+      setEvents(local.slice(0, 3));
+    }
+  }, [userEmail, userId]);
+
+  useEffect(() => {
+    fetchEvents();
+
+    const handleUpdate = () => {
+      fetchEvents();
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('monett:events_updated', handleUpdate);
+      window.addEventListener('focus', handleUpdate);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('monett:events_updated', handleUpdate);
+        window.removeEventListener('focus', handleUpdate);
+      }
+    };
+  }, [fetchEvents]);
 
   const formatItemAmount = (amount: number) => {
     if (amount >= 1000 && amount % 1000 === 0 && amount < 1000000) {
@@ -1853,6 +1895,8 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
       const res: any = await getTransactionsApi({ limit: 500 });
       const txList = Array.isArray(res) ? res : (res?.data || res?.items || []);
       if (Array.isArray(txList)) {
+        // Tự động đồng bộ các khoản thu nhập từ MongoDB vào incomeStorage
+        syncIncomesFromBackendTransactions(txList, currentUserId);
         // Xây dựng tập dữ liệu chính xác 100% của riêng user này từ MongoDB
         const built = buildDayRecordsFromTransactions(txList);
         setDayRecords(built);

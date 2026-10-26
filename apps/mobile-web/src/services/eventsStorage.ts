@@ -309,6 +309,7 @@ export const saveEventsToStorage = (events: MonettEvent[], userEmail?: string, u
       const normEmail = (userEmail || '').trim().toLowerCase();
       const key = getEventsStorageKey(normEmail, userId);
       window.localStorage.setItem(key, JSON.stringify(events));
+      window.dispatchEvent(new CustomEvent('monett:events_updated', { detail: events }));
     }
   } catch (err) {
     console.warn('Lỗi lưu sự kiện vào localStorage:', err);
