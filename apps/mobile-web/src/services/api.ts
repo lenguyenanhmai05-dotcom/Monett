@@ -555,6 +555,12 @@ export const addMomentCommentApi = async (momentId: string, text: string): Promi
   return res;
 };
 
+export const getMomentCommentsApi = async (momentId: string): Promise<{ momentId: string; comments: any[]; commentsCount: number }> => {
+  const res = await request<any>(`/api/moments/${momentId}/comments`);
+  const data = (res as any)?.data !== undefined ? (res as any).data : res;
+  return data;
+};
+
 export const getStreakApi = async () => {
   const res = await request<{ streak: number; lastActiveDate: string; activeToday: boolean }>('/api/users/streak');
   return res;
@@ -870,10 +876,10 @@ export const getMessagesApi = async (friendId: string): Promise<any> => {
   return (res as any).data || res;
 };
 
-export const sendMessageApi = async (receiverId: string, text: string): Promise<any> => {
+export const sendMessageApi = async (receiverId: string, text: string, imageUrl?: string): Promise<any> => {
   const res = await request<any>('/api/messages', {
     method: 'POST',
-    body: JSON.stringify({ receiverId, text }),
+    body: JSON.stringify({ receiverId, text, imageUrl }),
   });
   return (res as any).data || res;
 };
@@ -1093,4 +1099,92 @@ export const deleteAdminMomentApi = async (momentId: string): Promise<{ success:
   const data = (res as any)?.data !== undefined ? (res as any).data : res;
   return data as { success: boolean; message?: string };
 };
+
+// ================= EVENT APIS (SỰ KIỆN & LỜI MỜI) =================
+export const getEventsApi = async (): Promise<any[]> => {
+  try {
+    const res = await request<any>('/api/events');
+    const data = (res as any)?.data !== undefined ? (res as any).data : res;
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.warn('Lỗi gọi getEventsApi:', err);
+    return [];
+  }
+};
+
+export const getEventByIdApi = async (id: string): Promise<any | null> => {
+  try {
+    const res = await request<any>(`/api/events/${id}`);
+    const data = (res as any)?.data !== undefined ? (res as any).data : res;
+    return data || null;
+  } catch (err) {
+    console.warn('Lỗi gọi getEventByIdApi:', err);
+    return null;
+  }
+};
+
+export const createEventApi = async (eventData: any): Promise<any> => {
+  const res = await request<any>('/api/events', {
+    method: 'POST',
+    body: JSON.stringify(eventData),
+  });
+  return (res as any)?.data !== undefined ? (res as any).data : res;
+};
+
+export const updateEventApi = async (id: string, eventData: any): Promise<any> => {
+  const res = await request<any>(`/api/events/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(eventData),
+  });
+  return (res as any)?.data !== undefined ? (res as any).data : res;
+};
+
+export const deleteEventApi = async (id: string): Promise<{ success: boolean; message?: string }> => {
+  const res = await request<any>(`/api/events/${id}`, {
+    method: 'DELETE',
+  });
+  return (res as any)?.data !== undefined ? (res as any).data : res;
+};
+
+export const inviteFriendToEventApi = async (
+  eventId: string,
+  recipient: { id: string; name: string; email?: string; avatarUrl?: string },
+): Promise<{ success: boolean; invite?: any; event?: any }> => {
+  const res = await request<any>(`/api/events/${eventId}/invite`, {
+    method: 'POST',
+    body: JSON.stringify({
+      recipientId: recipient.id,
+      recipientName: recipient.name,
+      recipientEmail: recipient.email,
+      avatarUrl: recipient.avatarUrl,
+    }),
+  });
+  return (res as any)?.data !== undefined ? (res as any).data : res;
+};
+
+export const getPendingEventInvitationsApi = async (): Promise<any[]> => {
+  try {
+    const res = await request<any>('/api/events/invitations/pending');
+    const data = (res as any)?.data !== undefined ? (res as any).data : res;
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.warn('Lỗi gọi getPendingEventInvitationsApi:', err);
+    return [];
+  }
+};
+
+export const acceptEventInvitationApi = async (inviteId: string): Promise<{ success: boolean; event?: any }> => {
+  const res = await request<any>(`/api/events/invitations/${inviteId}/accept`, {
+    method: 'POST',
+  });
+  return (res as any)?.data !== undefined ? (res as any).data : res;
+};
+
+export const declineEventInvitationApi = async (inviteId: string): Promise<{ success: boolean }> => {
+  const res = await request<any>(`/api/events/invitations/${inviteId}/decline`, {
+    method: 'POST',
+  });
+  return (res as any)?.data !== undefined ? (res as any).data : res;
+};
+
 

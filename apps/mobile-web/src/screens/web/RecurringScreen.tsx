@@ -157,16 +157,24 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
     }
   };
 
+  const userEmail = (user as any)?.email || '';
+  const userId = user?.id || (user as any)?._id || '';
+
   // Tab: 'expense' (Chi định kỳ) vs 'income' (Thu định kỳ)
   const [activeTab, setActiveTab] = useState<RecurringType>('expense');
 
   // Recurring Items State
-  const [items, setItems] = useState<RecurringItem[]>(() => loadRecurringItems(user?.id));
+  const [items, setItems] = useState<RecurringItem[]>(() => loadRecurringItems(userId, userEmail));
+
+  // Khi đổi tài khoản, load lại dữ liệu riêng của tài khoản đó
+  useEffect(() => {
+    setItems(loadRecurringItems(userId, userEmail));
+  }, [userId, userEmail]);
 
   // Sync to localStorage
   useEffect(() => {
-    saveRecurringItems(items, user?.id);
-  }, [items, user?.id]);
+    saveRecurringItems(items, userId, userEmail);
+  }, [items, userId, userEmail]);
 
   // Modal State for Create / Edit
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -307,17 +315,6 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
       {/* ================= 1. TIÊU ĐỀ TRANG ================= */}
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {(onBack || onNavigateToTab) && (
-            <TouchableOpacity
-              style={styles.backBtn}
-              onPress={handleBack}
-              activeOpacity={0.7}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              accessibilityLabel={isVi ? 'Quay lại' : 'Go back'}
-            >
-              <Ionicons name="chevron-back" size={24} color="#221D18" />
-            </TouchableOpacity>
-          )}
           <Text style={styles.screenHeading}>
             {isVi ? 'Định kỳ' : 'Recurring'}
           </Text>
@@ -377,7 +374,7 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
         /* HÌNH 1: GIAO DIỆN KHI CHƯA CÓ KHOẢN NÀO (EMPTY STATE) */
         <View style={styles.emptyCardContainer}>
           <View style={styles.emptyIconBadge}>
-            <SvgSync size={24} color="#221D18" />
+            <SvgSync size={24} color="#FFFFFF" />
           </View>
           <Text style={styles.emptyTitle}>
             {activeTab === 'expense'
@@ -447,11 +444,11 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
               </Text>
             </View>
 
-            {/* Card 3: Số khoản (#B7D9F2 - Xanh trời Sky Blue giống Sự kiện) */}
+            {/* Card 3: Số khoản (#FEF3C7 - Vàng nhạt thanh lịch) */}
             <View style={[styles.statCard, styles.statCardBlue, !isDesktop && styles.statCardMobile]}>
               <View style={styles.statCardHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <SvgBill size={15} color="#0369A1" />
+                  <SvgBill size={15} color="#B45309" />
                   <Text style={styles.statCardLabelBlue}>
                     {isVi ? 'Số khoản' : 'Items count'}
                   </Text>
@@ -799,7 +796,7 @@ const styles = StyleSheet.create({
   },
   screenHeading: {
     fontSize: 26,
-    fontWeight: '900',
+    fontWeight: '800',
     color: '#221D18',
     letterSpacing: -0.4,
   },
@@ -832,7 +829,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tabPillBtnActive: {
-    backgroundColor: '#F5D25F',
+    backgroundColor: '#064E3B',
   },
   tabPillBtnText: {
     fontSize: 16,
@@ -840,7 +837,7 @@ const styles = StyleSheet.create({
     color: '#57534E',
   },
   tabPillBtnTextActive: {
-    color: '#221D18',
+    color: '#FFFFFF',
     fontWeight: '800',
   },
   addRecurringBtn: {
@@ -884,7 +881,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#F5D25F',
+    backgroundColor: '#064E3B',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
@@ -950,13 +947,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   statCardDark: {
-    backgroundColor: '#221D18',
-    borderColor: '#221D18',
+    backgroundColor: '#064E3B',
+    borderColor: '#065F46',
     flex: 1,
+    shadowColor: '#064E3B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 3,
   },
   cardDarkDivider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     marginVertical: 6,
   },
   statCardMint: {
@@ -965,8 +967,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statCardBlue: {
-    backgroundColor: '#B7D9F2',
-    borderColor: '#93C5FD',
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
     flex: 1,
   },
   statCardHeader: {
@@ -974,8 +976,8 @@ const styles = StyleSheet.create({
   },
   statCardLabelDark: {
     fontSize: 12.5,
-    fontWeight: '700',
-    color: '#9E958A',
+    fontWeight: '800',
+    color: '#A7F3D0',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
@@ -994,8 +996,8 @@ const styles = StyleSheet.create({
   },
   statCardSubDark: {
     fontSize: 12.5,
-    fontWeight: '500',
-    color: '#9E958A',
+    fontWeight: '600',
+    color: '#A7F3D0',
   },
   statCardLabelMint: {
     fontSize: 13,
@@ -1018,20 +1020,20 @@ const styles = StyleSheet.create({
   statCardLabelBlue: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#B45309',
   },
   statCardValueBlue: {
     fontSize: 30,
     fontWeight: '900',
-    color: '#0369A1',
+    color: '#92400E',
     letterSpacing: -0.5,
     marginTop: 8,
     marginBottom: 4,
   },
   statCardSubBlue: {
     fontSize: 12.5,
-    fontWeight: '500',
-    color: '#075985',
+    fontWeight: '600',
+    color: '#B45309',
   },
 
   // Section Header

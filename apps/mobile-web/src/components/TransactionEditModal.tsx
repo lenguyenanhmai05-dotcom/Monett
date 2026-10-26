@@ -76,7 +76,7 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
   const [date, setDate] = useState('18/10/2026');
   const [category, setCategory] = useState('Ăn uống');
   const [note, setNote] = useState('');
-  const [payer, setPayer] = useState('Phong Tờ');
+  const [payer, setPayer] = useState(isVi ? 'Tôi' : 'Me');
 
   // Dropdown open/close
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
@@ -100,7 +100,7 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
         setDate(initialData.date || '18/10/2026');
         setCategory(initialData.category || (initialData.type === 'income' ? 'Lương' : 'Cafe'));
         setNote(initialData.note || '');
-        setPayer(initialData.payer || 'Phong Tờ');
+        setPayer(initialData.payer || (isVi ? 'Tôi' : 'Me'));
       } else {
         const today = new Date();
         const dd = String(today.getDate()).padStart(2, '0');
@@ -112,7 +112,7 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
         setDate(`${dd}/${mm}/${yyyy}`);
         setCategory('Ăn uống');
         setNote('');
-        setPayer('Phong Tờ');
+        setPayer(isVi ? 'Tôi' : 'Me');
       }
       setIsCategoryDropdownOpen(false);
       setIsDatePickerOpen(false);

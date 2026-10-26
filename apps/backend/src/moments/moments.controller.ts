@@ -102,6 +102,11 @@ export class MomentsController {
     return this.momentsService.getMomentReactions(momentId);
   }
 
+  @Get(':id/comments')
+  async getComments(@Param('id') momentId: string) {
+    return this.momentsService.getComments(momentId);
+  }
+
   @Post(':id/comments')
   async addComment(
     @Req() req,

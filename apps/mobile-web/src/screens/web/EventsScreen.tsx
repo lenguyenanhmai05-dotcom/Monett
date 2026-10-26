@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,12 +14,28 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   MonettEvent,
   EventExpenseItem,
   loadEventsFromStorage,
   saveEventsToStorage,
+  resetToRealEvents,
+  REAL_EVENTS_FOR_USER,
+  EventInvitation,
+  getPendingEventInvitationsForUser,
+  acceptEventInvitation,
+  declineEventInvitation,
 } from '../../services/eventsStorage';
+import {
+  getEventsApi,
+  createEventApi,
+  updateEventApi,
+  deleteEventApi,
+  getPendingEventInvitationsApi,
+  acceptEventInvitationApi,
+  declineEventInvitationApi,
+} from '../../services/api';
 import { CreateEventModal } from '../../components/CreateEventModal';
 import { EventDetailModal } from '../../components/EventDetailModal';
 import { EventDetailScreen } from './EventDetailScreen';
@@ -29,14 +45,14 @@ interface EventsScreenProps {
   onBack?: () => void;
 }
 
-// Pastel icon backgrounds matching the screenshot (Card 1: yellow, Card 2: baby blue, etc.)
+// Pastel icon backgrounds for category icon boxes
 const ICON_PALETTES = [
-  '#FCD34D', // Pastel Yellow (như thẻ 1 trong ảnh)
-  '#BAE6FD', // Pastel Sky Blue (như thẻ 2 trong ảnh)
-  '#FBCFE8', // Pastel Pink
-  '#DDD6FE', // Pastel Lavender
-  '#A7F3D0', // Pastel Mint
-  '#FED7AA', // Pastel Peach
+  '#FEF3C7', // Pastel Amber
+  '#E0E7FF', // Pastel Indigo
+  '#DCFCE7', // Pastel Emerald
+  '#FCE7F3', // Pastel Pink
+  '#E0F2FE', // Pastel Sky
+  '#F3E8FF', // Pastel Purple
 ];
 
 export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onBack }) => {
@@ -45,6 +61,9 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
   const { language } = useLanguage();
   const { isDark, colors } = useTheme();
   const { addNotification } = useNotifications();
+  const { user } = useAuth();
+  const userEmail = (user as any)?.email || '';
+  const userId = (user as any)?.id || (user as any)?._id || '';
   const isVi = language === 'vi';
 
   const handleBack = () => {
@@ -55,13 +74,141 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
     }
   };
 
-  // Events state
-  const [events, setEvents] = useState<MonettEvent[]>(() => loadEventsFromStorage());
+  // Events state - chỉ nạp dữ liệu thật nếu tài khoản là lenguyenanhmai113@gmail.com
+  const [events, setEvents] = useState<MonettEvent[]>(() =>
+    loadEventsFromStorage(userEmail, userId)
+  );
+
+  // Khi tài khoản người dùng thay đổi hoặc khi khởi động: nạp từ API & Local Storage
+  const fetchAllEvents = useCallback(async () => {
+    try {
+      const apiList = await getEventsApi();
+      if (Array.isArray(apiList) && apiList.length > 0) {
+        setEvents(apiList);
+        saveEventsToStorage(apiList, userEmail, userId);
+        return;
+      }
+    } catch {}
+    setEvents(loadEventsFromStorage(userEmail, userId));
+  }, [userEmail, userId]);
+
+  useEffect(() => {
+    fetchAllEvents();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('monett:events_updated', fetchAllEvents);
+      return () => {
+        window.removeEventListener('monett:events_updated', fetchAllEvents);
+      };
+    }
+  }, [fetchAllEvents]);
+
   const [filterStatus, setFilterStatus] = useState<'all' | 'ongoing' | 'upcoming' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Selected event for dedicated Detail Page view
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+
+  // Pending event invitations for this user
+  const [pendingInvitations, setPendingInvitations] = useState<EventInvitation[]>([]);
+
+  // Tự động làm mới và đồng bộ lời mời sự kiện từ cả Backend API và Local Storage
+  const refreshInvites = useCallback(async () => {
+    const localList = getPendingEventInvitationsForUser(userId, userEmail);
+    try {
+      const apiInvites = await getPendingEventInvitationsApi();
+      if (Array.isArray(apiInvites)) {
+        const combined = [...apiInvites];
+        localList.forEach((loc) => {
+          const exists = combined.some(
+            (c: any) => (c._id && c._id === loc.id) || (c.id && c.id === loc.id) || (c.eventId === loc.eventId && c.status === 'pending')
+          );
+          if (!exists) combined.push(loc);
+        });
+        setPendingInvitations(combined as any);
+        return;
+      }
+    } catch {}
+    setPendingInvitations(localList);
+  }, [userId, userEmail]);
+
+  useEffect(() => {
+    refreshInvites();
+    const interval = setInterval(refreshInvites, 3500);
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('monett:event_invitations_updated', refreshInvites);
+      return () => {
+        clearInterval(interval);
+        window.removeEventListener('monett:event_invitations_updated', refreshInvites);
+      };
+    }
+    return () => clearInterval(interval);
+  }, [refreshInvites]);
+
+  const handleAcceptInvite = async (invite: EventInvitation | any) => {
+    const inviteId = invite.id || invite._id;
+    try {
+      await acceptEventInvitationApi(inviteId);
+    } catch (e) {
+      console.warn('Lỗi gọi acceptEventInvitationApi:', e);
+    }
+
+    const joinedEvent = acceptEventInvitation(inviteId, {
+      id: userId,
+      email: userEmail,
+      fullName: (user as any)?.name || (user as any)?.fullName || 'Ánh Mai',
+    });
+
+    // Làm mới danh sách sự kiện từ API & Local
+    await fetchAllEvents();
+    refreshInvites();
+
+    if (joinedEvent || invite.eventData) {
+      const targetId = joinedEvent?.id || invite.eventId || invite.eventData?.id;
+      if (targetId) setSelectedEventId(targetId);
+
+      addNotification({
+        type: 'event',
+        title: isVi ? 'Tham gia thành công 🎉' : 'Joined Event 🎉',
+        message: isVi
+          ? `Bạn đã tham gia sự kiện "${invite.eventTitle || joinedEvent?.title}" cùng ${invite.inviterName}!`
+          : `You joined "${invite.eventTitle || joinedEvent?.title}" invited by ${invite.inviterName}!`,
+        iconBg: '#DCFCE7',
+        iconColor: '#059669',
+      });
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('monett:event_invitations_updated'));
+      window.dispatchEvent(new CustomEvent('monett:events_updated'));
+    }
+  };
+
+  const handleDeclineInvite = async (invite: EventInvitation | any) => {
+    const inviteId = invite.id || invite._id;
+    try {
+      await declineEventInvitationApi(inviteId);
+    } catch (e) {
+      console.warn('Lỗi gọi declineEventInvitationApi:', e);
+    }
+
+    declineEventInvitation(inviteId);
+    refreshInvites();
+
+    addNotification({
+      type: 'event',
+      title: isVi ? 'Đã từ chối lời mời' : 'Invite Declined',
+      message: isVi
+        ? `Đã từ chối lời mời tham gia "${invite.eventTitle}".`
+        : `Declined invite for "${invite.eventTitle}".`,
+      iconBg: '#F3F4F6',
+      iconColor: '#6B7280',
+    });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('monett:event_invitations_updated'));
+    }
+  };
 
   // Modals state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -77,10 +224,10 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
   const [expenseCategory, setExpenseCategory] = useState('Ăn uống');
   const [expenseCategoryIcon, setExpenseCategoryIcon] = useState('🍜');
 
-  // Sync to storage on state change
+  // Sync to storage on state change cho đúng tài khoản
   useEffect(() => {
-    saveEventsToStorage(events);
-  }, [events]);
+    saveEventsToStorage(events, userEmail, userId);
+  }, [events, userEmail, userId]);
 
   // Keep selectedDetailEvent in sync with events state
   useEffect(() => {
@@ -94,8 +241,24 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
   const totalEvents = events.length;
   const ongoingCount = events.filter((e) => e.status === 'ongoing').length;
   const upcomingCount = events.filter((e) => e.status === 'upcoming').length;
+  const completedCount = events.filter((e) => e.status === 'completed').length;
   const totalBudget = events.reduce((sum, e) => sum + (e.estimatedBudget || 0), 0);
   const totalSpent = events.reduce((sum, e) => sum + (e.spentAmount || 0), 0);
+  const budgetSpentRatio = totalBudget > 0 ? Math.min(100, Math.round((totalSpent / totalBudget) * 100)) : 0;
+  const activeEvent = events.find((e) => e.status === 'ongoing');
+
+  // Smart Category Emoji detection
+  const getEventEmoji = (title: string, location?: string) => {
+    const t = (title + ' ' + (location || '')).toLowerCase();
+    if (t.includes('đà lạt') || t.includes('thông') || t.includes('núi') || t.includes('rừng')) return '🌲';
+    if (t.includes('sinh nhật') || t.includes('birthday') || t.includes('tiệc') || t.includes('bbq')) return '🎂';
+    if (t.includes('cắm trại') || t.includes('camping') || t.includes('trekking') || t.includes('cát tiên')) return '🏕️';
+    if (t.includes('biển') || t.includes('phú quốc') || t.includes('vũng tàu') || t.includes('nha trang') || t.includes('hè')) return '🏖️';
+    if (t.includes('xe') || t.includes('roadtrip') || t.includes('phượt')) return '🚗';
+    if (t.includes('bay') || t.includes('du lịch') || t.includes('tour') || t.includes('flight')) return '✈️';
+    if (t.includes('hội') || t.includes('cưới') || t.includes('wedding')) return '🎉';
+    return '✨';
+  };
 
   // Filtered events
   const filteredEvents = events.filter((e) => {
@@ -311,19 +474,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
           <View style={styles.headerTitleRow}>
-            {/* Nút lùi ra (Back button) */}
-            {(onBack || onNavigateToTab) && (
-              <TouchableOpacity
-                style={styles.backBtn}
-                onPress={handleBack}
-                activeOpacity={0.7}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                accessibilityLabel={isVi ? 'Quay lại' : 'Go back'}
-              >
-                <Ionicons name="chevron-back" size={24} color={textPrimary} />
-              </TouchableOpacity>
-            )}
-
+            {/* ĐÃ BỎ NÚT < (HOẶC >) TRƯỚC CHỮ SỰ KIỆN THEO YÊU CẦU */}
             <Text style={[styles.headerTitle, { color: textPrimary }]}>
               {isVi ? 'Sự kiện' : 'Events'}
             </Text>
@@ -337,7 +488,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
           )}
         </View>
 
-        {/* Action Button: Nút Tạo Sự Kiện Mới / + Thêm khớp 100% hình 3 */}
+        {/* Action Button: Nút Tạo Sự Kiện Mới / + Thêm */}
         <TouchableOpacity
           style={styles.createEventBtn}
           onPress={() => {
@@ -353,7 +504,66 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
         </TouchableOpacity>
       </View>
 
-      {/* ================= OVERVIEW STATS CARDS (3 THẺ DÀI RA THẲNG HÀNG KHỚP 100% ẢNH 3) ================= */}
+      {/* ================= PENDING EVENT INVITATIONS BANNER ================= */}
+      {pendingInvitations.length > 0 && (
+        <View style={styles.inviteBannerContainer}>
+          {pendingInvitations.map((inv) => (
+            <View
+              key={inv.id}
+              style={[
+                styles.inviteBannerCard,
+                {
+                  backgroundColor: isDark ? '#1E293B' : '#FEF9C3',
+                  borderColor: isDark ? '#F59E0B' : '#FDE047',
+                },
+              ]}
+            >
+              <View style={styles.inviteBannerLeft}>
+                <View style={styles.inviteBannerIconWrap}>
+                  <Ionicons name="mail-unread" size={20} color="#D97706" />
+                </View>
+                <View style={styles.inviteBannerTextWrap}>
+                  <Text style={[styles.inviteBannerTitle, { color: textPrimary }]}>
+                    {isVi ? 'Lời mời tham gia sự kiện mới 📩' : 'New Event Invitation 📩'}
+                  </Text>
+                  <Text style={[styles.inviteBannerDesc, { color: textSecondary }]}>
+                    <Text style={{ fontWeight: '700', color: textPrimary }}>{inv.inviterName}</Text>{' '}
+                    {isVi ? 'đã mời bạn tham gia sự kiện' : 'invited you to join'}{' '}
+                    <Text style={{ fontWeight: '700', color: textPrimary }}>"{inv.eventTitle}"</Text>
+                    {inv.eventLocation ? ` • 📍 ${inv.eventLocation}` : ''}
+                    {inv.eventStartDate ? ` (${inv.eventStartDate})` : ''}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.inviteBannerActions}>
+                <TouchableOpacity
+                  style={styles.inviteAcceptBtn}
+                  onPress={() => handleAcceptInvite(inv)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                  <Text style={styles.inviteAcceptBtnText}>
+                    {isVi ? 'Chấp nhận & Vào sự kiện' : 'Accept & Join'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.inviteDeclineBtn, { borderColor: isDark ? '#475569' : '#D1D5DB' }]}
+                  onPress={() => handleDeclineInvite(inv)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.inviteDeclineBtnText, { color: textSecondary }]}>
+                    {isVi ? 'Từ chối' : 'Decline'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* ================= OVERVIEW STATS CARDS (3 THẺ DÀI RA THẲNG HÀNG) ================= */}
       <View style={[styles.statsGrid, !isDesktop && styles.statsGridMobile]}>
         {/* Card 1: ĐANG / SẮP TỚI (#221D18 - Thẻ đen/nâu dài ra full width) */}
         <View style={[styles.statCard, styles.cardDark, !isDesktop && styles.statCardMobile]}>
@@ -371,8 +581,8 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
           <View style={styles.cardDarkDivider} />
           <Text style={styles.cardDarkSub}>
             {isVi
-              ? `${ongoingCount} đang diễn ra • ${upcomingCount} sắp tới • ${events.filter((e) => e.status === 'completed').length} đã xong`
-              : `${ongoingCount} ongoing • ${upcomingCount} upcoming • ${events.filter((e) => e.status === 'completed').length} done`}
+              ? `${ongoingCount} đang diễn ra • ${upcomingCount} sắp tới • ${completedCount} đã xong`
+              : `${ongoingCount} ongoing • ${upcomingCount} upcoming • ${completedCount} done`}
           </Text>
         </View>
 
@@ -390,10 +600,10 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
           </Text>
         </View>
 
-        {/* Card 3: Ngân sách (#B7D9F2 - Thẻ xanh trời dài ra full width) */}
+        {/* Card 3: Ngân sách (#FEF3C7 - Thẻ vàng nhạt nhạt thanh lịch) */}
         <View style={[styles.statCard, styles.cardSky, !isDesktop && styles.statCardMobile]}>
           <View style={styles.cardHeaderLeftWrap}>
-            <Ionicons name="time-outline" size={18} color="#0369A1" style={{ marginRight: 6 }} />
+            <Ionicons name="time-outline" size={18} color="#B45309" style={{ marginRight: 6 }} />
             <Text style={styles.cardSkyLabel}>
               {isVi ? 'Ngân sách' : 'Budget'}
             </Text>
@@ -431,12 +641,12 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
           {[
             { key: 'all', labelVi: 'Tất cả', labelEn: 'All', count: totalEvents, activeBg: '#221D18', activeColor: '#F6F1E9' },
             { key: 'ongoing', labelVi: 'Đang diễn ra', labelEn: 'Ongoing', count: ongoingCount, activeBg: '#D2EADA', activeColor: '#064E3B' },
-            { key: 'upcoming', labelVi: 'Sắp tới', labelEn: 'Upcoming', count: upcomingCount, activeBg: '#D4E5F7', activeColor: '#075985' },
+            { key: 'upcoming', labelVi: 'Sắp tới', labelEn: 'Upcoming', count: upcomingCount, activeBg: '#FEF3C7', activeColor: '#B45309' },
             {
               key: 'completed',
               labelVi: 'Hoàn thành',
               labelEn: 'Completed',
-              count: events.filter((e) => e.status === 'completed').length,
+              count: completedCount,
               activeBg: '#E3E1EB',
               activeColor: '#4C1D95',
             },
@@ -472,7 +682,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
         </View>
       </View>
 
-      {/* ================= DANH SÁCH SỰ KIỆN (TINH GỌN KHỚP 100% ẢNH MẪU) ================= */}
+      {/* ================= DANH SÁCH SỰ KIỆN ================= */}
       <View style={styles.sectionHeaderRow}>
         <Text style={[styles.sectionHeading, { color: textPrimary }]}>
           {isVi ? 'Danh sách' : 'Event List'}
@@ -493,8 +703,8 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                 ? 'Không có sự kiện nào khớp với từ khóa tìm kiếm.'
                 : 'No events match your search term.'
               : isVi
-              ? 'Hãy bấm "Tạo sự kiện mới" để bắt đầu lên kế hoạch cho chuyến đi hoặc dịp đặc biệt!'
-              : 'Click "New Event" to start planning your next trip or occasion!'}
+              ? 'Hãy bấm "Thêm" để bắt đầu lên kế hoạch cho chuyến đi hoặc dịp đặc biệt!'
+              : 'Click "New" to start planning your next trip or occasion!'}
           </Text>
           <TouchableOpacity
             style={styles.emptyCreateBtn}
@@ -512,13 +722,12 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
         </View>
       ) : (
         <View style={[styles.eventsGrid, !isDesktop && styles.eventsGridMobile]}>
-          {filteredEvents.map((evt, index) => {
-            // Status styling: Nền thẻ, viền thẻ & badge theo tone màu #D2EADA
+          {filteredEvents.map((evt) => {
             const statusConfig = {
               ongoing: {
                 labelVi: 'Đang diễn ra',
                 labelEn: 'Ongoing',
-                cardBg: isDark ? '#163322' : '#D2EADA', // #D2EADA theo yêu cầu
+                cardBg: isDark ? '#163322' : '#D2EADA',
                 cardBorder: isDark ? '#234C34' : '#BFDECA',
                 badgeBg: isDark ? 'rgba(255, 255, 255, 0.12)' : '#FFFFFF',
                 badgeColor: '#166534',
@@ -526,15 +735,15 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
               upcoming: {
                 labelVi: 'Sắp tới',
                 labelEn: 'Upcoming',
-                cardBg: isDark ? '#192E46' : '#D4E5F7', // Tone xanh trời cùng hệ màu #D2EADA
-                cardBorder: isDark ? '#244365' : '#BDD6EE',
+                cardBg: isDark ? '#332511' : '#FEF3C7',
+                cardBorder: isDark ? '#594119' : '#FDE68A',
                 badgeBg: isDark ? 'rgba(255, 255, 255, 0.12)' : '#FFFFFF',
-                badgeColor: '#0284C7',
+                badgeColor: '#B45309',
               },
               completed: {
                 labelVi: 'Hoàn thành',
                 labelEn: 'Completed',
-                cardBg: isDark ? '#282333' : '#E3E1EB', // Tone lavender/xám cùng hệ màu #D2EADA
+                cardBg: isDark ? '#282333' : '#E3E1EB',
                 cardBorder: isDark ? '#3C354C' : '#CEC8DC',
                 badgeBg: isDark ? 'rgba(255, 255, 255, 0.12)' : '#FFFFFF',
                 badgeColor: '#6B21A8',
@@ -547,14 +756,6 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
               badgeBg: isDark ? 'rgba(255, 255, 255, 0.12)' : '#FFFFFF',
               badgeColor: '#166534',
             };
-
-            // Cute pastel icon background
-            const iconBg =
-              ICON_PALETTES[
-                Math.abs(
-                  evt.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) + index
-                ) % ICON_PALETTES.length
-              ];
 
             return (
               <TouchableOpacity
@@ -570,15 +771,13 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                 onPress={() => setSelectedEventId(evt.id)}
                 activeOpacity={0.88}
               >
-                {/* 1. Top Row: Icon Box (#F6D35F) + Title/Date + Status Badge */}
+                {/* 1. Top Row: Icon Box (Xanh lá đậm #064E3B) + Title/Date + Status Badge */}
                 <View style={styles.cardTopRow}>
                   <View style={styles.cardHeaderLeft}>
-                    {/* Square yellow icon box khớp #F6D35F ảnh 4 */}
-                    <View style={[styles.cardIconBox, { backgroundColor: '#F6D35F' }]}>
-                      <Ionicons name="sparkles" size={18} color="#1E293B" />
+                    <View style={[styles.cardIconBox, { backgroundColor: '#064E3B' }]}>
+                      <Ionicons name="sparkles" size={17} color="#A7F3D0" />
                     </View>
 
-                    {/* Title & Date range */}
                     <View style={styles.cardTitleWrap}>
                       <Text style={[styles.cardTitle, { color: isDark ? '#F8FAFC' : '#111827' }]} numberOfLines={1}>
                         {evt.title}
@@ -590,7 +789,6 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                     </View>
                   </View>
 
-                  {/* Status Badge - Có thể bấm để chuyển nhanh trạng thái */}
                   <TouchableOpacity
                     onPress={(e) => {
                       e.stopPropagation();
@@ -618,7 +816,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                   <View style={{ height: 12 }} />
                 )}
 
-                {/* 3. Bottom Row: Ngân sách & Chi tiết → (Khớp 100% ảnh 4) */}
+                {/* 3. Bottom Row: Ngân sách & Chi tiết → */}
                 <View style={styles.cardBottomRow}>
                   <Text style={[styles.cardBudgetSimple, { color: isDark ? '#94A3B8' : '#64748B' }]}>
                     {isVi ? 'Ngân sách ' : 'Budget '}
@@ -627,7 +825,6 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                     </Text>
                   </Text>
 
-                  {/* Nút "Chi tiết →" dạng text link không nền khớp ảnh 4 */}
                   <TouchableOpacity
                     onPress={() => setSelectedEventId(evt.id)}
                     activeOpacity={0.7}
@@ -847,15 +1044,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 2,
-  },
   headerIconBadge: {
     width: 38,
     height: 38,
@@ -865,9 +1053,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 26,
     fontWeight: '800',
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
   },
   headerSubtitle: {
     fontSize: 14,
@@ -927,19 +1115,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
-  // Card 1: Dark Brown/Black (#221D18)
+  // Card 1: Xanh lá đậm sang trọng (#064E3B - Đồng bộ nhận diện thương hiệu)
   cardDark: {
-    backgroundColor: '#221D18',
-    borderColor: '#221D18',
+    backgroundColor: '#064E3B',
+    borderColor: '#065F46',
+    shadowColor: '#064E3B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 3,
   },
   cardDarkLabel: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#9E958A',
+    fontWeight: '800',
+    color: '#A7F3D0',
     letterSpacing: 0.6,
   },
   cardDarkBadge: {
-    backgroundColor: '#D9F99D',
+    backgroundColor: '#D1FAE5',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
@@ -947,7 +1140,7 @@ const styles = StyleSheet.create({
   cardDarkBadgeText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#1E293B',
+    color: '#064E3B',
   },
   cardDarkAmount: {
     fontSize: 30,
@@ -959,13 +1152,13 @@ const styles = StyleSheet.create({
   },
   cardDarkDivider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     marginVertical: 6,
   },
   cardDarkSub: {
     fontSize: 12,
-    color: '#9E958A',
-    fontWeight: '500',
+    color: '#A7F3D0',
+    fontWeight: '600',
   },
   // Card 2: Pastel Mint Green (#BEE3C2)
   cardMint: {
@@ -995,28 +1188,28 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#065F46',
   },
-  // Card 3: Pastel Sky Blue (#B7D9F2)
+  // Card 3: Pastel Yellow nhạt nhạt thanh lịch (#FEF3C7)
   cardSky: {
-    backgroundColor: '#B7D9F2',
-    borderColor: '#93C5FD',
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
   },
   cardSkyLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#B45309',
   },
   cardSkyAmount: {
     fontSize: 28,
     fontWeight: '900',
-    color: '#0369A1',
+    color: '#92400E',
     letterSpacing: -0.5,
     marginTop: 2,
     marginBottom: 4,
   },
   cardSkySub: {
     fontSize: 12.5,
-    fontWeight: '500',
-    color: '#075985',
+    fontWeight: '600',
+    color: '#B45309',
   },
   filterBar: {
     borderRadius: 16,
@@ -1228,30 +1421,6 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '600',
   },
-  // Budget progress bar
-  budgetProgressWrap: {
-    marginTop: 8,
-    marginBottom: 4,
-    gap: 5,
-  },
-  budgetProgressLabelRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  budgetProgressLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  budgetProgressTrack: {
-    height: 5,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  budgetProgressFill: {
-    height: 5,
-    borderRadius: 4,
-  },
   // Modal Backdrop & Expense Dialog
   backdrop: {
     flex: 1,
@@ -1362,5 +1531,75 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
+  },
+  inviteBannerContainer: {
+    marginBottom: 20,
+    gap: 12,
+  },
+  inviteBannerCard: {
+    borderWidth: 1.5,
+    borderRadius: 18,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 14,
+  },
+  inviteBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    flex: 1,
+    minWidth: 260,
+  },
+  inviteBannerIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  inviteBannerTextWrap: {
+    flex: 1,
+  },
+  inviteBannerTitle: {
+    fontSize: 14.5,
+    fontWeight: '700',
+    marginBottom: 3,
+  },
+  inviteBannerDesc: {
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  inviteBannerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  inviteAcceptBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#059669',
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 12,
+  },
+  inviteAcceptBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  inviteDeclineBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  inviteDeclineBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

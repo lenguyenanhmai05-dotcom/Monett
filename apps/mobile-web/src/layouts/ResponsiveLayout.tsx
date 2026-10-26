@@ -26,6 +26,7 @@ export type TabKey =
   | 'budget'
   | 'recurring'
   | 'debts'
+  | 'reminders'
   | 'profile';
 
 interface ResponsiveLayoutProps {
@@ -81,6 +82,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
     { key: 'budget', labelVi: 'Tích lũy', labelEn: 'Savings', icon: 'wallet-outline' },
     { key: 'recurring', labelVi: 'Định kỳ', labelEn: 'Recurring', icon: 'repeat-outline' },
     { key: 'debts', labelVi: 'Sổ ghi nợ', labelEn: 'Debt Book', icon: 'book-outline' },
+    { key: 'reminders', labelVi: 'Nhắc nhở', labelEn: 'Reminders', icon: 'notifications-outline' },
   ];
 
   return (

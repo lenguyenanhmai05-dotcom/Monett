@@ -115,6 +115,7 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
       text: string;
       type?: string;
       billData?: any;
+      imageUrl?: string;
     },
   ) {
     const senderId = this.socketToUser.get(client.id);
@@ -128,6 +129,7 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
       data.text,
       data.type || 'text',
       data.billData,
+      data.imageUrl,
     );
 
     const messagePayload = {
@@ -137,6 +139,7 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
       text: data.text,
       type: data.type || 'text',
       billData: data.billData,
+      imageUrl: data.imageUrl,
       createdAt: (savedMsg as any).createdAt || new Date().toISOString(),
     };
 

@@ -51,13 +51,21 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
     }
   };
 
+  const userEmail = (user as any)?.email || '';
+  const userId = user?.id || (user as any)?._id || '';
+
   // Goals state
-  const [goals, setGoals] = useState<ISavingsGoal[]>(() => loadSavingsGoals(user?.id));
+  const [goals, setGoals] = useState<ISavingsGoal[]>(() => loadSavingsGoals(userId, userEmail));
+
+  // Khi thay đổi tài khoản, load lại dữ liệu tương ứng của tài khoản đó
+  useEffect(() => {
+    setGoals(loadSavingsGoals(userId, userEmail));
+  }, [userId, userEmail]);
 
   // Sync to local storage
   useEffect(() => {
-    saveSavingsGoals(goals, user?.id);
-  }, [goals, user?.id]);
+    saveSavingsGoals(goals, userId, userEmail);
+  }, [goals, userId, userEmail]);
 
   // Modals state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -359,32 +367,12 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
-      {/* ================= 1. TOP HEADER ROW ================= */}
-      <View style={styles.topHeaderRow}>
-        <View style={styles.topHeaderLeft}>
-          {(onBack || onNavigateToTab) && (
-            <TouchableOpacity
-              style={styles.backBtn}
-              onPress={handleBack}
-              activeOpacity={0.7}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              accessibilityLabel={isVi ? 'Quay lại' : 'Go back'}
-            >
-              <Ionicons name="chevron-back" size={24} color="#221D18" />
-            </TouchableOpacity>
-          )}
-          <Text style={styles.topHeaderTitle}>{isVi ? 'Tích lũy' : 'Savings'}</Text>
-        </View>
-      </View>
-
-      {/* ================= 2. SECTION SUBHEADER ================= */}
-      <View style={styles.subHeaderRow}>
-        <View>
-          <Text style={styles.subHeaderDesc}>
+      {/* ================= 1. HEADER ROW ================= */}
+      <View style={styles.headerRow}>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerTitle}>{isVi ? 'Tích lũy' : 'Savings'}</Text>
+          <Text style={styles.headerSubtitle}>
             {isVi ? 'Mục tiêu tích lũy của sổ' : 'Savings goals of your wallet'}
-          </Text>
-          <Text style={styles.subHeaderMainTitle}>
-            {isVi ? 'Tích lũy' : 'Savings'}
           </Text>
         </View>
 
@@ -393,7 +381,8 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
           onPress={handleOpenCreateModal}
           activeOpacity={0.85}
         >
-          <Text style={styles.mainAddBtnText}>+ {isVi ? 'Thêm' : 'New'}</Text>
+          <Ionicons name="add" size={18} color="#064E3B" style={{ marginRight: 4 }} />
+          <Text style={styles.mainAddBtnText}>{isVi ? 'Thêm' : 'New'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -435,10 +424,10 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
           </Text>
         </View>
 
-        {/* Card 3: Còn cần (#B7D9F2) */}
+        {/* Card 3: Còn cần (#FEF3C7 - Vàng nhạt thanh lịch) */}
         <View style={[styles.statCard, styles.cardSky, !isDesktop && styles.statCardMobile]}>
           <View style={styles.cardHeaderRowLeft}>
-            <Ionicons name="cash-outline" size={18} color="#0369A1" style={{ marginRight: 6 }} />
+            <Ionicons name="cash-outline" size={18} color="#B45309" style={{ marginRight: 6 }} />
             <Text style={styles.cardSkyLabel}>{isVi ? 'Còn cần' : 'Remaining'}</Text>
           </View>
 
@@ -972,120 +961,46 @@ const styles = StyleSheet.create({
     paddingBottom: 140, // Đảm bảo không bị thanh bottom tab che ("cụt ngủn")
   },
 
-  // 1. Top Header Row
-  topHeaderRow: {
+  // 1. Header Row
+  headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
-  },
-  topHeaderLeft: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 2,
-  },
-  topHeaderTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#221D18',
-    letterSpacing: -0.3,
-  },
-  subTabLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(34, 29, 24, 0.05)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-  },
-  subTabLinkText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#78716C',
-  },
-  topHeaderRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    marginBottom: 24,
     gap: 12,
   },
-  topAddBtn: {
-    backgroundColor: '#D2EADA',
-    paddingVertical: 7,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(34, 29, 24, 0.06)',
+  headerLeft: {
+    flex: 1,
   },
-  topAddBtnText: {
+  headerTitle: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#221D18',
+    letterSpacing: -0.4,
+  },
+  headerSubtitle: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#221D18',
-  },
-  bellBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E7DECF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  bellDot: {
-    position: 'absolute',
-    top: 7,
-    right: 8,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#059669',
-  },
-
-  // 2. Subheader Row
-  subHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    marginBottom: 22,
-  },
-  subHeaderDesc: {
-    fontSize: 13,
-    fontWeight: '600',
     color: '#78716C',
-    marginBottom: 4,
-  },
-  subHeaderMainTitle: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: '#221D18',
-    letterSpacing: -0.5,
+    marginTop: 4,
+    lineHeight: 20,
   },
   mainAddBtn: {
-    backgroundColor: '#98E4B0',
-    paddingVertical: 9,
-    paddingHorizontal: 22,
-    borderRadius: 22,
-    shadowColor: '#98E4B0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#A7F3D0',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 18,
+    shadowColor: '#059669',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
     elevation: 2,
   },
   mainAddBtnText: {
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '800',
-    color: '#221D18',
+    color: '#064E3B',
   },
 
   // 3. Stats Row
@@ -1109,11 +1024,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
-  // Card Dark (Tổng đã tích - đồng bộ với Sự kiện)
+  // Card Dark (Tổng đã tích - đồng bộ với Sự kiện & tone xanh lá đậm)
   cardDark: {
-    backgroundColor: '#221D18',
-    borderColor: '#221D18',
+    backgroundColor: '#064E3B',
+    borderColor: '#065F46',
     flex: 1,
+    shadowColor: '#064E3B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 3,
   },
   cardHeaderRow: {
     flexDirection: 'row',
@@ -1122,12 +1042,12 @@ const styles = StyleSheet.create({
   },
   cardDarkLabel: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#9E958A',
+    fontWeight: '800',
+    color: '#A7F3D0',
     letterSpacing: 0.6,
   },
   percentBadge: {
-    backgroundColor: '#D9F99D',
+    backgroundColor: '#D1FAE5',
     paddingHorizontal: 8,
     paddingVertical: 2.5,
     borderRadius: 10,
@@ -1135,7 +1055,7 @@ const styles = StyleSheet.create({
   percentBadgeText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#1E293B',
+    color: '#064E3B',
   },
   cardDarkAmount: {
     fontSize: 34,
@@ -1147,13 +1067,13 @@ const styles = StyleSheet.create({
   },
   cardDarkDivider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     marginVertical: 6,
   },
   cardDarkSub: {
     fontSize: 12,
-    color: '#9E958A',
-    fontWeight: '500',
+    color: '#A7F3D0',
+    fontWeight: '600',
   },
 
   // Card Mint Green (Mục tiêu - đồng bộ với Sự kiện)
@@ -1181,29 +1101,29 @@ const styles = StyleSheet.create({
     color: '#065F46',
   },
 
-  // Card Sky Blue (Còn cần - đồng bộ với Sự kiện)
+  // Card Yellow nhạt (Còn cần - đồng bộ với Sự kiện)
   cardSky: {
-    backgroundColor: '#B7D9F2',
-    borderColor: '#93C5FD',
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
     flex: 1,
   },
   cardSkyLabel: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#0369A1',
+    color: '#B45309',
   },
   cardSkyAmount: {
     fontSize: 28,
     fontWeight: '900',
-    color: '#0369A1',
+    color: '#92400E',
     letterSpacing: -0.5,
     marginTop: 8,
     marginBottom: 4,
   },
   cardSkySub: {
     fontSize: 12.5,
-    fontWeight: '500',
-    color: '#075985',
+    fontWeight: '600',
+    color: '#B45309',
   },
   cardHeaderRowLeft: {
     flexDirection: 'row',

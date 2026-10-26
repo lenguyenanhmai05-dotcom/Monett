@@ -39,4 +39,4 @@ async function bootstrap() {
   console.log(`🩺 Health check endpoint: http://localhost:${port}/api/health`);
 }
 bootstrap();
-// Trigger restart with Cloudinary Root Key: 2026-10-25 23:09
+// Trigger restart with Reminders DTO Validation fix: 2026-10-26 01:45

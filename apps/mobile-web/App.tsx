@@ -13,6 +13,7 @@ import { SavingsScreen } from './src/screens/web/SavingsScreen';
 import { EventsScreen } from './src/screens/web/EventsScreen';
 import { RecurringScreen } from './src/screens/web/RecurringScreen';
 import { DebtScreen } from './src/screens/web/DebtScreen';
+import { RemindersScreen } from './src/screens/web/RemindersScreen';
 import { CalendarScreen } from './src/screens/mobile/CalendarScreen';
 import { MessagesScreen } from './src/screens/mobile/MessagesScreen';
 import { FriendsFeedScreen } from './src/screens/mobile/FriendsFeedScreen';
@@ -156,6 +157,8 @@ function MainApp() {
         return <RecurringScreen onNavigateToTab={setActiveTab} />;
       case 'debts':
         return <DebtScreen onNavigateToTab={setActiveTab} />;
+      case 'reminders':
+        return <RemindersScreen onNavigateToTab={setActiveTab} />;
       default:
         return <HomeScreen onNavigateToTab={setActiveTab} />;
     }

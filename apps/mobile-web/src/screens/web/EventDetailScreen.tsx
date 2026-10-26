@@ -19,7 +19,9 @@ import {
   MonettEvent,
   EventExpenseItem,
   EventMember,
+  sendEventInvitation,
 } from '../../services/eventsStorage';
+import { inviteFriendToEventApi, updateEventApi } from '../../services/api';
 import { CreateEventModal } from '../../components/CreateEventModal';
 import { TransactionEditModal } from '../../components/TransactionEditModal';
 import { CategorySvgIcon } from '../../components/CategorySvgIcon';
@@ -67,7 +69,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
   const [txAmountStr, setTxAmountStr] = useState('');
   const [txCategory, setTxCategory] = useState('Cafe');
   const [txCategoryIcon, setTxCategoryIcon] = useState('☕');
-  const [txPayer, setTxPayer] = useState('Phong Tờ');
+  const [txPayer, setTxPayer] = useState(event.ownerName || 'Tôi');
   const [txDate, setTxDate] = useState('');
 
   // Hover state for items (web)
@@ -110,7 +112,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
     setTxAmountStr('');
     setTxCategory('Cafe');
     setTxCategoryIcon('☕');
-    setTxPayer('Phong Tờ');
+    setTxPayer(event.ownerName || 'Tôi');
 
     const today = new Date();
     const dd = String(today.getDate()).padStart(2, '0');
@@ -129,7 +131,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
     setTxAmountStr(String(tx.amount));
     setTxCategory(tx.category || 'Cafe');
     setTxCategoryIcon(tx.categoryIcon || '☕');
-    setTxPayer(tx.payer || 'Phong Tờ');
+    setTxPayer(tx.payer || event.ownerName || 'Tôi');
     setTxDate(tx.date || '');
     setIsTxModalOpen(true);
   };
@@ -277,23 +279,51 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
       avatarUrl: friend.avatarUrl,
       email: friend.email,
       role: 'member',
-      joinedAt: new Date().toLocaleDateString('vi-VN'),
+      status: 'pending',
+      invitedAt: new Date().toLocaleDateString('vi-VN'),
     };
 
     const updatedMembers = [...existingMembers, newMember];
-    onUpdateEvent({
+    const updatedEvent: MonettEvent = {
       ...event,
       members: updatedMembers,
+    };
+    onUpdateEvent(updatedEvent);
+
+    // Gửi lời mời tới Backend API và hệ thống thông báo
+    inviteFriendToEventApi(event.id, {
+      id: friend.id,
+      name: friend.name,
+      email: friend.email,
+      avatarUrl: friend.avatarUrl,
+    }).catch((err) => console.warn('Lỗi gọi inviteFriendToEventApi:', err));
+
+    sendEventInvitation({
+      eventId: event.id,
+      eventTitle: event.title,
+      eventLocation: event.location,
+      eventStartDate: event.startDate,
+      inviterName: event.ownerName || 'Ánh Mai',
+      inviterId: event.ownerId,
+      recipientId: friend.id,
+      recipientName: friend.name,
+      recipientEmail: friend.email,
+      eventData: updatedEvent,
     });
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('monett:event_invitations_updated'));
+      window.dispatchEvent(new CustomEvent('monett:events_updated'));
+    }
+
     addNotification({
-      type: 'moment',
-      title: isVi ? 'Thành viên mới 🎉' : 'New Member 🎉',
+      type: 'event',
+      title: isVi ? 'Đã gửi lời mời 📩' : 'Invite Sent 📩',
       message: isVi
-        ? `Đã mời "${friend.name}" tham gia sự kiện "${event.title}"`
-        : `Invited "${friend.name}" to event "${event.title}"`,
-      iconBg: '#DCFCE7',
-      iconColor: '#059669',
+        ? `Đã gửi lời mời tham gia "${event.title}" đến ${friend.name}. Đang chờ bạn chấp nhận!`
+        : `Sent invitation for "${event.title}" to ${friend.name}. Waiting for acceptance!`,
+      iconBg: '#FEF3C7',
+      iconColor: '#D97706',
     });
   };
 
@@ -332,9 +362,9 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
     upcoming: {
       labelVi: 'Sắp tới',
       labelEn: 'Upcoming',
-      badgeBg: isDark ? 'rgba(56, 189, 248, 0.15)' : '#E0F2FE',
-      badgeColor: '#0284C7',
-      badgeBorder: isDark ? '#244365' : '#BAE6FD',
+      badgeBg: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7',
+      badgeColor: '#B45309',
+      badgeBorder: isDark ? '#78350F' : '#FDE68A',
     },
     completed: {
       labelVi: 'Hoàn thành',
@@ -794,6 +824,12 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
                               👑 {isVi ? 'Chủ' : 'Owner'}
                             </Text>
                           </View>
+                        ) : m.status === 'pending' ? (
+                          <View style={[styles.memberRoleBadgeMember, { backgroundColor: isDark ? '#451A03' : '#FEF3C7', borderColor: '#F59E0B' }]}>
+                            <Text style={[styles.memberRoleBadgeMemberText, { color: '#D97706', fontWeight: '700' }]}>
+                              ⏳ {isVi ? 'Chờ xác nhận' : 'Pending'}
+                            </Text>
+                          </View>
                         ) : (
                           <View style={styles.memberRoleBadgeMember}>
                             <Text style={styles.memberRoleBadgeMemberText}>
@@ -803,7 +839,9 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
                         )}
                       </View>
                       <Text style={[styles.memberSub, { color: textSecondary }]}>
-                        {m.email || (m.joinedAt ? (isVi ? `Tham gia ${m.joinedAt}` : `Joined ${m.joinedAt}`) : (isVi ? 'Đang hoạt động' : 'Active'))}
+                        {m.status === 'pending'
+                          ? (isVi ? 'Đã mời • Đang chờ accept' : 'Invited • Waiting for acceptance')
+                          : (m.email || (m.joinedAt ? (isVi ? `Tham gia ${m.joinedAt}` : `Joined ${m.joinedAt}`) : (isVi ? 'Đang hoạt động' : 'Active')))}
                       </Text>
                     </View>
                   </View>
@@ -912,7 +950,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
               type: txData.type,
               category: txData.category,
               categoryIcon: txData.categoryIcon,
-              payer: txData.payer || 'Phong Tờ',
+              payer: txData.payer || event.ownerName || 'Tôi',
               date: txData.date,
               note: txData.note,
               createdAt: new Date().toISOString(),

@@ -19,6 +19,9 @@ export class Message {
   @Prop({ default: 'text' })
   type: string;
 
+  @Prop({ type: String, required: false })
+  imageUrl?: string;
+
   @Prop({ type: Object, required: false })
   billData?: Record<string, any>;
 }

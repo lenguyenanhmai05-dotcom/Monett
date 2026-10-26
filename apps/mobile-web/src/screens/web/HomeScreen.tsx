@@ -965,10 +965,12 @@ const HomeRecurringEventsRow: React.FC<{
   const { width } = useWindowDimensions();
   const isWide = width >= 900;
   const { isDark } = useTheme();
+  const { user } = useAuth();
+  const userEmail = (user as any)?.email || '';
 
   const recurringItems = React.useMemo(() => {
-    return loadRecurringItems(userId).filter(it => it.type === 'expense' && it.isActive).slice(0, 3);
-  }, [userId]);
+    return loadRecurringItems(userId, userEmail).filter(it => it.type === 'expense' && it.isActive).slice(0, 3);
+  }, [userId, userEmail]);
 
   const totalMonthlyEstimated = React.useMemo(() => {
     return recurringItems.reduce((acc, it) => {
@@ -2952,7 +2954,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
         <View style={[styles.widgetCol, width >= 900 && { flex: 1 }]}>
           <RemindersWidget
             noMargin={true}
-            currentDateStr={`${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(todayDate > 0 ? todayDate : 1).padStart(2, '0')}`}
+            onNavigateToRemindersTab={() => onNavigateToTab?.('reminders')}
           />
         </View>
 

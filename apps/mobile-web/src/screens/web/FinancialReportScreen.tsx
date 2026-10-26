@@ -43,6 +43,57 @@ import { TabKey } from '../../layouts/ResponsiveLayout';
 
 export type TimeScope = 'week' | 'month' | 'year' | 'day';
 
+/**
+ * Tính toán mốc trần (Max Y) linh hoạt, thông minh cho biểu đồ tài chính:
+ * - Luôn tạo khoảng đệm an toàn 25% - 40% phía trên cột cao nhất (không bao giờ để cột đụng trần hay tràn chữ).
+ * - Tự động làm tròn thành các mốc số tròn đẹp của tiền tệ VNĐ (VD: 100k, 200k, 500k, 800k, 1M, 1.5M, 2M, 5M, 10M,...).
+ * - Các mốc 25%, 50%, 75% chia đều đẹp mắt, không bị số lẻ xấu xí.
+ */
+export const calculateNiceMaxY = (rawMax: number, minFloor: number = 200000): number => {
+  if (!rawMax || rawMax <= 0) return minFloor;
+  // Khoảng đệm trần 32% để cột chi tiêu cao nhất chỉ chiếm tối đa ~70-75% chiều cao đồ thị
+  const target = rawMax * 1.32;
+  if (target <= minFloor) return minFloor;
+
+  // Lấy bậc độ lớn cơ sở (power of 10)
+  const power = Math.floor(Math.log10(target));
+  const magnitude = Math.pow(10, power);
+  const normalized = target / magnitude; // Từ 1 đến 10
+
+  // Chọn hệ số tròn đẹp thân thiện với hệ tiền tệ và dễ chia cho 4 (25%, 50%, 75%, 100%)
+  let niceFraction = 10;
+  if (normalized <= 1.2) niceFraction = 1.2;
+  else if (normalized <= 1.6) niceFraction = 1.6;
+  else if (normalized <= 2) niceFraction = 2;
+  else if (normalized <= 2.4) niceFraction = 2.4;
+  else if (normalized <= 3) niceFraction = 3;
+  else if (normalized <= 4) niceFraction = 4;
+  else if (normalized <= 5) niceFraction = 5;
+  else if (normalized <= 6) niceFraction = 6;
+  else if (normalized <= 8) niceFraction = 8;
+  else niceFraction = 10;
+
+  return Math.round(niceFraction * magnitude);
+};
+
+export const formatMoney = (val?: number): string => {
+  if (val === undefined || val === null) return '0';
+  return Math.abs(val).toLocaleString('vi-VN');
+};
+
+export const formatYAxisLabel = (val: number): string => {
+  if (val === 0) return '0đ';
+  if (val >= 10000000) {
+    const inM = val / 1000000;
+    return `${inM % 1 === 0 ? inM.toFixed(0) : inM.toFixed(1)} tr`;
+  }
+  if (val >= 1000000) {
+    const inM = val / 1000000;
+    return `${inM % 1 === 0 ? inM.toFixed(0) : inM.toFixed(1)}M`;
+  }
+  return `${formatMoney(val)}đ`;
+};
+
 interface FinancialReportScreenProps {
   onNavigateToTab?: (tab: TabKey) => void;
 }
@@ -84,6 +135,15 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
   const [showYearPicker, setShowYearPicker] = useState<boolean>(false);
   const [showExportMenu, setShowExportMenu] = useState<boolean>(false);
   const [lightboxPhotoUri, setLightboxPhotoUri] = useState<string | null>(null);
+
+  // Trạng thái mở rộng chi tiết từng ngày trong tháng (Accordion)
+  const [expandedMonthDays, setExpandedMonthDays] = useState<Record<number, boolean>>({});
+  const toggleMonthDayExpand = (dayNum: number) => {
+    setExpandedMonthDays((prev) => ({
+      ...prev,
+      [dayNum]: !prev[dayNum],
+    }));
+  };
 
   // Dữ liệu sổ chi tiêu lịch thực tế từ IndexedDB & localStorage
   const [dayRecords, setDayRecords] = useState<Record<string, DayExpenseRecord>>(() => {
@@ -805,14 +865,7 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
   }, [monthReportData, daysInSelectedMonth]);
 
   const maxMonthDayAmount = Math.max(...monthlyTrendPoints.map((p) => p.amount), 0);
-  let maxMonthY = 500000;
-  if (maxMonthDayAmount > 0) {
-    if (maxMonthDayAmount <= 200000) maxMonthY = 200000;
-    else if (maxMonthDayAmount <= 500000) maxMonthY = 500000;
-    else if (maxMonthDayAmount <= 1000000) maxMonthY = 1000000;
-    else if (maxMonthDayAmount <= 2000000) maxMonthY = 2000000;
-    else maxMonthY = Math.ceil((maxMonthDayAmount * 1.2) / 500000) * 500000;
-  }
+  const maxMonthY = calculateNiceMaxY(maxMonthDayAmount, 200000);
 
   const dailyBenchmark = Math.round((budget.limit || 22000000) / daysInSelectedMonth);
   const benchmarkY = padT + plotH * (1 - Math.min(dailyBenchmark, maxMonthY) / maxMonthY);
@@ -844,8 +897,11 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
     ? `${splineCurvePath} L ${getPtX(daysInSelectedMonth)} ${padT + plotH} L ${getPtX(1)} ${padT + plotH} Z`
     : '';
 
-  // Vòng tròn Donut (Được phóng to nổi bật & sắc nét)
-  const donutR = 100;
+  // Vòng tròn Donut (Được tinh chỉnh to rõ, tròn hoàn hảo, sắc nét ấn tượng)
+  const donutSize = 270;
+  const donutStrokeWidth = 28;
+  const donutCenter = donutSize / 2; // 135
+  const donutR = 112; // R=112, đường kính ngoài = (112 + 14)*2 = 252px. Biên an toàn 9px trong khung 270x270
   const donutCircum = 2 * Math.PI * donutR;
 
   // Lọc danh sách danh mục theo tab hiện tại
@@ -855,6 +911,24 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
     if (timeScope === 'year') return yearReportData.categoriesList;
     return monthReportData.categoriesList;
   }, [timeScope, weekReportData, dayReportData, monthReportData, yearReportData]);
+
+  const totalCategoryAmount = useMemo(() => {
+    return currentCategories.reduce((sum, c) => sum + (c.amount || 0), 0);
+  }, [currentCategories]);
+
+  const activeFilteredCat = useMemo(() => {
+    if (!filterCategory) return null;
+    return currentCategories.find((c) => c.name === filterCategory) || null;
+  }, [filterCategory, currentCategories]);
+
+  // Định dạng tỷ trọng phần trăm chuẩn xác: nếu < 1% và > 0% hiển thị số thập phân (VD: 0.5%) thay vì làm tròn thành 0%
+  const formatCatPercent = (amount: number, total: number): string => {
+    if (total <= 0 || amount <= 0) return '0%';
+    const ratio = (amount / total) * 100;
+    if (ratio < 0.1) return '< 0.1%';
+    if (ratio < 1) return `${ratio.toFixed(1)}%`;
+    return `${Math.round(ratio)}%`;
+  };
 
   const topCategory = currentCategories[0];
   const currentTotalSpending = useMemo(() => {
@@ -876,6 +950,55 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
     if (timeScope === 'year') return `Năm ${selectedYear}`;
     return `Tháng ${selectedMonth}/${selectedYear}`;
   }, [timeScope, weekReportData, selectedMonth, selectedYear]);
+
+  // Render thẻ giao dịch tinh tế, hiện đại, chuẩn Fintech
+  const renderTransactionCard = (it: ExpenseItem, idx: number) => {
+    const catColor = categoryColorMap[it.category || 'Ăn uống'] || '#047857';
+    return (
+      <View key={it.id || idx} style={styles.transactionCard}>
+        <View style={styles.txCardHeader}>
+          <View style={[styles.txIconWrap, { backgroundColor: `${catColor}15`, borderColor: `${catColor}30` }]}>
+            <Text style={{ fontSize: 20 }}>{it.categoryIcon || categoryIconMap[it.category || 'Ăn uống'] || '🍜'}</Text>
+          </View>
+          <View style={{ flex: 1, marginHorizontal: 12 }}>
+            <Text style={styles.txCategoryName}>{it.category || 'Ăn uống'}</Text>
+            <Text style={styles.txTimeText}>🕒 {it.time || '12:00'}</Text>
+          </View>
+          <View style={styles.txAmountWrap}>
+            <Text style={styles.txAmountText}>-{formatMoney(it.amount)}đ</Text>
+          </View>
+        </View>
+
+        {it.note ? (
+          <View style={styles.txNoteBox}>
+            <Text style={styles.txNoteIcon}>💬</Text>
+            <Text style={styles.txNoteText}>“{it.note}”</Text>
+          </View>
+        ) : null}
+
+        {it.photoUri ? (
+          <TouchableOpacity
+            style={styles.txReceiptAttachment}
+            onPress={() => setLightboxPhotoUri(it.photoUri || null)}
+            activeOpacity={0.85}
+          >
+            <Image
+              source={{ uri: it.photoUri }}
+              style={styles.txReceiptThumb}
+              resizeMode="cover"
+            />
+            <View style={styles.txReceiptInfo}>
+              <Text style={styles.txReceiptTitle}>Ảnh hóa đơn / chi tiêu</Text>
+              <Text style={styles.txReceiptSub}>Chạm để xem ảnh phóng to</Text>
+            </View>
+            <View style={styles.txReceiptActionBadge}>
+              <Text style={styles.txReceiptActionText}>Xem ảnh 🔍</Text>
+            </View>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    );
+  };
 
   // Hàng 4 thẻ chỉ số nhanh thu nhỏ tinh tế, không chiếm diện tích biểu đồ
   const renderCompactInsightRow = () => {
@@ -1349,100 +1472,91 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
           {/* SƠ ĐỒ CỘT 7 NGÀY CÓ TRỤC TUNG (CỘT MỐC TRÊN/DƯỚI) & ĐƯỜNG GIÓNG NGANG */}
           {(() => {
             const weekRawMax = Math.max(...weekReportData.weekDaysData.map((d) => d.amount), 0);
-            let weekChartMaxY = 500000;
-            if (weekRawMax > 0) {
-              if (weekRawMax <= 100000) weekChartMaxY = 100000;
-              else if (weekRawMax <= 200000) weekChartMaxY = 200000;
-              else if (weekRawMax <= 500000) weekChartMaxY = 500000;
-              else if (weekRawMax <= 1000000) weekChartMaxY = 1000000;
-              else if (weekRawMax <= 2000000) weekChartMaxY = 2000000;
-              else if (weekRawMax <= 5000000) weekChartMaxY = 5000000;
-              else weekChartMaxY = Math.ceil((weekRawMax * 1.15) / 1000000) * 1000000;
-            }
-
-            const plotHeight = 220;
+            const weekChartMaxY = calculateNiceMaxY(weekRawMax, 200000);
+            const plotHeight = 190;
+            const maxBarDrawableHeight = plotHeight - 34;
 
             return (
               <View style={styles.proChartWrapper}>
-                {/* CỘT TRỤC TUNG BÊN TRÁI (Y-AXIS LABELS CÓ CỘT MỐC TRÊN & MỐC SÀN) */}
-                <View style={styles.yAxisMilestoneCol}>
-                  {/* Mốc trên cùng (100%) */}
-                  <View style={styles.yAxisMilestoneItemTop}>
-                    <View style={styles.milestoneBadgeTop}>
-                      <Text style={styles.milestoneBadgeTopText}>Mốc trên</Text>
+                {/* 1. KHU VỰC ĐỒ THỊ CHÍNH (TRỤC Y TRÁI + KHU VỰC CỘT PHẢI) */}
+                <View style={styles.proChartMainRow}>
+                  {/* CỘT TRỤC TUNG BÊN TRÁI (Y-AXIS LABELS CÓ CỘT MỐC TRÊN & MỐC SÀN) */}
+                  <View style={[styles.yAxisMilestoneCol, { height: plotHeight }]}>
+                    {/* Mốc trên cùng (100%) */}
+                    <View style={styles.yAxisMilestoneItemTop}>
+                      <View style={styles.milestoneBadgeTop}>
+                        <Text style={styles.milestoneBadgeTopText}>Mốc trên</Text>
+                      </View>
+                      <Text style={styles.milestoneTopValueText}>
+                        {formatYAxisLabel(weekChartMaxY)}
+                      </Text>
                     </View>
-                    <Text style={styles.milestoneTopValueText}>
-                      {formatMoney(weekChartMaxY)}đ
-                    </Text>
-                  </View>
 
-                  {/* Mốc 75% */}
-                  <View style={styles.yAxisMilestoneItemMid}>
-                    <Text style={styles.milestoneMidValueText}>
-                      {formatMoney(Math.round(weekChartMaxY * 0.75))}đ
-                    </Text>
-                  </View>
-
-                  {/* Mốc 50% */}
-                  <View style={styles.yAxisMilestoneItemMid}>
-                    <Text style={styles.milestoneMidValueText}>
-                      {formatMoney(Math.round(weekChartMaxY * 0.5))}đ
-                    </Text>
-                  </View>
-
-                  {/* Mốc 25% */}
-                  <View style={styles.yAxisMilestoneItemMid}>
-                    <Text style={styles.milestoneMidValueText}>
-                      {formatMoney(Math.round(weekChartMaxY * 0.25))}đ
-                    </Text>
-                  </View>
-
-                  {/* Mốc sàn (0%) */}
-                  <View style={styles.yAxisMilestoneItemBottom}>
-                    <View style={styles.milestoneBadgeBottom}>
-                      <Text style={styles.milestoneBadgeBottomText}>Mốc sàn</Text>
+                    {/* Mốc 75% */}
+                    <View style={styles.yAxisMilestoneItemMid}>
+                      <Text style={styles.milestoneMidValueText}>
+                        {formatYAxisLabel(Math.round(weekChartMaxY * 0.75))}
+                      </Text>
                     </View>
-                    <Text style={styles.milestoneBottomValueText}>0đ</Text>
+
+                    {/* Mốc 50% */}
+                    <View style={styles.yAxisMilestoneItemMid}>
+                      <Text style={styles.milestoneMidValueText}>
+                        {formatYAxisLabel(Math.round(weekChartMaxY * 0.5))}
+                      </Text>
+                    </View>
+
+                    {/* Mốc 25% */}
+                    <View style={styles.yAxisMilestoneItemMid}>
+                      <Text style={styles.milestoneMidValueText}>
+                        {formatYAxisLabel(Math.round(weekChartMaxY * 0.25))}
+                      </Text>
+                    </View>
+
+                    {/* Mốc sàn (0%) */}
+                    <View style={styles.yAxisMilestoneItemBottom}>
+                      <View style={styles.milestoneBadgeBottom}>
+                        <Text style={styles.milestoneBadgeBottomText}>Mốc sàn</Text>
+                      </View>
+                      <Text style={styles.milestoneBottomValueText}>0đ</Text>
+                    </View>
                   </View>
-                </View>
 
-                {/* KHU VỰC ĐỒ THỊ VỚI ĐƯỜNG KẺ GIÓNG NGANG & 7 CỘT */}
-                <View style={styles.chartPlotContainer}>
-                  {/* ĐƯỜNG GIÓNG NGANG (HORIZONTAL GRID LINES) */}
-                  <View style={[styles.proGridLine, { top: 0 }]} />
-                  <View style={[styles.proGridLine, { top: plotHeight * 0.25 }]} />
-                  <View style={[styles.proGridLine, { top: plotHeight * 0.5 }]} />
-                  <View style={[styles.proGridLine, { top: plotHeight * 0.75 }]} />
-                  <View style={[styles.proGridBaseline, { top: plotHeight }]} />
+                  {/* KHU VỰC ĐỒ THỊ VỚI ĐƯỜNG KẺ GIÓNG NGANG & 7 CỘT */}
+                  <View style={[styles.chartPlotContainer, { height: plotHeight }]}>
+                    {/* ĐƯỜNG GIÓNG NGANG (HORIZONTAL GRID LINES) */}
+                    <View style={[styles.proGridLine, { top: 0 }]} />
+                    <View style={[styles.proGridLine, { top: plotHeight * 0.25 }]} />
+                    <View style={[styles.proGridLine, { top: plotHeight * 0.5 }]} />
+                    <View style={[styles.proGridLine, { top: plotHeight * 0.75 }]} />
+                    <View style={[styles.proGridBaseline, { bottom: 0 }]} />
 
-                  {/* 7 CỘT (BARS) NẰM TRÊN TRỤC CƠ SỞ */}
-                  <View style={[styles.proBarsRow, { height: plotHeight }]}>
-                    {weekReportData.weekDaysData.map((day) => {
-                      const isPeak =
-                        weekReportData.peakDay &&
-                        weekReportData.peakDay.dateKey === day.dateKey &&
-                        day.amount > 0;
-                      const fillHeight =
-                        day.amount > 0
-                          ? Math.max(16, Math.round((day.amount / weekChartMaxY) * plotHeight))
-                          : 0;
+                    {/* 7 CỘT (BARS) NẰM TRỰC TIẾP TRÊN TRỤC CƠ SỞ */}
+                    <View style={[styles.proBarsRow, { height: plotHeight }]}>
+                      {weekReportData.weekDaysData.map((day) => {
+                        const isPeak =
+                          weekReportData.peakDay &&
+                          weekReportData.peakDay.dateKey === day.dateKey &&
+                          day.amount > 0;
+                        const fillHeight =
+                          day.amount > 0
+                            ? Math.max(12, Math.round((day.amount / weekChartMaxY) * maxBarDrawableHeight))
+                            : 0;
 
-                      return (
-                        <TouchableOpacity
-                          key={day.dateKey}
-                          style={[
-                            styles.proBarColumn,
-                            day.isSelected && styles.proBarColumnSelected,
-                          ]}
-                          onPress={() => {
-                            setSelectedDay(day.dayNum);
-                            setSelectedMonth(day.monthNum);
-                            setSelectedYear(day.yearNum);
-                          }}
-                          activeOpacity={0.85}
-                        >
-                          {/* Khung thanh chứa cột đứng */}
-                          <View style={styles.proBarTrackChannel}>
+                        return (
+                          <TouchableOpacity
+                            key={day.dateKey}
+                            style={[
+                              styles.proBarTrackChannel,
+                              day.isSelected && styles.proBarColumnSelected,
+                            ]}
+                            onPress={() => {
+                              setSelectedDay(day.dayNum);
+                              setSelectedMonth(day.monthNum);
+                              setSelectedYear(day.yearNum);
+                            }}
+                            activeOpacity={0.85}
+                          >
                             {/* Cột tô màu thực tế đứng từ đáy lên */}
                             {fillHeight > 0 ? (
                               <View
@@ -1485,46 +1599,67 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
                                 <Text style={styles.proBarZeroText}>0đ</Text>
                               )}
                             </View>
-                          </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </View>
 
-                          {/* CỘT MỐC TRỤC HOÀNH (X-AXIS): THỨ & NGÀY THÁNG */}
-                          <View
+                {/* 2. HÀNG NHÃN TRỤC HOÀNH (X-AXIS): THỨ & NGÀY THÁNG DƯỚI ĐÁY */}
+                <View style={styles.proXAxisRowWrapper}>
+                  <View style={styles.proXAxisLeftSpacer} />
+                  <View style={styles.proXAxisBoxesContainer}>
+                    {weekReportData.weekDaysData.map((day) => {
+                      const isPeak =
+                        weekReportData.peakDay &&
+                        weekReportData.peakDay.dateKey === day.dateKey &&
+                        day.amount > 0;
+
+                      return (
+                        <TouchableOpacity
+                          key={day.dateKey}
+                          style={[
+                            styles.proBarXAxisBox,
+                            day.isSelected && styles.proBarXAxisBoxSelected,
+                          ]}
+                          onPress={() => {
+                            setSelectedDay(day.dayNum);
+                            setSelectedMonth(day.monthNum);
+                            setSelectedYear(day.yearNum);
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Text
                             style={[
-                              styles.proBarXAxisBox,
-                              day.isSelected && styles.proBarXAxisBoxSelected,
+                              styles.proBarXDayName,
+                              day.isSelected && styles.proBarXDayNameActive,
+                              isPeak && !day.isSelected && { color: '#DC2626' },
                             ]}
                           >
-                            <Text
-                              style={[
-                                styles.proBarXDayName,
-                                day.isSelected && styles.proBarXDayNameActive,
-                                isPeak && !day.isSelected && { color: '#DC2626' },
-                              ]}
-                            >
-                              {day.dayOfWeekLabel || day.shortLabel}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.proBarXDateNum,
-                                day.isSelected && styles.proBarXDateNumActive,
-                                day.isToday && styles.proBarXDateNumActive,
-                              ]}
-                            >
-                              {day.dayNum}/{day.monthNum}
-                            </Text>
+                            {day.dayOfWeekLabel || day.shortLabel}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.proBarXDateNum,
+                              day.isSelected && styles.proBarXDateNumActive,
+                              day.isToday && styles.proBarXDateNumActive,
+                            ]}
+                          >
+                            {day.dayNum}/{day.monthNum}
+                          </Text>
 
-                            {day.isToday && (
-                              <View style={styles.todayIndicatorBadge}>
-                                <Text style={styles.todayIndicatorText}>Hôm nay</Text>
-                              </View>
-                            )}
+                          {day.isToday && (
+                            <View style={styles.todayIndicatorBadge}>
+                              <Text style={styles.todayIndicatorText}>Hôm nay</Text>
+                            </View>
+                          )}
 
-                            {isPeak && !day.isToday && (
-                              <View style={styles.proBarPeakBadge}>
-                                <Text style={styles.proBarPeakBadgeText}>👑 Đỉnh</Text>
-                              </View>
-                            )}
-                          </View>
+                          {isPeak && !day.isToday && (
+                            <View style={styles.proBarPeakBadge}>
+                              <Text style={styles.proBarPeakBadgeText}>👑 Đỉnh</Text>
+                            </View>
+                          )}
                         </TouchableOpacity>
                       );
                     })}
@@ -1569,6 +1704,16 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
       {/* ========================================================================= */}
       {timeScope === 'day' && (
         <View style={styles.sectionCard}>
+          <TouchableOpacity
+            style={styles.backToMonthHeaderBtn}
+            onPress={() => setTimeScope('month')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.backToMonthHeaderBtnText}>
+              ← Quay lại Báo Cáo Tháng {selectedMonth}/{selectedYear}
+            </Text>
+          </TouchableOpacity>
+
           <View style={styles.sectionHeaderRow}>
             <View>
               <Text style={styles.sectionTitle}>
@@ -1893,95 +2038,80 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
           {/* SƠ ĐỒ 12 CỘT ĐỨNG CÓ HỆ TRỤC TUNG (CỘT MỐC TRÊN/DƯỚI) VÀ GRID LINES */}
           {(() => {
             const maxMonthRaw = Math.max(...yearReportData.monthsData.map((m) => m.amount), 0);
-            let yearChartMaxY = 1000000;
-            if (maxMonthRaw > 0) {
-              if (maxMonthRaw <= 500000) yearChartMaxY = 500000;
-              else if (maxMonthRaw <= 1000000) yearChartMaxY = 1000000;
-              else if (maxMonthRaw <= 3000000) yearChartMaxY = 3000000;
-              else if (maxMonthRaw <= 5000000) yearChartMaxY = 5000000;
-              else if (maxMonthRaw <= 10000000) yearChartMaxY = 10000000;
-              else yearChartMaxY = Math.ceil((maxMonthRaw * 1.15) / 1000000) * 1000000;
-            }
-
-            const plotHeight = 220;
+            const yearChartMaxY = calculateNiceMaxY(maxMonthRaw, 500000);
+            const plotHeight = 190;
+            const maxBarDrawableHeight = plotHeight - 34;
 
             return (
               <View style={styles.proChartWrapper}>
-                {/* TRỤC TUNG Y-AXIS (CỘT MỐC TRÊN / DƯỚI) */}
-                <View style={styles.yAxisMilestoneCol}>
-                  <View style={styles.yAxisMilestoneItemTop}>
-                    <View style={styles.milestoneBadgeTop}>
-                      <Text style={styles.milestoneBadgeTopText}>Mốc trên</Text>
+                {/* 1. KHU VỰC ĐỒ THỊ CHÍNH (TRỤC Y TRÁI + 12 CỘT PHẢI) */}
+                <View style={styles.proChartMainRow}>
+                  {/* TRỤC TUNG Y-AXIS (CỘT MỐC TRÊN / DƯỚI) */}
+                  <View style={[styles.yAxisMilestoneCol, { height: plotHeight }]}>
+                    <View style={styles.yAxisMilestoneItemTop}>
+                      <View style={styles.milestoneBadgeTop}>
+                        <Text style={styles.milestoneBadgeTopText}>Mốc trên</Text>
+                      </View>
+                      <Text style={styles.milestoneTopValueText}>
+                        {formatYAxisLabel(yearChartMaxY)}
+                      </Text>
                     </View>
-                    <Text style={styles.milestoneTopValueText}>
-                      {yearChartMaxY >= 1000000
-                        ? `${(yearChartMaxY / 1000000).toFixed(1)}M`
-                        : `${formatMoney(yearChartMaxY)}đ`}
-                    </Text>
-                  </View>
 
-                  <View style={styles.yAxisMilestoneItemMid}>
-                    <Text style={styles.milestoneMidValueText}>
-                      {Math.round(yearChartMaxY * 0.75) >= 1000000
-                        ? `${((yearChartMaxY * 0.75) / 1000000).toFixed(1)}M`
-                        : `${formatMoney(Math.round(yearChartMaxY * 0.75))}đ`}
-                    </Text>
-                  </View>
-
-                  <View style={styles.yAxisMilestoneItemMid}>
-                    <Text style={styles.milestoneMidValueText}>
-                      {Math.round(yearChartMaxY * 0.5) >= 1000000
-                        ? `${((yearChartMaxY * 0.5) / 1000000).toFixed(1)}M`
-                        : `${formatMoney(Math.round(yearChartMaxY * 0.5))}đ`}
-                    </Text>
-                  </View>
-
-                  <View style={styles.yAxisMilestoneItemMid}>
-                    <Text style={styles.milestoneMidValueText}>
-                      {Math.round(yearChartMaxY * 0.25) >= 1000000
-                        ? `${((yearChartMaxY * 0.25) / 1000000).toFixed(1)}M`
-                        : `${formatMoney(Math.round(yearChartMaxY * 0.25))}đ`}
-                    </Text>
-                  </View>
-
-                  <View style={styles.yAxisMilestoneItemBottom}>
-                    <View style={styles.milestoneBadgeBottom}>
-                      <Text style={styles.milestoneBadgeBottomText}>Mốc sàn</Text>
+                    <View style={styles.yAxisMilestoneItemMid}>
+                      <Text style={styles.milestoneMidValueText}>
+                        {formatYAxisLabel(Math.round(yearChartMaxY * 0.75))}
+                      </Text>
                     </View>
-                    <Text style={styles.milestoneBottomValueText}>0đ</Text>
+
+                    <View style={styles.yAxisMilestoneItemMid}>
+                      <Text style={styles.milestoneMidValueText}>
+                        {formatYAxisLabel(Math.round(yearChartMaxY * 0.5))}
+                      </Text>
+                    </View>
+
+                    <View style={styles.yAxisMilestoneItemMid}>
+                      <Text style={styles.milestoneMidValueText}>
+                        {formatYAxisLabel(Math.round(yearChartMaxY * 0.25))}
+                      </Text>
+                    </View>
+
+                    <View style={styles.yAxisMilestoneItemBottom}>
+                      <View style={styles.milestoneBadgeBottom}>
+                        <Text style={styles.milestoneBadgeBottomText}>Mốc sàn</Text>
+                      </View>
+                      <Text style={styles.milestoneBottomValueText}>0đ</Text>
+                    </View>
                   </View>
-                </View>
 
-                {/* KHU VỰC PLOT 12 CỘT */}
-                <View style={styles.chartPlotContainer}>
-                  <View style={[styles.proGridLine, { top: 0 }]} />
-                  <View style={[styles.proGridLine, { top: plotHeight * 0.25 }]} />
-                  <View style={[styles.proGridLine, { top: plotHeight * 0.5 }]} />
-                  <View style={[styles.proGridLine, { top: plotHeight * 0.75 }]} />
-                  <View style={[styles.proGridBaseline, { top: plotHeight }]} />
+                  {/* KHU VỰC PLOT 12 CỘT */}
+                  <View style={[styles.chartPlotContainer, { height: plotHeight }]}>
+                    <View style={[styles.proGridLine, { top: 0 }]} />
+                    <View style={[styles.proGridLine, { top: plotHeight * 0.25 }]} />
+                    <View style={[styles.proGridLine, { top: plotHeight * 0.5 }]} />
+                    <View style={[styles.proGridLine, { top: plotHeight * 0.75 }]} />
+                    <View style={[styles.proGridBaseline, { bottom: 0 }]} />
 
-                  <View style={[styles.proBarsRow, { height: plotHeight }]}>
-                    {yearReportData.monthsData.map((m) => {
-                      const isSelected = selectedMonth === m.month;
-                      const fillHeight =
-                        m.amount > 0
-                          ? Math.max(14, Math.round((m.amount / yearChartMaxY) * plotHeight))
-                          : 0;
+                    <View style={[styles.proBarsRow, { height: plotHeight }]}>
+                      {yearReportData.monthsData.map((m) => {
+                        const isSelected = selectedMonth === m.month;
+                        const fillHeight =
+                          m.amount > 0
+                            ? Math.max(10, Math.round((m.amount / yearChartMaxY) * maxBarDrawableHeight))
+                            : 0;
 
-                      return (
-                        <TouchableOpacity
-                          key={m.month}
-                          style={[
-                            styles.proYearColumn,
-                            isSelected && styles.proBarColumnSelected,
-                          ]}
-                          onPress={() => {
-                            setSelectedMonth(m.month);
-                            setTimeScope('month');
-                          }}
-                          activeOpacity={0.8}
-                        >
-                          <View style={styles.proBarTrackChannel}>
+                        return (
+                          <TouchableOpacity
+                            key={m.month}
+                            style={[
+                              styles.proYearTrackChannel,
+                              isSelected && styles.proBarColumnSelected,
+                            ]}
+                            onPress={() => {
+                              setSelectedMonth(m.month);
+                              setTimeScope('month');
+                            }}
+                            activeOpacity={0.8}
+                          >
                             {fillHeight > 0 ? (
                               <View
                                 style={[
@@ -1998,7 +2128,7 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
                             <View
                               style={[
                                 styles.proBarTagWrap,
-                                { bottom: fillHeight + 6 },
+                                { bottom: fillHeight + 5 },
                               ]}
                             >
                               {m.amount > 0 ? (
@@ -2024,30 +2154,47 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
                                 <Text style={styles.proBarZeroText}>-</Text>
                               )}
                             </View>
-                          </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </View>
 
-                          <View
+                {/* 2. HÀNG NHÃN 12 THÁNG (X-AXIS ROW DƯỚI ĐÁY) */}
+                <View style={styles.proXAxisRowWrapper}>
+                  <View style={styles.proXAxisLeftSpacer} />
+                  <View style={styles.proXAxisBoxesContainer}>
+                    {yearReportData.monthsData.map((m) => {
+                      const isSelected = selectedMonth === m.month;
+                      return (
+                        <TouchableOpacity
+                          key={m.month}
+                          style={[
+                            styles.proBarXAxisBoxYear,
+                            isSelected && styles.proBarXAxisBoxSelected,
+                          ]}
+                          onPress={() => {
+                            setSelectedMonth(m.month);
+                            setTimeScope('month');
+                          }}
+                          activeOpacity={0.8}
+                        >
+                          <Text
                             style={[
-                              styles.proBarXAxisBoxYear,
-                              isSelected && styles.proBarXAxisBoxSelected,
+                              styles.proBarXMonthText,
+                              isSelected && styles.proBarXMonthTextActive,
+                              m.isPeak && !isSelected && { color: '#DC2626' },
                             ]}
                           >
-                            <Text
-                              style={[
-                                styles.proBarXMonthText,
-                                isSelected && styles.proBarXMonthTextActive,
-                                m.isPeak && !isSelected && { color: '#DC2626' },
-                              ]}
-                            >
-                              {m.label}
-                            </Text>
+                            {m.label}
+                          </Text>
 
-                            {m.isPeak && (
-                              <View style={styles.proBarPeakBadgeYear}>
-                                <Text style={styles.proBarPeakBadgeTextYear}>👑</Text>
-                              </View>
-                            )}
-                          </View>
+                          {m.isPeak && (
+                            <View style={styles.proBarPeakBadgeYear}>
+                              <Text style={styles.proBarPeakBadgeTextYear}>👑</Text>
+                            </View>
+                          )}
                         </TouchableOpacity>
                       );
                     })}
@@ -2062,49 +2209,76 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
       {/* ========================================================================= */}
       {/* 4. KHU VỰC CHI TIẾT DƯỚI BIỂU ĐỒ (THEO NGÀY / THEO THÁNG / THEO NĂM) */}
       {/* ========================================================================= */}
-      {/* Chi tiết từng ngày trong tháng */}
+      {/* Chi tiết từng ngày trong tháng - Accordion Mở Rộng / Thu Gọn Trực Tiếp Tại Chỗ */}
       {timeScope === 'month' && (
         <View style={styles.sectionCard}>
-          <Text style={styles.subSectionTitle}>
-            📅 Chi Tiết Từng Ngày Trong Tháng {selectedMonth}
-          </Text>
+          <View style={styles.sectionHeaderRow}>
+            <View>
+              <Text style={styles.sectionTitle}>
+                📅 Chi Tiết Từng Ngày Trong Tháng {selectedMonth}
+              </Text>
+              <Text style={styles.sectionSub}>
+                Nhấn vào từng ngày để mở rộng hoặc thu gọn chi tiết các khoản chi
+              </Text>
+            </View>
+          </View>
           <View style={styles.monthDaysList}>
             {Object.entries(monthReportData.dailyMap).map(([dStr, val]) => {
               const dayNum = Number(dStr);
-              const isSelected = selectedDay === dayNum;
+              const isExpanded = !!expandedMonthDays[dayNum];
 
               return (
-                <TouchableOpacity
+                <View
                   key={dStr}
                   style={[
-                    styles.monthDayRowCard,
-                    isSelected && styles.monthDayRowCardActive,
+                    styles.monthDayAccordionCard,
+                    isExpanded && styles.monthDayAccordionCardActive,
                   ]}
-                  onPress={() => {
-                    setSelectedDay(dayNum);
-                    setTimeScope('day');
-                  }}
-                  activeOpacity={0.8}
                 >
-                  <View style={styles.monthDayBadge}>
-                    <Text style={styles.monthDayBadgeNum}>{dayNum}</Text>
-                    <Text style={styles.monthDayBadgeSub}>Th{selectedMonth}</Text>
-                  </View>
+                  {/* Thanh tiêu đề ngày có thể bấm để Mở / Đóng */}
+                  <TouchableOpacity
+                    style={styles.monthDayAccordionHeader}
+                    onPress={() => toggleMonthDayExpand(dayNum)}
+                    activeOpacity={0.75}
+                  >
+                    <View style={[styles.monthDayBadge, isExpanded && styles.monthDayBadgeActive]}>
+                      <Text style={[styles.monthDayBadgeNum, isExpanded && styles.monthDayBadgeNumActive]}>
+                        {dayNum}
+                      </Text>
+                      <Text style={[styles.monthDayBadgeSub, isExpanded && styles.monthDayBadgeSubActive]}>
+                        Th{selectedMonth}
+                      </Text>
+                    </View>
 
-                  <View style={{ flex: 1, marginHorizontal: 12 }}>
-                    <Text style={styles.monthDayCat}>{val.category || 'Chi tiêu'}</Text>
-                    <Text style={styles.monthDayNote} numberOfLines={1}>
-                      {val.note || `${val.itemsCount} khoản chi`}
-                    </Text>
-                  </View>
+                    <View style={{ flex: 1, marginHorizontal: 12 }}>
+                      <Text style={styles.monthDayCat}>{val.category || 'Chi tiêu'}</Text>
+                      <Text style={styles.monthDayNote} numberOfLines={1}>
+                        {val.note || `${val.itemsCount} khoản chi`}
+                      </Text>
+                    </View>
 
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.monthDayAmount}>
-                      -{formatMoney(val.amount)}đ
-                    </Text>
-                    <Text style={styles.viewDayLink}>Xem chi tiết ➔</Text>
-                  </View>
-                </TouchableOpacity>
+                    <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                      <Text style={styles.monthDayAmount}>
+                        -{formatMoney(val.amount)}đ
+                      </Text>
+                      <View style={[styles.viewDayToggleBadge, isExpanded && styles.viewDayToggleBadgeActive]}>
+                        <Text style={[styles.viewDayToggleText, isExpanded && styles.viewDayToggleTextActive]}>
+                          {isExpanded ? 'Thu gọn ▲' : 'Xem chi tiết ▼'}
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Chi tiết các giao dịch trong ngày mở rộng tại chỗ */}
+                  {isExpanded && (
+                    <View style={styles.monthDayExpandedBody}>
+                      <View style={styles.monthDayExpandedDivider} />
+                      <View style={styles.dayDetailsGrid}>
+                        {val.items.map((it, idx) => renderTransactionCard(it, idx))}
+                      </View>
+                    </View>
+                  )}
+                </View>
               );
             })}
           </View>
@@ -2131,14 +2305,19 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
                 <View key={day.dateKey} style={styles.weekDayCard}>
                   <View style={styles.weekDayCardHeader}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <View style={[styles.weekDayCardBadge, day.isSelected && styles.weekDayCardBadgeSelected]}>
-                        <Text style={[styles.weekDayCardBadgeText, day.isSelected && styles.weekDayCardBadgeTextSelected]}>
+                      <View style={[styles.weekDayCardBadge, day.isToday && styles.weekDayCardBadgeToday]}>
+                        <Text style={[styles.weekDayCardBadgeText, day.isToday && styles.weekDayCardBadgeTextToday]}>
                           {day.dayOfWeekLabel}
                         </Text>
                       </View>
                       <Text style={styles.weekDayCardDate}>
                         {day.dayNum < 10 ? `0${day.dayNum}` : day.dayNum}/{day.monthNum < 10 ? `0${day.monthNum}` : day.monthNum}/{day.yearNum}
                       </Text>
+                      <View style={styles.weekDayCountBadge}>
+                        <Text style={styles.weekDayCountText}>
+                          {day.items.length > 0 ? `${day.items.length} khoản chi` : 'Không chi tiêu'}
+                        </Text>
+                      </View>
                       {day.isToday && (
                         <View style={styles.todayIndicatorBadge}>
                           <Text style={styles.todayIndicatorText}>Hôm nay</Text>
@@ -2146,56 +2325,18 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
                       )}
                     </View>
 
-                    <Text style={[styles.weekDayCardAmount, day.amount > 0 ? { color: '#DC2626' } : { color: '#94A3B8' }]}>
+                    <Text style={[styles.weekDayCardAmount, day.amount > 0 ? { color: '#E11D48' } : { color: '#94A3B8' }]}>
                       {day.amount > 0 ? `-${formatMoney(day.amount)} VNĐ` : '0 VNĐ'}
                     </Text>
                   </View>
 
                   {day.items.length === 0 ? (
                     <View style={styles.weekDayEmptyRow}>
-                      <Text style={styles.weekDayEmptyText}>Không có khoản chi tiêu nào trong ngày này</Text>
+                      <Text style={styles.weekDayEmptyText}>☕ Ngày này bạn không phát sinh khoản chi tiêu nào</Text>
                     </View>
                   ) : (
                     <View style={styles.dayDetailsGrid}>
-                      {day.items.map((it, idx) => (
-                        <View key={it.id || idx} style={styles.transactionCard}>
-                          <View style={styles.txCardHeader}>
-                            <View style={styles.txIconWrap}>
-                              <Text style={{ fontSize: 22 }}>{it.categoryIcon || '🍜'}</Text>
-                            </View>
-                            <View style={{ flex: 1, marginHorizontal: 10 }}>
-                              <Text style={styles.txCategoryName}>{it.category}</Text>
-                              <Text style={styles.txTimeText}>⏰ {it.time || '12:00'}</Text>
-                            </View>
-                            <View style={styles.txAmountWrap}>
-                              <Text style={styles.txAmountText}>-{formatMoney(it.amount)}đ</Text>
-                            </View>
-                          </View>
-
-                          {it.note && (
-                            <View style={styles.txNoteBox}>
-                              <Text style={styles.txNoteText}>“{it.note}”</Text>
-                            </View>
-                          )}
-
-                          {it.photoUri && (
-                            <TouchableOpacity
-                              style={styles.txPhotoThumbWrap}
-                              onPress={() => setLightboxPhotoUri(it.photoUri || null)}
-                              activeOpacity={0.85}
-                            >
-                              <Image
-                                source={{ uri: it.photoUri }}
-                                style={styles.txPhotoThumb}
-                                resizeMode="cover"
-                              />
-                              <View style={styles.txPhotoBadge}>
-                                <Text style={styles.txPhotoBadgeText}>🔍 Chạm để xem ảnh lớn</Text>
-                              </View>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                      ))}
+                      {day.items.map((it, idx) => renderTransactionCard(it, idx))}
                     </View>
                   )}
                 </View>
@@ -2209,48 +2350,10 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
       {timeScope === 'day' && dayReportData.hasData && (
         <View style={styles.sectionCard}>
           <Text style={styles.subSectionTitle}>
-            📝 Chi Tiết Từng Khoản Chi & Hóa Đơn
+            📝 Chi Tiết Từng Khoản Chi & Hóa Đơn ({selectedDay}/${selectedMonth}/${selectedYear})
           </Text>
           <View style={styles.dayDetailsGrid}>
-            {dayReportData.items.map((it, idx) => (
-              <View key={it.id || idx} style={styles.transactionCard}>
-                <View style={styles.txCardHeader}>
-                  <View style={styles.txIconWrap}>
-                    <Text style={{ fontSize: 22 }}>{it.categoryIcon || '🍜'}</Text>
-                  </View>
-                  <View style={{ flex: 1, marginHorizontal: 10 }}>
-                    <Text style={styles.txCategoryName}>{it.category}</Text>
-                    <Text style={styles.txTimeText}>⏰ {it.time || '12:00'}</Text>
-                  </View>
-                  <View style={styles.txAmountWrap}>
-                    <Text style={styles.txAmountText}>-{formatMoney(it.amount)}đ</Text>
-                  </View>
-                </View>
-
-                {it.note && (
-                  <View style={styles.txNoteBox}>
-                    <Text style={styles.txNoteText}>“{it.note}”</Text>
-                  </View>
-                )}
-
-                {it.photoUri && (
-                  <TouchableOpacity
-                    style={styles.txPhotoThumbWrap}
-                    onPress={() => setLightboxPhotoUri(it.photoUri || null)}
-                    activeOpacity={0.85}
-                  >
-                    <Image
-                      source={{ uri: it.photoUri }}
-                      style={styles.txPhotoThumb}
-                      resizeMode="cover"
-                    />
-                    <View style={styles.txPhotoBadge}>
-                      <Text style={styles.txPhotoBadgeText}>🔍 Chạm để xem ảnh lớn</Text>
-                    </View>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ))}
+            {dayReportData.items.map((it, idx) => renderTransactionCard(it, idx))}
           </View>
         </View>
       )}
@@ -2324,107 +2427,189 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
         </View>
 
         <View style={[styles.donutSectionRow, !isDesktop && styles.donutSectionRowStack]}>
-          {/* VÒNG TRÒN DONUT SVG */}
+          {/* VÒNG TRÒN DONUT SVG HOÀN HẢO */}
           <View style={styles.donutContainer}>
-            <Svg width="180" height="180" viewBox="0 0 180 180">
-              <G rotation="-90" origin="90, 90">
+            <Svg
+              width={donutSize}
+              height={donutSize}
+              viewBox={`0 0 ${donutSize} ${donutSize}`}
+              style={{ overflow: 'visible' }}
+            >
+              {/* Vòng nền xám nhạt tối giản */}
+              <Circle
+                cx={donutCenter}
+                cy={donutCenter}
+                r={donutR}
+                fill="none"
+                stroke="#F1F5F9"
+                strokeWidth={donutStrokeWidth}
+              />
+
+              <G rotation="-90" origin={`${donutCenter}, ${donutCenter}`}>
                 {currentCategories.length === 0 ? (
                   <Circle
-                    cx="90"
-                    cy="90"
+                    cx={donutCenter}
+                    cy={donutCenter}
                     r={donutR}
-                    fill="transparent"
+                    fill="none"
                     stroke="#E2E8F0"
-                    strokeWidth="24"
+                    strokeWidth={donutStrokeWidth}
+                  />
+                ) : currentCategories.length === 1 ? (
+                  <Circle
+                    cx={donutCenter}
+                    cy={donutCenter}
+                    r={donutR}
+                    fill="none"
+                    stroke={currentCategories[0].color || '#10B981'}
+                    strokeWidth={donutStrokeWidth}
                   />
                 ) : (
-                  currentCategories.map((cat, idx) => {
-                    const dash = (cat.percent / 100) * donutCircum;
-                    const offset = currentCategories
-                      .slice(0, idx)
-                      .reduce((acc, c) => acc + (c.percent / 100) * donutCircum, 0);
+                  (() => {
+                    let accumulatedOffset = 0;
+                    return currentCategories.map((cat, idx) => {
+                      // Tuyệt đối không vẽ nếu danh mục không có phát sinh chi tiêu (0 đồng)
+                      if (!cat.amount || cat.amount <= 0) return null;
 
-                    return (
-                      <Circle
-                        key={idx}
-                        cx="90"
-                        cy="90"
-                        r={donutR}
-                        fill="transparent"
-                        stroke={cat.color}
-                        strokeWidth="24"
-                        strokeDasharray={`${dash} ${donutCircum - dash}`}
-                        strokeDashoffset={-offset}
-                        strokeLinecap="round"
-                      />
-                    );
-                  })
+                      const fraction = totalCategoryAmount > 0 ? (cat.amount || 0) / totalCategoryAmount : 0;
+                      if (fraction <= 0) return null;
+
+                      const rawDash = fraction * donutCircum;
+                      // Khoảng hở 3px thanh thoát giữa các lát cắt
+                      const gap = rawDash > 8 ? 3 : 0;
+                      const strokeDash = Math.max(1, rawDash - gap);
+                      const currentOffset = accumulatedOffset;
+                      accumulatedOffset += rawDash;
+
+                      const isSelected = filterCategory === cat.name;
+                      const isDimmed = filterCategory && !isSelected;
+
+                      return (
+                        <Circle
+                          key={cat.id || cat.name || idx}
+                          cx={donutCenter}
+                          cy={donutCenter}
+                          r={donutR}
+                          fill="none"
+                          stroke={cat.color || '#10B981'}
+                          strokeWidth={isSelected ? donutStrokeWidth + 4 : donutStrokeWidth}
+                          strokeDasharray={`${strokeDash} ${donutCircum - strokeDash}`}
+                          strokeDashoffset={-currentOffset}
+                          strokeLinecap="butt"
+                          opacity={isDimmed ? 0.35 : 1}
+                          onPress={() => setFilterCategory(isSelected ? null : cat.name)}
+                        />
+                      );
+                    });
+                  })()
                 )}
               </G>
             </Svg>
 
-            {/* NHÃN Ở TÂM DONUT */}
+            {/* NHÃN Ở TÂM DONUT - THIẾT KẾ ĐĨA TRÒN NỔI BẬT */}
             <View style={styles.donutCenterLabel}>
-              <Text style={styles.donutCenterSub}>Tổng chi</Text>
-              <Text style={styles.donutCenterAmount} numberOfLines={1}>
-                {currentTotalSpending >= 1000000
-                  ? `${(currentTotalSpending / 1000000).toFixed(1)}M`
-                  : `${formatMoney(currentTotalSpending)}đ`}
-              </Text>
-              <Text style={styles.donutCenterTopCat}>
-                {topCategory ? topCategory.name : 'Chưa có'}
-              </Text>
+              {filterCategory && activeFilteredCat ? (
+                <>
+                  <View style={styles.donutFilterBadge}>
+                    <Text style={styles.donutFilterBadgeText}>Đang chọn</Text>
+                  </View>
+                  <Text style={styles.donutCenterAmount} numberOfLines={1}>
+                    {activeFilteredCat.amount >= 1000000
+                      ? `${(activeFilteredCat.amount / 1000000).toFixed(1)}M`
+                      : `${formatMoney(activeFilteredCat.amount)}đ`}
+                  </Text>
+                  <Text
+                    style={[styles.donutCenterTopCat, { color: activeFilteredCat.color || '#047857' }]}
+                    numberOfLines={1}
+                  >
+                    {activeFilteredCat.icon || '🏷️'} {activeFilteredCat.name}
+                  </Text>
+                  <Text style={styles.donutCenterSubPercent}>
+                    {formatCatPercent(activeFilteredCat.amount, currentTotalSpending)} cơ cấu
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.donutCenterSub}>TỔNG CHI</Text>
+                  <Text style={styles.donutCenterAmount} numberOfLines={1}>
+                    {currentTotalSpending >= 1000000
+                      ? `${(currentTotalSpending / 1000000).toFixed(1)}M`
+                      : `${formatMoney(currentTotalSpending)}đ`}
+                  </Text>
+                  {topCategory ? (
+                    <View style={styles.donutTopCatPill}>
+                      <Text style={styles.donutCenterTopCat} numberOfLines={1}>
+                        {topCategory.icon || '🏆'} {topCategory.name}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.donutCenterTopCat}>Chưa có chi</Text>
+                  )}
+                  {topCategory && (
+                    <Text style={styles.donutCenterSubPercent}>
+                      {formatCatPercent(topCategory.amount, currentTotalSpending)} lớn nhất
+                    </Text>
+                  )}
+                </>
+              )}
             </View>
           </View>
 
           {/* DANH SÁCH CHÚ THÍCH DANH MỤC */}
           <View style={styles.categoriesLegendGrid}>
-            {currentCategories.length === 0 ? (
+            {currentCategories.filter((cat) => (cat.amount || 0) > 0).length === 0 ? (
               <View style={{ paddingVertical: 20, alignItems: 'center' }}>
                 <Text style={{ fontSize: 13, color: '#94A3B8' }}>
                   Chưa có dữ liệu danh mục trong khoảng thời gian này
                 </Text>
               </View>
             ) : (
-              currentCategories.map((cat) => {
-                const isSelected = filterCategory === cat.name;
+              currentCategories
+                .filter((cat) => (cat.amount || 0) > 0)
+                .map((cat) => {
+                  const isSelected = filterCategory === cat.name;
+                  const percentFormatted = formatCatPercent(cat.amount, currentTotalSpending);
+                  const percentVal = currentTotalSpending > 0 ? (cat.amount / currentTotalSpending) * 100 : 0;
 
-                return (
-                  <TouchableOpacity
-                    key={cat.id || cat.name}
-                    style={[
-                      styles.catLegendItemCard,
-                      isSelected && styles.catLegendItemCardActive,
-                    ]}
-                    onPress={() => setFilterCategory(isSelected ? null : cat.name)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.catLegendHeader}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={{ fontSize: 18 }}>{cat.icon || '🍜'}</Text>
-                        <Text style={styles.catLegendTitle}>{cat.name}</Text>
+                  return (
+                    <TouchableOpacity
+                      key={cat.id || cat.name}
+                      style={[
+                        styles.catLegendItemCard,
+                        isSelected && styles.catLegendItemCardActive,
+                      ]}
+                      onPress={() => setFilterCategory(isSelected ? null : cat.name)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={styles.catLegendHeader}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={{ fontSize: 18 }}>{cat.icon || '🍜'}</Text>
+                          <Text style={styles.catLegendTitle}>{cat.name}</Text>
+                        </View>
+                        <Text style={[styles.catLegendPercent, { color: cat.color }]}>
+                          {percentFormatted}
+                        </Text>
                       </View>
-                      <Text style={[styles.catLegendPercent, { color: cat.color }]}>
-                        {cat.percent}%
+
+                      {/* Thanh phần trăm */}
+                      <View style={styles.catLegendTrack}>
+                        <View
+                          style={[
+                            styles.catLegendFill,
+                            {
+                              width: `${Math.max(1.5, Math.min(100, percentVal))}%`,
+                              backgroundColor: cat.color,
+                            },
+                          ]}
+                        />
+                      </View>
+
+                      <Text style={styles.catLegendAmount}>
+                        {formatMoney(cat.amount)} VNĐ
                       </Text>
-                    </View>
-
-                    {/* Thanh phần trăm */}
-                    <View style={styles.catLegendTrack}>
-                      <View
-                        style={[
-                          styles.catLegendFill,
-                          { width: `${cat.percent}%`, backgroundColor: cat.color },
-                        ]}
-                      />
-                    </View>
-
-                    <Text style={styles.catLegendAmount}>
-                      {formatMoney(cat.amount)} VNĐ
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })
+                    </TouchableOpacity>
+                  );
+                })
             )}
           </View>
         </View>
@@ -2986,6 +3171,24 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#FFFFFF',
   },
+  backToMonthHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginBottom: 16,
+    gap: 6,
+  },
+  backToMonthHeaderBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#047857',
+  },
   dayItemsBarSection: {
     marginBottom: 20,
   },
@@ -3048,81 +3251,113 @@ const styles = StyleSheet.create({
   transactionCard: {
     flex: 1,
     minWidth: 280,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
     padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   txCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   txIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
   txCategoryName: {
-    fontSize: 13.5,
+    fontSize: 14,
     fontWeight: '800',
     color: '#0F172A',
   },
   txTimeText: {
-    fontSize: 11,
+    fontSize: 11.5,
     color: '#64748B',
-    marginTop: 1,
+    marginTop: 2,
+    fontWeight: '500',
   },
   txAmountWrap: {
     alignItems: 'flex-end',
   },
   txAmountText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '900',
     color: '#E11D48',
+    letterSpacing: -0.2,
   },
   txNoteBox: {
-    marginTop: 8,
-    backgroundColor: '#FFFFFF',
-    padding: 8,
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#059669',
+    marginTop: 10,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  txNoteIcon: {
+    fontSize: 12,
+    marginTop: 1,
   },
   txNoteText: {
-    fontSize: 11.5,
+    fontSize: 12,
     color: '#334155',
-    fontStyle: 'italic',
+    lineHeight: 18,
+    flex: 1,
   },
-  txPhotoThumbWrap: {
+  txReceiptAttachment: {
     marginTop: 10,
-    height: 130,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
-    overflow: 'hidden',
-    position: 'relative',
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  txPhotoThumb: {
-    width: '100%',
-    height: '100%',
+  txReceiptThumb: {
+    width: 52,
+    height: 52,
+    borderRadius: 8,
+    backgroundColor: '#E2E8F0',
   },
-  txPhotoBadge: {
-    position: 'absolute',
-    bottom: 6,
-    right: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+  txReceiptInfo: {
+    flex: 1,
+    marginHorizontal: 10,
   },
-  txPhotoBadgeText: {
-    fontSize: 10,
+  txReceiptTitle: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: '#0F172A',
+  },
+  txReceiptSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  txReceiptActionBadge: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  txReceiptActionText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#047857',
   },
 
   // Month View specific
@@ -3204,7 +3439,73 @@ const styles = StyleSheet.create({
     color: '#047857',
   },
   monthDaysList: {
-    gap: 8,
+    gap: 10,
+  },
+  monthDayAccordionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+    marginBottom: 6,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  monthDayAccordionCardActive: {
+    borderColor: '#059669',
+    shadowColor: '#059669',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  monthDayAccordionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    backgroundColor: '#FFFFFF',
+  },
+  monthDayBadgeActive: {
+    backgroundColor: '#059669',
+    borderColor: '#059669',
+  },
+  monthDayBadgeNumActive: {
+    color: '#FFFFFF',
+  },
+  monthDayBadgeSubActive: {
+    color: '#A7F3D0',
+  },
+  viewDayToggleBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  viewDayToggleBadgeActive: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  viewDayToggleText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  viewDayToggleTextActive: {
+    color: '#047857',
+    fontWeight: '800',
+  },
+  monthDayExpandedBody: {
+    backgroundColor: '#F8FAFC',
+    padding: 14,
+    paddingTop: 6,
+  },
+  monthDayExpandedDivider: {
+    height: 1,
+    backgroundColor: '#E2E8F0',
+    marginBottom: 12,
   },
   monthDayRowCard: {
     flexDirection: 'row',
@@ -3412,30 +3713,71 @@ const styles = StyleSheet.create({
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 180,
-    height: 180,
+    width: 270,
+    height: 270,
   },
   donutCenterLabel: {
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
-    width: 110,
+    width: 170,
+    height: 170,
+    borderRadius: 85,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   donutCenterSub: {
-    fontSize: 10.5,
+    fontSize: 11,
     color: '#64748B',
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  donutCenterSubPercent: {
+    fontSize: 11,
+    color: '#94A3B8',
     fontWeight: '600',
+    marginTop: 3,
   },
   donutCenterAmount: {
-    fontSize: 15,
+    fontSize: 24,
     fontWeight: '900',
     color: '#0F172A',
     marginVertical: 2,
+    letterSpacing: -0.5,
+  },
+  donutTopCatPill: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 14,
+    marginTop: 3,
+    maxWidth: 150,
   },
   donutCenterTopCat: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '700',
     color: '#047857',
+  },
+  donutFilterBadge: {
+    backgroundColor: '#E0F2FE',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginBottom: 2,
+  },
+  donutFilterBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#0284C7',
+    textTransform: 'uppercase',
   },
   categoriesLegendGrid: {
     flex: 1,
@@ -3620,50 +3962,71 @@ const styles = StyleSheet.create({
 
   // Week Day-by-day Card
   weekDayCard: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
+    overflow: 'hidden',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
   },
   weekDayCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
   weekDayCardBadge: {
-    backgroundColor: '#E2E8F0',
+    backgroundColor: '#0F172A',
     borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
-  weekDayCardBadgeSelected: {
-    backgroundColor: '#059669',
+  weekDayCardBadgeToday: {
+    backgroundColor: '#047857',
   },
   weekDayCardBadgeText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#334155',
+    color: '#FFFFFF',
   },
-  weekDayCardBadgeTextSelected: {
+  weekDayCardBadgeTextToday: {
     color: '#FFFFFF',
   },
   weekDayCardDate: {
-    fontSize: 13,
+    fontSize: 13.5,
     fontWeight: '700',
-    color: '#1E293B',
+    color: '#334155',
+  },
+  weekDayCountBadge: {
+    backgroundColor: '#EDF2F7',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+  },
+  weekDayCountText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
   },
   weekDayCardAmount: {
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '900',
   },
   weekDayEmptyRow: {
-    paddingVertical: 10,
+    paddingVertical: 16,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   weekDayEmptyText: {
-    fontSize: 12,
+    fontSize: 12.5,
     color: '#94A3B8',
     fontStyle: 'italic',
   },
@@ -3697,24 +4060,29 @@ const styles = StyleSheet.create({
   // Professional Coordinate Chart System (Trục tung, Cột mốc, Lưới tọa độ)
   // =========================================================================
   proChartWrapper: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    gap: 12,
+    width: '100%',
     paddingTop: 16,
     paddingBottom: 8,
   },
+  proChartMainRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    width: '100%',
+  },
   yAxisMilestoneCol: {
     width: 84,
+    marginRight: 12,
     justifyContent: 'space-between',
-    paddingVertical: 4,
+    paddingVertical: 2,
     alignItems: 'flex-end',
     borderRightWidth: 1.5,
     borderRightColor: '#CBD5E1',
-    paddingRight: 10,
+    paddingRight: 8,
   },
   yAxisMilestoneItemTop: {
     alignItems: 'flex-end',
     gap: 2,
+    marginTop: -8,
   },
   milestoneBadgeTop: {
     backgroundColor: '#FEE2E2',
@@ -3747,6 +4115,7 @@ const styles = StyleSheet.create({
   yAxisMilestoneItemBottom: {
     alignItems: 'flex-end',
     gap: 2,
+    marginBottom: -8,
   },
   milestoneBadgeBottom: {
     backgroundColor: '#F1F5F9',
@@ -3771,7 +4140,6 @@ const styles = StyleSheet.create({
   chartPlotContainer: {
     flex: 1,
     position: 'relative',
-    justifyContent: 'flex-end',
   },
   proGridLine: {
     position: 'absolute',
@@ -3793,6 +4161,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
+    width: '100%',
   },
   proBarColumn: {
     flex: 1,
@@ -3814,11 +4183,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0FDF4',
   },
   proBarTrackChannel: {
-    width: '100%',
     flex: 1,
+    height: '100%',
     justifyContent: 'flex-end',
     alignItems: 'center',
     position: 'relative',
+    borderRadius: 8,
+    marginHorizontal: 3,
+  },
+  proYearTrackChannel: {
+    flex: 1,
+    height: '100%',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    position: 'relative',
+    borderRadius: 6,
+    marginHorizontal: 1,
+  },
+  proXAxisRowWrapper: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 10,
+    width: '100%',
+  },
+  proXAxisLeftSpacer: {
+    width: 96,
+  },
+  proXAxisBoxesContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 4,
   },
   proBarFilled: {
     width: '65%',
@@ -3894,22 +4289,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   proBarXAxisBox: {
-    marginTop: 10,
+    flex: 1,
     alignItems: 'center',
     gap: 2,
     paddingVertical: 4,
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
     borderRadius: 8,
-    width: '100%',
+    marginHorizontal: 3,
   },
   proBarXAxisBoxYear: {
-    marginTop: 8,
+    flex: 1,
     alignItems: 'center',
     gap: 1,
     paddingVertical: 3,
     paddingHorizontal: 1,
     borderRadius: 6,
-    width: '100%',
+    marginHorizontal: 1,
   },
   proBarXAxisBoxSelected: {
     backgroundColor: '#ECFDF5',
@@ -3996,8 +4391,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5D25F',
   },
   statCardBlue: {
-    borderColor: '#B7D9F2',
-    backgroundColor: '#B7D9F2',
+    borderColor: '#BAE6FD',
+    backgroundColor: '#E0F2FE',
   },
   statCardHeader: {
     flexDirection: 'row',
@@ -4063,8 +4458,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5D25F',
   },
   compactKpiCardBlue: {
-    borderColor: '#B7D9F2',
-    backgroundColor: '#B7D9F2',
+    borderColor: '#BAE6FD',
+    backgroundColor: '#E0F2FE',
   },
   compactKpiHeader: {
     flexDirection: 'row',

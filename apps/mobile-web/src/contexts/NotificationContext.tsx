@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { sendBrowserNotification } from '../utils/browserNotification';
 import { useAuth } from './AuthContext';
-import { getStreakApi, getFriendRequestsApi } from '../services/api';
+import { getStreakApi, getFriendRequestsApi, getPendingEventInvitationsApi, getStoredUserId } from '../services/api';
+import { getStoredEventInvitations } from '../services/eventsStorage';
 
-export type NotificationType = 'friend' | 'moment' | 'expense' | 'system' | 'budget' | 'reminder';
+export type NotificationType = 'friend' | 'moment' | 'expense' | 'system' | 'budget' | 'reminder' | 'event';
 
 export interface AppNotification {
   id: string;
@@ -23,6 +24,18 @@ export interface AppNotification {
     amount?: number;
     category?: string;
     targetTab?: string;
+    type?: string;
+    inviteId?: string;
+    eventId?: string;
+    eventTitle?: string;
+    inviterName?: string;
+    inviterId?: string;
+    inviterEmail?: string;
+    recipientId?: string;
+    recipientName?: string;
+    recipientEmail?: string;
+    inviteStatus?: 'pending' | 'accepted' | 'declined';
+    [key: string]: any;
   };
 }
 
@@ -46,8 +59,14 @@ interface NotificationContextType {
   toggleNotifications: () => void;
 }
 
-const STORAGE_KEY = 'monett_notifications_v2';
-const OLD_STORAGE_KEY = 'monett_notifications_v1';
+/**
+ * Tạo key lưu trữ localStorage riêng biệt cho từng tài khoản (userId)
+ * Tránh hoàn toàn việc tài khoản bạn bè đăng nhập bị dính thông báo của tài khoản khác
+ */
+export const getNotificationStorageKey = (userId?: string): string => {
+  const uid = userId || getStoredUserId();
+  return uid && uid !== 'guest' ? `monett_notifications_${uid}` : 'monett_notifications_guest';
+};
 
 export const getStreakNotificationContent = (streak: number) => {
   const currentStreak = Math.max(0, streak);
@@ -61,10 +80,43 @@ export const getStreakNotificationContent = (streak: number) => {
   return { title, message };
 };
 
+/**
+ * Làm sạch dữ liệu thông báo:
+ * - Loại bỏ hoàn toàn các thông báo giả lập mẫu (Cà phê Highlands, Bún chả trưa, cảnh báo ngân sách 78%, v.v.)
+ * - Cập nhật đúng nội dung chuỗi streak của tài khoản hiện tại
+ * - TUYỆT ĐỐI không tự ý chèn thông báo chi tiêu giả mạo nếu người dùng chưa từng chi tiêu
+ */
 export const sanitizeNotifications = (list: AppNotification[], streak: number = 1): AppNotification[] => {
   const { title: streakTitle, message: streakMessage } = getStreakNotificationContent(streak);
-  const result = list.map((n) => {
-    if (n.id === 'seed-notif-4' || n.title.includes('streak') || n.title.includes('chuỗi') || n.title.includes('Streak')) {
+  
+  // Lọc bỏ triệt để các thông báo mẫu / fake không thuộc về tài khoản thực tế
+  const cleaned = list.filter((n) => {
+    if (!n || !n.id) return false;
+    // Bỏ các thông báo fake seed
+    if (
+      n.id === 'seed-notif-2' ||
+      n.id === 'seed-notif-3' ||
+      n.id === 'seed-notif-5' ||
+      n.id === 'seed-notif-6' ||
+      n.id === 'seed-notif-reminder'
+    ) {
+      return false;
+    }
+    // Bỏ thông báo mẫu mua cá & rau tươi
+    if (n.title?.includes('mua cá & rau tươi') || n.message?.includes('mua cá & rau tươi')) {
+      return false;
+    }
+    return true;
+  });
+
+  return cleaned.map((n) => {
+    if (
+      n.id === 'seed-notif-4' ||
+      n.id === 'welcome-notif-streak' ||
+      n.title.includes('streak') ||
+      n.title.includes('chuỗi') ||
+      n.title.includes('Streak')
+    ) {
       return {
         ...n,
         title: streakTitle,
@@ -74,112 +126,88 @@ export const sanitizeNotifications = (list: AppNotification[], streak: number = 
     if (n.id === 'seed-notif-1' && (n.message.includes('Minh Anh') || n.metadata?.friendName === 'Minh Anh')) {
       return {
         ...n,
-        title: 'Kết bạn thành công! 🤝',
+        title: 'Chào mừng bạn đến với Monett! 🤝',
         message: 'Chào mừng bạn đến với Monett! Kết nối bạn bè qua mã QR hoặc ID để cùng nhau chia sẻ khoảnh khắc chi tiêu trên Bảng tin.',
         metadata: { ...n.metadata, friendName: 'Bạn bè' },
       };
     }
     return n;
   });
-
-  // Đảm bảo luôn có thông báo chi tiêu mới chưa đọc trong tab Chi tiêu
-  const hasUnreadExpense = result.some((n) => n.id === 'seed-notif-6' || (n.type === 'expense' && !n.read));
-  if (!hasUnreadExpense) {
-    result.unshift({
-      id: 'seed-notif-6',
-      type: 'expense',
-      title: 'Đã lưu chi tiêu mới 💰',
-      message: 'Khoản chi "Ăn uống & Cà phê" (65.000đ) vừa được ghi nhận thành công vào sổ chi tiêu ngày.',
-      createdAt: new Date().toISOString(),
-      read: false,
-      iconBg: '#FFF1F2',
-      iconColor: '#E11D48',
-      metadata: {
-        amount: 65000,
-        category: 'Ăn uống',
-        targetTab: 'home',
-      },
-    });
-  }
-
-  // Lọc bỏ các thông báo mẫu cũ không còn dùng (ví dụ: sample reminder mua cá & rau tươi)
-  return result.filter(
-    (n) => n.id !== 'seed-notif-reminder' && !n.title.includes('mua cá & rau tươi') && !n.message.includes('mua cá & rau tươi')
-  );
 };
 
-const INITIAL_NOTIFICATIONS: AppNotification[] = [
-  {
-    id: 'seed-notif-1',
-    type: 'friend',
-    title: 'Kết bạn thành công! 🤝',
-    message: 'Chào mừng bạn đến với Monett! Kết nối bạn bè qua mã QR hoặc ID để cùng nhau chia sẻ khoảnh khắc chi tiêu trên Bảng tin.',
-    createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(), // 15 mins ago
-    read: false,
-    iconBg: '#EDE9FE',
-    iconColor: '#8B5CF6',
-    metadata: {
-      friendName: 'Bạn bè',
-      targetTab: 'feed',
+/**
+ * Danh sách thông báo ban đầu cho tài khoản mới (Chỉ chào mừng và nhắc streak, KHÔNG có chi tiêu giả mạo)
+ */
+export const getInitialNotificationsForUser = (streak: number = 0): AppNotification[] => {
+  const { title: streakTitle, message: streakMessage } = getStreakNotificationContent(streak);
+  return [
+    {
+      id: 'welcome-notif-1',
+      type: 'friend',
+      title: 'Chào mừng bạn đến với Monett! 🤝',
+      message: 'Chào mừng bạn đến với Monett! Kết nối bạn bè qua mã QR hoặc ID để cùng nhau chia sẻ khoảnh khắc chi tiêu trên Bảng tin.',
+      createdAt: new Date().toISOString(),
+      read: false,
+      iconBg: '#EDE9FE',
+      iconColor: '#8B5CF6',
+      metadata: {
+        friendName: 'Bạn bè',
+        targetTab: 'feed',
+      },
     },
-  },
-  {
-    id: 'seed-notif-2',
-    type: 'moment',
-    title: 'Đã đăng khoảnh khắc chi tiêu 📸',
-    message: 'Khoảnh khắc chi tiêu "Cà phê sáng Highlands" (45.000đ) của bạn đã được đăng thành công lên bảng tin bạn bè.',
-    createdAt: new Date(Date.now() - 1000 * 60 * 50).toISOString(), // 50 mins ago
-    read: false,
-    iconBg: '#ECFDF5',
-    iconColor: '#059669',
-    metadata: {
-      amount: 45000,
-      category: 'Cà phê & Nước',
-      targetTab: 'feed',
+    {
+      id: 'welcome-notif-streak',
+      type: 'system',
+      title: streakTitle,
+      message: streakMessage,
+      createdAt: new Date().toISOString(),
+      read: false,
+      iconBg: '#FFFBEB',
+      iconColor: '#D97706',
+      metadata: {
+        targetTab: 'home',
+      },
     },
-  },
-  {
-    id: 'seed-notif-3',
-    type: 'expense',
-    title: 'Lưu nhanh chi tiêu thành công 🍜',
-    message: 'Khoản chi Ăn uống "Bún chả trưa" (55.000đ) đã được tự động cộng dồn vào lịch chi tiêu ngày hôm nay.',
-    createdAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(), // 2 hours ago
-    read: true,
-    iconBg: '#FFF1F2',
-    iconColor: '#E11D48',
-    metadata: {
-      amount: 55000,
-      category: 'Ăn uống',
-      targetTab: 'home',
-    },
-  },
-  {
-    id: 'seed-notif-4',
-    type: 'system',
-    title: 'Duy trì chuỗi streak 1 ngày! 🔥',
-    message: 'Tuyệt vời! Bạn đang duy trì thói quen ghi chép tài chính rất tốt. Cố gắng ghi chép hôm nay để đạt mốc 2 ngày nhé!',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 18).toISOString(), // 18 hours ago
-    read: true,
-    iconBg: '#FFFBEB',
-    iconColor: '#D97706',
-    metadata: {
-      targetTab: 'home',
-    },
-  },
-  {
-    id: 'seed-notif-5',
-    type: 'budget',
-    title: 'Cảnh báo hạn mức ngân sách ⚠️',
-    message: 'Hạn mức chi tiêu tháng này của bạn đã đạt 78%. Hãy chú ý cân đối chi tiêu các ngày tới nhé.',
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 36).toISOString(), // 1.5 days ago
-    read: true,
-    iconBg: '#FEF2F2',
-    iconColor: '#DC2626',
-    metadata: {
-      targetTab: 'analytics',
-    },
-  },
-];
+  ];
+};
+
+/**
+ * Tải danh sách thông báo riêng của tài khoản hiện tại từ localStorage
+ */
+export const loadUserNotifications = (userId: string, streak: number = 1): AppNotification[] => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const userKey = getNotificationStorageKey(userId);
+      const stored = window.localStorage.getItem(userKey);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          return sanitizeNotifications(parsed, streak);
+        }
+      }
+
+      // Chỉ migrate key v2 cũ nếu đây là tài khoản quản trị viên / tài khoản ban đầu
+      const isAdminAccount = userId === 'mock_admin_id' || userId === 'admin_mai_05' || userId.includes('mai');
+      if (isAdminAccount) {
+        let legacyStored = window.localStorage.getItem('monett_notifications_v2');
+        if (!legacyStored) {
+          legacyStored = window.localStorage.getItem('monett_notifications_v1');
+        }
+        if (legacyStored) {
+          const parsed = JSON.parse(legacyStored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const sanitized = sanitizeNotifications(parsed, streak);
+            window.localStorage.setItem(userKey, JSON.stringify(sanitized));
+            return sanitized;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Lỗi đọc notifications từ localStorage:', e);
+  }
+  return getInitialNotificationsForUser(streak);
+};
 
 const NotificationContext = createContext<NotificationContextType>({
   notifications: [],
@@ -197,28 +225,29 @@ const NotificationContext = createContext<NotificationContextType>({
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
-  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    const initialStreak = typeof user?.streak === 'number' ? user.streak : 1;
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        let stored = window.localStorage.getItem(STORAGE_KEY);
-        if (!stored) {
-          stored = window.localStorage.getItem(OLD_STORAGE_KEY);
-        }
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return sanitizeNotifications(parsed, initialStreak);
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Lỗi đọc notifications từ localStorage:', e);
-    }
-    return sanitizeNotifications(INITIAL_NOTIFICATIONS, initialStreak);
+  const currentUserId = user?.id || (user as any)?._id || getStoredUserId();
+  const currentStreak = typeof user?.streak === 'number' ? user.streak : 1;
+
+  // Quản lý state gắn chặt với userId để không bao giờ bị ghi đè chéo giữa các tài khoản
+  const [userScopedState, setUserScopedState] = useState<{ userId: string; notifications: AppNotification[] }>(() => {
+    return {
+      userId: currentUserId,
+      notifications: loadUserNotifications(currentUserId, currentStreak),
+    };
   });
 
   const [isOpen, setIsOpen] = useState(false);
+
+  // Khi chuyển đổi người dùng (login / logout / switch account), đổi ngay sang thông báo của tài khoản đó
+  useEffect(() => {
+    if (userScopedState.userId !== currentUserId) {
+      const userNotifs = loadUserNotifications(currentUserId, currentStreak);
+      setUserScopedState({
+        userId: currentUserId,
+        notifications: userNotifs,
+      });
+    }
+  }, [currentUserId, currentStreak, userScopedState.userId]);
 
   // Tự động đồng bộ số ngày chuỗi (streak) hiện tại từ thông tin tài khoản người dùng và backend API
   useEffect(() => {
@@ -226,11 +255,16 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const syncStreak = (streakVal: number) => {
       const { title: streakTitle, message: streakMessage } = getStreakNotificationContent(streakVal);
-      setNotifications((prev) => {
+      setUserScopedState((prev) => {
         let changed = false;
-        const next = prev.map((n) => {
-          // Cập nhật thông báo chuỗi streak với số ngày thật của tài khoản
-          if (n.id === 'seed-notif-4' || n.title.includes('streak') || n.title.includes('chuỗi') || n.title.includes('Streak')) {
+        const next = prev.notifications.map((n) => {
+          if (
+            n.id === 'seed-notif-4' ||
+            n.id === 'welcome-notif-streak' ||
+            n.title.includes('streak') ||
+            n.title.includes('chuỗi') ||
+            n.title.includes('Streak')
+          ) {
             if (n.title !== streakTitle || n.message !== streakMessage) {
               changed = true;
               return {
@@ -240,20 +274,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
               };
             }
           }
-          // Xóa dấu vết Minh Anh ở thông báo mẫu nếu còn lưu trong localStorage cũ
-          if (n.id === 'seed-notif-1' && (n.message.includes('Minh Anh') || n.metadata?.friendName === 'Minh Anh')) {
-            changed = true;
-            return {
-              ...n,
-              title: 'Kết bạn thành công! 🤝',
-              message: 'Chào mừng bạn đến với Monett! Kết nối bạn bè qua mã QR hoặc ID để cùng nhau chia sẻ khoảnh khắc chi tiêu trên Bảng tin.',
-              metadata: { ...n.metadata, friendName: 'Bạn bè' },
-            };
-          }
           return n;
         });
 
-        return changed ? next : prev;
+        return changed ? { ...prev, notifications: next } : prev;
       });
     };
 
@@ -270,13 +294,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       })
       .catch(() => {});
 
-    // Tự động đồng bộ các lời mời kết bạn đang chờ (Pending Friend Requests) từ Backend
-    if (user?.id || (user as any)?._id) {
+    // Hàm đồng bộ toàn diện: Lời mời kết bạn + Lời mời tham gia sự kiện (từ Backend API & Local)
+    const syncAllPending = () => {
+      if (!currentUserId || currentUserId === 'guest') return;
+
+      // 1. Đồng bộ lời mời kết bạn từ Backend
       getFriendRequestsApi()
         .then((requests: any[]) => {
           if (!mounted || !Array.isArray(requests) || requests.length === 0) return;
-          setNotifications((prev) => {
-            let next = [...prev];
+          setUserScopedState((prev) => {
+            if (prev.userId !== currentUserId) return prev;
+            let next = [...prev.notifications];
             let changed = false;
             requests.forEach((req: any) => {
               const reqId = req._id || req.id;
@@ -303,27 +331,158 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 changed = true;
               }
             });
-            return changed ? next : prev;
+            return changed ? { ...prev, notifications: next } : prev;
           });
         })
         .catch(() => {});
+
+      // 2. Đồng bộ lời mời tham gia sự kiện từ Backend API
+      getPendingEventInvitationsApi()
+        .then((invites: any[]) => {
+          if (!mounted || !Array.isArray(invites)) return;
+          setUserScopedState((prev) => {
+            if (prev.userId !== currentUserId) return prev;
+            let next = [...prev.notifications];
+            let changed = false;
+            invites.forEach((inv: any) => {
+              const invId = (inv._id || inv.id || '').toString();
+              const notifId = `notif-invite-${invId}`;
+              const exists = next.some(
+                (n) => n.id === notifId || n.metadata?.inviteId === invId || (n.metadata?.eventId === inv.eventId && n.type === 'event' && !n.read)
+              );
+              if (!exists && inv.status === 'pending') {
+                const inviterName = inv.inviterName || 'Bạn bè';
+                const eventTitle = inv.eventTitle || 'Sự kiện';
+                next.unshift({
+                  id: notifId,
+                  type: 'event',
+                  title: 'Lời mời tham gia sự kiện 🏕️',
+                  message: `${inviterName} đã mời bạn tham gia sự kiện "${eventTitle}". Bạn có muốn tham gia không?`,
+                  createdAt: inv.createdAt || new Date().toISOString(),
+                  read: false,
+                  iconName: 'calendar',
+                  iconColor: '#059669',
+                  iconBg: '#DCFCE7',
+                  metadata: {
+                    type: 'event_invite',
+                    inviteId: invId,
+                    eventId: inv.eventId,
+                    eventTitle: eventTitle,
+                    inviterName: inviterName,
+                    inviterId: inv.inviterId,
+                    inviterEmail: inv.inviterEmail,
+                    recipientId: inv.recipientId,
+                    recipientName: inv.recipientName,
+                    recipientEmail: inv.recipientEmail,
+                    inviteStatus: 'pending',
+                    targetTab: 'events',
+                  },
+                });
+                changed = true;
+              }
+            });
+            return changed ? { ...prev, notifications: next } : prev;
+          });
+        })
+        .catch(() => {});
+
+      // 3. Đồng bộ lời mời sự kiện từ Local Storage (đối với môi trường cùng trình duyệt)
+      try {
+        const localInvites = getStoredEventInvitations();
+        const userEmailNorm = (user?.email || '').trim().toLowerCase();
+        const userUidNorm = (currentUserId || '').trim().toLowerCase();
+
+        const pendingForMe = localInvites.filter((inv) => {
+          if (inv.status !== 'pending') return false;
+          const invUid = (inv.recipientId || '').trim().toLowerCase();
+          const invEmail = (inv.recipientEmail || '').trim().toLowerCase();
+          return (userUidNorm && invUid === userUidNorm) || (userEmailNorm && invEmail === userEmailNorm);
+        });
+
+        if (pendingForMe.length > 0) {
+          setUserScopedState((prev) => {
+            if (prev.userId !== currentUserId) return prev;
+            let next = [...prev.notifications];
+            let changed = false;
+            pendingForMe.forEach((inv) => {
+              const notifId = `notif-invite-${inv.id}`;
+              const exists = next.some((n) => n.id === notifId || n.metadata?.inviteId === inv.id);
+              if (!exists) {
+                next.unshift({
+                  id: notifId,
+                  type: 'event',
+                  title: 'Lời mời tham gia sự kiện 🏕️',
+                  message: `${inv.inviterName} đã mời bạn tham gia sự kiện "${inv.eventTitle}". Bạn có muốn tham gia không?`,
+                  createdAt: inv.createdAt || new Date().toISOString(),
+                  read: false,
+                  iconName: 'calendar',
+                  iconColor: '#059669',
+                  iconBg: '#DCFCE7',
+                  metadata: {
+                    type: 'event_invite',
+                    inviteId: inv.id,
+                    eventId: inv.eventId,
+                    eventTitle: inv.eventTitle,
+                    inviterName: inv.inviterName,
+                    inviterId: inv.inviterId,
+                    inviterEmail: inv.inviterEmail,
+                    recipientId: inv.recipientId,
+                    recipientName: inv.recipientName,
+                    recipientEmail: inv.recipientEmail,
+                    inviteStatus: 'pending',
+                    targetTab: 'events',
+                  },
+                });
+                changed = true;
+              }
+            });
+            return changed ? { ...prev, notifications: next } : prev;
+          });
+        }
+      } catch (_) {}
+    };
+
+    syncAllPending();
+    const pollInterval = setInterval(syncAllPending, 4000);
+
+    const handleCustomNotifAdded = (e: any) => {
+      if (e?.detail) {
+        syncAllPending();
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('monett:notification_added', handleCustomNotifAdded);
+      window.addEventListener('monett:event_invitations_updated', syncAllPending);
     }
 
     return () => {
       mounted = false;
-    };
-  }, [user?.streak, user?.id, (user as any)?._id]);
-
-  // Lưu vào localStorage mỗi khi danh sách notifications thay đổi
-  useEffect(() => {
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+      clearInterval(pollInterval);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('monett:notification_added', handleCustomNotifAdded);
+        window.removeEventListener('monett:event_invitations_updated', syncAllPending);
       }
-    } catch (e) {
-      console.warn('Lỗi lưu notifications vào localStorage:', e);
+    };
+  }, [user?.streak, user?.email, currentUserId]);
+
+  // Lưu vào localStorage riêng biệt của từng tài khoản mỗi khi danh sách notifications thay đổi
+  useEffect(() => {
+    if (userScopedState.userId) {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const userKey = getNotificationStorageKey(userScopedState.userId);
+          window.localStorage.setItem(userKey, JSON.stringify(userScopedState.notifications));
+        }
+      } catch (e) {
+        console.warn('Lỗi lưu notifications vào localStorage:', e);
+      }
     }
-  }, [notifications]);
+  }, [userScopedState]);
+
+  // Danh sách notifications thuộc về tài khoản hiện tại
+  const notifications = useMemo(() => {
+    return userScopedState.userId === currentUserId ? userScopedState.notifications : [];
+  }, [userScopedState, currentUserId]);
 
   const unreadCount = useMemo(() => {
     return notifications.filter((n) => !n.read).length;
@@ -344,7 +503,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       metadata: input.metadata,
     };
 
-    setNotifications((prev) => [newNotif, ...prev]);
+    setUserScopedState((prev) => ({
+      ...prev,
+      notifications: [newNotif, ...prev.notifications],
+    }));
 
     // Gửi Web Browser Notification khi có thông báo mới (không kèm âm thanh)
     if (!newNotif.read) {
@@ -371,7 +533,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const todayDateStr = now.toISOString().split('T')[0];
 
         if (currentTimeStr === reminderTime) {
-          const sentKey = `monett_daily_reminder_${todayDateStr}_${reminderTime}`;
+          const sentKey = `monett_daily_reminder_${currentUserId}_${todayDateStr}_${reminderTime}`;
           if (typeof window !== 'undefined' && window.localStorage) {
             const alreadySent = window.localStorage.getItem(sentKey);
             if (!alreadySent) {
@@ -396,24 +558,34 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const timer = setInterval(checkReminder, 30000);
 
     return () => clearInterval(timer);
-  }, [user?.reminderTime, addNotification]);
+  }, [user?.reminderTime, currentUserId, addNotification]);
 
   const markAsRead = useCallback((id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
+    setUserScopedState((prev) => ({
+      ...prev,
+      notifications: prev.notifications.map((n) => (n.id === id ? { ...n, read: true } : n)),
+    }));
   }, []);
 
   const markAllAsRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUserScopedState((prev) => ({
+      ...prev,
+      notifications: prev.notifications.map((n) => ({ ...n, read: true })),
+    }));
   }, []);
 
   const deleteNotification = useCallback((id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    setUserScopedState((prev) => ({
+      ...prev,
+      notifications: prev.notifications.filter((n) => n.id !== id),
+    }));
   }, []);
 
   const clearAll = useCallback(() => {
-    setNotifications([]);
+    setUserScopedState((prev) => ({
+      ...prev,
+      notifications: [],
+    }));
   }, []);
 
   const openNotifications = useCallback(() => {

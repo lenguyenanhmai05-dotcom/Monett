@@ -59,8 +59,8 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
     upcoming: {
       labelVi: 'Sắp tới',
       labelEn: 'Upcoming',
-      bg: isDark ? 'rgba(2, 132, 199, 0.2)' : '#E0F2FE',
-      color: '#0284C7',
+      bg: isDark ? 'rgba(217, 119, 6, 0.2)' : '#FEF3C7',
+      color: '#B45309',
       icon: 'time-outline' as const,
     },
     completed: {

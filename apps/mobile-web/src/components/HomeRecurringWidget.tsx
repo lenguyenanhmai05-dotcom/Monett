@@ -18,31 +18,16 @@ export const HomeRecurringWidget: React.FC<HomeRecurringWidgetProps> = ({
 }) => {
   const isVi = language === 'vi';
   const { user } = useAuth();
+  const userEmail = (user as any)?.email || '';
+  const userId = user?.id || (user as any)?._id || '';
 
   const [items, setItems] = useState<RecurringItem[]>(() => {
-    const loaded = loadRecurringItems(user?.id);
-    if (loaded && loaded.length > 0) return loaded;
-    // Dữ liệu mẫu khớp 100% hình 1 của người dùng
-    return [
-      {
-        id: 'rec_wifi_sample',
-        title: isVi ? 'Tiền wifi' : 'Wifi bill',
-        amount: 100000,
-        type: 'expense',
-        frequency: 'monthly',
-        dayOfPayment: (new Date().getDate() + 12) % 30 || 1,
-        isActive: true,
-        createdAt: '2026-10-18',
-      },
-    ];
+    return loadRecurringItems(userId, userEmail);
   });
 
   useEffect(() => {
-    const loaded = loadRecurringItems(user?.id);
-    if (loaded && loaded.length > 0) {
-      setItems(loaded);
-    }
-  }, [user?.id]);
+    setItems(loadRecurringItems(userId, userEmail));
+  }, [userId, userEmail]);
 
   const expenseItems = useMemo(() => {
     return items.filter((it) => it.type === 'expense');

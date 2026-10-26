@@ -15,6 +15,7 @@ export class MessagesService {
     text: string,
     type: string = 'text',
     billData?: any,
+    imageUrl?: string,
   ) {
     const newMessage = new this.messageModel({
       sender: new Types.ObjectId(senderId),
@@ -22,6 +23,7 @@ export class MessagesService {
       text,
       type,
       billData,
+      imageUrl,
     });
     return newMessage.save();
   }

@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Moment, MomentDocument } from './schemas/moment.schema';
 import { Friendship } from '../friends/schemas/friendship.schema';
 import { User, UserDocument } from '../users/schemas/user.schema';
+import { MessagesGateway } from '../messages/messages.gateway';
 
 @Injectable()
 export class MomentsService {
@@ -11,6 +12,7 @@ export class MomentsService {
     @InjectModel(Moment.name) private momentModel: Model<MomentDocument>,
     @InjectModel(Friendship.name) private friendshipModel: Model<Friendship>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @Optional() private readonly messagesGateway?: MessagesGateway,
   ) {}
 
   /**
@@ -311,18 +313,77 @@ export class MomentsService {
     await moment.save();
 
     const cDate = commentObj.createdAt;
+    const formattedComment = {
+      id: (commentObj as any)._id ? (commentObj as any)._id.toString() : new Date().getTime().toString(),
+      userId,
+      userName: commentObj.userName,
+      userAvatar: commentObj.userAvatar,
+      text: commentObj.text,
+      createdAt: commentObj.createdAt,
+      time: `${cDate.getHours().toString().padStart(2, '0')}:${cDate.getMinutes().toString().padStart(2, '0')}`,
+    };
+
+    // Phát sự kiện realtime qua Socket.IO tới toàn bộ người dùng và chủ bài viết
+    if (this.messagesGateway?.server) {
+      this.messagesGateway.server.emit('moment_comment', {
+        momentId,
+        comment: formattedComment,
+        commentsCount: moment.comments.length,
+      });
+
+      // Gửi riêng thông báo cho chủ bài viết nếu người bình luận là bạn bè
+      const ownerId = moment.user?.toString();
+      if (ownerId && ownerId !== userId) {
+        this.messagesGateway.server.to(`user_${ownerId}`).emit('moment_notification', {
+          momentId,
+          commenterName: commentObj.userName,
+          text: commentObj.text,
+          caption: moment.caption,
+          photo: moment.photo,
+        });
+      }
+    }
+
     return {
       message: 'Đã gửi tin nhắn thành công',
-      comment: {
-        id: (commentObj as any)._id ? (commentObj as any)._id.toString() : new Date().getTime().toString(),
-        userId,
-        userName: commentObj.userName,
-        userAvatar: commentObj.userAvatar,
-        text: commentObj.text,
-        createdAt: commentObj.createdAt,
-        time: `${cDate.getHours().toString().padStart(2, '0')}:${cDate.getMinutes().toString().padStart(2, '0')}`,
-      },
+      comment: formattedComment,
       commentsCount: moment.comments.length,
+    };
+  }
+
+  /**
+   * Lấy danh sách bình luận chi tiết của một khoảnh khắc
+   */
+  async getComments(momentId: string) {
+    let objId: Types.ObjectId;
+    try {
+      objId = new Types.ObjectId(momentId);
+    } catch {
+      throw new BadRequestException('ID khoảnh khắc không hợp lệ');
+    }
+
+    const moment = await this.momentModel.findById(objId);
+    if (!moment) {
+      throw new NotFoundException('Không tìm thấy khoảnh khắc');
+    }
+
+    const comments = (moment.comments || []).map((c: any) => {
+      const cDate = c.createdAt ? new Date(c.createdAt) : new Date();
+      return {
+        id: c._id ? c._id.toString() : c.id,
+        userId: c.userId ? c.userId.toString() : '',
+        userName: c.userName || 'Bạn bè',
+        userAvatar: c.userAvatar || null,
+        text: c.text,
+        createdAt: c.createdAt,
+        time: `${cDate.getHours().toString().padStart(2, '0')}:${cDate.getMinutes().toString().padStart(2, '0')}`,
+      };
+    });
+
+    return {
+      momentId,
+      comments,
+      commentsCount: comments.length,
     };
   }
 

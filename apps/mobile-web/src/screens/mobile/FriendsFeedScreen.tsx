@@ -16,6 +16,7 @@ import {
   Modal,
   Alert,
   KeyboardAvoidingView,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,8 +40,10 @@ import {
   respondFriendRequestApi,
   normalizeAvatarUrl,
   addMomentCommentApi,
+  getMomentCommentsApi,
   sendMessageApi,
 } from '../../services/api';
+import { useSocket } from '../../contexts/SocketContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -150,7 +153,7 @@ export const MomentCard = ({
       // 2. Gửi thẳng vào tin nhắn riêng cho bạn bè (đúng chuẩn Locket!)
       if (item.user?.id && item.user.id !== currentUserId) {
         const msgPrefix = item.caption ? `📸 [${item.caption}]: ` : '📸 [Khoảnh khắc]: ';
-        await sendMessageApi(item.user.id, `${msgPrefix}${trimmed}`).catch((err) => {
+        await sendMessageApi(item.user.id, `${msgPrefix}${trimmed}`, item.photo).catch((err) => {
           console.warn('Lỗi gửi tin nhắn trực tiếp:', err);
         });
       }
@@ -699,48 +702,55 @@ export const MomentFormModal = ({
   onDone,
   editingItem,
   initialAction,
+  initialCategory,
 }: {
   visible: boolean;
   onClose: () => void;
   onDone: (updatedOrNew: any) => void;
   editingItem?: MomentItem | null;
   initialAction?: 'photo' | 'tag' | 'text';
+  initialCategory?: string;
 }) => {
   const isEdit = !!editingItem;
   const { addNotification } = useNotifications();
+  const { user } = useAuth();
   const inputRef = useRef<TextInput>(null);
   const [caption, setCaption] = useState(editingItem?.caption || '');
-  const [category, setCategory] = useState(editingItem?.category || CATEGORIES[0]);
+  const [category, setCategory] = useState(editingItem?.category || initialCategory || CATEGORIES[0]);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(editingItem?.photo || '');
+
+  // Mẫu ảnh gợi ý chất lượng cao theo các chủ đề phổ biến (100% link Unsplash ổn định)
+  const samplePhotos = [
+    { label: 'Cà phê chill', uri: 'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=800&auto=format&fit=crop&q=80', cat: '☕ Cà phê chill' },
+    { label: 'Ăn uống ngon', uri: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&auto=format&fit=crop&q=80', cat: '🍜 Ăn ngon cùng bạn' },
+    { label: 'Du lịch biển', uri: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop&q=80', cat: '🏖️ Du lịch & Phượt' },
+    { label: 'Trà sữa chill', uri: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=800&auto=format&fit=crop&q=80', cat: '🥳 Tụ tập & Tiệc tùng' },
+    { label: 'Check-in phố', uri: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800&auto=format&fit=crop&q=80', cat: '📸 Check-in sống ảo' },
+    { label: 'Mua sắm', uri: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=800&auto=format&fit=crop&q=80', cat: '✨ Đời thường vui vẻ' },
+    { label: 'Góc làm việc', uri: 'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=800&auto=format&fit=crop&q=80', cat: '✨ Đời thường vui vẻ' },
+    { label: 'Tập gym', uri: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=800&auto=format&fit=crop&q=80', cat: '💪 Thể thao & Gym' },
+    { label: 'Mèo cưng', uri: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=800&auto=format&fit=crop&q=80', cat: '🐶 Thú cưng đáng yêu' },
+  ];
 
   // Reset when opening
   useEffect(() => {
     if (visible) {
       setCaption(editingItem?.caption || '');
-      setCategory(editingItem?.category || CATEGORIES[0]);
-      setSelectedPhoto(editingItem?.photo || samplePhotos[0]);
+      const currentCat = editingItem?.category || initialCategory || CATEGORIES[0];
+      setCategory(currentCat);
+
+      const matchedSample = samplePhotos.find(p => p.cat === currentCat);
+      setSelectedPhoto(editingItem?.photo || (matchedSample ? matchedSample.uri : samplePhotos[0].uri));
       
-      if (!editingItem) {
-        if (initialAction === 'photo') {
-          setTimeout(() => {
-            handlePickPhoto();
-          }, 400);
-        } else if (initialAction === 'text') {
-          setTimeout(() => {
-            inputRef.current?.focus();
-          }, 400);
-        }
+      if (!editingItem && initialAction === 'photo') {
+        setTimeout(() => {
+          handlePickPhoto();
+        }, 300);
       }
     }
-  }, [visible, editingItem, initialAction]);
-
-  // Mẫu ảnh gợi ý
-  const samplePhotos = [
-    'https://baohaiquanvietnam.vn/storage/users/user_6/N%C4%83m%202022/thang%205-2022/22-5/16052022-anh-9.jpg',
-    'https://tripmap.vn/wp-content/uploads/2021/08/vinh-vinh-hy-16294461697-jpg-1024x668.webp',
-  ];
+  }, [visible, editingItem, initialAction, initialCategory]);
 
   // Danh sách đoạn văn mẫu gợi ý theo danh mục đang chọn
   const suggestedCaptions = SAMPLE_CAPTIONS[category] || DEFAULT_SAMPLE_CAPTIONS;
@@ -775,7 +785,7 @@ export const MomentFormModal = ({
     if (submitting || uploadingPhoto) return;
     try {
       setSubmitting(true);
-      const photo = selectedPhoto || samplePhotos[0];
+      const photo = selectedPhoto || samplePhotos[0].uri;
 
       if (isEdit && editingItem) {
         const res = await updateMomentApi(editingItem.id, {
@@ -812,86 +822,64 @@ export const MomentFormModal = ({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
       <View style={createStyles.overlay}>
+        {/* Backdrop Tap to close */}
+        <TouchableOpacity style={createStyles.backdropTap} activeOpacity={1} onPress={onClose} />
+
         <View style={createStyles.sheet}>
+          {/* Header Modal Sang Trọng */}
           <View style={createStyles.header}>
-            <Text style={createStyles.title}>
-              {isEdit ? '✏️ Chỉnh sửa bài đăng' : '📸 Chia sẻ khoảnh khắc vui'}
-            </Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color="#64748B" />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <View style={createStyles.headerIconBadge}>
+                <Ionicons name="sparkles" size={20} color="#059669" />
+              </View>
+              <View>
+                <Text style={createStyles.title}>
+                  {isEdit ? 'Chỉnh sửa khoảnh khắc' : 'Chia sẻ khoảnh khắc với bạn bè'}
+                </Text>
+                <View style={createStyles.authorRow}>
+                  <Text style={createStyles.authorName}>
+                    {(user as any)?.fullName || 'Ánh Mai'}
+                  </Text>
+                  <View style={createStyles.privacyPill}>
+                    <Ionicons name="people" size={12} color="#047857" style={{ marginRight: 3 }} />
+                    <Text style={createStyles.privacyPillText}>Bạn bè Monett</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+            <TouchableOpacity onPress={onClose} style={createStyles.closeBtn} activeOpacity={0.7}>
+              <Ionicons name="close" size={20} color="#64748B" />
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            {/* Preview ảnh */}
-            {selectedPhoto ? (
-              <View style={{ position: 'relative' }}>
-                <Image source={{ uri: normalizeAvatarUrl(selectedPhoto) || selectedPhoto }} style={createStyles.previewImg} />
-                {uploadingPhoto && (
-                  <View style={createStyles.uploadingOverlay}>
-                    <ActivityIndicator size="large" color="#fff" />
-                    <Text style={{ color: '#fff', marginTop: 8, fontWeight: '700' }}>Đang tải ảnh lên...</Text>
-                  </View>
-                )}
-              </View>
-            ) : (
-              <View style={[createStyles.previewImg, { backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center' }]}>
-                <Ionicons name="image-outline" size={48} color="#CBD5E1" />
-              </View>
-            )}
-
-            {/* Nút Upload ảnh thật */}
-            <TouchableOpacity style={createStyles.uploadBtn} onPress={handlePickPhoto} disabled={uploadingPhoto}>
-              <Ionicons name="cloud-upload-outline" size={18} color="#059669" />
-              <Text style={createStyles.uploadBtnText}>
-                {uploadingPhoto ? 'Đang tải lên...' : '📷 Tải ảnh từ điện thoại'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Chọn nhanh ảnh mẫu */}
-            <Text style={createStyles.label}>Hoặc chọn ảnh mẫu:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              <View style={createStyles.photosRow}>
-                {samplePhotos.map((p, idx) => (
-                  <TouchableOpacity
-                    key={idx}
-                    onPress={() => setSelectedPhoto(p)}
-                    style={[createStyles.photoThumbBox, selectedPhoto === p && createStyles.photoThumbBoxActive]}
-                  >
-                    <Image source={{ uri: p }} style={createStyles.photoThumb} />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </ScrollView>
-
-            {/* Chọn chủ đề */}
-            <Text style={createStyles.label}>Chủ đề:</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {CATEGORIES.map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    onPress={() => setCategory(cat)}
-                    style={[createStyles.catChip, category === cat && createStyles.catChipActive]}
-                  >
-                    <Text style={[createStyles.catChipText, category === cat && createStyles.catChipTextActive]}>
-                      {cat}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </ScrollView>
-
-            {/* Nhập chú thích / Đoạn văn mẫu */}
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, marginBottom: 6 }}>
-              <Text style={createStyles.labelNoMargin}>Lời nhắn / Chú thích:</Text>
-              <Text style={createStyles.labelHint}>Chọn mẫu bên dưới hoặc tự ghi ✍️</Text>
+          {/* Nội dung cuộn mượt mà */}
+          <ScrollView
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 16 }}
+          >
+            {/* 1. Ô nhập lời nhắn / chú thích ngay trên đầu */}
+            <View style={createStyles.inputSection}>
+              <TextInput
+                ref={inputRef}
+                style={createStyles.input}
+                placeholder={`${(user as any)?.fullName || 'Ánh Mai'} ơi, bạn có khoảnh khắc gì thú vị muốn chia sẻ hôm nay? ✨`}
+                value={caption}
+                onChangeText={setCaption}
+                placeholderTextColor="#94A3B8"
+                multiline
+                numberOfLines={2}
+              />
             </View>
 
-            {/* Danh sách đoạn văn mẫu chọn nhanh */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+            {/* Gợi ý caption */}
+            <View style={{ marginBottom: 6, marginTop: 4 }}>
+              <Text style={createStyles.sectionLabel}>Gợi ý caption</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
               <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 2 }}>
                 {suggestedCaptions.map((text, idx) => {
                   const isSelected = caption === text;
@@ -919,31 +907,136 @@ export const MomentFormModal = ({
               </View>
             </ScrollView>
 
-            <TextInput
-              ref={inputRef}
-              style={createStyles.input}
-              placeholder="VD: Cà phê sáng cùng bạn thân ☕... (hoặc tự nhập nội dung)"
-              value={caption}
-              onChangeText={setCaption}
-              placeholderTextColor="#94A3B8"
-              multiline
-            />
+            {/* 2. Preview ảnh 16:9 sắc nét, gọn gàng */}
+            <View style={createStyles.previewContainer}>
+              {selectedPhoto ? (
+                <View style={createStyles.previewBox}>
+                  <Image source={{ uri: normalizeAvatarUrl(selectedPhoto) || selectedPhoto }} style={createStyles.previewImg} />
+                  
+                  {/* Floating category badge ở góc trên bên trái */}
+                  <View style={createStyles.floatingCategoryBadge}>
+                    <Text style={createStyles.floatingCategoryBadgeText}>{category}</Text>
+                  </View>
 
-            {/* Nút Đăng */}
+                  {/* Floating Nút đổi ảnh / tải ảnh ở góc trên bên phải */}
+                  <TouchableOpacity
+                    style={createStyles.floatingChangeBtn}
+                    onPress={handlePickPhoto}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="cloud-upload" size={14} color="#059669" style={{ marginRight: 5 }} />
+                    <Text style={createStyles.floatingChangeBtnText}>
+                      {uploadingPhoto ? 'Đang tải...' : 'Tải ảnh từ máy'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {uploadingPhoto && (
+                    <View style={createStyles.uploadingOverlay}>
+                      <ActivityIndicator size="large" color="#fff" />
+                      <Text style={{ color: '#fff', marginTop: 8, fontWeight: '700' }}>Đang tải ảnh lên...</Text>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[createStyles.previewImg, createStyles.emptyPreviewBox]}
+                  onPress={handlePickPhoto}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="image-outline" size={42} color="#94A3B8" />
+                  <Text style={{ color: '#64748B', fontWeight: '700', marginTop: 8 }}>Chạm để chọn ảnh khoảnh khắc</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Thư viện ảnh mẫu */}
+            <View style={{ marginTop: 4, marginBottom: 6 }}>
+              <Text style={createStyles.sectionLabel}>Kho ảnh mẫu</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+              <View style={createStyles.photosRow}>
+                {samplePhotos.map((item, idx) => {
+                  const isSelected = selectedPhoto === item.uri;
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      onPress={() => {
+                        setSelectedPhoto(item.uri);
+                        if (!editingItem) setCategory(item.cat);
+                      }}
+                      style={[createStyles.photoThumbCard, isSelected && createStyles.photoThumbCardActive]}
+                      activeOpacity={0.75}
+                    >
+                      <Image source={{ uri: item.uri }} style={createStyles.photoThumbImg} />
+                      <View style={[createStyles.photoThumbLabelWrap, isSelected && createStyles.photoThumbLabelWrapActive]}>
+                        <Text style={[createStyles.photoThumbLabel, isSelected && createStyles.photoThumbLabelActive]}>
+                          {item.label}
+                        </Text>
+                      </View>
+                      {isSelected && (
+                        <View style={createStyles.photoThumbCheckCircle}>
+                          <Ionicons name="checkmark" size={11} color="#FFFFFF" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            {/* Chọn chủ đề */}
+            <View style={{ marginTop: 2, marginBottom: 6 }}>
+              <Text style={createStyles.sectionLabel}>Chủ đề</Text>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }}>
+              <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 2 }}>
+                {CATEGORIES.map((cat) => {
+                  const isActive = category === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      onPress={() => setCategory(cat)}
+                      style={[createStyles.catChip, isActive && createStyles.catChipActive]}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[createStyles.catChipText, isActive && createStyles.catChipTextActive]}>
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </ScrollView>
+          </ScrollView>
+
+          {/* Footer PINNED Cố Định ở Đáy Modal (Không bị cuộn mất nút) */}
+          <View style={createStyles.footerActionRow}>
+            <TouchableOpacity
+              style={createStyles.cancelActionBtn}
+              onPress={onClose}
+              activeOpacity={0.7}
+            >
+              <Text style={createStyles.cancelActionText}>Hủy bỏ</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={[createStyles.submitBtn, (submitting || uploadingPhoto) && { opacity: 0.7 }]}
               onPress={handleSubmit}
               disabled={submitting || uploadingPhoto}
+              activeOpacity={0.85}
             >
               {submitting ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color="#fff" size="small" />
               ) : (
-                <Text style={createStyles.submitBtnText}>
-                  {isEdit ? 'Lưu thay đổi ✅' : 'Đăng lên Bảng tin 🚀'}
-                </Text>
+                <>
+                  <Ionicons name={isEdit ? "checkmark-circle" : "paper-plane"} size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Text style={createStyles.submitBtnText}>
+                    {isEdit ? 'Lưu thay đổi' : 'Đăng lên Bảng tin'}
+                  </Text>
+                </>
               )}
             </TouchableOpacity>
-          </ScrollView>
+          </View>
         </View>
       </View>
     </Modal>
@@ -953,32 +1046,156 @@ export const MomentFormModal = ({
 const createStyles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+    ...(Platform.OS === 'web' ? {
+      backdropFilter: 'blur(8px)',
+    } : {}),
+  },
+  backdropTap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   sheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 20,
+    width: '100%',
+    maxWidth: 640,
     maxHeight: '92%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.25,
+    shadowRadius: 32,
+    elevation: 16,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  headerIconBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   title: {
-    fontSize: 18,
+    fontSize: 17.5,
     fontWeight: '800',
     color: '#0F172A',
+  },
+  authorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  authorName: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  privacyPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  privacyPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#047857',
+  },
+  closeBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  previewContainer: {
+    marginBottom: 12,
+  },
+  previewBox: {
+    position: 'relative',
+    borderRadius: 18,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
   },
   previewImg: {
     width: '100%',
     height: 200,
-    borderRadius: 16,
-    marginBottom: 12,
+    borderRadius: 18,
+    resizeMode: 'cover',
+    backgroundColor: '#0F172A',
+  },
+  emptyPreviewBox: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  floatingCategoryBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    ...(Platform.OS === 'web' ? { backdropFilter: 'blur(6px)' } : {}),
+  },
+  floatingCategoryBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  floatingChangeBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  floatingChangeBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0F172A',
   },
   uploadingOverlay: {
     position: 'absolute',
@@ -986,65 +1203,134 @@ const createStyles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 16,
+    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+    borderRadius: 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  uploadBtn: {
+  uploadCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
     backgroundColor: '#F0FDF4',
     borderWidth: 1.5,
-    borderColor: '#A7F3D0',
+    borderColor: '#BBF7D0',
     borderRadius: 14,
-    paddingVertical: 12,
-    marginBottom: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 8,
   },
-  uploadBtnText: {
-    color: '#059669',
-    fontWeight: '700',
-    fontSize: 14,
+  uploadCardIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#DCFCE7',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  label: {
+  uploadCardTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#334155',
+    color: '#065F46',
+  },
+  uploadCardSub: {
+    fontSize: 11,
+    color: '#047857',
+    marginTop: 1,
+  },
+  uploadCardPill: {
+    backgroundColor: '#059669',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  uploadCardPillText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
     marginBottom: 6,
-    marginTop: 4,
+  },
+  sectionHint: {
+    display: 'none',
   },
   photosRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
     paddingVertical: 4,
   },
-  photoThumbBox: {
-    width: 64,
-    height: 64,
-    borderRadius: 12,
+  photoThumbCard: {
+    width: 80,
+    borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  photoThumbBoxActive: {
+  photoThumbCardActive: {
     borderColor: '#059669',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  photoThumb: {
+  photoThumbImg: {
     width: '100%',
-    height: '100%',
+    height: 58,
+    resizeMode: 'cover',
+  },
+  photoThumbLabelWrap: {
+    width: '100%',
+    paddingVertical: 3,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+  },
+  photoThumbLabelWrapActive: {
+    backgroundColor: '#ECFDF5',
+  },
+  photoThumbLabel: {
+    fontSize: 10.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  photoThumbLabelActive: {
+    color: '#047857',
+    fontWeight: '800',
+  },
+  photoThumbCheckCircle: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#059669',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
   },
   catChip: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F8FAFC',
     borderRadius: 20,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 7,
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: '#E2E8F0',
   },
   catChipActive: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#ECFDF5',
     borderColor: '#059669',
   },
   catChipText: {
@@ -1053,53 +1339,19 @@ const createStyles = StyleSheet.create({
     color: '#475569',
   },
   catChipTextActive: {
-    color: '#059669',
+    color: '#047857',
     fontWeight: '800',
-  },
-  input: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    color: '#0F172A',
-    marginBottom: 4,
-  },
-  submitBtn: {
-    backgroundColor: '#059669',
-    paddingVertical: 14,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 28,
-  },
-  submitBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  labelNoMargin: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#334155',
-  },
-  labelHint: {
-    fontSize: 11,
-    color: '#059669',
-    fontWeight: '600',
   },
   sampleCaptionChip: {
-    backgroundColor: '#F1F5F9',
-    borderRadius: 16,
-    paddingHorizontal: 12,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 20,
+    paddingHorizontal: 14,
     paddingVertical: 7,
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
   },
   sampleCaptionChipActive: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#ECFDF5',
     borderColor: '#059669',
   },
   sampleCaptionText: {
@@ -1108,7 +1360,64 @@ const createStyles = StyleSheet.create({
     color: '#475569',
   },
   sampleCaptionTextActive: {
-    color: '#059669',
+    color: '#047857',
+    fontWeight: '800',
+  },
+  inputSection: {
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 14,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    color: '#0F172A',
+    marginBottom: 6,
+    minHeight: 74,
+    textAlignVertical: 'top',
+  },
+  footerActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 8,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  cancelActionBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelActionText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  submitBtn: {
+    flex: 2,
+    height: 46,
+    flexDirection: 'row',
+    borderRadius: 14,
+    backgroundColor: '#059669',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  submitBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14.5,
     fontWeight: '800',
   },
 });
@@ -1129,14 +1438,75 @@ export const MomentChatModal = ({
   onCommentAdded: (momentId: string, comment: MomentCommentItem) => void;
   onRefresh?: () => void;
 }) => {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 640;
+  const [isMinimized, setIsMinimized] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
-  const previousCommentsLength = useRef(0);
+  const { socket } = useSocket();
 
-  const comments = moment?.comments || [];
+  // Quản lý danh sách bình luận động realtime
+  const [commentsList, setCommentsList] = useState<MomentCommentItem[]>(() => moment?.comments || []);
 
-  if (!moment) return null;
+  useEffect(() => {
+    if (moment?.comments) {
+      setCommentsList(moment.comments);
+    }
+  }, [moment?.id, moment?.comments]);
+
+  // 1. Tự động đồng bộ tin nhắn/bình luận mới nhất từ Backend mỗi 3 giây khi modal đang mở
+  useEffect(() => {
+    if (!visible || !moment?.id) return;
+
+    let isMounted = true;
+    const fetchLatestComments = async () => {
+      try {
+        const res: any = await getMomentCommentsApi(moment.id);
+        const data = res?.comments || res;
+        if (isMounted && Array.isArray(data)) {
+          setCommentsList((prev) => {
+            if (data.length !== prev.length || (data.length > 0 && data[data.length - 1]?.id !== prev[prev.length - 1]?.id)) {
+              return data;
+            }
+            return prev;
+          });
+        }
+      } catch (_) {}
+    };
+
+    fetchLatestComments();
+    const timer = setInterval(fetchLatestComments, 3000);
+    return () => {
+      isMounted = false;
+      clearInterval(timer);
+    };
+  }, [visible, moment?.id]);
+
+  // 2. Lắng nghe sự kiện socket realtime từ đối phương gửi tới
+  useEffect(() => {
+    if (!socket || !visible || !moment?.id) return;
+
+    const handleSocketComment = (data: { momentId: string; comment: MomentCommentItem }) => {
+      if (data?.momentId === moment.id && data?.comment) {
+        setCommentsList((prev) => {
+          if (prev.some((c) => c.id === data.comment.id)) return prev;
+          return [...prev, data.comment];
+        });
+        onCommentAdded(moment.id, data.comment);
+        setTimeout(() => {
+          scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 100);
+      }
+    };
+
+    socket.on('moment_comment', handleSocketComment);
+    return () => {
+      socket.off('moment_comment', handleSocketComment);
+    };
+  }, [socket, visible, moment?.id, onCommentAdded]);
+
+  if (!visible || !moment) return null;
 
   const handleSend = async () => {
     const trimmed = text.trim();
@@ -1145,14 +1515,25 @@ export const MomentChatModal = ({
     try {
       setSending(true);
       const res: any = await addMomentCommentApi(moment.id, trimmed);
-      if (res?.comment) {
-        onCommentAdded(moment.id, res.comment);
-      }
+      const newComment: MomentCommentItem = res?.comment || {
+        id: 'c_' + Date.now(),
+        userId: currentUserId,
+        userName: 'Bạn',
+        text: trimmed,
+        createdAt: new Date().toISOString(),
+        time: `${new Date().getHours().toString().padStart(2, '0')}:${new Date().getMinutes().toString().padStart(2, '0')}`,
+      };
+
+      setCommentsList((prev) => {
+        if (prev.some((c) => c.id === newComment.id)) return prev;
+        return [...prev, newComment];
+      });
+      onCommentAdded(moment.id, newComment);
 
       // Gửi thẳng vào tin nhắn riêng cho bạn bè (như Locket!)
       if (moment.user?.id && moment.user.id !== currentUserId) {
         const msgPrefix = moment.caption ? `📸 [${moment.caption}]: ` : '📸 [Khoảnh khắc]: ';
-        await sendMessageApi(moment.user.id, `${msgPrefix}${trimmed}`).catch((err) => {
+        await sendMessageApi(moment.user.id, `${msgPrefix}${trimmed}`, moment.photo).catch((err) => {
           console.warn('Lỗi gửi tin nhắn trực tiếp từ chat modal:', err);
         });
       }
@@ -1168,38 +1549,46 @@ export const MomentChatModal = ({
     }
   };
 
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={chatStyles.overlay}
+  const chatContent = (
+    <View
+      style={[
+        chatStyles.messengerBox,
+        isDesktop ? chatStyles.desktopDockBox : chatStyles.sheet,
+        isMinimized && chatStyles.desktopDockMinimized,
+      ]}
+    >
+      {/* Header chuẩn Messenger góc dưới bên phải */}
+      <TouchableOpacity
+        style={chatStyles.dockHeader}
+        activeOpacity={0.9}
+        onPress={() => isMinimized && setIsMinimized(false)}
       >
-        <View style={chatStyles.sheet}>
-          {/* Header */}
-          <View style={chatStyles.header}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-              <Avatar uri={moment.user?.avatar} name={moment.user?.name || 'Bạn'} size={36} />
-              <View style={{ flex: 1 }}>
-                <Text style={chatStyles.headerTitle} numberOfLines={1}>
-                  Trò chuyện với {moment.user?.name || 'bạn bè'}
-                </Text>
-                <Text style={chatStyles.headerSub} numberOfLines={1}>
-                  {moment.caption || moment.category || 'Khoảnh khắc vui vẻ 📸'}
-                </Text>
-              </View>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              {onRefresh && (
-                <TouchableOpacity onPress={onRefresh} style={chatStyles.closeBtn}>
-                  <Ionicons name="reload-outline" size={18} color="#059669" />
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity onPress={onClose} style={chatStyles.closeBtn}>
-                <Ionicons name="close" size={22} color="#64748B" />
-              </TouchableOpacity>
-            </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+          <Avatar uri={moment.user?.avatar} name={moment.user?.name || 'Bạn'} size={32} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13.5, fontWeight: '800', color: '#0F172A' }} numberOfLines={1}>
+              {moment.user?.name || 'Bạn bè'}
+            </Text>
+            <Text style={{ fontSize: 10.5, color: '#059669', fontWeight: '600' }} numberOfLines={1}>
+              📸 {moment.caption || moment.category || 'Khoảnh khắc'}
+            </Text>
           </View>
+        </View>
 
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          {isDesktop && (
+            <TouchableOpacity onPress={() => setIsMinimized(!isMinimized)} style={chatStyles.dockActionBtn}>
+              <Ionicons name={isMinimized ? "chevron-up" : "remove"} size={16} color="#64748B" />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={onClose} style={chatStyles.dockActionBtn}>
+            <Ionicons name="close" size={16} color="#64748B" />
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+
+      {!isMinimized && (
+        <>
           {/* Mini photo preview bar */}
           <View style={chatStyles.postPreviewBar}>
             <Image
@@ -1207,7 +1596,7 @@ export const MomentChatModal = ({
               style={chatStyles.postThumb}
             />
             <View style={{ flex: 1 }}>
-              <Text style={chatStyles.postPreviewCaption} numberOfLines={2}>
+              <Text style={chatStyles.postPreviewCaption} numberOfLines={1}>
                 "{moment.caption || 'Khoảnh khắc vui vẻ cùng bạn bè'}"
               </Text>
               <Text style={chatStyles.postPreviewMeta}>
@@ -1223,14 +1612,14 @@ export const MomentChatModal = ({
             contentContainerStyle={chatStyles.messagesContent}
             showsVerticalScrollIndicator={false}
           >
-            {comments.length === 0 ? (
+            {commentsList.length === 0 ? (
               <View style={chatStyles.emptyChat}>
-                <Text style={{ fontSize: 36, marginBottom: 8 }}>💬</Text>
+                <Text style={{ fontSize: 32, marginBottom: 6 }}>💬</Text>
                 <Text style={chatStyles.emptyChatTitle}>Chưa có tin nhắn nào</Text>
                 <Text style={chatStyles.emptyChatSub}>Hãy là người đầu tiên nhắn tin chia sẻ cùng bạn bè!</Text>
               </View>
             ) : (
-              comments.map((c) => {
+              commentsList.map((c) => {
                 const isMe = c.userId === currentUserId;
                 return (
                   <View
@@ -1264,7 +1653,7 @@ export const MomentChatModal = ({
 
           {/* Quick reply / Sample Comments */}
           <View style={chatStyles.quickChipsContainer}>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 4 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={chatStyles.quickChipsScroll}>
               {[
                 'Haha 😂', 
                 'Tuyệt vời quá! ❤️',
@@ -1284,14 +1673,14 @@ export const MomentChatModal = ({
                   <Text style={chatStyles.quickChipText}>{chip}</Text>
                 </TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
           </View>
 
           {/* Chat input footer */}
           <View style={chatStyles.inputBar}>
             <TextInput
               style={chatStyles.chatInput}
-              placeholder="Nhắn tin cho bạn bè về khoảnh khắc này..."
+              placeholder="Nhắn tin về bài viết này..."
               placeholderTextColor="#94A3B8"
               value={text}
               onChangeText={setText}
@@ -1310,7 +1699,25 @@ export const MomentChatModal = ({
               )}
             </TouchableOpacity>
           </View>
-        </View>
+        </>
+      )}
+    </View>
+  );
+
+  // Trên desktop: Render trực tiếp dock ở góc dưới bên phải (không backdrop che màn hình)
+  if (isDesktop) {
+    return chatContent;
+  }
+
+  // Trên mobile: Render modal bottom sheet
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={chatStyles.overlay}
+      >
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
+        {chatContent}
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -1321,6 +1728,51 @@ const chatStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
+  },
+  messengerBox: {
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  desktopDockBox: {
+    position: 'fixed' as any,
+    bottom: 0,
+    right: 28,
+    width: 360,
+    height: 500,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    zIndex: 999999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 28,
+    elevation: 24,
+  },
+  desktopDockMinimized: {
+    height: 48,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+  },
+  dockHeader: {
+    height: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    backgroundColor: '#FFFFFF',
+  },
+  dockActionBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.04)',
+    marginLeft: 4,
   },
   sheet: {
     backgroundColor: '#FFFFFF',

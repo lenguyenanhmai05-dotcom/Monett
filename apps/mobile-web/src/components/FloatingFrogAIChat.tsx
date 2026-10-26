@@ -98,6 +98,13 @@ const TOPICS: {
     reply: 'Trang Sổ Ghi Nợ giúp bạn ghi chép các khoản tiền cho mượn và nợ cần trả rõ ràng, minh bạch, tránh thất thoát!',
     action: { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' },
   },
+  {
+    chip: 'Nhắc nhở',
+    iconName: 'notifications-outline',
+    query: 'Chuyển đến trang Nhắc nhở & Ghi chú',
+    reply: 'Trang Nhắc Nhở & Ghi Chú giúp bạn xem lại toàn bộ lịch hẹn cũ & mới, đồng thời ghi chép các ý tưởng hay danh sách mua sắm tiện lợi!',
+    action: { label: '⏰ Đến Trang Nhắc Nhở', tabKey: 'reminders' },
+  },
 ];
 
 export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNavigateToTab, activeTab }) => {

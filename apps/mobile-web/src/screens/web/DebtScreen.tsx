@@ -192,13 +192,21 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
   // Filter within tab: 'all' | 'unsettled' | 'settled'
   const [filterMode, setFilterMode] = useState<'all' | 'unsettled' | 'settled'>('all');
 
+  const userEmail = (user as any)?.email || '';
+  const userId = user?.id || (user as any)?._id || '';
+
   // Debt items state
-  const [debts, setDebts] = useState<DebtItem[]>(() => loadDebtItems(user?.id));
+  const [debts, setDebts] = useState<DebtItem[]>(() => loadDebtItems(userId, userEmail));
+
+  // Khi đổi tài khoản, load lại dữ liệu riêng của tài khoản đó
+  useEffect(() => {
+    setDebts(loadDebtItems(userId, userEmail));
+  }, [userId, userEmail]);
 
   // Sync to storage
   useEffect(() => {
-    saveDebtItems(debts, user?.id);
-  }, [debts, user?.id]);
+    saveDebtItems(debts, userId, userEmail);
+  }, [debts, userId, userEmail]);
 
   // Modals
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -444,17 +452,6 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
         {/* ========================================================================= */}
         <View style={styles.headerRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {(onBack || onNavigateToTab) && (
-              <TouchableOpacity
-                style={styles.backBtn}
-                onPress={handleBack}
-                activeOpacity={0.7}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                accessibilityLabel={isVi ? 'Quay lại' : 'Go back'}
-              >
-                <Ionicons name="chevron-back" size={24} color="#221D18" />
-              </TouchableOpacity>
-            )}
             <Text style={styles.screenHeading}>
               {isVi ? 'Sổ ghi nợ' : 'Debt Book'}
             </Text>
@@ -1362,7 +1359,7 @@ const styles = StyleSheet.create({
   },
   screenHeading: {
     fontSize: 26,
-    fontWeight: '900',
+    fontWeight: '800',
     color: '#221D18',
     letterSpacing: -0.4,
   },
@@ -1457,13 +1454,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   statCardDark: {
-    backgroundColor: '#3A342E',
-    borderColor: '#3A342E',
+    backgroundColor: '#064E3B',
+    borderColor: '#065F46',
     flex: 1,
+    shadowColor: '#064E3B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 3,
   },
   cardDarkDivider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     marginVertical: 6,
   },
   statCardMint: {
@@ -1477,8 +1479,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statCardBlue: {
-    backgroundColor: '#B7D9F2',
-    borderColor: '#B7D9F2',
+    backgroundColor: '#E0F2FE',
+    borderColor: '#BAE6FD',
     flex: 1,
   },
   statCardHeader: {
@@ -1489,13 +1491,13 @@ const styles = StyleSheet.create({
   },
   statCardLabelDark: {
     fontSize: 12.5,
-    fontWeight: '700',
-    color: '#9E958A',
+    fontWeight: '800',
+    color: '#A7F3D0',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
   percentBadge: {
-    backgroundColor: '#FEF08A',
+    backgroundColor: '#D1FAE5',
     paddingHorizontal: 9,
     paddingVertical: 3.5,
     borderRadius: 12,
@@ -1503,7 +1505,7 @@ const styles = StyleSheet.create({
   percentBadgeText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#854D0E',
+    color: '#064E3B',
   },
   statCardValueDark: {
     fontSize: 34,
@@ -1520,8 +1522,8 @@ const styles = StyleSheet.create({
   },
   statCardSubDark: {
     fontSize: 12.5,
-    fontWeight: '500',
-    color: '#9E958A',
+    fontWeight: '600',
+    color: '#A7F3D0',
   },
   statCardLabelPastel: {
     fontSize: 15,

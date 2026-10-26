@@ -15,17 +15,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { IReminder } from '@monett/shared';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNotifications } from '../contexts/NotificationContext';
+import { useAuth } from '../contexts/AuthContext';
 import {
   getRemindersApi,
   createReminderApi,
   toggleReminderApi,
   deleteReminderApi,
   updateReminderApi,
+  getStoredUserId,
 } from '../services/api';
 
 interface RemindersWidgetProps {
   currentDateStr?: string; // YYYY-MM-DD
   noMargin?: boolean;
+  onNavigateToRemindersTab?: () => void;
 }
 
 import {
@@ -45,7 +48,48 @@ const QUICK_REMINDER_TITLES = [
 // Dữ liệu mẫu ban đầu: để trống để người dùng tự tạo dữ liệu thật
 const INITIAL_SAMPLE_REMINDERS: IReminder[] = [];
 
-export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr, noMargin }) => {
+// Quản lý danh sách ID đã được báo hôm nay để KHÔNG BAO GIỜ lặp lại (theo từng user)
+export const getAlertedReminderIds = (dateStr: string, userId?: string): Set<string> => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const uid = userId || getStoredUserId();
+      const raw = window.localStorage.getItem(`monett_alerted_reminders_${uid}_${dateStr}`);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return new Set(arr);
+      }
+    }
+  } catch {}
+  return new Set();
+};
+
+export const markReminderAsAlerted = (id: string, dateStr: string, userId?: string) => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const uid = userId || getStoredUserId();
+      const key = `monett_alerted_reminders_${uid}_${dateStr}`;
+      const current = getAlertedReminderIds(dateStr, uid);
+      current.add(id);
+      window.localStorage.setItem(key, JSON.stringify(Array.from(current)));
+    }
+  } catch {}
+};
+
+export const unmarkReminderAsAlerted = (id: string, dateStr: string, userId?: string) => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const uid = userId || getStoredUserId();
+      const key = `monett_alerted_reminders_${uid}_${dateStr}`;
+      const current = getAlertedReminderIds(dateStr, uid);
+      current.delete(id);
+      window.localStorage.setItem(key, JSON.stringify(Array.from(current)));
+    }
+  } catch {}
+};
+
+export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr, noMargin, onNavigateToRemindersTab }) => {
+  const { user } = useAuth();
+  const currentUserId = user?.id || (user as any)?._id || getStoredUserId();
   const { language } = useLanguage();
   const { addNotification } = useNotifications();
   const isVi = language === 'vi';
@@ -58,78 +102,104 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
   }, []);
 
   const effectiveDate = currentDateStr || todayYMD;
+  const storageKey = `monett_reminders_cache_${currentUserId}_${effectiveDate}`;
 
-  const [reminders, setReminders] = useState<IReminder[]>(INITIAL_SAMPLE_REMINDERS);
+  const [reminders, setReminders] = useState<IReminder[]>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const cached = window.localStorage.getItem(`monett_reminders_cache_${currentUserId}_${effectiveDate}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      }
+    } catch {}
+    return INITIAL_SAMPLE_REMINDERS;
+  });
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
 
-  const nowInit = useMemo(() => {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() + 30);
-    return { h: d.getHours(), m: d.getMinutes() };
-  }, []);
-
-  // Form states
+  // Form states - Mặc định đúng giờ thực tế hiện tại
   const [newTitle, setNewTitle] = useState<string>('');
-  const [selectedHour, setSelectedHour] = useState<number>(nowInit.h);
-  const [selectedMinute, setSelectedMinute] = useState<number>(nowInit.m);
-  const [newBeforeMinutes, setNewBeforeMinutes] = useState<number>(10);
+  const [selectedHour, setSelectedHour] = useState<number>(() => new Date().getHours());
+  const [selectedMinute, setSelectedMinute] = useState<number>(() => new Date().getMinutes());
+  const [newBeforeMinutes, setNewBeforeMinutes] = useState<number>(5);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [editingReminderId, setEditingReminderId] = useState<string | null>(null);
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
 
-  // Nhập giờ & phút trực tiếp (Tối giản & Siêu nhanh)
+  // Nhập giờ & phút trực tiếp (Không giật, không tự ý nhảy số lung tung)
   const hourInputRef = useRef<TextInput>(null);
   const minuteInputRef = useRef<TextInput>(null);
-  const [hourInputText, setHourInputText] = useState<string>(String(nowInit.h).padStart(2, '0'));
-  const [minuteInputText, setMinuteInputText] = useState<string>(String(nowInit.m).padStart(2, '0'));
+  const [hourInputText, setHourInputText] = useState<string>(() => String(new Date().getHours()).padStart(2, '0'));
+  const [minuteInputText, setMinuteInputText] = useState<string>(() => String(new Date().getMinutes()).padStart(2, '0'));
   const [isHourFocused, setIsHourFocused] = useState<boolean>(false);
   const [isMinuteFocused, setIsMinuteFocused] = useState<boolean>(false);
 
-  useEffect(() => {
-    setHourInputText(String(selectedHour).padStart(2, '0'));
-    setMinuteInputText(String(selectedMinute).padStart(2, '0'));
-  }, [selectedHour, selectedMinute, isFormOpen]);
+  // Tăng / giảm giờ (▲ / ▼)
+  const handleStepHour = (step: number) => {
+    let nextH = (selectedHour + step) % 24;
+    if (nextH < 0) nextH += 24;
+    setSelectedHour(nextH);
+    setHourInputText(String(nextH).padStart(2, '0'));
+  };
+
+  // Tăng / giảm phút (▲ / ▼)
+  const handleStepMinute = (step: number) => {
+    let nextM = (selectedMinute + step) % 60;
+    if (nextM < 0) nextM += 60;
+    setSelectedMinute(nextM);
+    setMinuteInputText(String(nextM).padStart(2, '0'));
+  };
 
   const handleHourInputChange = (txt: string) => {
-    const clean = txt.replace(/\D/g, '').slice(0, 2);
+    const digits = txt.replace(/\D/g, '');
+    const clean = digits.length > 2 ? digits.slice(-2) : digits;
     setHourInputText(clean);
     if (clean.length > 0) {
       const num = parseInt(clean, 10);
       if (!isNaN(num)) {
-        const validH = Math.min(23, Math.max(0, num));
-        setSelectedHour(validH);
-        if (clean.length === 2 || num > 2) {
-          minuteInputRef.current?.focus();
-        }
+        setSelectedHour(Math.min(23, Math.max(0, num)));
       }
     }
   };
 
   const handleHourInputBlur = () => {
     setIsHourFocused(false);
+    if (!hourInputText.trim()) {
+      const curH = new Date().getHours();
+      setSelectedHour(curH);
+      setHourInputText(String(curH).padStart(2, '0'));
+      return;
+    }
     const num = parseInt(hourInputText, 10);
-    const validH = isNaN(num) ? 0 : Math.min(23, Math.max(0, num));
+    const validH = isNaN(num) ? new Date().getHours() : Math.min(23, Math.max(0, num));
     setSelectedHour(validH);
     setHourInputText(String(validH).padStart(2, '0'));
   };
 
   const handleMinuteInputChange = (txt: string) => {
-    const clean = txt.replace(/\D/g, '').slice(0, 2);
+    const digits = txt.replace(/\D/g, '');
+    const clean = digits.length > 2 ? digits.slice(-2) : digits;
     setMinuteInputText(clean);
     if (clean.length > 0) {
       const num = parseInt(clean, 10);
       if (!isNaN(num)) {
-        const validM = Math.min(59, Math.max(0, num));
-        setSelectedMinute(validM);
+        setSelectedMinute(Math.min(59, Math.max(0, num)));
       }
     }
   };
 
   const handleMinuteInputBlur = () => {
     setIsMinuteFocused(false);
+    if (!minuteInputText.trim()) {
+      const curM = new Date().getMinutes();
+      setSelectedMinute(curM);
+      setMinuteInputText(String(curM).padStart(2, '0'));
+      return;
+    }
     const num = parseInt(minuteInputText, 10);
-    const validM = isNaN(num) ? 0 : Math.min(59, Math.max(0, num));
+    const validM = isNaN(num) ? new Date().getMinutes() : Math.min(59, Math.max(0, num));
     setSelectedMinute(validM);
     setMinuteInputText(String(validM).padStart(2, '0'));
   };
@@ -150,13 +220,15 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
   const alertedIdsRef = useRef<Set<string>>(new Set());
   const [pushedReminderId, setPushedReminderId] = useState<string | null>(null);
 
-  // Thủ công đưa lời nhắc lên chuông thông báo (Bell Notification) và gửi Web Browser Notification
+  // Thủ công đưa lời nhắc lên chuông thông báo (Bell Notification)
   const handlePushToBell = (item: IReminder) => {
+    const leadMins = item.remindBeforeMinutes !== undefined ? item.remindBeforeMinutes : 10;
+    const leadText = leadMins === 0 ? 'Đúng giờ' : `Báo trước ${leadMins} phút`;
     addNotification({
       id: `reminder-manual-${item.id}-${Date.now()}`,
       type: 'reminder',
       title: `Nhắc nhở: ${item.title} ⏰`,
-      message: `Đã đến giờ nhắc nhở (${item.time || '17:30'} - Báo trước ${item.remindBeforeMinutes || 10} phút). Đừng quên công việc của bạn nhé!`,
+      message: `Đã đến giờ nhắc nhở (${item.time || '17:30'} - ${leadText}). Đừng quên công việc của bạn nhé!`,
       createdAt: new Date().toISOString(),
       read: false,
       iconBg: '#EDE9FE',
@@ -165,26 +237,24 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
         targetTab: 'home',
       },
     });
-    // Gửi trực tiếp popup ra ngoài màn hình máy tính
-    sendBrowserNotification(`🔔 Nhắc nhở: ${item.title}`, {
-      body: `Đã đến giờ nhắc nhở (${item.time || '17:30'} - Báo trước ${item.remindBeforeMinutes || 10} phút). Đừng quên việc này nhé!`,
-      playSound: false,
-    });
     setPushedReminderId(item.id);
     setTimeout(() => {
       setPushedReminderId(null);
     }, 2500);
   };
 
-  // Mở form tạo mới nhắc nhở
+  // Mở form tạo mới nhắc nhở (Lấy đúng giờ thực tế hiện tại)
   const handleOpenCreateForm = () => {
     setEditingReminderId(null);
     setNewTitle('');
-    const d = new Date();
-    d.setMinutes(d.getMinutes() + 30);
-    setSelectedHour(d.getHours());
-    setSelectedMinute(d.getMinutes());
-    setNewBeforeMinutes(10);
+    const now = new Date();
+    const curH = now.getHours();
+    const curM = now.getMinutes();
+    setSelectedHour(curH);
+    setSelectedMinute(curM);
+    setHourInputText(String(curH).padStart(2, '0'));
+    setMinuteInputText(String(curM).padStart(2, '0'));
+    setNewBeforeMinutes(5);
     setIsFormOpen(true);
   };
 
@@ -195,9 +265,13 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
     const [hhStr, mmStr] = (item.time || '12:00').split(':');
     const h = parseInt(hhStr, 10);
     const m = parseInt(mmStr, 10);
-    setSelectedHour(isNaN(h) ? 12 : h);
-    setSelectedMinute(isNaN(m) ? 0 : m);
-    setNewBeforeMinutes(item.remindBeforeMinutes ?? 10);
+    const validH = isNaN(h) ? 12 : Math.min(23, Math.max(0, h));
+    const validM = isNaN(m) ? 0 : Math.min(59, Math.max(0, m));
+    setSelectedHour(validH);
+    setSelectedMinute(validM);
+    setHourInputText(String(validH).padStart(2, '0'));
+    setMinuteInputText(String(validM).padStart(2, '0'));
+    setNewBeforeMinutes(item.remindBeforeMinutes !== undefined ? item.remindBeforeMinutes : 5);
     setIsFormOpen(true);
   };
 
@@ -209,25 +283,42 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
 
   // 1. Tải danh sách nhắc nhở từ Backend
   const fetchReminders = async () => {
+    // Tải trước từ LocalStorage của user hiện tại
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const cached = window.localStorage.getItem(storageKey);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) {
+            setReminders(parsed);
+          }
+        } else {
+          setReminders([]);
+        }
+      }
+    } catch {}
+
     try {
       setIsLoading(true);
       const data = await getRemindersApi(effectiveDate);
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         const cleanData = data.filter((it) => it.id !== 'sample-1' && !it.title?.includes?.('mua cá & rau tươi'));
         setReminders(cleanData);
-      } else {
-        setReminders([]);
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem(storageKey, JSON.stringify(cleanData));
+        }
       }
-    } catch {
-      setReminders([]);
+    } catch (err) {
+      console.warn('Lỗi lấy danh sách nhắc nhở từ server:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
+    alertedIdsRef.current.clear();
     fetchReminders();
-  }, [effectiveDate]);
+  }, [effectiveDate, currentUserId]);
 
   // 2. Yêu cầu quyền thông báo của trình duyệt
   const requestBrowserNotification = async () => {
@@ -245,6 +336,7 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
     const checkUpcomingReminders = () => {
       const now = new Date();
       const nowYMD = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const persistedAlerted = getAlertedReminderIds(nowYMD, currentUserId);
 
       reminders.forEach((item) => {
         if (item.isCompleted || item.isDismissed) return;
@@ -252,6 +344,12 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
         // Chỉ kiểm tra lời nhắc của ngày hôm nay
         const reminderDate = item.date || todayYMD;
         if (reminderDate !== nowYMD) return;
+
+        // Nếu lời nhắc này đã từng được thông báo hôm nay (trong RAM hoặc localStorage), TUYỆT ĐỐI không báo lại
+        if (alertedIdsRef.current.has(item.id) || persistedAlerted.has(item.id)) {
+          alertedIdsRef.current.add(item.id);
+          return;
+        }
 
         const [hhStr, mmStr] = (item.time || '12:00').split(':');
         const targetHours = parseInt(hhStr, 10);
@@ -262,52 +360,43 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
         targetDate.setHours(targetHours, targetMinutes, 0, 0);
 
         // Thời điểm kích hoạt thông báo = Giờ hẹn - Số phút nhắc trước
-        const alertLeadMinutes = item.remindBeforeMinutes ?? 10;
+        const alertLeadMinutes = item.remindBeforeMinutes !== undefined ? item.remindBeforeMinutes : 10;
         const triggerTime = targetDate.getTime() - alertLeadMinutes * 60 * 1000;
-        const expireTime = targetDate.getTime() + 60 * 60 * 1000; // Hết hạn sau 1 tiếng
+        // Chỉ kích hoạt trong vòng 10 phút kể từ mốc báo trước (tránh báo lại việc cũ quá hạn)
+        const expireTime = triggerTime + 10 * 60 * 1000;
 
         const currentTimeMs = now.getTime();
 
-        // Nếu hiện tại đã đến hoặc qua giờ kích hoạt và chưa quá giờ hẹn quá 60 phút
+        // Nếu hiện tại đã đến hoặc vừa qua mốc kích hoạt (trong vòng 10 phút)
         if (currentTimeMs >= triggerTime && currentTimeMs <= expireTime) {
-          if (!alertedIdsRef.current.has(item.id)) {
-            alertedIdsRef.current.add(item.id);
+          // Lưu vĩnh viễn vào cả RAM và localStorage để không bao giờ báo lại lần 2
+          alertedIdsRef.current.add(item.id);
+          markReminderAsAlerted(item.id, nowYMD, currentUserId);
 
-            // Kích hoạt In-App Banner
-            setActiveAlert({
-              id: item.id,
-              title: item.title,
-              time: item.time,
-              beforeMinutes: alertLeadMinutes,
-            });
+          // Kích hoạt In-App Banner
+          setActiveAlert({
+            id: item.id,
+            title: item.title,
+            time: item.time,
+            beforeMinutes: alertLeadMinutes,
+          });
 
-            // Đưa thông báo vào chuông thông báo (Bell Notification)
-            addNotification({
-              id: `reminder-alarm-${item.id}-${Date.now()}`,
-              type: 'reminder',
-              title: `Nhắc nhở: ${item.title} ⏰`,
-              message: `Đã đến giờ nhắc nhở (${item.time} - Báo trước ${alertLeadMinutes} phút). Đừng quên công việc của bạn nhé!`,
-              createdAt: new Date().toISOString(),
-              read: false,
-              iconBg: '#EDE9FE',
-              iconColor: '#7C3AED',
-              metadata: {
-                targetTab: 'home',
-              },
-            });
-
-            // Kích hoạt Web Notification (nếu người dùng cấp quyền)
-            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-              try {
-                new Notification('🔔 Lời nhắc Monett!', {
-                  body: `${item.title} (Còn ${alertLeadMinutes} phút nữa đến ${item.time})`,
-                  icon: 'https://cdn-icons-png.flaticon.com/512/3602/3602145.png',
-                });
-              } catch {
-                // Ignore web notification error
-              }
-            }
-          }
+          // Đưa thông báo vào chuông thông báo (Bell Notification)
+          // Lưu ý: addNotification đã tự động kích hoạt sendBrowserNotification nên không gọi trùng lặp
+          const leadText = alertLeadMinutes === 0 ? 'Đúng giờ' : `Báo trước ${alertLeadMinutes} phút`;
+          addNotification({
+            id: `reminder-alarm-${item.id}-${Date.now()}`,
+            type: 'reminder',
+            title: `Nhắc nhở: ${item.title} ⏰`,
+            message: `Đã đến giờ nhắc nhở (${item.time} - ${leadText}). Đừng quên công việc của bạn nhé!`,
+            createdAt: new Date().toISOString(),
+            read: false,
+            iconBg: '#EDE9FE',
+            iconColor: '#7C3AED',
+            metadata: {
+              targetTab: 'home',
+            },
+          });
         }
       });
     };
@@ -323,9 +412,13 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
     const updatedStatus = !item.isCompleted;
 
     // Cập nhật UI ngay lập tức
-    setReminders((prev) =>
-      prev.map((r) => (r.id === item.id ? { ...r, isCompleted: updatedStatus } : r)),
-    );
+    setReminders((prev) => {
+      const next = prev.map((r) => (r.id === item.id ? { ...r, isCompleted: updatedStatus } : r));
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(storageKey, JSON.stringify(next));
+      }
+      return next;
+    });
 
     // Nếu vừa hoàn thành món đang hiện banner thông báo thì tắt banner
     if (activeAlert?.id === item.id && updatedStatus) {
@@ -344,7 +437,13 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
   // 5. Xóa bỏ nhắc nhở (x)
   const handleDelete = async (id: string) => {
     // Xóa ngay trên UI
-    setReminders((prev) => prev.filter((r) => r.id !== id));
+    setReminders((prev) => {
+      const next = prev.filter((r) => r.id !== id);
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(storageKey, JSON.stringify(next));
+      }
+      return next;
+    });
     if (activeAlert?.id === id) {
       setActiveAlert(null);
     }
@@ -367,13 +466,21 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
 
     if (editingReminderId) {
       const targetId = editingReminderId;
-      setReminders((prev) =>
-        prev.map((r) =>
+      // Khi người dùng chỉnh sửa giờ mới, reset trạng thái đã báo để giờ mới có thể kích hoạt
+      unmarkReminderAsAlerted(targetId, effectiveDate);
+      alertedIdsRef.current.delete(targetId);
+
+      setReminders((prev) => {
+        const next = prev.map((r) =>
           r.id === targetId
             ? { ...r, title: trimmed, time: formattedTime, remindBeforeMinutes: newBeforeMinutes }
             : r,
-        ),
-      );
+        );
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem(storageKey, JSON.stringify(next));
+        }
+        return next;
+      });
       setIsFormOpen(false);
       setEditingReminderId(null);
       setNewTitle('');
@@ -407,7 +514,13 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
       note: '',
     };
 
-    setReminders((prev) => [newReminderItem, ...prev]);
+    setReminders((prev) => {
+      const next = [newReminderItem, ...prev];
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(storageKey, JSON.stringify(next));
+      }
+      return next;
+    });
     setNewTitle('');
     setIsFormOpen(false);
 
@@ -423,9 +536,13 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
       });
 
       if (serverItem && serverItem.id) {
-        setReminders((prev) =>
-          prev.map((r) => (r.id === optimisticId ? serverItem : r)),
-        );
+        setReminders((prev) => {
+          const next = prev.map((r) => (r.id === optimisticId ? serverItem : r));
+          if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.setItem(storageKey, JSON.stringify(next));
+          }
+          return next;
+        });
       }
     } catch {
       // Giữ bản optimistic
@@ -433,6 +550,7 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
       setIsSubmitting(false);
     }
   };
+
 
 
   // Tính số lượng việc chưa xong
@@ -486,7 +604,12 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
       <View style={[styles.cardContainer, noMargin && { minHeight: 220, flex: 1 }]}>
         {/* 1. Header Bar Màu Xanh Dương Pastel Sang Trọng */}
         <View style={styles.headerBar}>
-          <View style={styles.headerLeft}>
+          <TouchableOpacity
+            style={styles.headerLeft}
+            onPress={onNavigateToRemindersTab}
+            disabled={!onNavigateToRemindersTab}
+            activeOpacity={0.7}
+          >
             {/* White rounded square icon badge with notifications icon */}
             <View style={styles.iconBadge}>
               <Ionicons name="notifications" size={18} color="#0284C7" />
@@ -503,7 +626,11 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                 {pendingCount} {isVi ? 'việc' : 'tasks'}
               </Text>
             </View>
-          </View>
+
+            {onNavigateToRemindersTab && (
+              <Ionicons name="chevron-forward" size={15} color="#0284C7" style={{ marginLeft: 2 }} />
+            )}
+          </TouchableOpacity>
 
           {/* Nút Thêm lời nhắc dạng pill trắng cao cấp */}
           <TouchableOpacity
@@ -611,7 +738,9 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                           style={{ marginRight: 4 }}
                         />
                         <Text style={[styles.metaBadgeLeadText, isDone && styles.metaBadgeTextDone]}>
-                          Báo trước {item.remindBeforeMinutes || 10}p
+                          {item.remindBeforeMinutes === 0
+                            ? (isVi ? 'Đúng giờ' : 'On time')
+                            : `${isVi ? 'Báo trước' : 'Before'} ${item.remindBeforeMinutes !== undefined ? item.remindBeforeMinutes : 10}p`}
                         </Text>
                       </View>
 
@@ -790,7 +919,7 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                 ))}
               </View>
 
-              {/* 2. Giờ hẹn thông báo (Tối giản: bấm vào số để nhập nhanh) */}
+              {/* 2. Giờ hẹn thông báo (Tối giản: hiển thị đúng giờ thực tế & nhập số mượt mà) */}
               <View style={styles.minimalTimeContainer}>
                 <View style={styles.minimalTimeHeader}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
@@ -806,10 +935,18 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                   </View>
                 </View>
 
-                {/* Hai ô nhập số trực tiếp: Giờ : Phút */}
+                {/* Hai ô nhập số trực tiếp kèm nút tăng giảm: Giờ : Phút */}
                 <View style={styles.minimalTimeInputRow}>
-                  {/* Ô nhập Giờ */}
+                  {/* Cụm nhập Giờ */}
                   <View style={styles.minimalInputBoxWrap}>
+                    <TouchableOpacity
+                      style={styles.stepperArrowBtn}
+                      onPress={() => handleStepHour(1)}
+                      activeOpacity={0.6}
+                    >
+                      <Ionicons name="chevron-up" size={16} color="#047857" />
+                    </TouchableOpacity>
+
                     <TextInput
                       ref={hourInputRef}
                       style={[
@@ -826,14 +963,30 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                       placeholder="12"
                       placeholderTextColor="#94A3B8"
                     />
+
+                    <TouchableOpacity
+                      style={styles.stepperArrowBtn}
+                      onPress={() => handleStepHour(-1)}
+                      activeOpacity={0.6}
+                    >
+                      <Ionicons name="chevron-down" size={16} color="#047857" />
+                    </TouchableOpacity>
                     <Text style={styles.minimalInputSubLabel}>{isVi ? 'Giờ (0 - 23)' : 'Hour'}</Text>
                   </View>
 
                   {/* Dấu hai chấm phân cách */}
                   <Text style={styles.minimalColonText}>:</Text>
 
-                  {/* Ô nhập Phút */}
+                  {/* Cụm nhập Phút */}
                   <View style={styles.minimalInputBoxWrap}>
+                    <TouchableOpacity
+                      style={styles.stepperArrowBtn}
+                      onPress={() => handleStepMinute(1)}
+                      activeOpacity={0.6}
+                    >
+                      <Ionicons name="chevron-up" size={16} color="#047857" />
+                    </TouchableOpacity>
+
                     <TextInput
                       ref={minuteInputRef}
                       style={[
@@ -850,6 +1003,14 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                       placeholder="00"
                       placeholderTextColor="#94A3B8"
                     />
+
+                    <TouchableOpacity
+                      style={styles.stepperArrowBtn}
+                      onPress={() => handleStepMinute(-1)}
+                      activeOpacity={0.6}
+                    >
+                      <Ionicons name="chevron-down" size={16} color="#047857" />
+                    </TouchableOpacity>
                     <Text style={styles.minimalInputSubLabel}>{isVi ? 'Phút (0 - 59)' : 'Minute'}</Text>
                   </View>
                 </View>
@@ -878,42 +1039,42 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                   })}
                 </View>
               </View>
-
-              {/* Nút thao tác dưới Modal */}
-              <View style={styles.modalFormFooter}>
-                <TouchableOpacity
-                  style={styles.modalCancelBtn}
-                  onPress={handleCancelForm}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.modalCancelBtnText}>{isVi ? 'Hủy bỏ' : 'Cancel'}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalSubmitBtn, !newTitle.trim() && styles.modalSubmitBtnDisabled]}
-                  onPress={handleSave}
-                  disabled={!newTitle.trim() || isSubmitting}
-                  activeOpacity={0.8}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Ionicons
-                        name={editingReminderId ? 'save-outline' : 'checkmark-circle-outline'}
-                        size={17}
-                        color="#FFFFFF"
-                        style={{ marginRight: 6 }}
-                      />
-                      <Text style={styles.modalSubmitBtnText}>
-                        {editingReminderId
-                          ? (isVi ? 'Cập nhật' : 'Update')
-                          : (isVi ? 'Lưu nhắc nhở' : 'Save Reminder')}
-                      </Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
             </ScrollView>
+
+            {/* Nút thao tác dưới Modal (Cố định ở đáy thẻ, luôn nhìn thấy nút Lưu) */}
+            <View style={styles.modalFormFooter}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={handleCancelForm}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.modalCancelBtnText}>{isVi ? 'Hủy bỏ' : 'Cancel'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalSubmitBtn, !newTitle.trim() && styles.modalSubmitBtnDisabled]}
+                onPress={handleSave}
+                disabled={!newTitle.trim() || isSubmitting}
+                activeOpacity={0.8}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons
+                      name={editingReminderId ? 'save-outline' : 'checkmark-circle-outline'}
+                      size={17}
+                      color="#FFFFFF"
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.modalSubmitBtnText}>
+                      {editingReminderId
+                        ? (isVi ? 'Cập nhật' : 'Update')
+                        : (isVi ? 'Lưu nhắc nhở' : 'Save Reminder')}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -1240,7 +1401,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  // Modal Popup Đặt / Sửa nhắc nhở (Rộng rãi, thoáng và cực kỳ chuyên nghiệp)
+  // Modal Popup Đặt / Sửa nhắc nhở (Gọn gàng, cố định, không phải cuộn lướt)
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.65)',
@@ -1257,13 +1418,13 @@ const styles = StyleSheet.create({
   },
   modalContentCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    paddingHorizontal: 28,
-    paddingTop: 24,
-    paddingBottom: 24,
+    borderRadius: 22,
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    paddingBottom: 20,
     width: '100%',
-    maxWidth: 540,
-    maxHeight: '90%',
+    maxWidth: 480,
+    maxHeight: '92%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.22,
@@ -1275,8 +1436,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
-    paddingBottom: 14,
+    marginBottom: 12,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
   },
@@ -1287,39 +1448,39 @@ const styles = StyleSheet.create({
     paddingRight: 10,
   },
   modalHeaderIconBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     backgroundColor: '#ECFDF5',
     borderWidth: 1.5,
     borderColor: '#A7F3D0',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 10,
   },
   modalTitleText: {
-    fontSize: 18.5,
+    fontSize: 17,
     fontWeight: '800',
     color: '#0F172A',
   },
   modalSubtitleText: {
-    fontSize: 12.5,
+    fontSize: 12,
     color: '#64748B',
     marginTop: 2,
   },
   modalCloseCircle: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modalFieldLabel: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#334155',
-    marginBottom: 6,
+    marginBottom: 5,
   },
   inputWrap: {
     flexDirection: 'row',
@@ -1327,10 +1488,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     borderWidth: 1.5,
     borderColor: '#CBD5E1',
-    borderRadius: 14,
+    borderRadius: 12,
     paddingHorizontal: 12,
-    height: 48,
-    marginBottom: 8,
+    height: 42,
+    marginBottom: 6,
   },
   inputWrapFocused: {
     borderColor: '#047857',
@@ -1349,8 +1510,8 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    height: 44,
-    fontSize: 14.5,
+    height: 40,
+    fontSize: 14,
     color: '#1E293B',
     paddingVertical: 0,
     backgroundColor: 'transparent',
@@ -1360,14 +1521,14 @@ const styles = StyleSheet.create({
   quickTitlesWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 14,
+    gap: 5,
+    marginBottom: 10,
   },
   quickTitleChip: {
     backgroundColor: '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },
@@ -1376,7 +1537,7 @@ const styles = StyleSheet.create({
     borderColor: '#059669',
   },
   quickTitleText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '600',
     color: '#475569',
   },
@@ -1386,42 +1547,42 @@ const styles = StyleSheet.create({
   },
   minimalTimeContainer: {
     backgroundColor: '#F8FAFC',
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginBottom: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 10,
   },
   minimalTimeHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   timeHeaderIconCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: '#DCFCE7',
     alignItems: 'center',
     justifyContent: 'center',
   },
   minimalTimeTitle: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#1E293B',
   },
   minimalTimeBadge: {
     backgroundColor: '#ECFDF5',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: 8,
     borderWidth: 1.5,
     borderColor: '#A7F3D0',
   },
   minimalTimeBadgeText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '900',
     color: '#047857',
   },
@@ -1429,20 +1590,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 14,
-    paddingVertical: 6,
+    gap: 12,
+    paddingVertical: 2,
   },
   minimalInputBoxWrap: {
     alignItems: 'center',
   },
   minimalNumberInput: {
-    width: 94,
-    height: 64,
+    width: 76,
+    height: 48,
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 2,
+    borderRadius: 10,
+    borderWidth: 1.5,
     borderColor: '#CBD5E1',
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: '900',
     color: '#0F172A',
     textAlign: 'center',
@@ -1451,7 +1612,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
-    shadowRadius: 3,
+    shadowRadius: 2,
     elevation: 2,
   },
   minimalNumberInputFocused: {
@@ -1467,37 +1628,46 @@ const styles = StyleSheet.create({
     } : {}),
   },
   minimalColonText: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: '900',
     color: '#059669',
-    marginTop: -22,
+    marginTop: 0,
   },
   minimalInputSubLabel: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     color: '#64748B',
-    marginTop: 6,
+    marginTop: 2,
     letterSpacing: 0.3,
   },
+  stepperArrowBtn: {
+    width: 32,
+    height: 18,
+    borderRadius: 6,
+    backgroundColor: '#ECFDF5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 1,
+  },
   beforeRow: {
-    marginBottom: 12,
+    marginBottom: 4,
   },
   formLabel: {
     fontSize: 12,
     fontWeight: '600',
     color: '#475569',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   beforeOptions: {
     flexDirection: 'row',
-    gap: 6,
-    height: 38,
+    gap: 5,
+    height: 32,
     alignItems: 'center',
   },
   beforeChip: {
     flex: 1,
-    height: 36,
-    borderRadius: 10,
+    height: 32,
+    borderRadius: 8,
     backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1509,7 +1679,7 @@ const styles = StyleSheet.create({
     borderColor: '#047857',
   },
   beforeChipText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '600',
     color: '#64748B',
   },
@@ -1521,29 +1691,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginTop: 6,
-    paddingTop: 14,
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
   },
   modalCancelBtn: {
     flex: 1,
-    height: 46,
-    borderRadius: 14,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalCancelBtnText: {
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: '700',
     color: '#64748B',
   },
   modalSubmitBtn: {
     flex: 2,
-    height: 46,
+    height: 40,
     flexDirection: 'row',
-    borderRadius: 14,
+    borderRadius: 12,
     backgroundColor: '#047857',
     alignItems: 'center',
     justifyContent: 'center',

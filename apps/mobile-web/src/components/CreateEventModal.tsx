@@ -375,7 +375,7 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
                     <View style={styles.statusOptionsRow}>
                       {[
                         { key: 'ongoing', label: isVi ? 'Đang diễn ra' : 'Ongoing', color: '#166534', bg: '#D2EADA' },
-                        { key: 'upcoming', label: isVi ? 'Sắp tới' : 'Upcoming', color: '#0284C7', bg: '#D4E5F7' },
+                        { key: 'upcoming', label: isVi ? 'Sắp tới' : 'Upcoming', color: '#B45309', bg: '#FEF3C7' },
                         { key: 'completed', label: isVi ? 'Hoàn thành' : 'Completed', color: '#6B21A8', bg: '#E3E1EB' },
                       ].map((item) => {
                         const isSelected = status === item.key;

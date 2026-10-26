@@ -22,6 +22,9 @@ import {
   requestBrowserNotificationPermission,
   sendBrowserNotification,
 } from '../utils/browserNotification';
+import { useAuth } from '../contexts/AuthContext';
+import { acceptEventInvitation, declineEventInvitation } from '../services/eventsStorage';
+import { acceptEventInvitationApi, declineEventInvitationApi } from '../services/api';
 
 interface NotificationModalProps {
   onNavigateToTab?: (tab: any) => void;
@@ -41,6 +44,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
 
   const { isDark } = useTheme();
   const { language } = useLanguage();
+  const { user } = useAuth();
   const isVi = language === 'vi';
   const { width } = useWindowDimensions();
   const isDesktop = width >= 860;
@@ -136,6 +140,8 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
         return { name: 'receipt' as const, color: '#E11D48', bg: isDark ? 'rgba(225, 29, 72, 0.2)' : '#FFF1F2' };
       case 'budget':
         return { name: 'pie-chart' as const, color: '#DC2626', bg: isDark ? 'rgba(220, 38, 38, 0.2)' : '#FEF2F2' };
+      case 'event':
+        return { name: 'calendar' as const, color: '#059669', bg: isDark ? 'rgba(5, 150, 105, 0.2)' : '#DCFCE7' };
       case 'system':
       default:
         return { name: 'flame' as const, color: '#D97706', bg: isDark ? 'rgba(217, 119, 6, 0.2)' : '#FFFBEB' };
@@ -150,12 +156,55 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
     }
   };
 
+  // Xử lý chấp nhận lời mời tham gia sự kiện
+  const handleAcceptEventInvite = async (notif: AppNotification) => {
+    if (!notif.metadata?.inviteId) return;
+    const invId = notif.metadata.inviteId;
+    try {
+      await acceptEventInvitationApi(invId);
+    } catch (e) {
+      console.warn('Lỗi acceptEventInvitationApi:', e);
+    }
+    acceptEventInvitation(invId, user ? { id: (user as any)._id || user.id, email: user.email, fullName: user.fullName } : undefined);
+    markAsRead(notif.id);
+    if (notif.metadata) {
+      notif.metadata.inviteStatus = 'accepted';
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('monett:event_invitations_updated'));
+      window.dispatchEvent(new CustomEvent('monett:events_updated'));
+    }
+    if (onNavigateToTab) {
+      closeNotifications();
+      onNavigateToTab('events');
+    }
+  };
+
+  // Xử lý từ chối lời mời tham gia sự kiện
+  const handleDeclineEventInvite = async (notif: AppNotification) => {
+    if (!notif.metadata?.inviteId) return;
+    const invId = notif.metadata.inviteId;
+    try {
+      await declineEventInvitationApi(invId);
+    } catch (e) {
+      console.warn('Lỗi declineEventInvitationApi:', e);
+    }
+    declineEventInvitation(invId);
+    markAsRead(notif.id);
+    if (notif.metadata) {
+      notif.metadata.inviteStatus = 'declined';
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('monett:event_invitations_updated'));
+    }
+  };
+
   // Đếm số thông báo chưa đọc theo từng danh mục
   const tabCounts = useMemo(() => {
     return {
       all: notifications.filter((n) => !n.read).length,
       reminder: notifications.filter((n) => n.type === 'reminder' && !n.read).length,
-      friend: notifications.filter((n) => n.type === 'friend' && !n.read).length,
+      friend: notifications.filter((n) => (n.type === 'friend' || n.type === 'event') && !n.read).length,
       moment: notifications.filter((n) => (n.type === 'moment' || n.type === 'expense' || n.type === 'budget') && !n.read).length,
       system: notifications.filter((n) => n.type === 'system' && !n.read).length,
     };
@@ -581,6 +630,66 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
                           >
                             {notif.message}
                           </Text>
+
+                          {/* Nút chấp nhận / từ chối lời mời sự kiện */}
+                          {notif.metadata?.type === 'event_invite' && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, marginBottom: 4 }}>
+                              {notif.metadata?.inviteStatus === 'accepted' ? (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: isDark ? 'rgba(5, 150, 105, 0.2)' : '#DCFCE7', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}>
+                                  <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#059669' }}>
+                                    {isVi ? 'Đã tham gia sự kiện' : 'Joined Event'}
+                                  </Text>
+                                </View>
+                              ) : notif.metadata?.inviteStatus === 'declined' ? (
+                                <Text style={{ fontSize: 12, fontWeight: '600', color: '#94A3B8' }}>
+                                  {isVi ? 'Đã từ chối' : 'Declined'}
+                                </Text>
+                              ) : (
+                                <>
+                                  <TouchableOpacity
+                                    style={{
+                                      backgroundColor: '#059669',
+                                      paddingHorizontal: 14,
+                                      paddingVertical: 6,
+                                      borderRadius: 10,
+                                      flexDirection: 'row',
+                                      alignItems: 'center',
+                                      gap: 4,
+                                    }}
+                                    onPress={(e) => {
+                                      e.stopPropagation();
+                                      handleAcceptEventInvite(notif);
+                                    }}
+                                    activeOpacity={0.8}
+                                  >
+                                    <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                                    <Text style={{ color: '#FFFFFF', fontSize: 12.5, fontWeight: '700' }}>
+                                      {isVi ? 'Chấp nhận' : 'Accept'}
+                                    </Text>
+                                  </TouchableOpacity>
+
+                                  <TouchableOpacity
+                                    style={{
+                                      backgroundColor: isDark ? '#334155' : '#F1F5F9',
+                                      paddingHorizontal: 12,
+                                      paddingVertical: 6,
+                                      borderRadius: 10,
+                                    }}
+                                    onPress={(e) => {
+                                      e.stopPropagation();
+                                      handleDeclineEventInvite(notif);
+                                    }}
+                                    activeOpacity={0.8}
+                                  >
+                                    <Text style={{ color: isDark ? '#CBD5E1' : '#64748B', fontSize: 12.5, fontWeight: '600' }}>
+                                      {isVi ? 'Từ chối' : 'Decline'}
+                                    </Text>
+                                  </TouchableOpacity>
+                                </>
+                              )}
+                            </View>
+                          )}
 
                           <View style={styles.notifMetaRow}>
                             <Text

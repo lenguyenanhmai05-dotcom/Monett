@@ -29,51 +29,6 @@ interface InviteFriendsModalProps {
   }) => void;
 }
 
-const DEFAULT_FRIENDS = [
-  {
-    id: 'u-mailinh',
-    name: 'Mai Linh',
-    email: 'mai.linh@monett.vn',
-    avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120',
-  },
-  {
-    id: 'u-tuananh',
-    name: 'Tuấn Anh',
-    email: 'tuan.anh@monett.vn',
-    avatarUrl: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=120',
-  },
-  {
-    id: 'u-phuongthao',
-    name: 'Phương Thảo',
-    email: 'thao.phuong@monett.vn',
-    avatarUrl: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=120',
-  },
-  {
-    id: 'u-minhhoang',
-    name: 'Minh Hoàng',
-    email: 'hoang.minh@monett.vn',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120',
-  },
-  {
-    id: 'u-quynhnhu',
-    name: 'Quỳnh Như',
-    email: 'nhu.quynh@monett.vn',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120',
-  },
-  {
-    id: 'u-haidang',
-    name: 'Hải Đăng',
-    email: 'dang.hai@monett.vn',
-    avatarUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120',
-  },
-  {
-    id: 'u-baonam',
-    name: 'Bảo Nam',
-    email: 'nam.bao@monett.vn',
-    avatarUrl: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=120',
-  },
-];
-
 export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
   visible,
   onClose,
@@ -86,7 +41,8 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
   const isVi = language === 'vi';
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [friends, setFriends] = useState(DEFAULT_FRIENDS);
+  const [friends, setFriends] = useState<Array<{ id: string; name: string; email?: string; avatarUrl?: string }>>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
 
@@ -94,29 +50,28 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
     if (visible) {
       setSearchQuery('');
       setCopySuccess(false);
+      setIsLoading(true);
 
-      // Attempt to load friends from real API
+      // Load friends from real API
       getFriendsApi()
         .then((res: any[]) => {
-          if (Array.isArray(res) && res.length > 0) {
+          if (Array.isArray(res)) {
             const formatted = res.map((f, idx) => ({
               id: f.id || f._id || `f-${idx}`,
               name: f.name || f.fullName || f.requester?.fullName || f.recipient?.fullName || 'Bạn bè',
               email: f.email || '',
               avatarUrl: f.avatarUrl || f.requester?.avatarUrl || f.recipient?.avatarUrl,
             }));
-            // Merge with default friends without duplicates
-            const all = [...formatted];
-            DEFAULT_FRIENDS.forEach((df) => {
-              if (!all.some((a) => a.name.toLowerCase() === df.name.toLowerCase())) {
-                all.push(df);
-              }
-            });
-            setFriends(all);
+            setFriends(formatted);
+          } else {
+            setFriends([]);
           }
         })
         .catch(() => {
-          setFriends(DEFAULT_FRIENDS);
+          setFriends([]);
+        })
+        .finally(() => {
+          setIsLoading(false);
         });
     }
   }, [visible]);
@@ -138,12 +93,15 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
     );
   });
 
-  const isMember = (friendId: string, friendName: string) => {
-    return currentMembers.some(
+  const getMemberStatus = (friendId: string, friendName: string): 'none' | 'pending' | 'accepted' => {
+    const member = currentMembers.find(
       (m) =>
         m.id === friendId ||
         m.name.trim().toLowerCase() === friendName.trim().toLowerCase()
     );
+    if (!member) return 'none';
+    if (member.status === 'pending') return 'pending';
+    return 'accepted';
   };
 
   const handleCopyLink = () => {
@@ -249,16 +207,34 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
                   contentContainerStyle={styles.friendsScrollContent}
                   showsVerticalScrollIndicator={false}
                 >
-                  {filteredFriends.length === 0 ? (
+                  {isLoading ? (
                     <View style={styles.emptySearchWrap}>
-                      <Ionicons name="people-outline" size={32} color={textSecondary} />
-                      <Text style={[styles.emptySearchText, { color: textSecondary }]}>
-                        {isVi ? 'Không tìm thấy bạn bè phù hợp' : 'No matching friends found'}
+                      <Ionicons name="refresh" size={28} color="#059669" />
+                      <Text style={[styles.emptySearchText, { color: textSecondary, marginTop: 8 }]}>
+                        {isVi ? 'Đang tải danh sách...' : 'Loading friends...'}
                       </Text>
+                    </View>
+                  ) : filteredFriends.length === 0 ? (
+                    <View style={styles.emptySearchWrap}>
+                      <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: isDark ? '#1E293B' : '#E6F4EA', justifyContent: 'center', alignItems: 'center', marginBottom: 10 }}>
+                        <Ionicons name="people-outline" size={26} color="#059669" />
+                      </View>
+                      <Text style={[styles.emptySearchText, { color: textPrimary, fontWeight: '700', fontSize: 14.5, marginBottom: 4 }]}>
+                        {searchQuery.trim()
+                          ? (isVi ? 'Không tìm thấy bạn bè phù hợp' : 'No matching friends found')
+                          : (isVi ? 'Chưa có bạn bè trong danh sách' : 'No friends yet')}
+                      </Text>
+                      {!searchQuery.trim() && (
+                        <Text style={[styles.emptySearchText, { color: textSecondary, textAlign: 'center', fontSize: 12.5, maxWidth: 300 }]}>
+                          {isVi
+                            ? 'Hãy bấm sao chép liên kết mời bên trên để gửi cho bạn bè cùng tham gia sự kiện nhé!'
+                            : 'Copy and share the invite link above so your friends can join this event!'}
+                        </Text>
+                      )}
                     </View>
                   ) : (
                     filteredFriends.map((friend) => {
-                      const alreadyMember = isMember(friend.id, friend.name);
+                      const memberStatus = getMemberStatus(friend.id, friend.name);
 
                       return (
                         <View
@@ -292,12 +268,19 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
                             </View>
                           </View>
 
-                          {/* Action: Already in event vs Invite Button */}
-                          {alreadyMember ? (
+                          {/* Action: Already in event vs Pending Invite vs Invite Button */}
+                          {memberStatus === 'accepted' ? (
                             <View style={styles.joinedBadge}>
                               <Ionicons name="checkmark" size={14} color="#059669" />
                               <Text style={styles.joinedBadgeText}>
                                 {isVi ? 'Đã tham gia' : 'Joined'}
+                              </Text>
+                            </View>
+                          ) : memberStatus === 'pending' ? (
+                            <View style={[styles.joinedBadge, { backgroundColor: isDark ? '#451A03' : '#FEF3C7' }]}>
+                              <Ionicons name="time-outline" size={14} color="#D97706" />
+                              <Text style={[styles.joinedBadgeText, { color: '#D97706' }]}>
+                                {isVi ? 'Chờ chấp nhận' : 'Pending'}
                               </Text>
                             </View>
                           ) : (
