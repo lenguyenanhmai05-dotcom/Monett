@@ -1526,7 +1526,7 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
               <View style={styles.moodHeaderRow}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={{ fontSize: 16 }}>✨</Text>
-                  <Text style={styles.moodHeaderTitle}>Hôm nay bạn cảm thấy thế nào?</Text>
+                  <Text style={styles.moodHeaderTitle}>Điểm danh ngay nào</Text>
                 </View>
                 <View style={[styles.moodStatusBadge, selectedMood && styles.moodStatusBadgeDone]}>
                   <Text style={[styles.moodStatusBadgeText, selectedMood && styles.moodStatusBadgeTextDone]}>
