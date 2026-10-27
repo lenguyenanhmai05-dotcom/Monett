@@ -24,7 +24,8 @@
     "@nestjs/platform-socket.io": "^10.3.8",
     "@nestjs/serve-static": "^4.0.2",
     "@nestjs/websockets": "^10.3.8",
-    "@types/multer": "^2.3.0",
+    "multer": "^1.4.5-lts.1",
+    "@types/multer": "^1.4.12",
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
@@ -50,7 +51,6 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/multer": "^2.2.0",
     "@types/nodemailer": "^8.0.2",
     "@types/passport-jwt": "^4.0.1",
     "@types/streamifier": "^0.1.2",
