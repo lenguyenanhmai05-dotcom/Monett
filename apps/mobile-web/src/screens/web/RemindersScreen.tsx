@@ -346,6 +346,10 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
   const totalRemindersCount = reminders.length;
   const pendingRemindersCount = reminders.filter((r) => !r.isCompleted).length;
   const completedRemindersCount = reminders.filter((r) => r.isCompleted).length;
+  const reminderCompletionPercent =
+    totalRemindersCount > 0
+      ? Math.round((completedRemindersCount / totalRemindersCount) * 100)
+      : 0;
 
   // ==========================================
   // SECTION 2: GHI CHÚ & SỔ TAY (PERSONAL NOTES)
@@ -563,51 +567,82 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
       {/* ============================================================ */}
       {activeSubTab === 'reminders' && (
         <View style={styles.tabContentArea}>
-          {/* Quick Stats Bar - Đồng bộ 3 màu: Xanh đậm (#064E3B), Xanh nhạt (#BEE3C2), Vàng nhạt (#FEF3C7) */}
-          <View style={styles.statsRow}>
-            {/* Ô 1: Tổng số việc - Màu xanh đậm */}
-            <View style={[styles.statCard, { backgroundColor: '#064E3B', borderColor: '#065F46' }]}>
-              <View style={[styles.statIconBadge, { backgroundColor: 'rgba(255, 255, 255, 0.15)' }]}>
-                <Ionicons name="notifications" size={18} color="#FFFFFF" />
-              </View>
-              <View>
-                <Text style={[styles.statLabel, { color: 'rgba(255, 255, 255, 0.75)' }]}>
-                  {isVi ? 'Tổng số việc' : 'Total Tasks'}
+          {/* Quick Stats Bar - Đồng bộ kích thước chuẩn lớn với Sổ nợ & Tích lũy (minHeight: 160, padding: 24) */}
+          <View style={[styles.statsRow, !isDesktop && styles.statsRowMobile]}>
+            {/* Card 1: Tổng số việc - Màu xanh đậm (#064E3B) */}
+            <View style={[styles.statCard, styles.statCardDark, !isDesktop && styles.statCardMobile]}>
+              <View style={styles.statCardHeader}>
+                <Text style={styles.statCardLabelDark}>
+                  {isVi ? 'TỔNG SỐ VIỆC CẦN LÀM' : 'TOTAL REMINDERS'}
                 </Text>
-                <Text style={[styles.statValue, { color: '#FFFFFF' }]}>
-                  {totalRemindersCount}
-                </Text>
+                <View style={styles.percentBadge}>
+                  <Text style={styles.percentBadgeText}>{reminderCompletionPercent}%</Text>
+                </View>
               </View>
+
+              <Text style={styles.statCardValueDark} numberOfLines={1}>
+                {totalRemindersCount} <Text style={styles.currencySubDark}>{isVi ? 'việc' : 'tasks'}</Text>
+              </Text>
+
+              <View style={styles.cardDarkDivider} />
+
+              <Text style={styles.statCardSubDark}>
+                {pendingRemindersCount} {isVi ? 'chưa hoàn thành' : 'pending'} · {completedRemindersCount} {isVi ? 'đã xong' : 'completed'}
+              </Text>
             </View>
 
-            {/* Ô 2: Chưa xong - Màu xanh nhạt */}
-            <View style={[styles.statCard, { backgroundColor: '#BEE3C2', borderColor: '#A3D9AA' }]}>
-              <View style={[styles.statIconBadge, { backgroundColor: 'rgba(6, 78, 59, 0.12)' }]}>
-                <Ionicons name="time" size={18} color="#047857" />
+            {/* Card 2: Chưa xong - Màu xanh nhạt (#BEE3C2) */}
+            <View
+              style={[
+                styles.statCard,
+                styles.statCardMint,
+                !isDesktop && styles.statCardMobile,
+              ]}
+            >
+              <View style={styles.statCardHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="time" size={16} color="#065F46" />
+                  <Text style={[styles.statCardLabelPastel, { color: '#065F46' }]}>
+                    {isVi ? 'Chưa xong' : 'Pending'}
+                  </Text>
+                </View>
               </View>
-              <View>
-                <Text style={[styles.statLabel, { color: '#064E3B', fontWeight: '700' }]}>
-                  {isVi ? 'Chưa xong' : 'Pending'}
-                </Text>
-                <Text style={[styles.statValue, { color: '#064E3B' }]}>
-                  {pendingRemindersCount}
-                </Text>
-              </View>
+
+              <Text style={[styles.statCardValuePastel, { color: '#064E3B' }]} numberOfLines={1}>
+                {pendingRemindersCount} <Text style={[styles.currencySubPastel, { color: '#064E3B' }]}>{isVi ? 'việc' : 'tasks'}</Text>
+              </Text>
+
+              <Text style={[styles.statCardSubPastel, { color: '#065F46' }]}>
+                {pendingRemindersCount === 0
+                  ? (isVi ? 'Tuyệt vời! Đã hoàn thành mọi việc' : 'All done! Great job')
+                  : (isVi ? `${pendingRemindersCount} việc cần làm đúng hạn` : `${pendingRemindersCount} tasks remaining`)}
+              </Text>
             </View>
 
-            {/* Ô 3: Đã hoàn thành - Màu vàng */}
-            <View style={[styles.statCard, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
-              <View style={[styles.statIconBadge, { backgroundColor: 'rgba(180, 83, 9, 0.12)' }]}>
-                <Ionicons name="checkmark-done" size={18} color="#B45309" />
+            {/* Card 3: Đã hoàn thành - Màu vàng nhạt (#FEF3C7) */}
+            <View
+              style={[
+                styles.statCard,
+                styles.statCardYellow,
+                !isDesktop && styles.statCardMobile,
+              ]}
+            >
+              <View style={styles.statCardHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="checkmark-done" size={17} color="#92400E" />
+                  <Text style={[styles.statCardLabelPastel, { color: '#92400E' }]}>
+                    {isVi ? 'Đã hoàn thành' : 'Completed'}
+                  </Text>
+                </View>
               </View>
-              <View>
-                <Text style={[styles.statLabel, { color: '#92400E', fontWeight: '700' }]}>
-                  {isVi ? 'Đã hoàn thành' : 'Completed'}
-                </Text>
-                <Text style={[styles.statValue, { color: '#B45309' }]}>
-                  {completedRemindersCount}
-                </Text>
-              </View>
+
+              <Text style={[styles.statCardValuePastel, { color: '#92400E' }]} numberOfLines={1}>
+                {completedRemindersCount} <Text style={[styles.currencySubPastel, { color: '#92400E' }]}>{isVi ? 'việc' : 'tasks'}</Text>
+              </Text>
+
+              <Text style={[styles.statCardSubPastel, { color: '#92400E' }]}>
+                {reminderCompletionPercent}% {isVi ? 'đã hoàn thành xong' : 'completion rate'}
+              </Text>
             </View>
           </View>
 
@@ -1441,39 +1476,120 @@ const styles = StyleSheet.create({
   tabContentArea: {
     width: '100%',
   },
+  // 2. Stat Cards Row (Full Width, Exact Dimensions Matching Sổ nợ: minHeight: 160, padding: 24)
   statsRow: {
     flexDirection: 'row',
-    gap: 14,
-    marginBottom: 20,
-    flexWrap: 'wrap',
+    gap: 16,
+    marginBottom: 28,
+    width: '100%',
+  },
+  statsRowMobile: {
+    flexDirection: 'column',
   },
   statCard: {
     flex: 1,
-    minWidth: 160,
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 24,
+    minHeight: 160,
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  statCardMobile: {
+    width: '100%',
+    marginBottom: 12,
+  },
+  statCardDark: {
+    backgroundColor: '#064E3B',
+    borderColor: '#065F46',
+    flex: 1,
+    shadowColor: '#064E3B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  cardDarkDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    marginVertical: 6,
+  },
+  statCardMint: {
+    backgroundColor: '#BEE3C2',
+    borderColor: '#BEE3C2',
+    flex: 1,
+  },
+  statCardYellow: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
+    flex: 1,
+  },
+  statCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    justifyContent: 'space-between',
+    marginBottom: 4,
   },
-  statIconBadge: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    justifyContent: 'center',
-    alignItems: 'center',
+  statCardLabelDark: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#A7F3D0',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
-  statLabel: {
+  percentBadge: {
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: 12,
+  },
+  percentBadgeText: {
     fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
+    fontWeight: '800',
+    color: '#064E3B',
   },
-  statValue: {
+  statCardValueDark: {
+    fontSize: 34,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.5,
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  currencySubDark: {
     fontSize: 20,
     fontWeight: '800',
-    marginTop: 2,
+    color: '#FFFFFF',
+  },
+  statCardSubDark: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#A7F3D0',
+  },
+  statCardLabelPastel: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  statCardValuePastel: {
+    fontSize: 30,
+    fontWeight: '900',
+    color: '#221D18',
+    letterSpacing: -0.5,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  currencySubPastel: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#221D18',
+  },
+  statCardSubPastel: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   controlsRow: {
     flexDirection: 'row',
