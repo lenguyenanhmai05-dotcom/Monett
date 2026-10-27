@@ -37,6 +37,7 @@ interface ProfileScreenProps {
   onNavigateToWallets?: () => void;
   onNavigateToCategories?: () => void;
   onNavigateToFeed?: () => void;
+  onOpenAdminDashboard?: () => void;
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
@@ -45,6 +46,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onNavigateToWallets,
   onNavigateToCategories,
   onNavigateToFeed,
+  onOpenAdminDashboard,
 }) => {
   const { user: authUser, logout, refreshUser } = useAuth();
   const { language, setLanguage } = useLanguage();
@@ -553,6 +555,28 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Nút truy cập Trang Quản trị dành cho Admin */}
+        {onOpenAdminDashboard && (
+          <TouchableOpacity
+            style={[styles.menuRow, styles.adminCardBtn]}
+            activeOpacity={0.8}
+            onPress={onOpenAdminDashboard}
+          >
+            <View style={[styles.menuIconWrap, { backgroundColor: '#DCFCE7' }]}>
+              <Ionicons name="shield-checkmark" size={18} color="#047857" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={[styles.menuTitle, { color: '#047857', fontWeight: '700' }]}>
+                {isVi ? 'Trang Quản trị Hệ thống' : 'System Admin Portal'}
+              </Text>
+              <Text style={styles.menuSubtitle}>
+                {isVi ? 'Xem thống kê toàn hệ thống, người dùng & giao dịch' : 'Manage system stats, users & transactions'}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#047857" />
+          </TouchableOpacity>
+        )}
 
         {/* 6. Nút Đăng Xuất */}
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
@@ -1359,6 +1383,15 @@ const styles = StyleSheet.create({
   menuArrow: {
     fontSize: 18,
     color: '#D1D5DB',
+  },
+  adminCardBtn: {
+    backgroundColor: '#F0FDF4',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
   logoutBtn: {
     marginTop: 20,

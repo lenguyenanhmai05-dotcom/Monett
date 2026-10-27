@@ -49,7 +49,11 @@ const PAGE_TITLES: Record<AdminTab, { title: string; subtitle: string }> = {
   },
 };
 
-export const AdminDashboardScreen: React.FC = () => {
+interface AdminDashboardScreenProps {
+  onBackToApp?: () => void;
+}
+
+export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onBackToApp }) => {
   const { user, logout } = useAuth();
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024;
@@ -260,6 +264,15 @@ export const AdminDashboardScreen: React.FC = () => {
         </View>
 
         <View style={styles.headerRight}>
+          {onBackToApp && (
+            <TouchableOpacity
+              style={styles.backToAppBtn}
+              onPress={onBackToApp}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.backToAppText}>📱 Về ứng dụng</Text>
+            </TouchableOpacity>
+          )}
           {/* Admin User Profile Pill with Hover Dropdown */}
           <View
             style={styles.profileWrapper}
@@ -1084,6 +1097,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  backToAppBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#047857',
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    gap: 6,
+  },
+  backToAppText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   adminProfileCard: {
     flexDirection: 'row',

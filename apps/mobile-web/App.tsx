@@ -59,6 +59,9 @@ function MainApp() {
   const { language } = useLanguage();
   const { width } = useWindowDimensions();
   const isMobileScreen = Platform.OS !== 'web' || width < 768;
+  const [adminViewMode, setAdminViewMode] = useState<'app' | 'admin'>(
+    Platform.OS === 'web' && width >= 768 ? 'admin' : 'app'
+  );
   const [activeTab, setActiveTab] = useState<TabKey>('home');
   const [publicScreen, setPublicScreen] = useState<'landing' | 'auth'>(
     Platform.OS === 'web' ? 'landing' : 'auth'
@@ -122,18 +125,21 @@ function MainApp() {
     );
   }
 
-  // Khi tài khoản là ADMIN: Luôn mở trực tiếp Trang Quản trị Hệ thống (Admin Dashboard)
-  if (isSystemAdmin) {
-    return <AdminDashboardScreen />;
-  }
-
   // Khi người dùng ĐÃ đăng nhập trên thiết bị Mobile:
   if (isMobileScreen) {
+    if (isSystemAdmin && adminViewMode === 'admin') {
+      return <AdminDashboardScreen onBackToApp={() => setAdminViewMode('app')} />;
+    }
     return (
       <TransactionProvider>
-        <MobileNavigator />
+        <MobileNavigator onOpenAdminDashboard={isSystemAdmin ? () => setAdminViewMode('admin') : undefined} />
       </TransactionProvider>
     );
+  }
+
+  // Khi tài khoản là ADMIN trên Web Desktop (mặc định vào Admin Dashboard, có thể bấm về App):
+  if (isSystemAdmin && adminViewMode === 'admin') {
+    return <AdminDashboardScreen onBackToApp={() => setAdminViewMode('app')} />;
   }
 
   const renderContent = () => {

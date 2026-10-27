@@ -43,7 +43,11 @@ import { NotificationModal } from '../../components/NotificationModal';
 export type MobileTab = 'home' | 'calendar' | 'analytics' | 'feed' | 'wallets' | 'categories' | 'profile' | 'events' | 'savings' | 'debt' | 'recurring' | 'income';
 export type ActiveModal = 'none' | 'camera' | 'add_expense' | 'quick_save' | 'detail' | 'day_expenses';
 
-export const MobileNavigator: React.FC = () => {
+interface MobileNavigatorProps {
+  onOpenAdminDashboard?: () => void;
+}
+
+export const MobileNavigator: React.FC<MobileNavigatorProps> = ({ onOpenAdminDashboard }) => {
   const { language } = useLanguage();
   const isVi = language === 'vi';
   const [currentTab, setCurrentTab] = useState<MobileTab>('home');
@@ -118,6 +122,13 @@ export const MobileNavigator: React.FC = () => {
             onNavigateToFeed={() => setCurrentTab('feed')}
           />
         );
+      case 'analytics':
+        return (
+          <AnalyticsScreen
+            refreshTrigger={refreshKey}
+            onBack={() => setCurrentTab('home')}
+          />
+        );
       case 'feed':
         return (
           <FriendsFeedScreen
@@ -165,6 +176,7 @@ export const MobileNavigator: React.FC = () => {
             onNavigateToWallets={() => setCurrentTab('wallets')}
             onNavigateToCategories={() => setCurrentTab('categories')}
             onNavigateToFeed={() => setCurrentTab('feed')}
+            onOpenAdminDashboard={onOpenAdminDashboard}
           />
         );
       default:
