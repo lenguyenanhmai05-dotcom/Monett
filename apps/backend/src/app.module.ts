@@ -20,6 +20,7 @@ import { RemindersModule } from './reminders/reminders.module';
 import { BillsAndDebtsModule } from './bills-and-debts/bills-and-debts.module';
 import { AdminModule } from './admin/admin.module';
 import { EventsModule } from './events/events.module';
+import { AiModule } from './ai/ai.module';
 
 import * as dotenv from 'dotenv';
 import * as path from 'path';
@@ -98,6 +99,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
     BillsAndDebtsModule,
     AdminModule,
     EventsModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],
