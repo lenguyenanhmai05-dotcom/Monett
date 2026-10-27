@@ -28,6 +28,7 @@ import { SocketProvider } from './src/contexts/SocketContext';
 import { LanguageProvider, useLanguage } from './src/contexts/LanguageContext';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { NotificationProvider } from './src/contexts/NotificationContext';
+import { ChatProvider } from './src/contexts/ChatContext';
 
 // Xóa bỏ hoàn toàn viền đen mặc định của trình duyệt web trên mọi ô nhập liệu
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
@@ -185,8 +186,10 @@ export default function App() {
           <SocketProvider>
             <ThemeProvider>
               <NotificationProvider>
-                <StatusBar style="dark" />
-                <MainApp />
+                <ChatProvider>
+                  <StatusBar style="dark" />
+                  <MainApp />
+                </ChatProvider>
               </NotificationProvider>
             </ThemeProvider>
           </SocketProvider>

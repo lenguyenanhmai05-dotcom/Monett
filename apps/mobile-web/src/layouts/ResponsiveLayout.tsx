@@ -15,6 +15,9 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useNotifications } from '../contexts/NotificationContext';
 import { NotificationModal } from '../components/NotificationModal';
 import { FloatingFrogAIChat } from '../components/FloatingFrogAIChat';
+import { useChat } from '../contexts/ChatContext';
+import { MessengerPopover } from '../components/MessengerPopover';
+import { ChatModal } from '../components/ChatModal';
 
 export type TabKey =
   | 'home'
@@ -46,6 +49,7 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   const { language } = useLanguage();
   const { isDark, colors } = useTheme();
   const { unreadCount, toggleNotifications } = useNotifications();
+  const { isMessengerOpen, toggleMessenger, activeChatFriend, activeMomentReply, closeChat } = useChat();
   const [imageError, setImageError] = useState(false);
   const styles = getStyles(isDark, colors);
 
@@ -118,15 +122,18 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
             <View style={styles.navRight}>
               {/* Messenger Button */}
               <TouchableOpacity
-                style={styles.bellBtn}
-                onPress={() => onSelectTab('messages')}
+                style={[
+                  styles.bellBtn,
+                  isMessengerOpen && { backgroundColor: isDark ? 'rgba(5, 150, 105, 0.25)' : '#DCFCE7' },
+                ]}
+                onPress={toggleMessenger}
                 activeOpacity={0.7}
                 accessibilityLabel="Đoạn chat Messenger"
               >
                 <Ionicons
-                  name={activeTab === 'messages' ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'}
+                  name={isMessengerOpen ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'}
                   size={19}
-                  color={activeTab === 'messages' ? '#059669' : (isDark ? '#94A3B8' : '#64748B')}
+                  color={isMessengerOpen ? '#059669' : (isDark ? '#94A3B8' : '#64748B')}
                 />
               </TouchableOpacity>
 
@@ -199,25 +206,45 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
               style={styles.mobileNavLogo}
               resizeMode="contain"
             />
-            <TouchableOpacity
-              style={styles.bellBtn}
-              onPress={toggleNotifications}
-              activeOpacity={0.7}
-              accessibilityLabel="Thông báo"
-            >
-              <Ionicons
-                name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
-                size={19}
-                color={unreadCount > 0 ? '#059669' : (isDark ? '#94A3B8' : '#64748B')}
-              />
-              {unreadCount > 0 && (
-                <View style={styles.bellBadge}>
-                  <Text style={styles.bellBadgeText}>
-                    {unreadCount > 99 ? '99+' : unreadCount}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {/* Messenger Button Mobile */}
+              <TouchableOpacity
+                style={[
+                  styles.bellBtn,
+                  isMessengerOpen && { backgroundColor: isDark ? 'rgba(5, 150, 105, 0.25)' : '#DCFCE7' },
+                ]}
+                onPress={toggleMessenger}
+                activeOpacity={0.7}
+                accessibilityLabel="Đoạn chat Messenger"
+              >
+                <Ionicons
+                  name={isMessengerOpen ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'}
+                  size={19}
+                  color={isMessengerOpen ? '#059669' : (isDark ? '#94A3B8' : '#64748B')}
+                />
+              </TouchableOpacity>
+
+              {/* Notification Bell Mobile */}
+              <TouchableOpacity
+                style={styles.bellBtn}
+                onPress={toggleNotifications}
+                activeOpacity={0.7}
+                accessibilityLabel="Thông báo"
+              >
+                <Ionicons
+                  name={unreadCount > 0 ? 'notifications' : 'notifications-outline'}
+                  size={19}
+                  color={unreadCount > 0 ? '#059669' : (isDark ? '#94A3B8' : '#64748B')}
+                />
+                {unreadCount > 0 && (
+                  <View style={styles.bellBadge}>
+                    <Text style={styles.bellBadgeText}>
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -278,8 +305,21 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
         )}
       </View>
 
+      {/* Facebook Style Messenger Popover Dropdown */}
+      <MessengerPopover />
+
       {/* Interactive Notification Popover / Modal */}
       <NotificationModal onNavigateToTab={onSelectTab} />
+
+      {/* Global Floating Messenger Chat Window (Bottom-Right Corner) */}
+      {activeChatFriend && (
+        <ChatModal
+          visible={!!activeChatFriend}
+          friend={activeChatFriend}
+          initialMomentReply={activeMomentReply}
+          onClose={closeChat}
+        />
+      )}
 
       {/* Floating Frog AI Copilot (Interactive Guide & Navigator) */}
       <FloatingFrogAIChat onNavigateToTab={onSelectTab} activeTab={activeTab} />

@@ -8,8 +8,8 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import { useSocket } from '../../contexts/SocketContext';
 import { getMomentsFeedApi, reactMomentApi, getMomentReactionsApi, deleteMomentApi, normalizeAvatarUrl, getFriendsApi, getFriendRequestsApi, respondFriendRequestApi, removeFriendApi, sendFriendRequestApi, getStreakApi, checkInStreakApi } from '../../services/api';
 import { MomentFormModal, MomentChatModal, MomentItem, MomentCommentItem } from '../mobile/FriendsFeedScreen';
-import { ChatModal } from '../../components/ChatModal';
 import { GroupIconSvg, GROUP_ICONS_LIST } from '../../components/GroupIconSvg';
+import { useChat } from '../../contexts/ChatContext';
 
 const TouchableAny = TouchableOpacity as any;
 
@@ -494,7 +494,7 @@ const cardStyles = StyleSheet.create({
   },
   photo: {
     width: '100%',
-    height: 380,
+    height: 460,
     backgroundColor: '#F1F5F9',
   },
   captionOverlay: {
@@ -670,8 +670,16 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
   const { isUserOnline, refreshOnlineUsers, socket } = useSocket();
   const styles = getStyles(isDark, colors);
 
+  const { openChat, openMessenger, closeMessenger, toggleMessenger, isMessengerOpen } = useChat();
+
+  useEffect(() => {
+    if (initialTab === 'chat') {
+      openMessenger();
+    }
+  }, [initialTab, openMessenger]);
+
   // Trạng thái menu Messenger Popover (Facebook Style)
-  const [showMessengerDropdown, setShowMessengerDropdown] = useState(initialTab === 'chat');
+  const [showMessengerDropdown, setShowMessengerDropdown] = useState(false);
   const [messengerSearchQuery, setMessengerSearchQuery] = useState('');
   const [messengerFilter, setMessengerFilter] = useState<'all' | 'unread' | 'group' | 'direct'>('all');
 
@@ -904,14 +912,13 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
       };
     }
 
-    setActiveMomentReply({
+    setChatMoment(null);
+    openChat(targetFriend, {
       id: m.id,
       photo: m.photo,
       caption: m.caption,
       userName: m.user?.name,
     });
-    setChatMoment(null);
-    setActiveChatFriend(targetFriend);
   };
 
   // ─── NHÓM TRÒ CHUYỆN (GROUPS) ───
@@ -1443,61 +1450,6 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
   return (
     <View style={{ flex: 1, backgroundColor: isDark ? '#18191A' : '#F5F0E8', position: 'relative' }}>
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-        {/* ── TOP FEED ACTION BAR VỚI NÚT MESSENGER & ĐĂNG BÀI (FACEBOOK STYLE) ── */}
-        <View style={styles.feedTopBar}>
-          <View style={styles.feedTopBarLeft}>
-            <View style={styles.brandIconCircle}>
-              <Ionicons name="sparkles" size={17} color="#059669" />
-            </View>
-            <View>
-              <Text style={styles.feedTopBarTitle}>Bảng tin khoảnh khắc</Text>
-              <Text style={styles.feedTopBarSub}>Chia sẻ khoảnh khắc chi tiêu & kết nối bạn bè ✨</Text>
-            </View>
-          </View>
-
-          <View style={styles.feedTopBarRight}>
-            {/* Nút Messenger Facebook Style */}
-            <TouchableOpacity
-              style={[styles.messengerHeaderBtn, showMessengerDropdown && styles.messengerHeaderBtnActive]}
-              onPress={() => {
-                setShowMessengerDropdown((prev) => !prev);
-                if (refreshOnlineUsers) refreshOnlineUsers();
-              }}
-              activeOpacity={0.8}
-              accessibilityLabel="Mở Đoạn chat Messenger"
-            >
-              <Ionicons
-                name="chatbubble-ellipses"
-                size={19}
-                color={showMessengerDropdown ? '#FFFFFF' : '#059669'}
-              />
-              <Text
-                style={[
-                  styles.messengerHeaderBtnText,
-                  showMessengerDropdown && { color: '#FFFFFF' },
-                ]}
-              >
-                Đoạn chat
-              </Text>
-              <View style={styles.messengerHeaderBadge}>
-                <Text style={styles.messengerHeaderBadgeText}>
-                  {chatGroups.length + friendsList.length > 0 ? (chatGroups.length + friendsList.length) : '•'}
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Nút Đăng bài */}
-            <TouchableOpacity
-              style={styles.createPostQuickBtn}
-              onPress={() => handleOpenCreate('text')}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="add" size={18} color="#FFFFFF" />
-              <Text style={styles.createPostQuickBtnText}>Đăng tin</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         <View style={styles.layout}>
           {/* LEFT COLUMN - Navigation & Quick Menu */}
           <View style={styles.leftColumn}>
@@ -1523,16 +1475,13 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
 
               {/* ĐOẠN CHAT (MESSENGER POPUP BUTTON) */}
               <TouchableOpacity
-                style={[styles.menuItem, showMessengerDropdown && styles.menuItemActive]}
-                onPress={() => {
-                  setShowMessengerDropdown((prev) => !prev);
-                  if (refreshOnlineUsers) refreshOnlineUsers();
-                }}
+                style={[styles.menuItem, isMessengerOpen && styles.menuItemActive]}
+                onPress={toggleMessenger}
                 activeOpacity={0.75}
               >
-                <Ionicons name="chatbubble-ellipses" size={20} color={showMessengerDropdown ? "#059669" : "#64748B"} />
+                <Ionicons name="chatbubble-ellipses" size={20} color={isMessengerOpen ? "#059669" : "#64748B"} />
                 <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginLeft: 12 }}>
-                  <Text style={[styles.menuText, { marginLeft: 0 }, showMessengerDropdown && styles.menuTextActive]}>
+                  <Text style={[styles.menuText, { marginLeft: 0 }, isMessengerOpen && styles.menuTextActive]}>
                     Đoạn chat
                   </Text>
                   <View style={styles.messengerNavBadge}>
@@ -1643,7 +1592,7 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
                         <View style={{ flexDirection: 'row', gap: 8 }}>
                           <TouchableOpacity
                             style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isDark ? '#475569' : '#E2E8F0', justifyContent: 'center', alignItems: 'center' }}
-                            onPress={() => setActiveChatFriend(item)}
+                            onPress={() => openChat(item)}
                           >
                             <Ionicons name="chatbubble-ellipses" size={20} color={isDark ? '#CBD5E1' : '#475569'} />
                           </TouchableOpacity>
@@ -1896,8 +1845,7 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
                         style={styles.contactItemRow}
                         onPress={() => {
                           setChatMoment(null);
-                          setActiveMomentReply(null);
-                          setActiveChatFriend(f);
+                          openChat(f);
                         }}
                         activeOpacity={0.7}
                       >
@@ -2361,307 +2309,7 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
         onRefresh={loadData}
       />
 
-      <ChatModal
-        visible={!!activeChatFriend}
-        friend={activeChatFriend}
-        initialMomentReply={activeMomentReply}
-        onClose={() => {
-          setActiveChatFriend(null);
-          setActiveMomentReply(null);
-        }}
-        onCommentSent={(momentId, commentText) => {
-          const newC: MomentCommentItem = {
-            id: 'c_' + Date.now(),
-            userId: myId,
-            userName: (user as any)?.fullName || 'Bạn',
-            text: commentText,
-            createdAt: new Date().toISOString(),
-            time: `${new Date().getHours().toString().padStart(2, '0')}:${new Date().getMinutes().toString().padStart(2, '0')}`,
-          };
-          handleCommentAdded(momentId, newC);
-        }}
-      />
 
-      {/* ── CONTEXT MENU (CHUỘT PHẢI / 3 CHẤM) CHO CUỘC TRÒ CHUYỆN ── */}
-      {contextMenu.visible && contextMenu.target && (
-        <Modal
-          transparent
-          visible={contextMenu.visible}
-          animationType="fade"
-          onRequestClose={() => setContextMenu((prev) => ({ ...prev, visible: false }))}
-        >
-          <TouchableOpacity
-            style={StyleSheet.absoluteFill}
-            activeOpacity={1}
-            onPress={() => setContextMenu((prev) => ({ ...prev, visible: false }))}
-          />
-          <View
-            style={[
-              styles.contextMenuCard,
-              {
-                top: Math.max(10, Math.min(contextMenu.y, (typeof window !== 'undefined' ? window.innerHeight : 800) - 220)),
-                left: Math.max(10, Math.min(contextMenu.x, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 240)),
-                backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
-                borderColor: isDark ? '#334155' : '#E2E8F0',
-              },
-            ]}
-          >
-            {/* Context Menu Header */}
-            <View style={[styles.contextMenuHeader, { borderBottomColor: isDark ? '#334155' : '#F1F5F9' }]}>
-              <Text style={[styles.contextMenuTitle, { color: isDark ? '#F8FAFC' : '#0F172A' }]} numberOfLines={1}>
-                {contextMenu.target.name}
-              </Text>
-              <Text style={styles.contextMenuSub}>
-                {contextMenu.target.type === 'group'
-                  ? 'Nhóm trò chuyện'
-                  : contextMenu.target.type === 'moment'
-                  ? 'Thảo luận bài viết'
-                  : 'Trò chuyện trực tiếp'}
-              </Text>
-            </View>
-
-            {/* Mở cuộc trò chuyện */}
-            <TouchableOpacity
-              style={styles.contextMenuItem}
-              onPress={() => {
-                const t = contextMenu.target!;
-                setContextMenu((prev) => ({ ...prev, visible: false }));
-                if (t.type === 'moment') {
-                  handleOpenMomentChat(t.data);
-                } else {
-                  setChatMoment(null);
-                  setActiveMomentReply(null);
-                  setActiveChatFriend(t.data);
-                }
-              }}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="chatbubbles-outline" size={17} color="#059669" />
-              <Text style={[styles.contextMenuItemText, { color: isDark ? '#F1F5F9' : '#1E293B' }]}>
-                Mở cuộc trò chuyện
-              </Text>
-            </TouchableOpacity>
-
-            {/* Ghim / Bỏ ghim cuộc trò chuyện */}
-            <TouchableOpacity
-              style={styles.contextMenuItem}
-              onPress={() => handleTogglePinChat(contextMenu.target!.id)}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={pinnedChatIds.includes(contextMenu.target.id) ? 'pin-outline' : 'pin'}
-                size={17}
-                color={pinnedChatIds.includes(contextMenu.target.id) ? '#64748B' : '#059669'}
-              />
-              <Text style={[styles.contextMenuItemText, { color: isDark ? '#F1F5F9' : '#1E293B' }]}>
-                {pinnedChatIds.includes(contextMenu.target.id)
-                  ? 'Bỏ ghim cuộc trò chuyện'
-                  : 'Ghim cuộc trò chuyện lên đầu'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Xóa cuộc trò chuyện */}
-            <TouchableOpacity
-              style={styles.contextMenuItem}
-              onPress={() => handleDeleteConversation(contextMenu.target!)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="trash-outline" size={17} color="#EF4444" />
-              <Text style={[styles.contextMenuItemText, { color: '#EF4444', fontWeight: '700' }]}>
-                {contextMenu.target.type === 'group' ? 'Xóa nhóm trò chuyện' : 'Xóa cuộc trò chuyện'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </Modal>
-      )}
-
-      {/* ── MESSENGER DROPDOWN POPOVER (DÀI NHƯ FACEBOOK) ── */}
-      {showMessengerDropdown && (
-        <>
-          <TouchableOpacity
-            style={styles.dropdownBackdrop}
-            activeOpacity={1}
-            onPress={() => setShowMessengerDropdown(false)}
-          />
-          <View style={[styles.messengerDropdownCard, { backgroundColor: isDark ? '#242526' : '#FFFFFF' }]}>
-            {/* Header: Đoạn chat */}
-            <View style={styles.messengerDropdownHeader}>
-              <Text style={[styles.messengerDropdownTitle, { color: isDark ? '#F8FAFC' : '#0F172A' }]}>
-                Đoạn chat
-              </Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <TouchableOpacity
-                  style={styles.dropdownHeaderBtn}
-                  onPress={() => {
-                    setNewGroupName('');
-                    setNewGroupIcon('users');
-                    setSelectedFriendIds([]);
-                    setShowCreateGroupModal(true);
-                  }}
-                  accessibilityLabel="Tạo nhóm mới"
-                >
-                  <Ionicons name="create-outline" size={19} color={isDark ? '#E2E8F0' : '#475569'} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.dropdownHeaderBtn}
-                  onPress={() => setShowMessengerDropdown(false)}
-                  accessibilityLabel="Đóng"
-                >
-                  <Ionicons name="close" size={19} color={isDark ? '#E2E8F0' : '#475569'} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Search Input */}
-            <View style={styles.messengerSearchContainer}>
-              <Ionicons name="search" size={16} color="#94A3B8" style={{ marginRight: 8 }} />
-              <TextInput
-                style={[styles.messengerSearchInput, { color: isDark ? '#F1F5F9' : '#0F172A' }]}
-                placeholder="Tìm kiếm trên Messenger..."
-                placeholderTextColor="#94A3B8"
-                value={messengerSearchQuery}
-                onChangeText={setMessengerSearchQuery}
-              />
-              {messengerSearchQuery.length > 0 && (
-                <TouchableOpacity onPress={() => setMessengerSearchQuery('')}>
-                  <Ionicons name="close-circle" size={16} color="#94A3B8" />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Filter Chips */}
-            <View style={styles.messengerFilterRow}>
-              <TouchableOpacity
-                style={[styles.messengerFilterChip, messengerFilter === 'all' && styles.messengerFilterChipActive]}
-                onPress={() => setMessengerFilter('all')}
-              >
-                <Text style={[styles.messengerFilterText, messengerFilter === 'all' && styles.messengerFilterTextActive]}>
-                  Tất cả
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.messengerFilterChip, messengerFilter === 'unread' && styles.messengerFilterChipActive]}
-                onPress={() => setMessengerFilter('unread')}
-              >
-                <Text style={[styles.messengerFilterText, messengerFilter === 'unread' && styles.messengerFilterTextActive]}>
-                  Chưa đọc
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.messengerFilterChip, messengerFilter === 'group' && styles.messengerFilterChipActive]}
-                onPress={() => setMessengerFilter('group')}
-              >
-                <Text style={[styles.messengerFilterText, messengerFilter === 'group' && styles.messengerFilterTextActive]}>
-                  Nhóm {chatGroups.length > 0 && `(${chatGroups.length})`}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.messengerFilterChip, messengerFilter === 'direct' && styles.messengerFilterChipActive]}
-                onPress={() => setMessengerFilter('direct')}
-              >
-                <Text style={[styles.messengerFilterText, messengerFilter === 'direct' && styles.messengerFilterTextActive]}>
-                  Bạn bè
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Scrollable Conversation List */}
-            <ScrollView style={styles.messengerConversationsScroll} showsVerticalScrollIndicator={true}>
-              {filteredConversations.length === 0 ? (
-                <View style={{ paddingVertical: 36, alignItems: 'center' }}>
-                  <Ionicons name="chatbubbles-outline" size={36} color="#94A3B8" />
-                  <Text style={{ marginTop: 8, color: '#94A3B8', fontSize: 13.5 }}>
-                    Không tìm thấy cuộc trò chuyện nào
-                  </Text>
-                </View>
-              ) : (
-                filteredConversations.map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[
-                      styles.messengerChatItem,
-                      item.isPinned && { backgroundColor: isDark ? '#1E293B' : '#F0FDF4' },
-                    ]}
-                    onPress={() => handleSelectConversation(item)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={{ position: 'relative' }}>
-                      {item.type === 'group' ? (
-                        <View style={styles.messengerGroupAvatar}>
-                          <GroupIconSvg name={item.icon || 'users'} size={24} />
-                        </View>
-                      ) : (
-                        <Avatar uri={item.avatar} name={item.name} size={46} />
-                      )}
-                      {item.type !== 'group' && (
-                        <View
-                          style={{
-                            position: 'absolute',
-                            bottom: 0,
-                            right: 0,
-                            width: 12,
-                            height: 12,
-                            borderRadius: 6,
-                            backgroundColor: item.isOnline ? '#10B981' : '#94A3B8',
-                            borderWidth: 2,
-                            borderColor: isDark ? '#242526' : '#FFFFFF',
-                          }}
-                        />
-                      )}
-                    </View>
-
-                    <View style={{ flex: 1, marginLeft: 12 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Text
-                          style={[
-                            styles.messengerChatName,
-                            { color: isDark ? '#F8FAFC' : '#0F172A' },
-                            item.unread && { fontWeight: '800' },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {item.name}
-                        </Text>
-                        <Text style={styles.messengerChatTime}>{item.time}</Text>
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
-                        <Text
-                          style={[
-                            styles.messengerChatSnippet,
-                            { color: item.unread ? (isDark ? '#F1F5F9' : '#0F172A') : '#94A3B8' },
-                            item.unread && { fontWeight: '700' },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {item.lastMessage}
-                        </Text>
-                        {item.unread && (
-                          <View style={styles.messengerUnreadDot} />
-                        )}
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                ))
-              )}
-            </ScrollView>
-
-            {/* Footer */}
-            <View style={[styles.messengerDropdownFooter, { borderTopColor: isDark ? '#334155' : '#F1F5F9' }]}>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowMessengerDropdown(false);
-                  setActiveTab('friends');
-                }}
-                style={{ paddingVertical: 8, alignItems: 'center' }}
-              >
-                <Text style={{ fontSize: 13, fontWeight: '700', color: '#059669' }}>
-                  Xem tất cả trong Messenger & Bạn bè
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </>
-      )}
     </View>
   );
 };
@@ -2726,29 +2374,30 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     alignItems: 'center',
   },
   contentContainer: {
-    alignItems: 'center',
+    width: '100%',
     paddingVertical: 16,
+    paddingHorizontal: 20,
   },
   layout: {
     flexDirection: 'row',
     width: '100%',
-    maxWidth: 1360,
-    paddingHorizontal: 20,
     gap: 24,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
   leftColumn: {
-    width: 280,
+    width: 320,
+    minWidth: 260,
     position: 'sticky' as any,
     top: 20,
   },
   middleColumn: {
     flex: 1,
-    maxWidth: 680,
+    minWidth: 0,
   },
   rightColumn: {
-    width: 330,
+    width: 340,
+    minWidth: 280,
     position: 'sticky' as any,
     top: 20,
   },
