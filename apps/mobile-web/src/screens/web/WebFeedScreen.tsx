@@ -1448,12 +1448,15 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: isDark ? '#18191A' : '#F5F0E8', position: 'relative' }}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.layout}>
-          {/* LEFT COLUMN - Navigation & Quick Menu */}
-          <View style={styles.leftColumn}>
-            <View style={styles.card}>
+    <View style={{ flex: 1, height: '100%', backgroundColor: isDark ? '#18191A' : '#F5F0E8', position: 'relative' }}>
+      <View style={styles.layout}>
+        {/* LEFT COLUMN - Navigation & Quick Menu */}
+        <ScrollView
+          style={styles.leftColumn}
+          contentContainerStyle={styles.leftColumnContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.card}>
               <View style={styles.userProfileHeader}>
                 <Avatar uri={(user as any)?.avatarUrl || (user as any)?.avatar} name={(user as any)?.fullName || 'User'} size={44} />
                 <View style={styles.userInfo}>
@@ -1623,10 +1626,14 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
                 Chia sẻ khoảnh khắc chi tiêu & chia bill minh bạch giúp bạn gắn kết cùng bạn bè và hình thành thói quen tài chính tích cực! ✨
               </Text>
             </View>
-          </View>
+          </ScrollView>
 
         {/* MIDDLE COLUMN - Main Content */}
-        <View style={styles.middleColumn}>
+        <ScrollView
+          style={styles.middleColumn}
+          contentContainerStyle={styles.middleColumnContent}
+          showsVerticalScrollIndicator={false}
+        >
           {activeTab === 'friends' ? (
             <View style={styles.card}>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 8 }}>
@@ -1896,11 +1903,15 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
               )}
             </>
           )}
-        </View>
+        </ScrollView>
 
         {/* RIGHT COLUMN - Widgets mạng xã hội tài chính sống động */}
         {activeTab === 'feed' && width >= 1150 && (
-          <View style={styles.rightColumn}>
+          <ScrollView
+            style={styles.rightColumn}
+            contentContainerStyle={styles.rightColumnContent}
+            showsVerticalScrollIndicator={false}
+          >
             {/* 0. NGƯỜI LIÊN HỆ / BẠN BÈ HOẠT ĐỘNG (FACEBOOK STYLE CONTACTS) */}
             <View style={styles.card}>
               <View style={styles.widgetHeader}>
@@ -1972,9 +1983,7 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
                 </View>
               )}
             </View>
-
-
-          </View>
+          </ScrollView>
         )}
       </View>
 
@@ -2033,8 +2042,6 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
           </View>
         </View>
       </Modal>
-
-      </ScrollView>
 
       {/* MODAL TẠO NHÓM TRÒ CHUYỆN */}
       <Modal
@@ -2274,27 +2281,45 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     paddingHorizontal: 20,
   },
   layout: {
+    flex: 1,
     flexDirection: 'row',
     width: '100%',
-    gap: 24,
+    height: '100%',
+    gap: 20,
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
   },
   leftColumn: {
     width: 320,
     minWidth: 260,
-    position: 'sticky' as any,
-    top: 20,
+    height: '100%',
+  },
+  leftColumnContent: {
+    paddingVertical: 16,
+    paddingLeft: 20,
+    paddingRight: 6,
+    paddingBottom: 40,
   },
   middleColumn: {
     flex: 1,
     minWidth: 0,
+    height: '100%',
+  },
+  middleColumnContent: {
+    paddingVertical: 16,
+    paddingHorizontal: 6,
+    paddingBottom: 60,
   },
   rightColumn: {
     width: 340,
     minWidth: 280,
-    position: 'sticky' as any,
-    top: 20,
+    height: '100%',
+  },
+  rightColumnContent: {
+    paddingVertical: 16,
+    paddingRight: 20,
+    paddingLeft: 6,
+    paddingBottom: 40,
   },
   card: {
     backgroundColor: isDark ? '#242526' : '#FFFFFF',
