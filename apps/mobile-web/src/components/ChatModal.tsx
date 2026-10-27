@@ -133,7 +133,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   const isDesktop = width >= 640;
   const { user } = useAuth();
   const { isDark } = useTheme();
-  const { isUserOnline } = useSocket();
+  const { isUserOnline, refreshOnlineUsers, socket } = useSocket();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
@@ -147,6 +147,14 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       setMomentReply(initialMomentReply);
     }
   }, [visible, initialMomentReply]);
+
+  // Yêu cầu cập nhật danh sách người dùng online ngay khi mở khung chat
+  useEffect(() => {
+    if (visible) {
+      if (refreshOnlineUsers) refreshOnlineUsers();
+      if (socket?.connected) socket.emit('get_online_users');
+    }
+  }, [visible, refreshOnlineUsers, socket]);
 
   // Modals inside chat
   const [showThemeModal, setShowThemeModal] = useState(false);
@@ -180,7 +188,34 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         ''
       );
 
-  const isOnline = isGroup ? false : convId ? isUserOnline(convId) : !!friend?.isOnline;
+  // Danh sách toàn bộ các ID khả dĩ của đối phương để kiểm tra online realtime chính xác nhất
+  const candidateFriendIds = [
+    convId,
+    friend?._id,
+    friend?.id,
+    friend?.friendId,
+    friend?.userId,
+    friend?.user?._id,
+    friend?.user?.id,
+    friend?.recipient?._id,
+    friend?.recipient?.id,
+    friend?.requester?._id,
+    friend?.requester?.id,
+  ].filter(Boolean).map(String);
+
+  const isSocketOnline = !isGroup && candidateFriendIds.some((cid) => isUserOnline(cid));
+  const isPropOnline = !isGroup && (
+    friend?.isOnline === true ||
+    friend?.status === 'online' ||
+    friend?.online === true
+  );
+  const isOnline = isSocketOnline || isPropOnline;
+
+  // Trạng thái hoạt động gần đây (nếu có streak hoặc điểm danh)
+  const isRecentlyActive = !isGroup && !isOnline && (
+    friend?.activeToday === true ||
+    (friend?.streak && friend.streak > 0)
+  );
   const rawFriendName = friend?.name || friend?.fullName || friend?.email || (isGroup ? 'Nhóm trò chuyện' : 'Bạn bè');
   const friendAvatar = isGroup ? null : normalizeAvatarUrl(friend?.avatarUrl || friend?.avatar);
   const groupIcon = isGroup ? (friend?.icon || '👥') : null;
@@ -755,20 +790,29 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                 <>
                   <View
                     style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: 3,
-                      backgroundColor: isOnline ? '#10B981' : '#94A3B8',
+                      width: 7,
+                      height: 7,
+                      borderRadius: 3.5,
+                      backgroundColor: isOnline ? '#10B981' : isRecentlyActive ? '#F59E0B' : '#94A3B8',
                     }}
                   />
                   <Text
                     style={[
                       styles.headerStatus,
-                      { color: isOnline ? '#10B981' : isDark ? '#94A3B8' : '#64748B' },
+                      {
+                        color: isOnline
+                          ? '#10B981'
+                          : isRecentlyActive
+                          ? '#D97706'
+                          : isDark
+                          ? '#94A3B8'
+                          : '#64748B',
+                        fontWeight: isOnline ? '700' : '600',
+                      },
                     ]}
                     numberOfLines={1}
                   >
-                    {isOnline ? 'Đang hoạt động' : 'Ngoại tuyến'}
+                    {isOnline ? 'Đang hoạt động' : isRecentlyActive ? 'Hoạt động gần đây' : 'Ngoại tuyến'}
                   </Text>
                 </>
               )}

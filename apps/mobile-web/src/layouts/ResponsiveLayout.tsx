@@ -114,8 +114,22 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
               styles={styles}
             />
 
-            {/* Right: Notifications & User Profile */}
+            {/* Right: Messenger, Notifications & User Profile */}
             <View style={styles.navRight}>
+              {/* Messenger Button */}
+              <TouchableOpacity
+                style={styles.bellBtn}
+                onPress={() => onSelectTab('messages')}
+                activeOpacity={0.7}
+                accessibilityLabel="Đoạn chat Messenger"
+              >
+                <Ionicons
+                  name={activeTab === 'messages' ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'}
+                  size={19}
+                  color={activeTab === 'messages' ? '#059669' : (isDark ? '#94A3B8' : '#64748B')}
+                />
+              </TouchableOpacity>
+
               {/* Notification Bell */}
               <TouchableOpacity
                 style={styles.bellBtn}

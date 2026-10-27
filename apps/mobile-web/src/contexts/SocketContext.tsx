@@ -20,6 +20,7 @@ interface SocketContextType {
   typingUsers: Record<string, boolean>; // userId -> isTyping
   isUserOnline: (userId: string) => boolean;
   isUserTyping: (userId: string) => boolean;
+  refreshOnlineUsers: () => void;
   sendMessage: (
     receiverId: string,
     text: string,
@@ -37,6 +38,7 @@ const SocketContext = createContext<SocketContextType>({
   typingUsers: {},
   isUserOnline: () => false,
   isUserTyping: () => false,
+  refreshOnlineUsers: () => {},
   sendMessage: async () => null,
   sendTyping: () => {},
   lastMessage: null,
@@ -149,17 +151,44 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     });
 
+    // Định kỳ lấy danh sách người dùng online mỗi 15 giây
+    const onlineSyncInterval = setInterval(() => {
+      if (newSocket.connected) {
+        newSocket.emit('get_online_users');
+      }
+    }, 15000);
+
+    const handleWindowFocus = () => {
+      if (newSocket.connected) {
+        newSocket.emit('get_online_users');
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', handleWindowFocus);
+    }
+
     return () => {
+      clearInterval(onlineSyncInterval);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', handleWindowFocus);
+      }
       Object.values(typingTimeoutsRef.current).forEach((t) => clearTimeout(t));
       newSocket.disconnect();
       socketRef.current = null;
     };
   }, [token]);
 
+  const refreshOnlineUsers = useCallback(() => {
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('get_online_users');
+    }
+  }, []);
+
   const isUserOnline = useCallback(
     (userId: string) => {
       if (!userId) return false;
-      return onlineUserIds.includes(String(userId));
+      const target = String(userId).trim().toLowerCase();
+      return onlineUserIds.some((id) => String(id).trim().toLowerCase() === target);
     },
     [onlineUserIds]
   );
@@ -218,6 +247,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         typingUsers,
         isUserOnline,
         isUserTyping,
+        refreshOnlineUsers,
         sendMessage,
         sendTyping,
         lastMessage,
