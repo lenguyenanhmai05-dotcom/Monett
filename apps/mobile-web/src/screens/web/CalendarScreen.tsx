@@ -885,11 +885,17 @@ export const WebCalendarScreen: React.FC = () => {
                     )}
                   </View>
 
-                  {/* Center: Category Icon */}
+                  {/* Center: Category Icon / Mascot for empty day */}
                   <View style={styles.normalCenterIconBox}>
-                    <Text style={styles.normalCenterIcon}>
-                      {day.categoryIcon || (day.isFutureOrUpcoming ? '📅' : '•')}
-                    </Text>
+                    {day.categoryIcon ? (
+                      <Text style={styles.normalCenterIcon}>{day.categoryIcon}</Text>
+                    ) : (
+                      <Image
+                        source={require('../../../assets/frogs/frog-calendar-mascot.png')}
+                        style={styles.calScreenFrogEmpty}
+                        resizeMode="contain"
+                      />
+                    )}
                   </View>
 
                   {/* Bottom: Category Name & Mini add button */}
@@ -1799,6 +1805,11 @@ const styles = StyleSheet.create({
   },
   normalCenterIcon: {
     fontSize: 22,
+  },
+  calScreenFrogEmpty: {
+    width: 42,
+    height: 42,
+    opacity: 0.88,
   },
   normalBottomRow: {
     flexDirection: 'row',

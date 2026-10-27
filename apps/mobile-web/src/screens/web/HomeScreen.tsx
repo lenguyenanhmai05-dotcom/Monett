@@ -2962,17 +2962,32 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
                             <Text style={styles.noPhotoExpenseText}>-{formatAmountShort(amount)}</Text>
                           </View>
                         ) : isToday ? (
-                          <TouchableOpacity
-                            style={styles.uploadMiniBadge}
-                            onPress={(e) => handleCellActionPress(e, dayNum)}
-                            activeOpacity={0.8}
-                          >
-                            <Text style={styles.uploadMiniPlus}>+</Text>
-                            <Text style={styles.uploadMiniText}>
-                              {language === 'vi' ? 'Ghi chi' : 'Record'}
-                            </Text>
-                          </TouchableOpacity>
-                        ) : null}
+                          <View style={styles.emptyCellFrogWrap}>
+                            <Image
+                              source={require('../../../assets/frogs/frog-calendar-mascot.png')}
+                              style={styles.emptyCellFrogImage}
+                              resizeMode="contain"
+                            />
+                            <TouchableOpacity
+                              style={styles.uploadMiniBadge}
+                              onPress={(e) => handleCellActionPress(e, dayNum)}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={styles.uploadMiniPlus}>+</Text>
+                              <Text style={styles.uploadMiniText}>
+                                {language === 'vi' ? 'Ghi chi' : 'Record'}
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : (
+                          <View style={styles.emptyCellFrogWrap}>
+                            <Image
+                              source={require('../../../assets/frogs/frog-calendar-mascot.png')}
+                              style={styles.emptyCellFrogImage}
+                              resizeMode="contain"
+                            />
+                          </View>
+                        )}
                       </View>
                     </>
                   )}
@@ -4737,6 +4752,17 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  emptyCellFrogWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 2,
+    gap: 4,
+  },
+  emptyCellFrogImage: {
+    width: 46,
+    height: 46,
+    opacity: 0.88,
   },
   uploadMiniBadge: {
     flexDirection: 'row',
