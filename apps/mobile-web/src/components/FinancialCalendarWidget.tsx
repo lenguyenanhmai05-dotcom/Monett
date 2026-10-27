@@ -461,11 +461,10 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
                         )}
                       </View>
 
-                      <Ionicons
-                        name={isTodayCell ? "camera" : "camera-outline"}
-                        size={isTodayCell ? 15 : 13}
-                        color={isTodayCell ? '#047857' : isSelected ? '#047857' : '#CBD5E1'}
-                        style={{ marginBottom: 2 }}
+                      <Image
+                        source={require('../../assets/frogs/frog-calendar-mascot.png')}
+                        style={styles.emptyCellFrogIcon}
+                        resizeMode="contain"
                       />
                     </>
                   )}
@@ -876,5 +875,11 @@ const styles = StyleSheet.create({
   emptyCellDayTextSelected: {
     color: '#059669',
     fontWeight: '800',
+  },
+  emptyCellFrogIcon: {
+    width: 20,
+    height: 20,
+    marginBottom: 2,
+    opacity: 0.88,
   },
 });
