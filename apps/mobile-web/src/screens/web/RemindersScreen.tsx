@@ -447,7 +447,7 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
 
   return (
     <ScrollView
-      style={[styles.container, { backgroundColor: isDark ? '#0F172A' : '#FAF7F2' }]}
+      style={[styles.container, { backgroundColor: isDark ? '#0F172A' : '#F5F0E8' }]}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
@@ -1337,9 +1337,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 60,
-    maxWidth: 1200,
-    alignSelf: 'center',
+    paddingBottom: 140,
     width: '100%',
   },
   headerRow: {

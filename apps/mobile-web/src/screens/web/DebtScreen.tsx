@@ -469,7 +469,7 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
               onPress={() => setActiveTab('lent')}
               activeOpacity={0.8}
             >
-              <SvgArrowUpRight size={15} color={activeTab === 'lent' ? '#221D18' : '#78716C'} />
+              <SvgArrowUpRight size={15} color={activeTab === 'lent' ? '#FFFFFF' : '#78716C'} />
               <Text
                 style={[
                   styles.tabSwitchText,
@@ -485,7 +485,7 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
               onPress={() => setActiveTab('borrowed')}
               activeOpacity={0.8}
             >
-              <SvgArrowDownLeft size={15} color={activeTab === 'borrowed' ? '#221D18' : '#78716C'} />
+              <SvgArrowDownLeft size={15} color={activeTab === 'borrowed' ? '#FFFFFF' : '#78716C'} />
               <Text
                 style={[
                   styles.tabSwitchText,
@@ -1394,7 +1394,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   tabSwitchPillActive: {
-    backgroundColor: '#F5D25F',
+    backgroundColor: '#064E3B',
   },
   tabSwitchText: {
     fontSize: 16,
@@ -1402,7 +1402,7 @@ const styles = StyleSheet.create({
     color: '#57534E',
   },
   tabSwitchTextActive: {
-    color: '#221D18',
+    color: '#FFFFFF',
     fontWeight: '800',
   },
   createDebtBtn: {
@@ -1607,7 +1607,7 @@ const styles = StyleSheet.create({
     borderRadius: 11,
   },
   filterPillActive: {
-    backgroundColor: '#F5D25F',
+    backgroundColor: '#064E3B',
   },
   filterPillText: {
     fontSize: 12,
@@ -1615,7 +1615,7 @@ const styles = StyleSheet.create({
     color: '#78716C',
   },
   filterPillTextActive: {
-    color: '#221D18',
+    color: '#FFFFFF',
     fontWeight: '800',
   },
 
