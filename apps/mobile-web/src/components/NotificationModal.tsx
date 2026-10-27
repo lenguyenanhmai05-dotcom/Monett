@@ -60,9 +60,13 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
     const handleSync = () => {
       setBrowserNotifsEnabled(isBrowserNotificationEnabled());
     };
-    if (typeof window !== 'undefined') {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('monett_browser_notif_toggle', handleSync);
-      return () => window.removeEventListener('monett_browser_notif_toggle', handleSync);
+      return () => {
+        if (typeof window.removeEventListener === 'function') {
+          window.removeEventListener('monett_browser_notif_toggle', handleSync);
+        }
+      };
     }
   }, []);
 
@@ -170,7 +174,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
     if (notif.metadata) {
       notif.metadata.inviteStatus = 'accepted';
     }
-    if (typeof window !== 'undefined') {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
       window.dispatchEvent(new CustomEvent('monett:event_invitations_updated'));
       window.dispatchEvent(new CustomEvent('monett:events_updated'));
     }
@@ -194,7 +198,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
     if (notif.metadata) {
       notif.metadata.inviteStatus = 'declined';
     }
-    if (typeof window !== 'undefined') {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
       window.dispatchEvent(new CustomEvent('monett:event_invitations_updated'));
     }
   };

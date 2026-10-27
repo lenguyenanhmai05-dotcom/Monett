@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 const STORAGE_KEY_ENABLED = 'monett_browser_notifs_enabled';
 const DEFAULT_ICON = 'https://cdn-icons-png.flaticon.com/512/3602/3602145.png';
 
@@ -7,7 +9,7 @@ export type BrowserNotificationStatus = 'granted' | 'denied' | 'default' | 'unsu
  * Kiểm tra xem trình duyệt có hỗ trợ Web Notification API hay không
  */
 export const isBrowserNotificationSupported = (): boolean => {
-  return typeof window !== 'undefined' && 'Notification' in window;
+  return Platform.OS === 'web' && typeof window !== 'undefined' && 'Notification' in window;
 };
 
 /**
@@ -40,11 +42,15 @@ export const isBrowserNotificationEnabled = (): boolean => {
  * Bật hoặc tắt thiết lập thông báo trình duyệt trong app
  */
 export const setBrowserNotificationEnabled = (enabled: boolean): void => {
-  if (typeof window === 'undefined') return;
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
   try {
-    window.localStorage.setItem(STORAGE_KEY_ENABLED, enabled ? 'true' : 'false');
+    if (window.localStorage) {
+      window.localStorage.setItem(STORAGE_KEY_ENABLED, enabled ? 'true' : 'false');
+    }
     // Dispatch custom event để các component khác đồng bộ ngay
-    window.dispatchEvent(new CustomEvent('monett_browser_notif_toggle', { detail: { enabled } }));
+    if (typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('monett_browser_notif_toggle', { detail: { enabled } }));
+    }
   } catch (err) {
     console.warn('Lỗi lưu cài đặt thông báo trình duyệt:', err);
   }

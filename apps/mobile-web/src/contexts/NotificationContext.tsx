@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { Platform } from 'react-native';
 import { sendBrowserNotification } from '../utils/browserNotification';
 import { useAuth } from './AuthContext';
 import { getStreakApi, getFriendRequestsApi, getPendingEventInvitationsApi, getStoredUserId } from '../services/api';
@@ -176,7 +177,7 @@ export const getInitialNotificationsForUser = (streak: number = 0): AppNotificat
  */
 export const loadUserNotifications = (userId: string, streak: number = 1): AppNotification[] => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
       const userKey = getNotificationStorageKey(userId);
       const stored = window.localStorage.getItem(userKey);
       if (stored) {
@@ -450,7 +451,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         syncAllPending();
       }
     };
-    if (typeof window !== 'undefined') {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('monett:notification_added', handleCustomNotifAdded);
       window.addEventListener('monett:event_invitations_updated', syncAllPending);
     }
@@ -458,7 +459,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return () => {
       mounted = false;
       clearInterval(pollInterval);
-      if (typeof window !== 'undefined') {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
         window.removeEventListener('monett:notification_added', handleCustomNotifAdded);
         window.removeEventListener('monett:event_invitations_updated', syncAllPending);
       }
@@ -469,7 +470,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     if (userScopedState.userId) {
       try {
-        if (typeof window !== 'undefined' && window.localStorage) {
+        if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
           const userKey = getNotificationStorageKey(userScopedState.userId);
           window.localStorage.setItem(userKey, JSON.stringify(userScopedState.notifications));
         }
@@ -534,7 +535,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
         if (currentTimeStr === reminderTime) {
           const sentKey = `monett_daily_reminder_${currentUserId}_${todayDateStr}_${reminderTime}`;
-          if (typeof window !== 'undefined' && window.localStorage) {
+          if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
             const alreadySent = window.localStorage.getItem(sentKey);
             if (!alreadySent) {
               window.localStorage.setItem(sentKey, 'true');

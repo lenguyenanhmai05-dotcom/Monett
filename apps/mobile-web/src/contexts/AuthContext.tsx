@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Platform } from 'react-native';
 import { IUser, UserRole, LoginDto, RegisterDto, GoogleAuthDto } from '@monett/shared';
 import {
   getAuthToken,
@@ -55,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const updateUserData = (newUser: IUser | null) => {
     setUser(newUser);
     setStoredUser(newUser);
-    if (typeof window !== 'undefined') {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
       window.dispatchEvent(new CustomEvent('monett:user_switched', { detail: newUser }));
     }
   };

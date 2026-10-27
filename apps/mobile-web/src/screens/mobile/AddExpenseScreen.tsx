@@ -293,7 +293,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
         <View style={styles.amountHeroCard}>
           <View style={styles.amountWrapper}>
             <Text style={styles.amountLabel}>{isVi ? 'Số tiền chi (chạm để nhập)' : 'Expense Amount (tap to enter)'}</Text>
-            
+
             <View style={styles.amountInputRow}>
               <TextInput
                 value={amountStr === '0' ? '' : Number(amountStr).toLocaleString('vi-VN')}

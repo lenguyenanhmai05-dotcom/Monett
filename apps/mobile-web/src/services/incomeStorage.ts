@@ -4,6 +4,7 @@
  * Hỗ trợ lưu trữ bền vững qua localStorage & đồng bộ với backend / ngân sách tổng
  */
 
+import { Platform } from 'react-native';
 import { createTransactionApi, deleteTransactionApi, getTransactionsApi, getStoredUserId } from './api';
 import {
   getCachedBudget,
@@ -77,11 +78,13 @@ export function getIncomeRecords(userId?: string): IncomeRecord[] {
  * Lưu danh sách các khoản thu nhập vào storage theo từng tài khoản và bắn event thông báo
  */
 export function saveIncomeRecords(records: IncomeRecord[], userId?: string): void {
-  if (typeof window !== 'undefined' && window.localStorage) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
     try {
       const key = getIncomeStorageKey(userId);
       localStorage.setItem(key, JSON.stringify(records));
-      window.dispatchEvent(new CustomEvent(INCOME_UPDATED_EVENT, { detail: records }));
+      if (typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(INCOME_UPDATED_EVENT, { detail: records }));
+      }
     } catch (_) {}
   }
 }
@@ -224,7 +227,7 @@ export async function deleteIncomeRecord(id: string): Promise<boolean> {
  * Đăng ký lắng nghe sự kiện cập nhật khoản thu nhập
  */
 export function subscribeIncomeUpdates(callback: (records: IncomeRecord[]) => void): () => void {
-  if (typeof window === 'undefined') return () => {};
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof window.addEventListener !== 'function') return () => {};
 
   const handleCustom = (e: any) => {
     callback(e.detail || getIncomeRecords());
@@ -240,8 +243,10 @@ export function subscribeIncomeUpdates(callback: (records: IncomeRecord[]) => vo
   window.addEventListener('storage', handleStorage);
 
   return () => {
-    window.removeEventListener(INCOME_UPDATED_EVENT, handleCustom);
-    window.removeEventListener('storage', handleStorage);
+    if (typeof window.removeEventListener === 'function') {
+      window.removeEventListener(INCOME_UPDATED_EVENT, handleCustom);
+      window.removeEventListener('storage', handleStorage);
+    }
   };
 }
 

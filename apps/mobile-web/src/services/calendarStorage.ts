@@ -5,6 +5,7 @@
  * 2. IndexedDB primary storage (unlimited quota, never loses data or photos on refresh/tab switch).
  * 3. localStorage secondary cache for zero-flicker instant synchronous loading.
  */
+import { Platform } from 'react-native';
 import { getStoredUserId } from './api';
 
 const DB_NAME = 'MonettDB';
@@ -179,7 +180,7 @@ export function notifyBudgetUpdated(budget?: CachedBudgetData): void {
   if (budget) {
     saveCachedBudget(budget);
   }
-  if (typeof window !== 'undefined') {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
     try {
       window.dispatchEvent(
         new CustomEvent(BUDGET_UPDATED_EVENT, { detail: budget || getCachedBudget() })
@@ -194,7 +195,7 @@ export function notifyBudgetUpdated(budget?: CachedBudgetData): void {
 export function subscribeBudgetUpdates(
   callback: (budget: CachedBudgetData | null) => void
 ): () => void {
-  if (typeof window === 'undefined') return () => {};
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof window.addEventListener !== 'function') return () => {};
 
   const handleCustomEvent = (e: any) => {
     if (e.detail && typeof e.detail === 'object') {
@@ -214,8 +215,10 @@ export function subscribeBudgetUpdates(
   window.addEventListener('storage', handleStorageEvent);
 
   return () => {
-    window.removeEventListener(BUDGET_UPDATED_EVENT, handleCustomEvent);
-    window.removeEventListener('storage', handleStorageEvent);
+    if (typeof window.removeEventListener === 'function') {
+      window.removeEventListener(BUDGET_UPDATED_EVENT, handleCustomEvent);
+      window.removeEventListener('storage', handleStorageEvent);
+    }
   };
 }
 
@@ -273,7 +276,7 @@ export function applyBudgetDelta(
  * Phát sự kiện khi dữ liệu lịch / ảnh chi tiêu được cập nhật để các view (Web & Mobile) cùng đồng bộ ngay lập tức.
  */
 export function notifyCalendarUpdated(records?: Record<string, any>): void {
-  if (typeof window !== 'undefined') {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
     try {
       window.dispatchEvent(
         new CustomEvent(CALENDAR_UPDATED_EVENT, { detail: records || getInitialDayRecordsFromLocalStorage() })
@@ -288,7 +291,7 @@ export function notifyCalendarUpdated(records?: Record<string, any>): void {
 export function subscribeCalendarUpdates(
   callback: (records: Record<string, DayExpenseRecord>) => void
 ): () => void {
-  if (typeof window === 'undefined') return () => {};
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof window.addEventListener !== 'function') return () => {};
 
   const handleCustomEvent = (e: any) => {
     if (e.detail && typeof e.detail === 'object') {
@@ -308,8 +311,10 @@ export function subscribeCalendarUpdates(
   window.addEventListener('storage', handleStorageEvent);
 
   return () => {
-    window.removeEventListener(CALENDAR_UPDATED_EVENT, handleCustomEvent);
-    window.removeEventListener('storage', handleStorageEvent);
+    if (typeof window.removeEventListener === 'function') {
+      window.removeEventListener(CALENDAR_UPDATED_EVENT, handleCustomEvent);
+      window.removeEventListener('storage', handleStorageEvent);
+    }
   };
 }
 
