@@ -1521,6 +1521,98 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
               </TouchableOpacity>
             </View>
 
+            {/* ĐIỂM DANH CẢM XÚC HÔM NAY (SVG ICONS & CHUỖI ĐIỂM DANH) */}
+            <View style={[styles.card, styles.moodCheckinCard]}>
+              <View style={styles.moodHeaderRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 16 }}>✨</Text>
+                  <Text style={styles.moodHeaderTitle}>Hôm nay bạn cảm thấy thế nào?</Text>
+                </View>
+                <View style={[styles.moodStatusBadge, selectedMood && styles.moodStatusBadgeDone]}>
+                  <Text style={[styles.moodStatusBadgeText, selectedMood && styles.moodStatusBadgeTextDone]}>
+                    {selectedMood ? '✓ Đã điểm danh' : 'Điểm danh'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* KHI ĐÃ ĐIỂM DANH HÔM NAY: Ẩn các icon, hiển thị trạng thái và chuỗi ngày */}
+              {selectedMood ? (
+                <View style={styles.checkedInBox}>
+                  {/* Streak Banner */}
+                  <View style={styles.streakBadgeContainer}>
+                    <Text style={{ fontSize: 22 }}>🔥</Text>
+                    <Text style={styles.streakBadgeText}>
+                      Đã điểm danh {moodStreak} ngày liên tiếp
+                    </Text>
+                  </View>
+
+                  {/* Hiển thị cảm xúc đã chọn */}
+                  {(() => {
+                    const curr = MOOD_CHECKIN_OPTIONS.find(m => m.id === selectedMood);
+                    if (!curr) return null;
+                    const MoodIcon = curr.Icon;
+                    return (
+                      <View style={[styles.chosenMoodRow, { backgroundColor: curr.bg, borderColor: curr.border }]}>
+                        <View style={styles.chosenMoodIconBox}>
+                          <MoodIcon size={36} color={curr.color} />
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 10 }}>
+                          <Text style={[styles.chosenMoodLabel, { color: curr.color }]}>
+                            Cảm xúc hôm nay: {curr.label}
+                          </Text>
+                          <Text style={styles.chosenMoodQuote}>
+                            "{curr.quote}"
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })()}
+
+                  <View style={styles.checkedInFooter}>
+                    <Text style={styles.checkedInNextDayHint}>
+                      ⏰ Ngày mai bạn quay lại để tiếp tục điểm danh ngày thứ {moodStreak + 1} nhé!
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => setSelectedMood(null)}
+                      style={styles.changeMoodBtn}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.changeMoodBtnText}>Đổi lại</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                /* KHI CHƯA ĐIỂM DANH: Hiện 5 icon để chọn */
+                <>
+                  <Text style={styles.moodSubtitle}>
+                    Chạm vào cảm xúc hôm nay để hoàn thành điểm danh ngày mới nha! ✨
+                  </Text>
+
+                  {/* 5 Nút Cảm xúc SVG */}
+                  <View style={styles.moodButtonsRow}>
+                    {MOOD_CHECKIN_OPTIONS.map((mood) => {
+                      const MoodIcon = mood.Icon;
+                      return (
+                        <TouchableOpacity
+                          key={mood.id}
+                          style={styles.moodItemBtn}
+                          onPress={() => handleSelectMood(mood.id)}
+                          activeOpacity={0.75}
+                        >
+                          <View style={styles.moodIconWrap}>
+                            <MoodIcon size={32} color={mood.color} />
+                          </View>
+                          <Text style={styles.moodItemLabel} numberOfLines={1}>
+                            {mood.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+            </View>
+
             {/* MẸO TÀI CHÍNH HÔM NAY (CARD TINH TẾ THAY THẾ DOCK CHAT RƯỜM RÀ) */}
             <View style={[styles.card, { marginTop: 4, backgroundColor: isDark ? '#1E293B' : '#FEF3C7', borderColor: isDark ? '#334155' : '#FDE68A' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
@@ -1881,204 +1973,7 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
               )}
             </View>
 
-            {/* 1. BẢNG VÀNG CHUỖI NGÀY */}
-            <View style={styles.card}>
-              <View style={styles.widgetHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={{ fontSize: 16 }}>🏆</Text>
-                  <Text style={styles.widgetTitle}>Bảng vàng Chuỗi ngày</Text>
-                </View>
-                <View style={styles.widgetBadge}>
-                  <Text style={styles.widgetBadgeText}>Tuần này</Text>
-                </View>
-              </View>
 
-              {/* Chuỗi của bạn */}
-              <View style={styles.myStreakBox}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <View style={styles.myStreakIconBox}>
-                    <Text style={{ fontSize: 18 }}>🔥</Text>
-                  </View>
-                  <View>
-                    <Text style={styles.myStreakTitle}>Chuỗi của bạn</Text>
-                    <Text style={styles.myStreakSub}>Ghi chép đều đặn mỗi ngày</Text>
-                  </View>
-                </View>
-                <View style={styles.myStreakCountPill}>
-                  <Text style={styles.myStreakCountText}>
-                    {moodStreak || (user as any)?.streak || 2} ngày
-                  </Text>
-                </View>
-              </View>
-
-              {/* Xếp hạng bạn bè */}
-              <View style={{ marginTop: 10 }}>
-                {(friendsList.length > 0 ? friendsList.slice(0, 3) : [
-                  { name: 'Phong Tở', streak: 8 },
-                  { name: 'Minh Quân', streak: 4 },
-                  { name: 'Khánh Vy', streak: 3 },
-                ]).map((f: any, idx: number) => {
-                  const name = f.fullName || f.name || f.email || 'Bạn bè';
-                  const medals = ['🥇', '🥈', '🥉'];
-                  return (
-                    <View key={idx} style={styles.leaderboardRow}>
-                      <Text style={styles.leaderboardRank}>{idx < 3 ? medals[idx] : `#${idx + 1}`}</Text>
-                      <Avatar uri={f.avatarUrl || f.avatar} name={name} size={32} />
-                      <View style={{ flex: 1, marginLeft: 8 }}>
-                        <Text style={styles.leaderboardName} numberOfLines={1}>{name}</Text>
-                        <Text style={styles.leaderboardSub}>🔥 Chuỗi {f.streak || (8 - idx * 2)} ngày</Text>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.cheerBtn}
-                        onPress={() => alert(`Đã gửi lời cổ vũ chuỗi ngày đến ${name}! 👏🔥`)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.cheerBtnText}>Cổ vũ 👏</Text>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* 2. CHỦ ĐỀ SÔI NỔI */}
-            <View style={styles.card}>
-              <View style={styles.widgetHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={{ fontSize: 16 }}>🏷️</Text>
-                  <Text style={styles.widgetTitle}>Chủ đề sôi nổi</Text>
-                </View>
-                <Text style={{ fontSize: 11.5, color: '#059669', fontWeight: '700' }}>#Trending</Text>
-              </View>
-
-              <View style={styles.trendingList}>
-                {[
-                  { tag: '#caphechill', label: 'Cà phê chill', count: '48 khoảnh khắc', icon: '☕', cat: '☕ Cà phê chill' },
-                  { tag: '#comnhangon', label: 'Cơm nhà ngon', count: '62 chia sẻ', icon: '🍲', cat: '🍜 Ăn ngon cùng bạn' },
-                  { tag: '#tietkiemthang10', label: 'Tiết kiệm tháng 10', count: '135 bài đăng', icon: '💰', cat: '✨ Đời thường vui vẻ' },
-                  { tag: '#dulichcuoituan', label: 'Du lịch cuối tuần', count: '29 bài viết', icon: '🏖️', cat: '🏖️ Du lịch & Phượt' },
-                ].map((item, idx) => (
-                  <TouchableOpacity
-                    key={idx}
-                    style={styles.trendingItem}
-                    onPress={() => handleOpenCreate('text', item.cat)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.trendingIconBox}>
-                      <Text style={{ fontSize: 14 }}>{item.icon}</Text>
-                    </View>
-                    <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={styles.trendingTag}>{item.tag}</Text>
-                      <Text style={styles.trendingCount}>{item.count}</Text>
-                    </View>
-                    <Ionicons name="arrow-forward" size={13} color="#94A3B8" />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* 3. ĐIỂM DANH CẢM XÚC HÔM NAY (SVG ICONS & CHUỖI ĐIỂM DANH) */}
-            <View style={[styles.card, styles.moodCheckinCard]}>
-              <View style={styles.moodHeaderRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Text style={{ fontSize: 16 }}>✨</Text>
-                  <Text style={styles.moodHeaderTitle}>Hôm nay bạn cảm thấy thế nào?</Text>
-                </View>
-                <View style={[styles.moodStatusBadge, selectedMood && styles.moodStatusBadgeDone]}>
-                  <Text style={[styles.moodStatusBadgeText, selectedMood && styles.moodStatusBadgeTextDone]}>
-                    {selectedMood ? '✓ Đã điểm danh' : 'Điểm danh'}
-                  </Text>
-                </View>
-              </View>
-
-              {/* KHI ĐÃ ĐIỂM DANH HÔM NAY: Ẩn các icon, hiển thị trạng thái và chuỗi ngày */}
-              {selectedMood ? (
-                <View style={styles.checkedInBox}>
-                  {/* Streak Banner */}
-                  <View style={styles.streakBadgeContainer}>
-                    <Text style={{ fontSize: 22 }}>🔥</Text>
-                    <Text style={styles.streakBadgeText}>
-                      Đã điểm danh {moodStreak} ngày liên tiếp
-                    </Text>
-                  </View>
-
-                  {/* Hiển thị cảm xúc đã chọn */}
-                  {(() => {
-                    const curr = MOOD_CHECKIN_OPTIONS.find(m => m.id === selectedMood);
-                    if (!curr) return null;
-                    const MoodIcon = curr.Icon;
-                    return (
-                      <View style={[styles.chosenMoodRow, { backgroundColor: curr.bg, borderColor: curr.border }]}>
-                        <View style={styles.chosenMoodIconBox}>
-                          <MoodIcon size={36} color={curr.color} />
-                        </View>
-                        <View style={{ flex: 1, marginLeft: 10 }}>
-                          <Text style={[styles.chosenMoodLabel, { color: curr.color }]}>
-                            Cảm xúc hôm nay: {curr.label}
-                          </Text>
-                          <Text style={styles.chosenMoodQuote}>
-                            "{curr.quote}"
-                          </Text>
-                        </View>
-                      </View>
-                    );
-                  })()}
-
-                  <View style={styles.checkedInFooter}>
-                    <Text style={styles.checkedInNextDayHint}>
-                      ⏰ Ngày mai bạn quay lại để tiếp tục điểm danh ngày thứ {moodStreak + 1} nhé!
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => setSelectedMood(null)}
-                      style={styles.changeMoodBtn}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.changeMoodBtnText}>Đổi lại</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ) : (
-                /* KHI CHƯA ĐIỂM DANH: Hiện 5 icon để chọn */
-                <>
-                  <Text style={styles.moodSubtitle}>
-                    Chạm vào cảm xúc hôm nay để hoàn thành điểm danh ngày mới nha! ✨
-                  </Text>
-
-                  {/* 5 Nút Cảm xúc SVG */}
-                  <View style={styles.moodButtonsRow}>
-                    {MOOD_CHECKIN_OPTIONS.map((mood) => {
-                      const MoodIcon = mood.Icon;
-                      return (
-                        <TouchableOpacity
-                          key={mood.id}
-                          style={styles.moodItemBtn}
-                          onPress={() => handleSelectMood(mood.id)}
-                          activeOpacity={0.75}
-                        >
-                          <View style={styles.moodIconWrap}>
-                            <MoodIcon size={32} color={mood.color} />
-                          </View>
-                          <Text style={styles.moodItemLabel} numberOfLines={1}>
-                            {mood.label}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </>
-              )}
-            </View>
-
-            {/* 4. CẢM HỨNG TÀI CHÍNH HÔM NAY */}
-            <View style={[styles.card, styles.tipCard]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                <Ionicons name="sparkles" size={16} color="#059669" />
-                <Text style={styles.tipCardTitle}>Cảm hứng tài chính hôm nay</Text>
-              </View>
-              <Text style={styles.tipCardBody}>
-                "Tiết kiệm không phải là khắt khe với bản thân, mà là học cách chi tiêu thông minh để tự do tận hưởng những điều thực sự có ý nghĩa."
-              </Text>
-            </View>
           </View>
         )}
       </View>
