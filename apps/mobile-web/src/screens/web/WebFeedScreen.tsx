@@ -1078,36 +1078,8 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
     (m) => m.comments && m.comments.length > 0
   );
 
-  // Tab: Bảng tin • Bạn bè • Chủ đề thịnh hành
-  const [activeTab, setActiveTab] = useState<'feed' | 'friends' | 'trending'>(initialTab === 'friends' ? 'friends' : 'feed');
-  const [selectedHashtag, setSelectedHashtag] = useState<string>('');
-  const [hashtagSearchQuery, setHashtagSearchQuery] = useState<string>('');
-
-  const trendingFilteredMoments = useMemo(() => {
-    let list = moments;
-    const query = hashtagSearchQuery.trim().toLowerCase();
-    const tag = selectedHashtag.trim().toLowerCase();
-
-    if (query) {
-      list = list.filter((m) => {
-        const text = `${m.caption || ''} ${m.category || ''}`.toLowerCase();
-        return text.includes(query);
-      });
-    } else if (tag) {
-      list = list.filter((m) => {
-        const text = `${m.caption || ''} ${m.category || ''}`.toLowerCase();
-        return text.includes(tag.replace(/^#/, '').toLowerCase()) || text.includes(tag);
-      });
-    } else {
-      // Ưu tiên hiển thị bài viết có hashtag # và bài của user lenguyenanhmai113@gmail.com
-      list = [...moments].sort((a, b) => {
-        const aHasTag = (a.caption || '').includes('#') ? 1 : 0;
-        const bHasTag = (b.caption || '').includes('#') ? 1 : 0;
-        return bHasTag - aHasTag;
-      });
-    }
-    return list;
-  }, [moments, selectedHashtag, hashtagSearchQuery]);
+  // Tab: Bảng tin • Bạn bè
+  const [activeTab, setActiveTab] = useState<'feed' | 'friends'>(initialTab === 'friends' ? 'friends' : 'feed');
 
   useEffect(() => {
     if (initialTab) {
@@ -1726,19 +1698,6 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
                 <Text style={[styles.menuText, activeTab === 'feed' && styles.menuTextActive]}>Bảng tin</Text>
               </TouchableOpacity>
 
-              {/* CHỦ ĐỀ THỊNH HÀNH */}
-              <TouchableOpacity
-                style={[styles.menuItem, activeTab === 'trending' && styles.menuItemActive]}
-                onPress={() => {
-                  setActiveTab('trending');
-                  setSelectedHashtag('');
-                  setHashtagSearchQuery('');
-                }}
-                activeOpacity={0.75}
-              >
-                <Ionicons name="flame" size={20} color={activeTab === 'trending' ? "#059669" : "#64748B"} />
-                <Text style={[styles.menuText, activeTab === 'trending' && styles.menuTextActive]}>Chủ đề thịnh hành</Text>
-              </TouchableOpacity>
 
               {/* ĐOẠN CHAT (MESSENGER POPUP BUTTON) */}
               <TouchableOpacity
@@ -1999,166 +1958,6 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
                 )
               )}
             </View>
-          ) : activeTab === 'trending' ? (
-            <>
-              {/* HEADER KHÁM PHÁ CHỦ ĐỀ THỊNH HÀNH */}
-              <View style={styles.card}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: isDark ? '#064E3B' : '#DCFCE7', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name="flame" size={20} color="#059669" />
-                    </View>
-                    <View>
-                      <Text style={{ fontSize: 17, fontWeight: '800', color: isDark ? '#F1F5F9' : '#0F172A' }}>
-                        Chủ đề thịnh hành & Hashtags
-                      </Text>
-                      <Text style={{ fontSize: 12, color: isDark ? '#94A3B8' : '#64748B', marginTop: 2 }}>
-                        Khám phá khoảnh khắc và bài đăng nổi bật theo xu hướng của cộng đồng
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* THANH TÌM KIẾM HASHTAG */}
-                <View style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: isDark ? '#334155' : '#F1F5F9',
-                  borderRadius: 14,
-                  paddingHorizontal: 14,
-                  paddingVertical: 10,
-                  marginBottom: 14,
-                  borderWidth: 1,
-                  borderColor: isDark ? '#475569' : '#E2E8F0',
-                }}>
-                  <Ionicons name="search" size={17} color={isDark ? '#94A3B8' : '#64748B'} style={{ marginRight: 8 }} />
-                  <TextInput
-                    style={{ flex: 1, fontSize: 13.5, color: isDark ? '#FFF' : '#000', outlineWidth: 0 as any }}
-                    placeholder="Tìm kiếm bài viết theo #hashtag... (vd: #SongXanhMoiNgay, #CatTien, #caphechill)"
-                    placeholderTextColor={isDark ? '#94A3B8' : '#94A3B8'}
-                    value={hashtagSearchQuery}
-                    onChangeText={(text) => {
-                      setHashtagSearchQuery(text);
-                      if (text.trim()) setSelectedHashtag('');
-                    }}
-                  />
-                  {hashtagSearchQuery.length > 0 && (
-                    <TouchableOpacity onPress={() => setHashtagSearchQuery('')}>
-                      <Ionicons name="close-circle" size={16} color="#94A3B8" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                {/* DANH SÁCH HASHTAG CHIPS */}
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {[
-                    { tag: 'Tất cả', icon: 'sparkles' },
-                    { tag: '#SongXanhMoiNgay', icon: 'flame', count: '14.2K' },
-                    { tag: '#VerveGreenDesign', icon: 'trending-up', count: '8.5K' },
-                    { tag: '#CatTienNationalPark', icon: 'leaf', count: '5.1K' },
-                    { tag: '#caphechill', icon: 'cafe', count: '3.8K' },
-                    { tag: '#tietkiemthang10', icon: 'wallet', count: '2.9K' },
-                    { tag: '#comnhangon', icon: 'restaurant', count: '2.1K' },
-                  ].map((chip, idx) => {
-                    const isSelected = chip.tag === 'Tất cả' ? (!selectedHashtag && !hashtagSearchQuery) : selectedHashtag.toLowerCase() === chip.tag.toLowerCase();
-                    return (
-                      <TouchableOpacity
-                        key={idx}
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          gap: 5,
-                          paddingHorizontal: 12,
-                          paddingVertical: 7,
-                          borderRadius: 20,
-                          backgroundColor: isSelected ? '#059669' : (isDark ? '#334155' : '#F1F5F9'),
-                          borderWidth: 1,
-                          borderColor: isSelected ? '#059669' : (isDark ? '#475569' : '#E2E8F0'),
-                        }}
-                        onPress={() => {
-                          if (chip.tag === 'Tất cả') {
-                            setSelectedHashtag('');
-                            setHashtagSearchQuery('');
-                          } else {
-                            setSelectedHashtag(chip.tag);
-                            setHashtagSearchQuery('');
-                          }
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons
-                          name={chip.icon as any}
-                          size={14}
-                          color={isSelected ? '#FFFFFF' : (isDark ? '#CBD5E1' : '#059669')}
-                        />
-                        <Text style={{
-                          fontSize: 12.5,
-                          fontWeight: '700',
-                          color: isSelected ? '#FFFFFF' : (isDark ? '#F1F5F9' : '#334155'),
-                        }}>
-                          {chip.tag}
-                        </Text>
-                        {chip.count && (
-                          <Text style={{
-                            fontSize: 10.5,
-                            fontWeight: '600',
-                            color: isSelected ? 'rgba(255,255,255,0.85)' : '#059669',
-                          }}>
-                            {chip.count}
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* DANH SÁCH BÀI VIẾT THỊNH HÀNH */}
-              {trendingFilteredMoments.length === 0 ? (
-                <View style={styles.card}>
-                  <View style={{ alignItems: 'center', paddingVertical: 36 }}>
-                    <Text style={{ fontSize: 40, marginBottom: 10 }}>🏷️</Text>
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: isDark ? '#F1F5F9' : '#0F172A', marginBottom: 6 }}>
-                      Không tìm thấy bài viết nào
-                    </Text>
-                    <Text style={{ fontSize: 13, color: isDark ? '#94A3B8' : '#64748B', textAlign: 'center', maxWidth: 360, marginBottom: 18 }}>
-                      {selectedHashtag || hashtagSearchQuery
-                        ? `Chưa có bài đăng nào với hashtag "${selectedHashtag || hashtagSearchQuery}". Hãy là người đầu tiên đăng tải nhé!`
-                        : 'Hiện chưa có bài đăng nào trong chủ đề này.'}
-                    </Text>
-                    <TouchableOpacity
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: 6,
-                        backgroundColor: '#059669',
-                        paddingHorizontal: 18,
-                        paddingVertical: 10,
-                        borderRadius: 20,
-                      }}
-                      onPress={() => handleOpenCreate('text', '✨ Đời thường vui vẻ')}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons name="add-circle" size={17} color="#FFF" />
-                      <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 13.5 }}>Đăng khoảnh khắc ngay</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ) : (
-                trendingFilteredMoments.map((post) => (
-                  <WebMomentCard
-                    key={post.id}
-                    item={post}
-                    currentUserId={myId}
-                    onReact={handleReact}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    onOpenChat={(item) => handleOpenMomentChat(item)}
-                    onViewReactions={handleViewReactions}
-                  />
-                ))
-              )}
-            </>
           ) : (
             <>
               {/* Interactive Composer Card */}
@@ -2325,8 +2124,8 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
           )}
         </View>
 
-        {/* RIGHT COLUMN - Chủ đề thịnh hành & Gợi ý kết bạn */}
-        {(activeTab === 'feed' || activeTab === 'trending') && width >= 1150 && (
+        {/* RIGHT COLUMN - Standees & Gợi ý kết bạn */}
+        {activeTab === 'feed' && width >= 1150 && (
           <View style={styles.rightColumn}>
             {/* 1. STANDEE NHẢY QUA NHẢY LẠI (HÔM NAY BẠN ĐÃ ÚN TRÀ SỮA / TÍCH LŨY CHƯA?) */}
             {(() => {
