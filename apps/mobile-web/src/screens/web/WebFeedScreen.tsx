@@ -668,24 +668,91 @@ const cardStyles = StyleSheet.create({
 });
 
 
-const TRENDING_TOPICS = [
+const STANDEE_SLIDES = [
   {
-    category: 'Lối sống xanh • Thịnh hành',
-    tag: '#SongXanhMoiNgay',
-    count: '14.2K bài thảo luận',
-    actionCat: '✨ Đời thường vui vẻ',
+    id: 'tra_sua',
+    badge: 'Mood ngọt ngào 🧋',
+    badgeBg: '#FFE4E6',
+    badgeColor: '#E11D48',
+    title: 'Hôm nay bạn đã ún trà sữa chưa? 😋',
+    subtitle: 'Một ly full topping nạp lại 100% năng lượng ngọt ngào, tự thưởng một chút rồi ghi chi tiêu cùng Monett nha!',
+    emoji: '🧋',
+    secondaryEmoji: '😋',
+    btnText: 'Khoe ly trà sữa 🧋',
+    btnBg: '#F43F5E',
+    category: '🥤 Trà sữa & Ăn vặt',
+    bgLight: '#FFF1F2',
+    bgDark: '#4C0519',
+    borderLight: '#FECDD3',
+    borderDark: '#9F1239',
   },
   {
-    category: 'Thiết kế & Công nghệ',
-    tag: '#VerveGreenDesign',
-    count: '8.5K bài thảo luận',
-    actionCat: '☕ Cà phê chill',
+    id: 'tich_luy',
+    badge: 'Heo đất thông minh 🐷',
+    badgeBg: '#DCFCE7',
+    badgeColor: '#15803D',
+    title: 'Hôm nay bạn đã tích lũy chưa? 🪙',
+    subtitle: 'Bỏ ống heo một khoản nhỏ hôm nay, ngày mai có cả gia tài rực rỡ và vững vàng từng bước!',
+    emoji: '🐷',
+    secondaryEmoji: '🪙',
+    btnText: 'Bỏ heo tích lũy ngay 💰',
+    btnBg: '#059669',
+    category: '💰 Tích lũy & Tiết kiệm',
+    bgLight: '#F0FDF4',
+    bgDark: '#064E3B',
+    borderLight: '#BBF7D0',
+    borderDark: '#047857',
   },
   {
-    category: 'Du lịch sinh thái',
-    tag: '#CatTienNationalPark',
-    count: '5.1K bài thảo luận',
-    actionCat: '🏖️ Du lịch & Phượt',
+    id: 'dong_tien',
+    badge: 'Tài chính tự do 🪙',
+    badgeBg: '#FEF3C7',
+    badgeColor: '#B45309',
+    title: 'Đồng tiền thông minh, ví mỉm cười! ✨',
+    subtitle: 'Mỗi đồng tiền tiết kiệm thông minh hôm nay là nấc thang tự do tài chính cho ngày mai!',
+    emoji: '🪙',
+    secondaryEmoji: '✨',
+    btnText: 'Ghi chép chi tiêu 📝',
+    btnBg: '#D97706',
+    category: '✨ Quản lý tài chính',
+    bgLight: '#FFFBEB',
+    bgDark: '#78350F',
+    borderLight: '#FDE68A',
+    borderDark: '#92400E',
+  },
+  {
+    id: 'tien_ve_vi',
+    badge: 'Ví luôn rủng rỉnh 💵',
+    badgeBg: '#EFF6FF',
+    badgeColor: '#1D4ED8',
+    title: 'Tiền ơi về ví ta! 💸✨',
+    subtitle: 'Biết thu biết chi, tài chính chủ động thảnh thơi. Cuối tháng ví tiền vẫn cười toe toét!',
+    emoji: '💸',
+    secondaryEmoji: '🥳',
+    btnText: 'Khoe số dư ví 💵',
+    btnBg: '#2563EB',
+    category: '💵 Thu nhập & Lương',
+    bgLight: '#EFF6FF',
+    bgDark: '#1E3A8A',
+    borderLight: '#BFDBFE',
+    borderDark: '#1D4ED8',
+  },
+  {
+    id: 'ca_phe',
+    badge: 'Khởi đầu ngày mới ☀️',
+    badgeBg: '#F5F3FF',
+    badgeColor: '#6D28D9',
+    title: 'Hít hà mùi cà phê sáng nhé? ☕',
+    subtitle: 'Tỉnh táo với ly bạc xỉu hay americano yêu thích, ghi lại khoảnh khắc chill chill cùng bạn bè nào!',
+    emoji: '☕',
+    secondaryEmoji: '🌿',
+    btnText: 'Check-in cà phê ☕',
+    btnBg: '#7C3AED',
+    category: '☕ Cà phê chill',
+    bgLight: '#F5F3FF',
+    bgDark: '#4C1D95',
+    borderLight: '#DDD6FE',
+    borderDark: '#6D28D9',
   },
 ];
 
@@ -719,6 +786,48 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
 
   const { openChat, openMessenger, closeMessenger, toggleMessenger, isMessengerOpen } = useChat();
   const [sentFriendIds, setSentFriendIds] = useState<string[]>([]);
+
+  // ─── STANDEE CAROUSEL NHẢY QUA NHẢY LẠI (VUI VẺ & ĐỘNG LỰC) ───
+  const [standeeIndex, setStandeeIndex] = useState(0);
+  const standeeBounceAnim = useRef(new Animated.Value(1)).current;
+  const standeeOpacityAnim = useRef(new Animated.Value(1)).current;
+
+  const triggerStandeeBounce = useCallback(() => {
+    standeeBounceAnim.setValue(0.76);
+    standeeOpacityAnim.setValue(0.2);
+    Animated.parallel([
+      Animated.timing(standeeOpacityAnim, {
+        toValue: 1,
+        duration: 320,
+        useNativeDriver: true,
+      }),
+      Animated.spring(standeeBounceAnim, {
+        toValue: 1,
+        friction: 4,
+        tension: 90,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [standeeBounceAnim, standeeOpacityAnim]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setStandeeIndex((prev) => (prev + 1) % STANDEE_SLIDES.length);
+    }, 4200);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    triggerStandeeBounce();
+  }, [standeeIndex, triggerStandeeBounce]);
+
+  const handleNextStandee = () => {
+    setStandeeIndex((prev) => (prev + 1) % STANDEE_SLIDES.length);
+  };
+
+  const handlePrevStandee = () => {
+    setStandeeIndex((prev) => (prev - 1 + STANDEE_SLIDES.length) % STANDEE_SLIDES.length);
+  };
 
   useEffect(() => {
     if (initialTab === 'chat') {
@@ -2151,51 +2260,263 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
         {/* RIGHT COLUMN - Chủ đề thịnh hành & Gợi ý kết bạn */}
         {(activeTab === 'feed' || activeTab === 'trending') && width >= 1150 && (
           <View style={styles.rightColumn}>
-            {/* 1. CHỦ ĐỀ THỊNH HÀNH */}
-            <View style={styles.card}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <Text style={{ fontSize: 16, fontWeight: '800', color: isDark ? '#F1F5F9' : '#0F172A' }}>
-                  Chủ đề thịnh hành
-                </Text>
-                <Ionicons name="trending-up" size={19} color="#10B981" />
-              </View>
-
-              <View style={{ gap: 14 }}>
-                {TRENDING_TOPICS.map((topic, idx) => (
-                  <TouchableOpacity
-                    key={idx}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      setActiveTab('trending');
-                      setSelectedHashtag(topic.tag);
-                      setHashtagSearchQuery('');
+            {/* 1. STANDEE NHẢY QUA NHẢY LẠI (HÔM NAY BẠN ĐÃ ÚN TRÀ SỮA / TÍCH LŨY CHƯA?) */}
+            {(() => {
+              const currentSlide = STANDEE_SLIDES[standeeIndex];
+              return (
+                <View
+                  style={[
+                    styles.card,
+                    {
+                      backgroundColor: isDark ? currentSlide.bgDark : currentSlide.bgLight,
+                      borderColor: isDark ? currentSlide.borderDark : currentSlide.borderLight,
+                      borderWidth: 1.5,
+                      overflow: 'hidden',
+                      position: 'relative',
+                    },
+                  ]}
+                >
+                  {/* Vòng sáng trang trí nền */}
+                  <View
+                    style={{
+                      position: 'absolute',
+                      right: -30,
+                      top: -30,
+                      width: 130,
+                      height: 130,
+                      borderRadius: 65,
+                      backgroundColor: currentSlide.btnBg,
+                      opacity: isDark ? 0.22 : 0.09,
                     }}
-                    style={{ paddingVertical: 2 }}
+                  />
+
+                  {/* Header: Standee Badge & Điều hướng (< >) */}
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginBottom: 12,
+                    }}
                   >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text style={{ fontSize: 11.5, color: isDark ? '#94A3B8' : '#64748B', fontWeight: '500' }}>
-                        {topic.category}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          alert(`Tùy chọn cho chủ đề ${topic.tag}`);
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: isDark ? 'rgba(0,0,0,0.3)' : currentSlide.badgeBg,
+                        paddingHorizontal: 10,
+                        paddingVertical: 4.5,
+                        borderRadius: 20,
+                        borderWidth: 1,
+                        borderColor: isDark ? currentSlide.borderDark : 'transparent',
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 11.5,
+                          fontWeight: '800',
+                          color: isDark ? '#FFFFFF' : currentSlide.badgeColor,
                         }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Ionicons name="ellipsis-horizontal" size={15} color={isDark ? '#94A3B8' : '#94A3B8'} />
+                        {currentSlide.badge}
+                      </Text>
+                    </View>
+
+                    {/* Điều khiển chuyển Standee */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <TouchableOpacity
+                        onPress={handlePrevStandee}
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 13,
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#FFFFFF',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          shadowColor: '#000',
+                          shadowOpacity: 0.05,
+                          shadowRadius: 3,
+                          elevation: 1,
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="chevron-back" size={15} color={isDark ? '#E2E8F0' : '#475569'} />
+                      </TouchableOpacity>
+
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: isDark ? '#94A3B8' : '#64748B', paddingHorizontal: 2 }}>
+                        {standeeIndex + 1}/{STANDEE_SLIDES.length}
+                      </Text>
+
+                      <TouchableOpacity
+                        onPress={handleNextStandee}
+                        style={{
+                          width: 26,
+                          height: 26,
+                          borderRadius: 13,
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#FFFFFF',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          shadowColor: '#000',
+                          shadowOpacity: 0.05,
+                          shadowRadius: 3,
+                          elevation: 1,
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="chevron-forward" size={15} color={isDark ? '#E2E8F0' : '#475569'} />
                       </TouchableOpacity>
                     </View>
-                    <Text style={{ fontSize: 14.5, fontWeight: '800', color: isDark ? '#F8FAFC' : '#0F172A', marginTop: 3 }}>
-                      {topic.tag}
+                  </View>
+
+                  {/* Mascot Standee nhảy nhót với hiệu ứng Bounce lò xo */}
+                  <Animated.View
+                    style={{
+                      opacity: standeeOpacityAnim,
+                      transform: [{ scale: standeeBounceAnim }],
+                      alignItems: 'center',
+                      marginVertical: 4,
+                    }}
+                  >
+                    <TouchableOpacity
+                      onPress={triggerStandeeBounce}
+                      activeOpacity={0.8}
+                      style={{
+                        position: 'relative',
+                        width: 86,
+                        height: 86,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {/* Vòng hào quang sáng nền */}
+                      <View
+                        style={{
+                          position: 'absolute',
+                          width: 76,
+                          height: 76,
+                          borderRadius: 38,
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#FFFFFF',
+                          shadowColor: '#000',
+                          shadowOpacity: 0.08,
+                          shadowRadius: 8,
+                          elevation: 2,
+                        }}
+                      />
+                      {/* Mascot Emoji chính */}
+                      <Text style={{ fontSize: 46 }}>{currentSlide.emoji}</Text>
+
+                      {/* Mascot Emoji phụ gắn kèm */}
+                      {currentSlide.secondaryEmoji && (
+                        <View
+                          style={{
+                            position: 'absolute',
+                            bottom: 2,
+                            right: 2,
+                            backgroundColor: '#FFFFFF',
+                            width: 28,
+                            height: 28,
+                            borderRadius: 14,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            shadowColor: '#000',
+                            shadowOpacity: 0.15,
+                            shadowRadius: 4,
+                            elevation: 2,
+                          }}
+                        >
+                          <Text style={{ fontSize: 16 }}>{currentSlide.secondaryEmoji}</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  </Animated.View>
+
+                  {/* Tiêu đề & Thông điệp vui vẻ */}
+                  <View style={{ alignItems: 'center', marginTop: 6, marginBottom: 14 }}>
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        fontWeight: '800',
+                        color: isDark ? '#F8FAFC' : '#0F172A',
+                        textAlign: 'center',
+                        lineHeight: 22,
+                      }}
+                    >
+                      {currentSlide.title}
                     </Text>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#0D9488', marginTop: 3 }}>
-                      {topic.count}
+                    <Text
+                      style={{
+                        fontSize: 12.5,
+                        color: isDark ? '#CBD5E1' : '#475569',
+                        textAlign: 'center',
+                        marginTop: 6,
+                        lineHeight: 18,
+                        paddingHorizontal: 4,
+                      }}
+                    >
+                      {currentSlide.subtitle}
+                    </Text>
+                  </View>
+
+                  {/* Nút hành động chính */}
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 7,
+                      backgroundColor: currentSlide.btnBg,
+                      paddingVertical: 10,
+                      paddingHorizontal: 16,
+                      borderRadius: 14,
+                      shadowColor: currentSlide.btnBg,
+                      shadowOpacity: 0.25,
+                      shadowRadius: 6,
+                      elevation: 2,
+                    }}
+                    onPress={() => {
+                      handleOpenCreate('text', currentSlide.category);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={{ color: '#FFFFFF', fontSize: 13.5, fontWeight: '800' }}>
+                      {currentSlide.btnText}
                     </Text>
                   </TouchableOpacity>
-                ))}
-              </View>
-            </View>
+
+                  {/* Dãy chấm chỉ số slide (Dots indicator) */}
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      marginTop: 14,
+                    }}
+                  >
+                    {STANDEE_SLIDES.map((_, idx) => {
+                      const isActive = idx === standeeIndex;
+                      return (
+                        <TouchableOpacity
+                          key={idx}
+                          onPress={() => setStandeeIndex(idx)}
+                          style={{
+                            width: isActive ? 22 : 6,
+                            height: 6,
+                            borderRadius: 3,
+                            backgroundColor: isActive
+                              ? currentSlide.btnBg
+                              : isDark
+                              ? 'rgba(255,255,255,0.2)'
+                              : '#CBD5E1',
+                          }}
+                          activeOpacity={0.8}
+                        />
+                      );
+                    })}
+                  </View>
+                </View>
+              );
+            })()}
 
             {/* 2. GỢI Ý KẾT BẠN */}
             <View style={styles.card}>
