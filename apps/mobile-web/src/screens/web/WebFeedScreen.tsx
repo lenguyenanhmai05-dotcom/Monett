@@ -657,6 +657,42 @@ const cardStyles = StyleSheet.create({
 });
 
 
+const TRENDING_TOPICS = [
+  {
+    category: 'Lối sống xanh • Thịnh hành',
+    tag: '#SongXanhMoiNgay',
+    count: '14.2K bài thảo luận',
+    actionCat: '✨ Đời thường vui vẻ',
+  },
+  {
+    category: 'Thiết kế & Công nghệ',
+    tag: '#VerveGreenDesign',
+    count: '8.5K bài thảo luận',
+    actionCat: '☕ Cà phê chill',
+  },
+  {
+    category: 'Du lịch sinh thái',
+    tag: '#CatTienNationalPark',
+    count: '5.1K bài thảo luận',
+    actionCat: '🏖️ Du lịch & Phượt',
+  },
+];
+
+const SUGGESTED_FRIENDS = [
+  {
+    id: 'sugg_1',
+    name: 'Vũ Khánh Vân',
+    mutualFriends: 8,
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'sugg_2',
+    name: 'Lê Minh Trí',
+    mutualFriends: 14,
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+  },
+];
+
 export interface WebFeedScreenProps {
   initialTab?: 'feed' | 'chat' | 'friends';
 }
@@ -671,6 +707,7 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
   const styles = getStyles(isDark, colors);
 
   const { openChat, openMessenger, closeMessenger, toggleMessenger, isMessengerOpen } = useChat();
+  const [sentFriendIds, setSentFriendIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (initialTab === 'chat') {
@@ -1898,6 +1935,128 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
           )}
         </View>
 
+        {/* RIGHT COLUMN - Chủ đề thịnh hành & Gợi ý kết bạn */}
+        {activeTab === 'feed' && width >= 1150 && (
+          <View style={styles.rightColumn}>
+            {/* 1. CHỦ ĐỀ THỊNH HÀNH */}
+            <View style={styles.card}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <Text style={{ fontSize: 16, fontWeight: '800', color: isDark ? '#F1F5F9' : '#0F172A' }}>
+                  Chủ đề thịnh hành
+                </Text>
+                <Ionicons name="trending-up" size={19} color="#10B981" />
+              </View>
+
+              <View style={{ gap: 14 }}>
+                {TRENDING_TOPICS.map((topic, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    activeOpacity={0.7}
+                    onPress={() => handleOpenCreate('text', topic.actionCat)}
+                    style={{ paddingVertical: 2 }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 11.5, color: isDark ? '#94A3B8' : '#64748B', fontWeight: '500' }}>
+                        {topic.category}
+                      </Text>
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          alert(`Tùy chọn cho chủ đề ${topic.tag}`);
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="ellipsis-horizontal" size={15} color={isDark ? '#94A3B8' : '#94A3B8'} />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={{ fontSize: 14.5, fontWeight: '800', color: isDark ? '#F8FAFC' : '#0F172A', marginTop: 3 }}>
+                      {topic.tag}
+                    </Text>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#0D9488', marginTop: 3 }}>
+                      {topic.count}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* 2. GỢI Ý KẾT BẠN */}
+            <View style={styles.card}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <Text style={{ fontSize: 16, fontWeight: '800', color: isDark ? '#F1F5F9' : '#0F172A' }}>
+                  Gợi ý kết bạn
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setActiveTab('friends')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#059669' }}>
+                    Xem thêm
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={{ gap: 12 }}>
+                {SUGGESTED_FRIENDS.map((friend) => {
+                  const isSent = sentFriendIds.includes(friend.id);
+                  return (
+                    <View
+                      key={friend.id}
+                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 }}>
+                        <Image
+                          source={{ uri: friend.avatar }}
+                          style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: '#E2E8F0' }}
+                        />
+                        <View style={{ marginLeft: 10, flex: 1 }}>
+                          <Text style={{ fontSize: 13.5, fontWeight: '700', color: isDark ? '#F1F5F9' : '#0F172A' }} numberOfLines={1}>
+                            {friend.name}
+                          </Text>
+                          <Text style={{ fontSize: 11.5, color: isDark ? '#94A3B8' : '#64748B', marginTop: 2 }}>
+                            {friend.mutualFriends} bạn chung
+                          </Text>
+                        </View>
+                      </View>
+
+                      <TouchableOpacity
+                        style={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: 10,
+                          backgroundColor: isSent ? (isDark ? '#064E3B' : '#DCFCE7') : (isDark ? '#064E3B' : '#A7F3D0'),
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                        }}
+                        onPress={() => {
+                          if (!isSent) {
+                            setSentFriendIds((prev) => [...prev, friend.id]);
+                            addNotification({
+                              type: 'friend',
+                              title: `Đã gửi lời mời kết bạn! 👋`,
+                              message: `Lời mời kết bạn đã được gửi đến ${friend.name}.`,
+                              iconBg: '#ECFDF5',
+                              iconColor: '#059669',
+                              metadata: { targetTab: 'friends' },
+                            });
+                          }
+                        }}
+                        activeOpacity={0.7}
+                        accessibilityLabel={`Kết bạn với ${friend.name}`}
+                      >
+                        <Ionicons
+                          name={isSent ? 'checkmark' : 'person-add'}
+                          size={18}
+                          color={isSent ? '#059669' : '#047857'}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Modals from FriendsFeedScreen */}
