@@ -146,13 +146,22 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
   // Reset form when modal opens with initial photo & target date
   useEffect(() => {
     if (visible) {
-      if (initialPhotoUri && !imageUri) {
-        setImageUri(initialPhotoUri);
-      }
+      const incomingImage = initialPhotoUri || '';
+      setImageUri(incomingImage);
       if (targetDate) {
         setDate(targetDate);
       }
       setErrorMessage('');
+
+      // Nếu ô này chưa có ảnh (initialPhotoUri rỗng), reset toàn bộ thông tin về mặc định
+      if (!incomingImage) {
+        setSupplier('');
+        setAmountStr('');
+        setSelectedCategory('Ăn uống');
+        setCategoryIcon('🍜');
+        setItems([]);
+        setScanSuccess(false);
+      }
     }
   }, [visible, initialPhotoUri, targetDate]);
 
@@ -438,6 +447,9 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
                         onPress={() => {
                           setImageUri('');
                           setScanSuccess(false);
+                          setSupplier('');
+                          setAmountStr('');
+                          setItems([]);
                         }}
                         activeOpacity={0.8}
                       >
@@ -506,75 +518,6 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
                     </View>
                   )}
                 </TouchableOpacity>
-
-                {/* Sample Bills quick test */}
-                <View style={styles.sampleBillsSection}>
-                  <Text style={styles.sampleBillsTitle}>
-                    {language === 'vi' ? 'Hoặc thử ngay hóa đơn mẫu:' : 'Or try sample receipts:'}
-                  </Text>
-                  <View style={styles.sampleChipsRow}>
-                    <TouchableOpacity
-                      style={[styles.sampleChip, { backgroundColor: isDark ? '#334155' : '#FFFFFF' }]}
-                      onPress={() => handleLoadSample('coffee')}
-                      activeOpacity={0.75}
-                    >
-                      <Text style={styles.sampleChipText}>☕ Highlands (85k)</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.sampleChip, { backgroundColor: isDark ? '#334155' : '#FFFFFF' }]}
-                      onPress={() => handleLoadSample('mart')}
-                      activeOpacity={0.75}
-                    >
-                      <Text style={styles.sampleChipText}>🛒 WinMart+ (168k)</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Cài đặt Gemini API Key (Tùy chọn) */}
-                <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(148, 163, 184, 0.2)', paddingTop: 10 }}>
-                  <TouchableOpacity
-                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}
-                    onPress={() => setShowApiKeySetting((v) => !v)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: isDark ? '#94A3B8' : '#64748B' }}>
-                      🔑 Cài đặt Google Gemini API Key (Miễn phí)
-                    </Text>
-                    <Text style={{ fontSize: 11, color: '#059669', fontWeight: '800' }}>
-                      {showApiKeySetting ? '▲ Đóng' : '▼ Cài đặt'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {showApiKeySetting && (
-                    <View style={{ marginTop: 6, padding: 10, borderRadius: 10, backgroundColor: isDark ? '#334155' : '#F1F5F9', gap: 6 }}>
-                      <Text style={{ fontSize: 10.5, color: '#64748B', lineHeight: 14 }}>
-                        Lấy API Key miễn phí tại <Text style={{ color: '#059669', fontWeight: '700' }}>aistudio.google.com</Text> để AI đọc ảnh với độ chính xác cao nhất:
-                      </Text>
-                      <TextInput
-                        style={{
-                          borderWidth: 1,
-                          borderColor: isDark ? '#475569' : '#CBD5E1',
-                          backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
-                          color: isDark ? '#F8FAFC' : '#0F172A',
-                          borderRadius: 8,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          fontSize: 12,
-                        }}
-                        value={apiKeyInput}
-                        onChangeText={(txt) => {
-                          setApiKeyInput(txt);
-                          if (typeof window !== 'undefined') {
-                            localStorage.setItem('monett_gemini_api_key', txt.trim());
-                          }
-                        }}
-                        placeholder="Dán AIzaSy... vào đây"
-                        placeholderTextColor="#94A3B8"
-                        secureTextEntry
-                      />
-                    </View>
-                  )}
-                </View>
               </View>
 
               {/* ========== CỘT PHẢI (RIGHT COLUMN): KẾT QUẢ TRÍCH XUẤT ========== */}
@@ -987,7 +930,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   uploadingBox: {
-    height: 240,
+    height: 380,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#10B981',
@@ -1002,43 +945,43 @@ const styles = StyleSheet.create({
     color: '#059669',
   },
   dropBox: {
-    height: 220,
+    height: 380,
     borderWidth: 2,
     borderStyle: 'dashed',
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    gap: 8,
+    padding: 24,
+    gap: 12,
   },
   dropIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   dropMainText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
     color: '#059669',
     textAlign: 'center',
   },
   dropSubText: {
-    fontSize: 11,
+    fontSize: 11.5,
     color: '#64748B',
     textAlign: 'center',
-    lineHeight: 16,
+    lineHeight: 18,
   },
   imagePreviewWrap: {
     borderRadius: 14,
     overflow: 'hidden',
   },
   receiptFrame: {
-    height: 220,
-    backgroundColor: '#000000',
+    height: 380,
+    backgroundColor: '#0F172A',
     borderRadius: 14,
     position: 'relative',
     overflow: 'hidden',

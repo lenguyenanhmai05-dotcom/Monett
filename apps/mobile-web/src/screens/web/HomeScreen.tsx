@@ -2108,6 +2108,11 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
     return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   };
 
+  const handleCloseQuickSaveModal = () => {
+    setQuickSaveModalVisible(false);
+    setQuickPhotoUri('');
+  };
+
   const handleOpenQuickSave = (dayNum?: number) => {
     const targetDay = dayNum ?? (todayDate > 0 ? todayDate : selectedDay || 1);
     setQuickDayNum(targetDay);
@@ -2333,6 +2338,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
       },
     });
 
+    setQuickPhotoUri('');
     setQuickSaveModalVisible(false);
   };
 
@@ -3065,7 +3071,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
         visible={quickSaveModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setQuickSaveModalVisible(false)}
+        onRequestClose={handleCloseQuickSaveModal}
       >
         <View style={styles.modalBackdrop}>
           <View style={[styles.modalFormCard, isDesktop ? styles.quickSaveModalCardDesktop : styles.quickSaveModalCardMobile]}>
@@ -3092,7 +3098,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
               </View>
 
               <TouchableOpacity
-                onPress={() => setQuickSaveModalVisible(false)}
+                onPress={handleCloseQuickSaveModal}
                 style={styles.modalCloseBtn}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
@@ -3591,7 +3597,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
               <View style={styles.quickSaveFooterBtnGroup}>
                 <TouchableOpacity
                   style={styles.quickSaveCancelBtn}
-                  onPress={() => setQuickSaveModalVisible(false)}
+                  onPress={handleCloseQuickSaveModal}
                   activeOpacity={0.8}
                 >
                   <Text style={styles.quickSaveCancelBtnText}>{language === 'vi' ? 'Hủy' : 'Cancel'}</Text>
