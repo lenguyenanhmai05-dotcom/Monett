@@ -93,29 +93,42 @@ export const getBaseUrl = (): string => {
 // để avatar hiển thị đúng trên mobile (khi dùng ngrok tunnel hoặc LAN IP)
 export const normalizeAvatarUrl = (url: string | undefined | null): string | undefined => {
   if (!url) return undefined;
+  if (typeof url !== 'string') return undefined;
+  const cleanUrl = url.trim();
+  if (
+    !cleanUrl ||
+    cleanUrl === 'null' ||
+    cleanUrl === 'undefined' ||
+    cleanUrl === 'false' ||
+    cleanUrl === '[object Object]' ||
+    cleanUrl === 'NaN'
+  ) {
+    return undefined;
+  }
+
   const base = getBaseUrl();
   // Nếu là relative path
-  if (url.startsWith('/uploads')) {
-    return `${base}${url}`;
+  if (cleanUrl.startsWith('/uploads')) {
+    return `${base}${cleanUrl}`;
   }
-  if (url.startsWith('uploads/')) {
-    return `${base}/${url}`;
+  if (cleanUrl.startsWith('uploads/')) {
+    return `${base}/${cleanUrl}`;
   }
   // Trích xuất path từ URL (VD: từ https://old-ngrok.app/uploads/123.jpg -> /uploads/123.jpg)
   try {
-    const urlObj = new URL(url);
+    const urlObj = new URL(cleanUrl);
     if (urlObj.pathname.startsWith('/uploads')) {
       return `${base}${urlObj.pathname}`;
     }
   } catch (e) {
     // Nếu không phải URL hợp lệ mà chỉ là path dạng localhost/uploads/...
-    const pathMatch = url.match(/(?:\/\/[^\/]+)?(\/uploads\/.*)$/);
+    const pathMatch = cleanUrl.match(/(?:\/\/[^\/]+)?(\/uploads\/.*)$/);
     if (pathMatch && pathMatch[1]) {
       return `${base}${pathMatch[1]}`;
     }
   }
 
-  return url;
+  return cleanUrl;
 };
 
 const TOKEN_KEY = 'monett_auth_token';

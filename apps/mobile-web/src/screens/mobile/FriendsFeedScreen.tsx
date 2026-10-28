@@ -75,8 +75,12 @@ export type MomentItem = {
 // ─── Avatar Component ────────────────────────────────────────────────────────
 const Avatar = ({ uri, name, size = 40 }: { uri?: string | null; name: string; size?: number }) => {
   const [err, setErr] = useState(false);
+  useEffect(() => {
+    setErr(false);
+  }, [uri]);
+
   const initial = (name || '?').charAt(0).toUpperCase();
-  const colors = ['#059669', '#8B5CF6', '#F59E0B', '#EF4444', '#0EA5E9'];
+  const colors = ['#059669', '#8B5CF6', '#F59E0B', '#EF4444', '#0EA5E9', '#EC4899', '#6366F1'];
   let hash = 0;
   for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   const bg = colors[Math.abs(hash) % colors.length];

@@ -25,7 +25,36 @@ import {
 } from '../utils/browserNotification';
 import { useAuth } from '../contexts/AuthContext';
 import { acceptEventInvitation, declineEventInvitation } from '../services/eventsStorage';
-import { acceptEventInvitationApi, declineEventInvitationApi } from '../services/api';
+import { acceptEventInvitationApi, declineEventInvitationApi, normalizeAvatarUrl } from '../services/api';
+
+const SafeNotificationAvatar: React.FC<{
+  avatarUrl?: string;
+  iconConfig: { name: any; color: string; bg: string };
+  style: any;
+  iconBoxStyle: any;
+}> = ({ avatarUrl, iconConfig, style, iconBoxStyle }) => {
+  const [err, setErr] = useState(false);
+  const normalized = normalizeAvatarUrl(avatarUrl);
+
+  React.useEffect(() => {
+    setErr(false);
+  }, [avatarUrl]);
+
+  if (normalized && !err) {
+    return (
+      <Image
+        source={{ uri: normalized }}
+        style={style}
+        onError={() => setErr(true)}
+      />
+    );
+  }
+  return (
+    <View style={[iconBoxStyle, { backgroundColor: iconConfig.bg }]}>
+      <Ionicons name={iconConfig.name} size={18} color={iconConfig.color} />
+    </View>
+  );
+};
 
 interface NotificationModalProps {
   onNavigateToTab?: (tab: any) => void;
@@ -606,26 +635,13 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
                         ]}
                         activeOpacity={0.7}
                       >
-                        {/* Icon hoặc Avatar */}
-                        {notif.avatarUrl ? (
-                          <Image
-                            source={{ uri: notif.avatarUrl }}
-                            style={styles.notifAvatar}
-                          />
-                        ) : (
-                          <View
-                            style={[
-                              styles.notifIconBox,
-                              { backgroundColor: iconConfig.bg },
-                            ]}
-                          >
-                            <Ionicons
-                              name={iconConfig.name}
-                              size={18}
-                              color={iconConfig.color}
-                            />
-                          </View>
-                        )}
+                        {/* Icon hoặc Avatar với fallback an toàn */}
+                        <SafeNotificationAvatar
+                          avatarUrl={notif.avatarUrl}
+                          iconConfig={iconConfig}
+                          style={styles.notifAvatar}
+                          iconBoxStyle={styles.notifIconBox}
+                        />
 
                         {/* Nội dung thông báo */}
                         <View style={styles.notifBody}>

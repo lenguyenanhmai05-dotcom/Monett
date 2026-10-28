@@ -242,8 +242,12 @@ const MOOD_CHECKIN_OPTIONS = [
 // ─── Avatar Component ────────────────────────────────────────────────────────
 const Avatar = ({ uri, name, size = 40 }: { uri?: string | null; name: string; size?: number }) => {
   const [err, setErr] = useState(false);
+  useEffect(() => {
+    setErr(false);
+  }, [uri]);
+
   const initial = (name || '?').charAt(0).toUpperCase();
-  const colors = ['#059669', '#8B5CF6', '#F59E0B', '#EF4444', '#0EA5E9'];
+  const colors = ['#059669', '#8B5CF6', '#F59E0B', '#EF4444', '#0EA5E9', '#EC4899', '#6366F1'];
   let hash = 0;
   for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   const bg = colors[Math.abs(hash) % colors.length];
@@ -2310,10 +2314,7 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
                       style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
                     >
                       <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 }}>
-                        <Image
-                          source={{ uri: friend.avatar }}
-                          style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: '#E2E8F0' }}
-                        />
+                        <Avatar uri={friend.avatar} name={friend.name} size={42} />
                         <View style={{ marginLeft: 10, flex: 1 }}>
                           <Text style={{ fontSize: 13.5, fontWeight: '700', color: isDark ? '#F1F5F9' : '#0F172A' }} numberOfLines={1}>
                             {friend.name}

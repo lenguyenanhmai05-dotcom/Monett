@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { normalizeAvatarUrl } from '../services/api';
 
 export const SocialPostComposer = ({ user }: any) => {
   const { language } = useLanguage();
@@ -10,7 +11,12 @@ export const SocialPostComposer = ({ user }: any) => {
   const styles = getStyles(isDark, colors);
 
   const displayName = user?.fullName || (user?.email ? user.email.split('@')[0] : 'Min');
-  const avatarUri = user?.avatarUrl;
+  const avatarUri = normalizeAvatarUrl(user?.avatarUrl || user?.avatar);
+  const [imgErr, setImgErr] = useState(false);
+
+  useEffect(() => {
+    setImgErr(false);
+  }, [avatarUri]);
 
   const getAvatarColor = (name: string) => {
     const bgColors = ['#FEE2E2', '#FEF3C7', '#D1FAE5', '#DBEAFE', '#E0E7FF', '#FCE7F3', '#F3E8FF'];
@@ -28,8 +34,12 @@ export const SocialPostComposer = ({ user }: any) => {
   return (
     <View style={styles.container}>
       <View style={styles.topRow}>
-        {avatarUri ? (
-          <Image source={{ uri: avatarUri }} style={styles.avatar} />
+        {avatarUri && !imgErr ? (
+          <Image
+            source={{ uri: avatarUri }}
+            style={styles.avatar}
+            onError={() => setImgErr(true)}
+          />
         ) : (
           <View style={[styles.avatar, { backgroundColor: avatarColor.bg, justifyContent: 'center', alignItems: 'center' }]}>
             <Text style={{ color: avatarColor.text, fontWeight: 'bold', fontSize: 16 }}>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -25,8 +25,19 @@ const Avatar: React.FC<{ uri?: string; name: string; size?: number }> = ({
   size = 44,
 }) => {
   const [err, setErr] = useState(false);
+  useEffect(() => {
+    setErr(false);
+  }, [uri]);
+
   const normalized = normalizeAvatarUrl(uri);
   const initial = (name || 'U').charAt(0).toUpperCase();
+
+  const colors = ['#059669', '#8B5CF6', '#F59E0B', '#EF4444', '#0EA5E9', '#EC4899', '#6366F1'];
+  let hash = 0;
+  for (let i = 0; i < (name || '').length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const bg = colors[Math.abs(hash) % colors.length];
 
   if (normalized && !err) {
     return (
@@ -43,7 +54,7 @@ const Avatar: React.FC<{ uri?: string; name: string; size?: number }> = ({
         width: size,
         height: size,
         borderRadius: size / 2,
-        backgroundColor: '#059669',
+        backgroundColor: bg,
         justifyContent: 'center',
         alignItems: 'center',
       }}
@@ -128,7 +139,15 @@ export const MessengerPopover: React.FC = () => {
         id: fId || 'friend_' + Math.random(),
         type: 'friend' as const,
         name: fName,
-        avatar: f.avatarUrl || f.avatar,
+        avatar:
+          f.avatarUrl ||
+          f.avatar ||
+          f.user?.avatarUrl ||
+          f.user?.avatar ||
+          f.recipient?.avatarUrl ||
+          f.recipient?.avatar ||
+          f.requester?.avatarUrl ||
+          f.requester?.avatar,
         icon: null,
         isOnline,
         lastMessage: isOnline ? '🟢 Đang hoạt động' : formatMessengerActiveTime(f, isOnline),
@@ -690,7 +709,13 @@ export const MessengerPopover: React.FC = () => {
                       activeOpacity={0.75}
                     >
                       <Avatar
-                        uri={f.avatarUrl || f.avatar}
+                        uri={
+                          f.avatarUrl ||
+                          f.avatar ||
+                          f.user?.avatarUrl ||
+                          f.recipient?.avatarUrl ||
+                          f.requester?.avatarUrl
+                        }
                         name={fName}
                         size={34}
                       />

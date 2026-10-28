@@ -226,9 +226,45 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     friend?.activeToday === true ||
     (friend?.streak && friend.streak > 0)
   );
-  const rawFriendName = friend?.name || friend?.fullName || friend?.email || (isGroup ? 'Nhóm trò chuyện' : 'Bạn bè');
-  const friendAvatar = isGroup ? null : normalizeAvatarUrl(friend?.avatarUrl || friend?.avatar);
+  const rawFriendName =
+    friend?.name ||
+    friend?.fullName ||
+    friend?.user?.fullName ||
+    friend?.user?.name ||
+    friend?.recipient?.fullName ||
+    friend?.requester?.fullName ||
+    friend?.email ||
+    (isGroup ? 'Nhóm trò chuyện' : 'Bạn bè');
+
+  const friendAvatar = isGroup
+    ? null
+    : normalizeAvatarUrl(
+        friend?.avatarUrl ||
+        friend?.avatar ||
+        friend?.user?.avatarUrl ||
+        friend?.user?.avatar ||
+        friend?.recipient?.avatarUrl ||
+        friend?.recipient?.avatar ||
+        friend?.requester?.avatarUrl ||
+        friend?.requester?.avatar
+      );
   const groupIcon = isGroup ? (friend?.icon || '👥') : null;
+
+  // Fallback màu sắc cho avatar chữ cái đầu
+  const getAvatarBgColor = (name: string) => {
+    const colors = ['#059669', '#8B5CF6', '#F59E0B', '#EF4444', '#0EA5E9', '#EC4899', '#6366F1'];
+    let hash = 0;
+    for (let i = 0; i < (name || '').length; i++) {
+      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  const [avatarErr, setAvatarErr] = useState(false);
+
+  useEffect(() => {
+    setAvatarErr(false);
+  }, [convId, friendAvatar]);
 
   // ─── NICKNAME & THEME PERSISTENCE ──────────────────────────────────────────
   const [activeThemeId, setActiveThemeId] = useState<string>('emerald');
@@ -946,10 +982,19 @@ export const ChatModal: React.FC<ChatModalProps> = ({
               <View style={[styles.avatarPlaceholder, { backgroundColor: activeTheme.lightBg }]}>
                 <GroupIconSvg name={groupIcon || 'users'} size={20} />
               </View>
-            ) : friendAvatar ? (
-              <Image source={{ uri: friendAvatar }} style={styles.avatarImg} />
+            ) : friendAvatar && !avatarErr ? (
+              <Image
+                source={{ uri: friendAvatar }}
+                style={styles.avatarImg}
+                onError={() => setAvatarErr(true)}
+              />
             ) : (
-              <View style={[styles.avatarPlaceholder, { backgroundColor: activeTheme.primary }]}>
+              <View
+                style={[
+                  styles.avatarPlaceholder,
+                  { backgroundColor: getAvatarBgColor(displayName) },
+                ]}
+              >
                 <Text style={styles.avatarInitial}>
                   {(displayName.charAt(0) || 'U').toUpperCase()}
                 </Text>

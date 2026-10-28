@@ -14,7 +14,42 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { EventMember } from '../services/eventsStorage';
-import { getFriendsApi } from '../services/api';
+import { getFriendsApi, normalizeAvatarUrl } from '../services/api';
+
+const SafeInviteAvatar: React.FC<{ uri?: string; name: string; isDark: boolean; textPrimary: string }> = ({
+  uri,
+  name,
+  isDark,
+  textPrimary,
+}) => {
+  const [err, setErr] = useState(false);
+  const normalized = normalizeAvatarUrl(uri);
+  const colors = ['#059669', '#8B5CF6', '#F59E0B', '#EF4444', '#0EA5E9', '#EC4899', '#6366F1'];
+  let hash = 0;
+  for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  const bg = colors[Math.abs(hash) % colors.length];
+
+  useEffect(() => {
+    setErr(false);
+  }, [uri]);
+
+  if (normalized && !err) {
+    return (
+      <Image
+        source={{ uri: normalized }}
+        style={styles.avatarImg}
+        onError={() => setErr(true)}
+      />
+    );
+  }
+  return (
+    <View style={[styles.avatarPlaceholder, { backgroundColor: bg }]}>
+      <Text style={[styles.avatarLetter, { color: '#FFFFFF' }]}>
+        {(name || '?').charAt(0).toUpperCase()}
+      </Text>
+    </View>
+  );
+};
 
 interface InviteFriendsModalProps {
   visible: boolean;
@@ -246,15 +281,12 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
                         >
                           {/* Avatar + Info */}
                           <View style={styles.friendInfoLeft}>
-                            {friend.avatarUrl ? (
-                              <Image source={{ uri: friend.avatarUrl }} style={styles.avatarImg} />
-                            ) : (
-                              <View style={[styles.avatarPlaceholder, { backgroundColor: isDark ? '#334155' : '#E2E8F0' }]}>
-                                <Text style={[styles.avatarLetter, { color: textPrimary }]}>
-                                  {friend.name.charAt(0).toUpperCase()}
-                                </Text>
-                              </View>
-                            )}
+                            <SafeInviteAvatar
+                              uri={friend.avatarUrl}
+                              name={friend.name}
+                              isDark={isDark}
+                              textPrimary={textPrimary}
+                            />
 
                             <View style={styles.friendTextWrap}>
                               <Text style={[styles.friendName, { color: textPrimary }]}>
