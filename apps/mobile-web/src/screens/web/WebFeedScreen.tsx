@@ -859,7 +859,20 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
   const { isUserOnline, refreshOnlineUsers, socket } = useSocket();
   const styles = getStyles(isDark, colors);
 
-  const { openChat, openMessenger, closeMessenger, toggleMessenger, isMessengerOpen } = useChat();
+  const {
+    openChat,
+    openMessenger,
+    closeMessenger,
+    toggleMessenger,
+    isMessengerOpen,
+    chatGroups,
+    saveChatGroups,
+    createGroup,
+    pinnedChatIds,
+    togglePinChat,
+    hiddenChatIds,
+    deleteConversation,
+  } = useChat();
   const [sentFriendIds, setSentFriendIds] = useState<string[]>([]);
 
   // ─── STANDEE CAROUSEL NHẢY QUA NHẢY LẠI (VUI VẺ & ĐỘNG LỰC) ───
@@ -946,7 +959,6 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
   const [showCreate, setShowCreate] = useState(false);
   const [editingMoment, setEditingMoment] = useState<MomentItem | null>(null);
   const [chatMoment, setChatMoment] = useState<MomentItem | null>(null);
-  const [activeChatFriend, setActiveChatFriend] = useState<any>(null);
   const [activeMomentReply, setActiveMomentReply] = useState<{
     id: string;
     photo: string;
@@ -1154,68 +1166,13 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
   };
 
   // ─── NHÓM TRÒ CHUYỆN (GROUPS) ───
-  const [chatGroups, setChatGroups] = useState<any[]>(() => {
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const raw = window.localStorage.getItem('monett_chat_groups');
-        if (raw) return JSON.parse(raw);
-      }
-    } catch (e) {
-      console.warn(e);
-    }
-    return [
-      {
-        id: 'group_coffee_weekend',
-        name: 'Hội Cà Phê Cuối Tuần ☕',
-        icon: 'coffee',
-        memberIds: [myId],
-        members: [{ id: myId, name: (user as any)?.fullName || 'Ánh Mai' }],
-        createdAt: new Date().toISOString(),
-        createdBy: myId,
-        isGroup: true,
-        lastMessage: 'Cuối tuần đi cafe chia tiền nhé! 💸',
-      },
-    ];
-  });
-
-  const saveChatGroups = (newGroups: any[]) => {
-    setChatGroups(newGroups);
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        window.localStorage.setItem('monett_chat_groups', JSON.stringify(newGroups));
-      }
-    } catch (e) {
-      console.warn(e);
-    }
-  };
-
   const [chatFilter, setChatFilter] = useState<'all' | 'direct' | 'group'>('all');
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupIcon, setNewGroupIcon] = useState('users');
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
 
-  // ─── PINNED & HIDDEN CHATS & CONTEXT MENU ───
-  const [pinnedChatIds, setPinnedChatIds] = useState<string[]>(() => {
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const raw = window.localStorage.getItem('monett_pinned_chats');
-        if (raw) return JSON.parse(raw);
-      }
-    } catch {}
-    return [];
-  });
-
-  const [hiddenChatIds, setHiddenChatIds] = useState<string[]>(() => {
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const raw = window.localStorage.getItem('monett_hidden_chats');
-        if (raw) return JSON.parse(raw);
-      }
-    } catch {}
-    return [];
-  });
-
+  // ─── CONTEXT MENU ───
   const [contextMenu, setContextMenu] = useState<{
     visible: boolean;
     x: number;
@@ -1247,15 +1204,7 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
   };
 
   const handleTogglePinChat = (chatId: string) => {
-    setPinnedChatIds((prev) => {
-      const next = prev.includes(chatId) ? prev.filter((id) => id !== chatId) : [chatId, ...prev];
-      try {
-        if (typeof window !== 'undefined' && window.localStorage) {
-          window.localStorage.setItem('monett_pinned_chats', JSON.stringify(next));
-        }
-      } catch {}
-      return next;
-    });
+    togglePinChat(chatId);
     setContextMenu((prev) => ({ ...prev, visible: false }));
   };
 
@@ -1265,47 +1214,7 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
     name: string;
     data: any;
   }) => {
-    const isGrp = target.type === 'group';
-    const msg = isGrp
-      ? `Bạn có chắc muốn xóa nhóm trò chuyện "${target.name}"?`
-      : `Bạn có chắc muốn xóa cuộc trò chuyện với "${target.name}"?`;
-    const confirmed = typeof window !== 'undefined' && window.confirm ? window.confirm(msg) : true;
-    if (confirmed) {
-      if (isGrp) {
-        const next = chatGroups.filter((g) => g.id !== target.id);
-        saveChatGroups(next);
-        if (activeChatFriend?.id === target.id) {
-          setActiveChatFriend(null);
-        }
-      } else {
-        const next = [...hiddenChatIds, target.id];
-        setHiddenChatIds(next);
-        try {
-          if (typeof window !== 'undefined' && window.localStorage) {
-            window.localStorage.setItem('monett_hidden_chats', JSON.stringify(next));
-          }
-        } catch {}
-        if (
-          activeChatFriend?.id === target.id ||
-          (activeChatFriend as any)?._id === target.id ||
-          chatMoment?.id === target.id
-        ) {
-          setActiveChatFriend(null);
-          setChatMoment(null);
-        }
-      }
-      if (pinnedChatIds.includes(target.id)) {
-        setPinnedChatIds((prev) => {
-          const next = prev.filter((id) => id !== target.id);
-          try {
-            if (typeof window !== 'undefined' && window.localStorage) {
-              window.localStorage.setItem('monett_pinned_chats', JSON.stringify(next));
-            }
-          } catch {}
-          return next;
-        });
-      }
-    }
+    deleteConversation(target);
     setContextMenu((prev) => ({ ...prev, visible: false }));
   };
 
@@ -1319,43 +1228,15 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
       return;
     }
 
-    const selectedFriends = friendsList.filter((f) =>
-      selectedFriendIds.includes(String(f._id || f.id || ''))
-    );
-
-    const members = [
-      {
-        id: myId,
-        name: (user as any)?.fullName || 'Tôi',
-        avatar: (user as any)?.avatarUrl || (user as any)?.avatar,
-      },
-      ...selectedFriends.map((f) => ({
-        id: String(f._id || f.id || ''),
-        name: f.fullName || f.email || 'Bạn bè',
-        avatar: f.avatarUrl || f.avatar,
-      })),
-    ];
-
-    const newGroup = {
-      id: 'group_' + Date.now(),
-      name: newGroupName.trim(),
-      icon: newGroupIcon || 'users',
-      memberIds: [myId, ...selectedFriendIds],
-      members,
-      createdAt: new Date().toISOString(),
-      createdBy: myId,
-      isGroup: true,
-      lastMessage: 'Nhóm đã được tạo thành công!',
-    };
-
-    const nextGroups = [newGroup, ...chatGroups];
-    saveChatGroups(nextGroups);
+    const newGroup = createGroup(newGroupName, newGroupIcon, selectedFriendIds);
     setShowCreateGroupModal(false);
     setNewGroupName('');
     setNewGroupIcon('users');
     setSelectedFriendIds([]);
     setChatFilter('group');
-    setActiveChatFriend(newGroup);
+    if (newGroup) {
+      openChat(newGroup);
+    }
   };
 
   const loadData = useCallback(async () => {
@@ -1675,7 +1556,7 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
     } else {
       setChatMoment(null);
       setActiveMomentReply(null);
-      setActiveChatFriend(item.data);
+      openChat(item.data);
     }
   };
 
@@ -2685,10 +2566,9 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
                 style={[
                   styles.dialogSaveBtn,
                   { backgroundColor: '#059669' },
-                  (!newGroupName.trim() || selectedFriendIds.length === 0) && { opacity: 0.5 },
                 ]}
                 onPress={handleCreateGroup}
-                disabled={!newGroupName.trim() || selectedFriendIds.length === 0}
+                activeOpacity={0.8}
               >
                 <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13.5 }}>
                   Tạo nhóm ngay

@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNotifications, AppNotification, NotificationType } from '../contexts/NotificationContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useChat } from '../contexts/ChatContext';
 import {
   isBrowserNotificationSupported,
   isBrowserNotificationEnabled,
@@ -31,6 +32,7 @@ interface NotificationModalProps {
 }
 
 export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigateToTab }) => {
+  const { openChat } = useChat();
   const {
     notifications,
     unreadCount,
@@ -154,8 +156,19 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
 
   const handleNotificationPress = (notif: AppNotification) => {
     markAsRead(notif.id);
+    closeNotifications();
+
+    if (notif.metadata?.openChat && notif.metadata?.friendId) {
+      openChat({
+        _id: notif.metadata.friendId,
+        id: notif.metadata.friendId,
+        fullName: notif.metadata.friendName || 'Bạn bè',
+        avatarUrl: notif.avatarUrl,
+      });
+      return;
+    }
+
     if (notif.metadata?.targetTab && onNavigateToTab) {
-      closeNotifications();
       onNavigateToTab(notif.metadata.targetTab);
     }
   };

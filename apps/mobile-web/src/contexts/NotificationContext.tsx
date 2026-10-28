@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { Platform } from 'react-native';
 import { sendBrowserNotification } from '../utils/browserNotification';
 import { useAuth } from './AuthContext';
+import { useSocket } from './SocketContext';
 import { getStreakApi, getFriendRequestsApi, getPendingEventInvitationsApi, getStoredUserId } from '../services/api';
 import { getStoredEventInvitations } from '../services/eventsStorage';
 
@@ -226,6 +227,7 @@ const NotificationContext = createContext<NotificationContextType>({
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const { socket } = useSocket();
   const currentUserId = user?.id || (user as any)?._id || getStoredUserId();
   const currentStreak = typeof user?.streak === 'number' ? user.streak : 1;
 
@@ -519,6 +521,137 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     return newNotif;
   }, []);
+
+  // ─── REALTIME THÔNG BÁO TỪ BẠN BÈ QUA SOCKET & CROSS-TAB STORAGE ───
+  useEffect(() => {
+    if (!currentUserId || currentUserId === 'guest') return;
+
+    // 1. Nhận tin nhắn mới từ bạn bè
+    const handleReceiveMessage = (msg: any) => {
+      if (!msg) return;
+      const senderId = String(msg.sender || '');
+      const receiverId = String(msg.receiver || '');
+      const myIdStr = String(currentUserId);
+
+      // Chỉ hiển thị thông báo nếu người nhận là tôi và người gửi không phải là tôi
+      if (senderId && senderId !== myIdStr && (receiverId === myIdStr || !receiverId)) {
+        const sName = msg.senderName || 'Bạn bè';
+        const msgText = msg.text || (msg.imageUrl ? 'Đã gửi một hình ảnh 📷' : 'Đã gửi cho bạn một tin nhắn');
+
+        addNotification({
+          id: `msg-${msg._id || Date.now()}`,
+          type: 'moment',
+          title: `Tin nhắn mới từ ${sName} 💬`,
+          message: msgText,
+          avatarUrl: msg.senderAvatar,
+          iconBg: '#EEF2FF',
+          iconColor: '#4F46E5',
+          metadata: {
+            friendId: senderId,
+            friendName: sName,
+            targetTab: 'feed',
+            openChat: true,
+          },
+        });
+      }
+    };
+
+    // 2. Nhận thông báo bình luận hoặc reaction bài viết từ bạn bè
+    const handleMomentNotification = (data: any) => {
+      if (!data) return;
+      const cName = data.commenterName || 'Bạn bè';
+      const isReaction = data.type === 'reaction';
+
+      addNotification({
+        id: `moment-${data.momentId || ''}-${Date.now()}`,
+        type: 'moment',
+        title: isReaction
+          ? `${cName} đã thả cảm xúc ${data.emoji || '❤️'}`
+          : `Bình luận mới từ ${cName} 💬`,
+        message: isReaction
+          ? (data.caption ? `Trên bài viết: "${data.caption}"` : 'Đã bày tỏ cảm xúc với bài viết của bạn')
+          : (data.text || 'Đã gửi phản hồi vào bài viết của bạn'),
+        avatarUrl: data.commenterAvatar,
+        iconBg: isReaction ? '#FEF2F2' : '#FFF7ED',
+        iconColor: isReaction ? '#EF4444' : '#F97316',
+        metadata: {
+          momentId: data.momentId,
+          friendId: data.userId || data.commenterId,
+          friendName: cName,
+          targetTab: 'feed',
+        },
+      });
+    };
+
+    if (socket) {
+      socket.on('receive_message', handleReceiveMessage);
+      socket.on('moment_notification', handleMomentNotification);
+    }
+
+    // 3. Lắng nghe thông báo chéo giữa các tab trên cùng trình duyệt
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'monett_cross_tab_notif' && e.newValue) {
+        try {
+          const item = JSON.parse(e.newValue);
+          const myIdStr = String(currentUserId);
+          if (item && item.recipientId === myIdStr && item.senderId !== myIdStr) {
+            if (item.type === 'message') {
+              addNotification({
+                id: `msg-cross-${Date.now()}`,
+                type: 'moment',
+                title: `Tin nhắn mới từ ${item.senderName || 'Bạn bè'} 💬`,
+                message: item.text || (item.imageUrl ? 'Đã gửi một hình ảnh 📷' : 'Đã gửi cho bạn một tin nhắn'),
+                avatarUrl: item.senderAvatar,
+                iconBg: '#EEF2FF',
+                iconColor: '#4F46E5',
+                metadata: {
+                  friendId: item.senderId,
+                  friendName: item.senderName,
+                  targetTab: 'feed',
+                  openChat: true,
+                },
+              });
+            } else if (item.type === 'moment_comment' || item.type === 'moment_reaction') {
+              const isReaction = item.type === 'moment_reaction';
+              addNotification({
+                id: `moment-cross-${Date.now()}`,
+                type: 'moment',
+                title: isReaction
+                  ? `${item.senderName || 'Bạn bè'} đã thả cảm xúc ${item.emoji || '❤️'}`
+                  : `Bình luận mới từ ${item.senderName || 'Bạn bè'} 💬`,
+                message: isReaction
+                  ? (item.caption ? `Trên bài viết: "${item.caption}"` : 'Đã bày tỏ cảm xúc với bài viết của bạn')
+                  : (item.text || 'Đã gửi phản hồi vào bài viết của bạn'),
+                avatarUrl: item.senderAvatar,
+                iconBg: isReaction ? '#FEF2F2' : '#FFF7ED',
+                iconColor: isReaction ? '#EF4444' : '#F97316',
+                metadata: {
+                  momentId: item.momentId,
+                  friendId: item.senderId,
+                  friendName: item.senderName,
+                  targetTab: 'feed',
+                },
+              });
+            }
+          }
+        } catch {}
+      }
+    };
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('storage', handleStorage);
+    }
+
+    return () => {
+      if (socket) {
+        socket.off('receive_message', handleReceiveMessage);
+        socket.off('moment_notification', handleMomentNotification);
+      }
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+        window.removeEventListener('storage', handleStorage);
+      }
+    };
+  }, [socket, currentUserId, addNotification]);
 
   // Tự động kiểm tra và gửi thông báo nhắc nhở vào chuông khi đến giờ cài đặt (reminderTime)
   useEffect(() => {

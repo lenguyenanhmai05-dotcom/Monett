@@ -177,6 +177,32 @@ export class MomentsService {
       if (uId === userId) myReaction = e;
     });
 
+    // Phát sự kiện realtime và gửi thông báo cho chủ bài viết
+    if (this.messagesGateway?.server) {
+      this.messagesGateway.server.emit('moment_reaction_updated', {
+        momentId,
+        reactions: reactionsCount,
+      });
+
+      const ownerId = moment.user?.toString();
+      if (ownerId && ownerId !== userId && myReaction) {
+        this.userModel.findById(userId).then((reactor) => {
+          if (this.messagesGateway?.server) {
+            this.messagesGateway.server.to(`user_${ownerId}`).emit('moment_notification', {
+              momentId,
+              commenterName: reactor?.fullName || (reactor as any)?.username || reactor?.email || 'Bạn bè',
+              commenterAvatar: reactor?.avatarUrl || '',
+              text: `đã bày tỏ cảm xúc ${myReaction} với bài viết của bạn`,
+              emoji: myReaction,
+              caption: moment.caption,
+              photo: moment.photo,
+              type: 'reaction',
+            });
+          }
+        }).catch(() => {});
+      }
+    }
+
     return {
       momentId,
       reactions: reactionsCount,
@@ -337,9 +363,11 @@ export class MomentsService {
         this.messagesGateway.server.to(`user_${ownerId}`).emit('moment_notification', {
           momentId,
           commenterName: commentObj.userName,
+          commenterAvatar: commentObj.userAvatar,
           text: commentObj.text,
           caption: moment.caption,
           photo: moment.photo,
+          type: 'comment',
         });
       }
     }

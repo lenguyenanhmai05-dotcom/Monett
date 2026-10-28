@@ -189,12 +189,22 @@ export const MessengerPopover: React.FC = () => {
   };
 
   const handleCreateGroupSubmit = () => {
-    if (!newGroupName.trim() || selectedFriendIds.length === 0) return;
-    createGroup(newGroupName, newGroupIcon, selectedFriendIds);
+    if (!newGroupName.trim()) {
+      alert('Vui lòng nhập tên nhóm!');
+      return;
+    }
+    if (selectedFriendIds.length === 0) {
+      alert('Vui lòng chọn ít nhất 1 bạn bè để tạo nhóm!');
+      return;
+    }
+    const created = createGroup(newGroupName, newGroupIcon, selectedFriendIds);
     setShowCreateGroupModal(false);
     setNewGroupName('');
     setNewGroupIcon('users');
     setSelectedFriendIds([]);
+    if (created) {
+      openChat(created);
+    }
   };
 
   if (!isMessengerOpen) return null;
@@ -734,12 +744,9 @@ export const MessengerPopover: React.FC = () => {
                 style={[
                   styles.dialogSaveBtn,
                   { backgroundColor: '#059669' },
-                  (!newGroupName.trim() || selectedFriendIds.length === 0) && {
-                    opacity: 0.5,
-                  },
                 ]}
                 onPress={handleCreateGroupSubmit}
-                disabled={!newGroupName.trim() || selectedFriendIds.length === 0}
+                activeOpacity={0.8}
               >
                 <Text
                   style={{

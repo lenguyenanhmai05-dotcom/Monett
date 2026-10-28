@@ -409,6 +409,24 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     // Gửi lên API server
     if (!isGroup) {
       try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem(
+            'monett_cross_tab_notif',
+            JSON.stringify({
+              type: 'message',
+              recipientId: convId,
+              senderId: currentUserId,
+              senderName: currentUserName,
+              senderAvatar: (user as any)?.avatarUrl || null,
+              text: currentText,
+              imageUrl: currentImg || null,
+              timestamp: Date.now(),
+            })
+          );
+        }
+      } catch {}
+
+      try {
         const savedMsg = await sendMessageApi(convId, currentText, currentImg || undefined);
         if (savedMsg && (savedMsg._id || savedMsg.id)) {
           const realId = String(savedMsg._id || savedMsg.id);

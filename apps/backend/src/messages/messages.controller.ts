@@ -28,6 +28,9 @@ export class MessagesController {
       imageUrl,
     );
 
+    const senderName = req.user?.fullName || req.user?.username || req.user?.email || 'Bạn bè';
+    const senderAvatar = req.user?.avatarUrl || null;
+
     const messagePayload = {
       _id: savedMsg._id.toString(),
       sender: senderId,
@@ -35,6 +38,8 @@ export class MessagesController {
       text,
       type: 'text',
       imageUrl,
+      senderName,
+      senderAvatar,
       createdAt: (savedMsg as any).createdAt || new Date().toISOString(),
     };
 
