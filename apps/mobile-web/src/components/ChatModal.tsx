@@ -20,6 +20,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSocket } from '../contexts/SocketContext';
 import { GroupIconSvg } from './GroupIconSvg';
+import { formatMessengerActiveTime } from '../utils/dateUtils';
 
 // ─── THEMES MESSENGER ────────────────────────────────────────────────────────
 export interface ChatTheme {
@@ -866,7 +867,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                       width: 7,
                       height: 7,
                       borderRadius: 3.5,
-                      backgroundColor: isOnline ? '#10B981' : isRecentlyActive ? '#F59E0B' : '#94A3B8',
+                      backgroundColor: isOnline ? '#10B981' : '#94A3B8',
                     }}
                   />
                   <Text
@@ -875,8 +876,6 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                       {
                         color: isOnline
                           ? '#10B981'
-                          : isRecentlyActive
-                          ? '#D97706'
                           : isDark
                           ? '#94A3B8'
                           : '#64748B',
@@ -885,7 +884,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                     ]}
                     numberOfLines={1}
                   >
-                    {isOnline ? 'Đang hoạt động' : isRecentlyActive ? 'Hoạt động gần đây' : 'Ngoại tuyến'}
+                    {formatMessengerActiveTime(friend, isOnline)}
                   </Text>
                 </>
               )}

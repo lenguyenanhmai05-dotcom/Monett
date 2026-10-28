@@ -10,6 +10,7 @@ import { getMomentsFeedApi, reactMomentApi, getMomentReactionsApi, deleteMomentA
 import { MomentFormModal, MomentChatModal, MomentItem, MomentCommentItem } from '../mobile/FriendsFeedScreen';
 import { GroupIconSvg, GROUP_ICONS_LIST } from '../../components/GroupIconSvg';
 import { useChat } from '../../contexts/ChatContext';
+import { formatMessengerActiveTime } from '../../utils/dateUtils';
 
 const TouchableAny = TouchableOpacity as any;
 
@@ -1635,7 +1636,7 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
         avatar: f.avatarUrl || f.avatar,
         icon: null,
         isOnline,
-        lastMessage: isOnline ? '🟢 Đang hoạt động' : `🔥 Chuỗi ${f.streak || 1} ngày`,
+        lastMessage: isOnline ? '🟢 Đang hoạt động' : formatMessengerActiveTime(f, isOnline),
         time: isOnline ? 'Online' : 'Gần đây',
         isPinned,
         unread: false,
@@ -1904,14 +1905,26 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
                 ) : (
                   friendsList.map((item, index) => {
                     const name = item.fullName || item.email || 'N';
+                    const isOnline = isFriendOnline(item);
+                    const activeText = formatMessengerActiveTime(item, isOnline);
                     return (
                       <View key={item._id || item.id || index} style={{ flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: isDark ? '#333' : '#F8FAFC', borderRadius: 12, marginBottom: 8 }}>
                         <Avatar uri={item.avatarUrl || item.avatar} name={name} size={48} />
                         <View style={{ flex: 1, marginLeft: 12 }}>
                           <Text style={{ fontWeight: '700', fontSize: 16, color: isDark ? '#F1F5F9' : '#1E293B' }}>{name}</Text>
-                          <Text style={{ color: '#D97706', fontSize: 13, marginTop: 4, fontWeight: '600' }}>
-                            🔥 Chuỗi {item.streak || 1} ngày
-                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                            <View
+                              style={{
+                                width: 7.5,
+                                height: 7.5,
+                                borderRadius: 4,
+                                backgroundColor: isOnline ? '#10B981' : '#94A3B8',
+                              }}
+                            />
+                            <Text style={{ color: isOnline ? '#10B981' : (isDark ? '#94A3B8' : '#64748B'), fontSize: 13, fontWeight: isOnline ? '700' : '500' }}>
+                              {activeText}
+                            </Text>
+                          </View>
                         </View>
                         <View style={{ flexDirection: 'row', gap: 8 }}>
                           <TouchableOpacity
@@ -2641,8 +2654,8 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
                         <Text style={{ fontSize: 13.5, fontWeight: '700', color: isDark ? '#FFFFFF' : '#0F172A' }}>
                           {fName}
                         </Text>
-                        <Text style={{ fontSize: 11, color: '#64748B' }}>
-                          🔥 Chuỗi {f.streak || 1} ngày
+                        <Text style={{ fontSize: 11, color: isFriendOnline(f) ? '#10B981' : '#64748B', fontWeight: isFriendOnline(f) ? '700' : '500' }}>
+                          {formatMessengerActiveTime(f, isFriendOnline(f))}
                         </Text>
                       </View>
                       <View

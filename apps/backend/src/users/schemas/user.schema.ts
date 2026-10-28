@@ -39,6 +39,9 @@ export class User {
   @Prop({ default: '' })
   lastActiveDate: string;
 
+  @Prop({ default: null })
+  lastActiveAt?: Date;
+
   // Tổng số ngày đã hoạt động (không bao giờ reset, kể cả khi mất chuỗi)
   @Prop({ default: 0 })
   totalActiveDays: number;

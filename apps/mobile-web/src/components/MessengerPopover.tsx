@@ -17,6 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useChat, ChatGroup } from '../contexts/ChatContext';
 import { GroupIconSvg, GROUP_ICONS_LIST } from './GroupIconSvg';
 import { normalizeAvatarUrl } from '../services/api';
+import { formatMessengerActiveTime } from '../utils/dateUtils';
 
 const Avatar: React.FC<{ uri?: string; name: string; size?: number }> = ({
   uri,
@@ -130,7 +131,7 @@ export const MessengerPopover: React.FC = () => {
         avatar: f.avatarUrl || f.avatar,
         icon: null,
         isOnline,
-        lastMessage: isOnline ? '🟢 Đang hoạt động' : `🔥 Chuỗi ${f.streak || 1} ngày`,
+        lastMessage: isOnline ? '🟢 Đang hoạt động' : formatMessengerActiveTime(f, isOnline),
         time: isOnline ? 'Online' : 'Gần đây',
         isPinned,
         unread: false,
@@ -693,8 +694,8 @@ export const MessengerPopover: React.FC = () => {
                         >
                           {fName}
                         </Text>
-                        <Text style={{ fontSize: 11, color: '#64748B' }}>
-                          🔥 Chuỗi {f.streak || 1} ngày
+                        <Text style={{ fontSize: 11, color: isFriendOnline(f) ? '#10B981' : '#64748B', fontWeight: isFriendOnline(f) ? '700' : '500' }}>
+                          {formatMessengerActiveTime(f, isFriendOnline(f))}
                         </Text>
                       </View>
                       <View
