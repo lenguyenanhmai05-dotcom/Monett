@@ -290,6 +290,11 @@ const WebMomentCard = ({
 }) => {
   const [showEmojis, setShowEmojis] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [imgErr, setImgErr] = useState(false);
+
+  useEffect(() => {
+    setImgErr(false);
+  }, [item.photo]);
   const emojiAnim = useRef(new Animated.Value(0)).current;
 
   const isOwner = item.user?.id === currentUserId;
@@ -339,7 +344,12 @@ const WebMomentCard = ({
 
       <TouchableOpacity onPress={toggleEmojis} activeOpacity={0.95}>
         <Image
-          source={{ uri: normalizeAvatarUrl(item.photo) || item.photo }}
+          source={{
+            uri: imgErr
+              ? 'https://res.cloudinary.com/dcrypf8zn/image/upload/v1793213012/monett_moments/wfjlbipnumdvxngc1map.jpg'
+              : (normalizeAvatarUrl(item.photo) || item.photo),
+          }}
+          onError={() => setImgErr(true)}
           style={cardStyles.photo}
           resizeMode="contain"
         />

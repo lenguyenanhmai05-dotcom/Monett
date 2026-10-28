@@ -7,6 +7,7 @@ import { Moment, MomentSchema } from './schemas/moment.schema';
 import { Friendship, FriendshipSchema } from '../friends/schemas/friendship.schema';
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { MessagesModule } from '../messages/messages.module';
+import { StorageModule } from '../storage/storage.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { MessagesModule } from '../messages/messages.module';
       { name: User.name, schema: UserSchema },
     ]),
     MessagesModule,
+    StorageModule,
   ],
   controllers: [MomentsController],
   providers: [MomentsService],

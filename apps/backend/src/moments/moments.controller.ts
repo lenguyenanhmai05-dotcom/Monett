@@ -17,12 +17,16 @@ import { diskStorage } from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';
 import { MomentsService } from './moments.service';
+import { StorageService } from '../storage/storage.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('api/moments')
 @UseGuards(JwtAuthGuard)
 export class MomentsController {
-  constructor(private readonly momentsService: MomentsService) {}
+  constructor(
+    private readonly momentsService: MomentsService,
+    private readonly storageService: StorageService,
+  ) {}
 
   private getUserId(req: any): string {
     return (req.user?._id || req.user?.id).toString();
@@ -59,6 +63,30 @@ export class MomentsController {
       throw new BadRequestException('Vui lòng chọn ảnh để tải lên');
     }
     const baseUrl = req.protocol + '://' + req.get('host');
+    // 1. Lưu trữ đám mây vĩnh viễn trên Cloudinary (CDN toàn cầu, không bao giờ mất ảnh)
+    try {
+      if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
+        let uploadFile = file;
+        if (!uploadFile.buffer && (uploadFile as any).path && fs.existsSync((uploadFile as any).path)) {
+          uploadFile = {
+            ...uploadFile,
+            buffer: fs.readFileSync((uploadFile as any).path),
+          } as any;
+        }
+        if (uploadFile.buffer) {
+          const result: any = await this.storageService.uploadImage(uploadFile);
+          if (result && result.secure_url) {
+            return {
+              message: 'Tải ảnh lên thành công',
+              photoUrl: result.secure_url,
+            };
+          }
+        }
+      }
+    } catch (error: any) {
+      console.warn('[Moments] Tải lên Cloudinary thất bại, chuyển sang lưu trữ cục bộ:', error?.message);
+    }
+
     const photoUrl = `${baseUrl}/uploads/${file.filename}`;
     return {
       message: 'Tải ảnh lên thành công',

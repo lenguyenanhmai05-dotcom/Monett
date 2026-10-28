@@ -131,6 +131,11 @@ export const MomentCard = ({
   const [isSendingReply, setIsSendingReply] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastAnim = useRef(new Animated.Value(0)).current;
+  const [imgErr, setImgErr] = useState(false);
+
+  useEffect(() => {
+    setImgErr(false);
+  }, [item.photo]);
   const isOwner = item.user?.id === currentUserId;
 
   const showToast = (msg: string) => {
@@ -209,7 +214,12 @@ export const MomentCard = ({
       {/* 3. Photo Container: Clean, unobstructed */}
       <View style={cardStyles.locketPhotoContainer}>
         <Image
-          source={{ uri: normalizeAvatarUrl(item.photo) || item.photo }}
+          source={{
+            uri: imgErr
+              ? 'https://res.cloudinary.com/dcrypf8zn/image/upload/v1793213012/monett_moments/wfjlbipnumdvxngc1map.jpg'
+              : (normalizeAvatarUrl(item.photo) || item.photo),
+          }}
+          onError={() => setImgErr(true)}
           style={cardStyles.locketPhoto}
           resizeMode="cover"
         />

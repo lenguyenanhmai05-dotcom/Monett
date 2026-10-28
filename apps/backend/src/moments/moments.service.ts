@@ -422,7 +422,7 @@ export class MomentsService {
     const demoItems = [
       {
         user: creatorId,
-        photo: 'https://baohaiquanvietnam.vn/storage/users/user_6/N%C4%83m%202022/thang%205-2022/22-5/16052022-anh-9.jpg',
+        photo: 'https://res.cloudinary.com/dcrypf8zn/image/upload/v1793213151/monett_moments/ch1tdokxbzzwdf1qsgeg.jpg',
         caption: 'Hướng tới du lịch biển xanh 🌊 Khám phá vẻ đẹp biển đảo quê hương và bảo vệ môi trường! 🏝️✨',
         amount: 0,
         category: '🏖️ Du lịch & Phượt',
@@ -430,7 +430,7 @@ export class MomentsService {
       },
       {
         user: creatorId,
-        photo: 'https://tripmap.vn/wp-content/uploads/2021/08/vinh-vinh-hy-16294461697-jpg-1024x668.webp',
+        photo: 'https://res.cloudinary.com/dcrypf8zn/image/upload/v1793213012/monett_moments/wfjlbipnumdvxngc1map.jpg',
         caption: 'Check-in Vịnh Vĩnh Hy - Ninh Thuận tuyệt đẹp! Nước biển trong xanh như ngọc bích 🚤🪸⛰️',
         amount: 0,
         category: '🏖️ Du lịch & Phượt',
