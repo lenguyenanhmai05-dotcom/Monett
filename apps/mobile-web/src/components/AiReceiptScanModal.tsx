@@ -41,6 +41,8 @@ interface AiReceiptScanModalProps {
   onClose: () => void;
   onApply: (data: AiReceiptScanResult) => void;
   initialPhotoUri?: string;
+  targetDate?: string;
+  targetDayNum?: number;
 }
 
 const RECEIPT_CATEGORIES = [
@@ -108,6 +110,8 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
   onClose,
   onApply,
   initialPhotoUri,
+  targetDate,
+  targetDayNum,
 }) => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 768;
@@ -125,7 +129,7 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
   const [amountStr, setAmountStr] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Ăn uống');
   const [categoryIcon, setCategoryIcon] = useState<string>('🍜');
-  const [date, setDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState<string>(() => targetDate || new Date().toISOString().split('T')[0]);
   const [time, setTime] = useState<string>(() => {
     const d = new Date();
     return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
@@ -139,15 +143,18 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
   });
   const [showApiKeySetting, setShowApiKeySetting] = useState<boolean>(false);
 
-  // Reset form when modal opens with initial photo
+  // Reset form when modal opens with initial photo & target date
   useEffect(() => {
     if (visible) {
       if (initialPhotoUri && !imageUri) {
         setImageUri(initialPhotoUri);
       }
+      if (targetDate) {
+        setDate(targetDate);
+      }
       setErrorMessage('');
     }
-  }, [visible, initialPhotoUri]);
+  }, [visible, initialPhotoUri, targetDate]);
 
   // Handle local file picking on Web & Mobile
   const handlePickImage = () => {
@@ -215,7 +222,8 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
         setSelectedCategory(cat);
         setCategoryIcon(matchCategoryIcon(cat));
 
-        if (res.date) {
+        // Giữ nguyên ngày ô lịch đã chọn (targetDate), chỉ cập nhật ngày nếu chưa có ngày mục tiêu
+        if (res.date && !targetDate) {
           setDate(res.date);
         }
         if (Array.isArray(res.items) && res.items.length > 0) {
@@ -716,9 +724,18 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
 
                 {/* 4. Thời gian trên hóa đơn */}
                 <View style={styles.fieldCard}>
-                  <Text style={styles.fieldLabel}>
-                    {language === 'vi' ? 'Thời gian chi tiêu' : 'Expense Date & Time'}
-                  </Text>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <Text style={styles.fieldLabel}>
+                      {language === 'vi' ? 'Thời gian chi tiêu' : 'Expense Date & Time'}
+                    </Text>
+                    {targetDayNum ? (
+                      <View style={{ backgroundColor: 'rgba(16, 185, 129, 0.12)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#059669' }}>
+                          {language === 'vi' ? `Lưu vào ô ngày ${targetDayNum}` : `Saving to Day ${targetDayNum}`}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <TextInput
                       style={[

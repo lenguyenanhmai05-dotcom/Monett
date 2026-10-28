@@ -2352,19 +2352,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
     if (data.photoUri) {
       setQuickPhotoUri(data.photoUri);
     }
-    if (data.date) {
-      try {
-        const parts = data.date.split('-');
-        if (parts.length === 3) {
-          const parsedDay = parseInt(parts[2], 10);
-          if (parsedDay >= 1 && parsedDay <= 31) {
-            setQuickDayNum(parsedDay);
-          }
-        }
-      } catch (err) {
-        console.warn('Error parsing date from receipt:', err);
-      }
-    }
+    // Giữ nguyên ô ngày (quickDayNum) mà người dùng đã chọn trên lịch, không để ngày cũ trên hóa đơn ghi đè
     if (data.time) {
       setQuickTimeStr(data.time);
     }
@@ -3636,6 +3624,8 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
         onClose={() => setShowAiScanModal(false)}
         onApply={handleApplyAiReceiptScan}
         initialPhotoUri={quickPhotoUri}
+        targetDate={`${pickerYear}-${String(pickerMonth + 1).padStart(2, '0')}-${String(quickDayNum).padStart(2, '0')}`}
+        targetDayNum={quickDayNum}
       />
 
       {/* ===================== 2. MODAL XEM TẤT CẢ CHI TIÊU CỦA NGÀY (SPLIT 2-COLUMN MASTER-DETAIL) ===================== */}
