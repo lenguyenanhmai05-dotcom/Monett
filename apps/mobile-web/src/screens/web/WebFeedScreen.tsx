@@ -903,42 +903,6 @@ const FINANCIAL_TIPS: FinancialTip[] = [
   },
 ];
 
-interface SavingChallenge {
-  id: string;
-  title: string;
-  targetDays: number;
-  emoji: string;
-  tagline: string;
-  description: string;
-}
-
-const SAVING_CHALLENGES: SavingChallenge[] = [
-  {
-    id: 'challenge_nosip',
-    title: '3 Ngày Tự Pha Nước / Không Mua Ngoài',
-    targetDays: 3,
-    emoji: '🥤',
-    tagline: 'Tiết kiệm ~150.000đ tuần này',
-    description: 'Tự mang bình nước hoặc uống nước lọc trong 3 ngày tuần này.',
-  },
-  {
-    id: 'challenge_homecook',
-    title: 'Nấu Ăn Tại Nhà 5 Bữa',
-    targetDays: 5,
-    emoji: '🍳',
-    tagline: 'Vừa khỏe mạnh vừa tiết kiệm',
-    description: 'Tự chuẩn bị cơm nhà thay vì đặt đồ ăn giao tận nơi.',
-  },
-  {
-    id: 'challenge_nospend',
-    title: 'Ngày Chủ Nhật Không Rút Ví (No-Spend Day)',
-    targetDays: 1,
-    emoji: '🌿',
-    tagline: 'Thanh lọc thói quen chi tiêu',
-    description: 'Một ngày trọn vẹn tận hưởng niềm vui giản dị mà không tốn tiền.',
-  },
-];
-
 export interface WebFeedScreenProps {
   initialTab?: 'feed' | 'chat' | 'friends';
 }
@@ -967,30 +931,8 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
     deleteConversation,
   } = useChat();
 
-  // ─── MẸO TÀI CHÍNH & THỬ THÁCH TIẾT KIỆM HÀNG TUẦN ───
+  // ─── MẸO TÀI CHÍNH THÔNG MINH HÀNG NGÀY ───
   const [tipIndex, setTipIndex] = useState(0);
-  const [challengeProgress, setChallengeProgress] = useState<number[]>(() => {
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const saved = window.localStorage.getItem('monett_saving_challenge_days');
-        if (saved) return JSON.parse(saved);
-      }
-    } catch {}
-    return [0, 1]; // Mặc định tích lũy sẵn 2 ngày đầu tuần
-  });
-  const [currentChallengeIndex, setCurrentChallengeIndex] = useState(0);
-
-  const handleToggleChallengeDay = (dayIdx: number) => {
-    setChallengeProgress((prev) => {
-      const next = prev.includes(dayIdx) ? prev.filter((d) => d !== dayIdx) : [...prev, dayIdx];
-      try {
-        if (typeof window !== 'undefined' && window.localStorage) {
-          window.localStorage.setItem('monett_saving_challenge_days', JSON.stringify(next));
-        }
-      } catch {}
-      return next;
-    });
-  };
 
   const handleNextTip = () => {
     setTipIndex((prev) => (prev + 1) % FINANCIAL_TIPS.length);
@@ -2443,7 +2385,7 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
                       backgroundColor: isDark ? '#1E293B' : currentTip.badgeBg,
                       borderWidth: 1,
                       borderColor: isDark ? '#334155' : 'rgba(5, 150, 105, 0.15)',
-                      marginBottom: 16,
+                      marginBottom: 0,
                     }}
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -2482,120 +2424,6 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
                         </Text>
                       </View>
                     )}
-                  </View>
-                );
-              })()}
-
-              {/* Đường phân cách */}
-              <View style={{ height: 1, backgroundColor: isDark ? '#334155' : '#F1F5F9', marginBottom: 14 }} />
-
-              {/* Phần 2: Thử thách tiết kiệm tuần này */}
-              {(() => {
-                const challenge = SAVING_CHALLENGES[currentChallengeIndex];
-                const daysCompleted = challengeProgress.length;
-                const isCompleted = daysCompleted >= challenge.targetDays;
-                const progressPercent = Math.min(100, Math.round((daysCompleted / challenge.targetDays) * 100));
-                const DAYS_OF_WEEK = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-
-                return (
-                  <View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 8 }}>
-                        <Text style={{ fontSize: 18 }}>{challenge.emoji}</Text>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 13.5, fontWeight: '800', color: isDark ? '#F8FAFC' : '#0F172A' }} numberOfLines={1}>
-                            Thử thách tuần này
-                          </Text>
-                          <Text style={{ fontSize: 11, color: isDark ? '#94A3B8' : '#64748B' }} numberOfLines={1}>
-                            {challenge.title}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View
-                        style={{
-                          paddingHorizontal: 7,
-                          paddingVertical: 3,
-                          borderRadius: 8,
-                          backgroundColor: isCompleted ? '#DCFCE7' : (isDark ? '#334155' : '#F1F5F9'),
-                        }}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 10.5,
-                            fontWeight: '800',
-                            color: isCompleted ? '#059669' : (isDark ? '#94A3B8' : '#64748B'),
-                          }}
-                        >
-                          {isCompleted ? '✓ Hoàn thành' : `${daysCompleted}/${challenge.targetDays} ngày`}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Thanh tiến độ */}
-                    <View style={{ width: '100%', height: 6, borderRadius: 3, backgroundColor: isDark ? '#334155' : '#F1F5F9', overflow: 'hidden', marginVertical: 8 }}>
-                      <View
-                        style={{
-                          width: `${progressPercent}%`,
-                          height: '100%',
-                          backgroundColor: isCompleted ? '#10B981' : '#059669',
-                          borderRadius: 3,
-                        }}
-                      />
-                    </View>
-
-                    {/* Dãy nút check-in các ngày trong tuần (T2 - CN) */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-                      {DAYS_OF_WEEK.map((day, idx) => {
-                        const isChecked = challengeProgress.includes(idx);
-                        return (
-                          <TouchableOpacity
-                            key={day}
-                            onPress={() => handleToggleChallengeDay(idx)}
-                            activeOpacity={0.7}
-                            style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: 8,
-                              backgroundColor: isChecked
-                                ? '#059669'
-                                : isDark
-                                ? '#1E293B'
-                                : '#F8FAFC',
-                              borderWidth: 1,
-                              borderColor: isChecked
-                                ? '#059669'
-                                : isDark
-                                ? '#334155'
-                                : '#E2E8F0',
-                              justifyContent: 'center',
-                              alignItems: 'center',
-                              position: 'relative',
-                            }}
-                          >
-                            <Text
-                              style={{
-                                fontSize: 10,
-                                fontWeight: '800',
-                                color: isChecked ? '#FFFFFF' : isDark ? '#94A3B8' : '#64748B',
-                                marginBottom: isChecked ? 4 : 0,
-                              }}
-                            >
-                              {day}
-                            </Text>
-                            {isChecked && (
-                              <View style={{ position: 'absolute', bottom: 2 }}>
-                                <Ionicons name="checkmark" size={10} color="#FFFFFF" />
-                              </View>
-                            )}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-
-                    <Text style={{ fontSize: 10.5, color: isDark ? '#64748B' : '#94A3B8', textAlign: 'center', marginTop: 9 }}>
-                      Chạm vào các ngày để check-in hoàn thành thử thách ✨
-                    </Text>
                   </View>
                 );
               })()}
