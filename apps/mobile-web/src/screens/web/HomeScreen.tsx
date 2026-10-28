@@ -2053,6 +2053,10 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
   const [quickTimeStr, setQuickTimeStr] = useState<string>('');
   const [isCompressingPhoto, setIsCompressingPhoto] = useState<boolean>(false);
   const [showAiScanModal, setShowAiScanModal] = useState<boolean>(false);
+  const [editingExpenseItem, setEditingExpenseItem] = useState<{
+    dayNum: number;
+    item: ExpenseItem;
+  } | null>(null);
 
   // Day Timeline Modal State (Xem tất cả chi tiêu của ngày)
   const [timelineModalVisible, setTimelineModalVisible] = useState<boolean>(false);
@@ -2343,6 +2347,83 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
   };
 
   const handleApplyAiReceiptScan = (data: AiReceiptScanResult) => {
+    // Trường hợp 1: Đang đổi ảnh / quét lại hóa đơn cho 1 khoản chi tiêu đã có
+    if (editingExpenseItem) {
+      const { dayNum, item } = editingExpenseItem;
+      const photoKey = `${currentYear}-${currentMonth + 1}-${dayNum}`;
+      const paddedKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+      const oldAmount = item.amount || 0;
+      const newAmount = data.amount > 0 ? data.amount : oldAmount;
+      const amountDelta = newAmount - oldAmount;
+
+      if (amountDelta !== 0) {
+        const updatedBudget = applyBudgetDelta(amountDelta, budget);
+        setBudget(updatedBudget);
+      }
+
+      setDayRecords((prev) => {
+        const existing = prev[photoKey] || prev[paddedKey];
+        if (!existing || !existing.items) return prev;
+        const updatedItems = existing.items.map((it) => {
+          if (it.id === item.id) {
+            return {
+              ...it,
+              amount: newAmount,
+              category: data.category || it.category,
+              categoryIcon: data.categoryIcon || it.categoryIcon,
+              note: data.supplier ? data.supplier : it.note,
+              photoUri: data.photoUri || it.photoUri,
+              time: data.time || it.time,
+            };
+          }
+          return it;
+        });
+
+        const totalAmount = updatedItems.reduce((sum, it) => sum + (it.amount || 0), 0);
+        const latestPhoto = (existing.photoUri === item.photoUri && data.photoUri) ? data.photoUri : existing.photoUri;
+
+        const updatedRecord: DayExpenseRecord = {
+          ...existing,
+          amount: totalAmount,
+          photoUri: latestPhoto,
+          items: updatedItems,
+        };
+
+        const next = { ...prev, [photoKey]: updatedRecord, [paddedKey]: updatedRecord };
+        saveDayRecordsToStorage(next, currentUserId);
+        return next;
+      });
+
+      setSelectedTimelineItem((prev) => {
+        if (!prev || prev.id !== item.id) return prev;
+        return {
+          ...prev,
+          amount: newAmount,
+          category: data.category || prev.category,
+          categoryIcon: data.categoryIcon || prev.categoryIcon,
+          note: data.supplier ? data.supplier : prev.note,
+          photoUri: data.photoUri || prev.photoUri,
+          time: data.time || prev.time,
+        };
+      });
+
+      if (item.id && !item.id.startsWith('exp-') && !item.id.startsWith('legacy-')) {
+        updateTransactionApi(item.id, {
+          amount: -Math.abs(newAmount),
+          category: data.category || item.category,
+          categoryIcon: data.categoryIcon || item.categoryIcon,
+          title: data.supplier || item.note,
+          note: data.supplier || item.note,
+          photoUri: data.photoUri || item.photoUri,
+        }).catch((err) => console.warn('Lỗi cập nhật backend:', err));
+      }
+
+      setEditingExpenseItem(null);
+      setShowAiScanModal(false);
+      return;
+    }
+
+    // Trường hợp 2: Thêm mới trong Quick Save modal
     if (data.amount > 0) {
       setQuickAmountStr(String(data.amount));
     }
@@ -2594,6 +2675,11 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
       iconColor: '#8B5CF6',
       metadata: { targetTab: 'home' },
     });
+  };
+
+  const handleOpenAiScanForExistingItem = (item: ExpenseItem) => {
+    setEditingExpenseItem({ dayNum: timelineDayNum, item });
+    setShowAiScanModal(true);
   };
 
   const handlePickPhotoForExpenseItem = (item: ExpenseItem) => {
@@ -3627,11 +3713,16 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
       {/* Modal Quét hóa đơn thông minh bằng AI */}
       <AiReceiptScanModal
         visible={showAiScanModal}
-        onClose={() => setShowAiScanModal(false)}
+        onClose={() => {
+          setShowAiScanModal(false);
+          setEditingExpenseItem(null);
+        }}
         onApply={handleApplyAiReceiptScan}
-        initialPhotoUri={quickPhotoUri}
-        targetDate={`${pickerYear}-${String(pickerMonth + 1).padStart(2, '0')}-${String(quickDayNum).padStart(2, '0')}`}
-        targetDayNum={quickDayNum}
+        initialPhotoUri={editingExpenseItem ? editingExpenseItem.item.photoUri : quickPhotoUri}
+        targetDate={editingExpenseItem
+          ? `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(editingExpenseItem.dayNum).padStart(2, '0')}`
+          : `${pickerYear}-${String(pickerMonth + 1).padStart(2, '0')}-${String(quickDayNum).padStart(2, '0')}`}
+        targetDayNum={editingExpenseItem ? editingExpenseItem.dayNum : quickDayNum}
       />
 
       {/* ===================== 2. MODAL XEM TẤT CẢ CHI TIÊU CỦA NGÀY (SPLIT 2-COLUMN MASTER-DETAIL) ===================== */}
@@ -3872,7 +3963,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                                 <TouchableOpacity
                                   style={styles.detailPhotoActionBtn}
-                                  onPress={() => handlePickPhotoForExpenseItem(activeItem)}
+                                  onPress={() => handleOpenAiScanForExistingItem(activeItem)}
                                   activeOpacity={0.85}
                                 >
                                   <Text style={styles.detailPhotoActionBtnText}>
@@ -3908,7 +3999,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
                             </Text>
                             <TouchableOpacity
                               style={styles.detailAttachPhotoBtn}
-                              onPress={() => handlePickPhotoForExpenseItem(activeItem)}
+                              onPress={() => handleOpenAiScanForExistingItem(activeItem)}
                               activeOpacity={0.85}
                             >
                               <Text style={styles.detailAttachPhotoBtnText}>
