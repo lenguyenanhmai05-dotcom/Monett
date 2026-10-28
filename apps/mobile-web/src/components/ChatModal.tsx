@@ -15,7 +15,14 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getMessagesApi, sendMessageApi, addMomentCommentApi, normalizeAvatarUrl } from '../services/api';
+import {
+  getMessagesApi,
+  sendMessageApi,
+  addMomentCommentApi,
+  normalizeAvatarUrl,
+  getGroupMessagesApi,
+  sendGroupMessageApi,
+} from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useSocket } from '../contexts/SocketContext';
@@ -334,10 +341,19 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     const localMsgs = getLocalStorageMessages();
 
     if (isGroup) {
-      // Nhóm chat dùng bộ nhớ local bền vững
-      const cleaned = deduplicateMessages(localMsgs);
-      setMessages(cleaned);
-      saveLocalStorageMessages(cleaned);
+      try {
+        const groupMsgs = await getGroupMessagesApi(convId);
+        const apiMsgs: Message[] = Array.isArray(groupMsgs) ? groupMsgs : [];
+        const combined = [...apiMsgs, ...localMsgs];
+        const mergedList = deduplicateMessages(combined);
+        setMessages(mergedList);
+        saveLocalStorageMessages(mergedList);
+      } catch (e) {
+        console.warn('Lỗi tải tin nhắn nhóm từ server:', e);
+        const cleaned = deduplicateMessages(localMsgs);
+        setMessages(cleaned);
+        saveLocalStorageMessages(cleaned);
+      }
       return;
     }
 
@@ -371,6 +387,63 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       return () => clearInterval(interval);
     }
   }, [visible, convId, isGroup]);
+
+  // ─── LẮNG NGHE TIN NHẮN REALTIME KHI ĐANG MỞ KHUNG CHAT ───
+  useEffect(() => {
+    if (!socket || !visible || !convId) return;
+
+    const handleIncomingGroupMsg = (msg: any) => {
+      if (isGroup && msg && String(msg.groupId) === String(convId)) {
+        setMessages((prev) => {
+          if (prev.some((m) => m._id === msg._id)) return prev;
+          const formatted: Message = {
+            _id: String(msg._id || Date.now()),
+            sender: String(msg.sender || ''),
+            senderName: msg.senderName,
+            receiver: convId,
+            text: msg.text || '',
+            imageUrl: msg.imageUrl,
+            bill: msg.bill,
+            createdAt: msg.createdAt || new Date().toISOString(),
+          };
+          const next = deduplicateMessages([...prev, formatted]);
+          saveLocalStorageMessages(next);
+          return next;
+        });
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+      }
+    };
+
+    const handleIncomingDirectMsg = (msg: any) => {
+      if (!isGroup && msg && (String(msg.sender) === String(convId) || String(msg.receiver) === String(convId))) {
+        setMessages((prev) => {
+          if (prev.some((m) => m._id === msg._id)) return prev;
+          const formatted: Message = {
+            _id: String(msg._id || Date.now()),
+            sender: String(msg.sender || ''),
+            senderName: msg.senderName,
+            receiver: convId,
+            text: msg.text || '',
+            imageUrl: msg.imageUrl,
+            bill: msg.bill,
+            createdAt: msg.createdAt || new Date().toISOString(),
+          };
+          const next = deduplicateMessages([...prev, formatted]);
+          saveLocalStorageMessages(next);
+          return next;
+        });
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+      }
+    };
+
+    socket.on('receive_group_message', handleIncomingGroupMsg);
+    socket.on('receive_message', handleIncomingDirectMsg);
+
+    return () => {
+      socket.off('receive_group_message', handleIncomingGroupMsg);
+      socket.off('receive_message', handleIncomingDirectMsg);
+    };
+  }, [socket, visible, convId, isGroup]);
 
   // ─── SEND MESSAGE ──────────────────────────────────────────────────────────
   const handleSend = async () => {
@@ -439,6 +512,23 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         }
       } catch (e) {
         console.warn('Failed to sync to API:', e);
+      }
+    }
+
+    if (isGroup) {
+      try {
+        const savedMsg = await sendGroupMessageApi(convId, currentText, currentImg || undefined);
+        if (savedMsg && (savedMsg._id || savedMsg.id)) {
+          const realId = String(savedMsg._id || savedMsg.id);
+          setMessages((prev) => {
+            const updated = prev.map((m) => (m._id === tempId ? { ...m, _id: realId } : m));
+            const deduplicated = deduplicateMessages(updated);
+            saveLocalStorageMessages(deduplicated);
+            return deduplicated;
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to sync group message to API:', e);
       }
     }
 
@@ -515,6 +605,11 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     const nextMsgs = [...messages, billMsg];
     setMessages(nextMsgs);
     saveLocalStorageMessages(nextMsgs);
+
+    if (isGroup) {
+      sendGroupMessageApi(convId, billMsg.text, undefined, newBill).catch(() => {});
+    }
+
     setShowSplitBillModal(false);
     setBillTitle('');
     setBillTotal('');

@@ -159,6 +159,15 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
     closeNotifications();
 
     if (notif.metadata?.openChat && notif.metadata?.friendId) {
+      if (notif.metadata?.isGroup) {
+        openChat({
+          id: notif.metadata.groupId || notif.metadata.friendId,
+          name: notif.metadata.friendName || 'Nhóm trò chuyện',
+          icon: 'users',
+          isGroup: true,
+        });
+        return;
+      }
       openChat({
         _id: notif.metadata.friendId,
         id: notif.metadata.friendId,

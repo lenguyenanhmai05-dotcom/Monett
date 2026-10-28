@@ -10,8 +10,17 @@ export class Message {
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
   sender: Types.ObjectId;
 
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
-  receiver: Types.ObjectId;
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false })
+  receiver?: Types.ObjectId;
+
+  @Prop({ type: String, required: false })
+  groupId?: string;
+
+  @Prop({ type: String, required: false })
+  senderName?: string;
+
+  @Prop({ type: String, required: false })
+  senderAvatar?: string;
 
   @Prop({ required: true })
   text: string;

@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { Platform } from 'react-native';
 import { useAuth } from './AuthContext';
 import { useSocket } from './SocketContext';
-import { getFriendsApi } from '../services/api';
+import { getFriendsApi, createChatGroupApi, getChatGroupsApi } from '../services/api';
 
 export interface ChatGroup {
   id: string;
@@ -182,11 +183,133 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // Tải danh sách nhóm trò chuyện từ server
+  const refreshGroups = useCallback(async () => {
+    try {
+      const serverGroups = await getChatGroupsApi();
+      if (Array.isArray(serverGroups) && serverGroups.length > 0) {
+        setChatGroups((prev) => {
+          const map = new Map<string, ChatGroup>();
+          // Giữ các nhóm hiện có
+          prev.forEach((g) => map.set(g.id, g));
+          // Cập nhật/thêm các nhóm từ server
+          serverGroups.forEach((sg: any) => {
+            const gId = String(sg._id || sg.id);
+            map.set(gId, {
+              id: gId,
+              name: sg.name,
+              icon: sg.icon || 'users',
+              memberIds: (sg.memberIds || []).map(String),
+              members: sg.members || [],
+              createdAt: sg.createdAt || new Date().toISOString(),
+              createdBy: String(sg.createdBy || ''),
+              isGroup: true,
+              lastMessage: sg.lastMessage || 'Nhóm trò chuyện 👥',
+            });
+          });
+          const combined = Array.from(map.values());
+          try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+              window.localStorage.setItem('monett_chat_groups', JSON.stringify(combined));
+            }
+          } catch {}
+          return combined;
+        });
+      }
+    } catch (e) {
+      console.warn('Error fetching groups in ChatContext:', e);
+    }
+  }, []);
+
   useEffect(() => {
     if (user) {
       refreshFriends();
+      refreshGroups();
     }
-  }, [user, refreshFriends]);
+  }, [user, refreshFriends, refreshGroups]);
+
+  // ─── LẮNG NGHE REALTIME KHI ĐƯỢC THÊM VÀO NHÓM HOẶC CÓ TIN NHẮN NHÓM MỚI ───
+  useEffect(() => {
+    const handleGroupCreated = (group: any) => {
+      if (!group) return;
+      const gId = String(group._id || group.id);
+      const formattedGroup: ChatGroup = {
+        id: gId,
+        name: group.name,
+        icon: group.icon || 'users',
+        memberIds: (group.memberIds || []).map(String),
+        members: group.members || [],
+        createdAt: group.createdAt || new Date().toISOString(),
+        createdBy: String(group.createdBy || ''),
+        isGroup: true,
+        lastMessage: group.lastMessage || 'Nhóm đã được tạo thành công!',
+      };
+
+      setChatGroups((prev) => {
+        if (prev.some((g) => g.id === gId)) return prev;
+        const next = [formattedGroup, ...prev];
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.setItem('monett_chat_groups', JSON.stringify(next));
+          }
+        } catch {}
+        return next;
+      });
+    };
+
+    const handleReceiveGroupMessage = (msg: any) => {
+      if (!msg || !msg.groupId) return;
+      const gId = String(msg.groupId);
+      setChatGroups((prev) => {
+        const next = prev.map((g) => {
+          if (g.id === gId) {
+            return {
+              ...g,
+              lastMessage: msg.text || (msg.imageUrl ? '[Hình ảnh]' : (msg.bill ? '[Chia bill]' : g.lastMessage)),
+            };
+          }
+          return g;
+        });
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.setItem('monett_chat_groups', JSON.stringify(next));
+          }
+        } catch {}
+        return next;
+      });
+    };
+
+    if (socket) {
+      socket.on('group_created', handleGroupCreated);
+      socket.on('receive_group_message', handleReceiveGroupMessage);
+    }
+
+    // Lắng nghe cross-tab trong cùng trình duyệt
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'monett_cross_tab_group_created' && e.newValue) {
+        try {
+          const item = JSON.parse(e.newValue);
+          if (item && item.recipientId === myId && item.group) {
+            handleGroupCreated(item.group);
+          }
+        } catch {}
+      }
+    };
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('storage', handleStorage);
+    }
+
+    return () => {
+      if (socket) {
+        socket.off('group_created', handleGroupCreated);
+        socket.off('receive_group_message', handleReceiveGroupMessage);
+      }
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+        window.removeEventListener('storage', handleStorage);
+      }
+    };
+  }, [socket, myId]);
 
   // Kiểm tra online chính xác
   const isFriendOnline = useCallback(
@@ -219,7 +342,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (refreshOnlineUsers) refreshOnlineUsers();
     if (socket?.connected) socket.emit('get_online_users');
     refreshFriends();
-  }, [refreshOnlineUsers, socket, refreshFriends]);
+    refreshGroups();
+  }, [refreshOnlineUsers, socket, refreshFriends, refreshGroups]);
 
   const closeMessenger = useCallback(() => {
     setIsMessengerOpen(false);
@@ -232,10 +356,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (refreshOnlineUsers) refreshOnlineUsers();
         if (socket?.connected) socket.emit('get_online_users');
         refreshFriends();
+        refreshGroups();
       }
       return next;
     });
-  }, [refreshOnlineUsers, socket, refreshFriends]);
+  }, [refreshOnlineUsers, socket, refreshFriends, refreshGroups]);
 
   const openChat = useCallback((friend: any, momentReply?: any) => {
     setIsMessengerOpen(false);
@@ -270,8 +395,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })),
     ];
 
+    const tempId = 'group_' + Date.now();
     const newGroup: ChatGroup = {
-      id: 'group_' + Date.now(),
+      id: tempId,
       name: name.trim(),
       icon: icon || 'users',
       memberIds: [myId, ...selectedFriendIds],
@@ -285,6 +411,54 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const nextGroups = [newGroup, ...chatGroups];
     saveChatGroups(nextGroups);
     openChat(newGroup);
+
+    // Lưu lên backend và bắn realtime Socket cho bạn bè
+    createChatGroupApi(name.trim(), icon || 'users', selectedFriendIds)
+      .then((serverGroup: any) => {
+        if (serverGroup && (serverGroup._id || serverGroup.id)) {
+          const realId = String(serverGroup._id || serverGroup.id);
+          const realGroup: ChatGroup = {
+            id: realId,
+            name: serverGroup.name,
+            icon: serverGroup.icon || 'users',
+            memberIds: (serverGroup.memberIds || []).map(String),
+            members: serverGroup.members || members,
+            createdAt: serverGroup.createdAt || newGroup.createdAt,
+            createdBy: String(serverGroup.createdBy || myId),
+            isGroup: true,
+            lastMessage: serverGroup.lastMessage || newGroup.lastMessage,
+          };
+          setChatGroups((prev) => {
+            const updated = prev.map((g) => (g.id === tempId ? realGroup : g));
+            saveChatGroups(updated);
+            return updated;
+          });
+          setActiveChatFriend((curr: any) => (curr?.id === tempId ? realGroup : curr));
+        }
+      })
+      .catch((err) => {
+        console.warn('Lỗi lưu nhóm lên API:', err);
+      });
+
+    // Bắn thông báo chéo qua localStorage cho test cùng trình duyệt
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        selectedFriendIds.forEach((friendId) => {
+          window.localStorage.setItem(
+            'monett_cross_tab_group_created',
+            JSON.stringify({
+              recipientId: friendId,
+              creatorId: myId,
+              creatorName: (user as any)?.fullName || 'Bạn bè',
+              creatorAvatar: (user as any)?.avatarUrl || null,
+              group: newGroup,
+              timestamp: Date.now(),
+            })
+          );
+        });
+      }
+    } catch {}
+
     return newGroup;
   }, [myId, user, friendsList, chatGroups, saveChatGroups, openChat]);
 

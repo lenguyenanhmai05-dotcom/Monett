@@ -884,6 +884,50 @@ export const sendMessageApi = async (receiverId: string, text: string, imageUrl?
   return (res as any).data || res;
 };
 
+// ─── NHÓM TRÒ CHUYỆN (GROUPS API) ───
+
+export const createChatGroupApi = async (name: string, icon: string, memberIds: string[]): Promise<any> => {
+  const res = await request<any>('/api/messages/groups', {
+    method: 'POST',
+    body: JSON.stringify({ name, icon, memberIds }),
+  });
+  return (res as any).data || res;
+};
+
+export const getChatGroupsApi = async (): Promise<any[]> => {
+  try {
+    const res = await request<any>('/api/messages/groups');
+    const data = (res as any)?.data !== undefined ? (res as any).data : res;
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+};
+
+export const sendGroupMessageApi = async (
+  groupId: string,
+  text: string,
+  imageUrl?: string,
+  billData?: any,
+): Promise<any> => {
+  const res = await request<any>(`/api/messages/groups/${groupId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ text, imageUrl, billData }),
+  });
+  return (res as any).data || res;
+};
+
+export const getGroupMessagesApi = async (groupId: string): Promise<any[]> => {
+  try {
+    const res = await request<any>(`/api/messages/groups/${groupId}/messages`);
+    const data = (res as any)?.data !== undefined ? (res as any).data : res;
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
+};
+
+
 // ============================================================
 // RECURRING BILLS & DEBTS APIS
 // ============================================================

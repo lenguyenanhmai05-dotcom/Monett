@@ -556,29 +556,53 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
     };
 
-    // 2. Nhận thông báo bình luận hoặc reaction bài viết từ bạn bè
+    // 2. Nhận thông báo bình luận, reaction bài viết hoặc nhóm trò chuyện từ bạn bè
     const handleMomentNotification = (data: any) => {
       if (!data) return;
-      const cName = data.commenterName || 'Bạn bè';
+      const cName = data.commenterName || data.creatorName || 'Bạn bè';
       const isReaction = data.type === 'reaction';
 
+      let notifTitle = '';
+      let notifMessage = '';
+      let notifIconBg = '#FFF7ED';
+      let notifIconColor = '#F97316';
+
+      if (data.type === 'group_invite') {
+        notifTitle = `${cName} đã thêm bạn vào nhóm 👥`;
+        notifMessage = `Bạn đã được thêm vào nhóm "${data.groupName || 'Mới'}"`;
+        notifIconBg = '#DCFCE7';
+        notifIconColor = '#059669';
+      } else if (data.type === 'group_message') {
+        notifTitle = `${data.groupName ? `[${data.groupName}] ` : ''}${cName} 💬`;
+        notifMessage = data.text || 'Đã gửi một tin nhắn vào nhóm';
+        notifIconBg = '#EEF2FF';
+        notifIconColor = '#4F46E5';
+      } else if (isReaction) {
+        notifTitle = `${cName} đã thả cảm xúc ${data.emoji || '❤️'}`;
+        notifMessage = data.caption ? `Trên bài viết: "${data.caption}"` : 'Đã bày tỏ cảm xúc với bài viết của bạn';
+        notifIconBg = '#FEF2F2';
+        notifIconColor = '#EF4444';
+      } else {
+        notifTitle = `Bình luận mới từ ${cName} 💬`;
+        notifMessage = data.text || 'Đã gửi phản hồi vào bài viết của bạn';
+      }
+
       addNotification({
-        id: `moment-${data.momentId || ''}-${Date.now()}`,
+        id: `notif-${data.momentId || data.groupId || ''}-${Date.now()}`,
         type: 'moment',
-        title: isReaction
-          ? `${cName} đã thả cảm xúc ${data.emoji || '❤️'}`
-          : `Bình luận mới từ ${cName} 💬`,
-        message: isReaction
-          ? (data.caption ? `Trên bài viết: "${data.caption}"` : 'Đã bày tỏ cảm xúc với bài viết của bạn')
-          : (data.text || 'Đã gửi phản hồi vào bài viết của bạn'),
+        title: notifTitle,
+        message: notifMessage,
         avatarUrl: data.commenterAvatar,
-        iconBg: isReaction ? '#FEF2F2' : '#FFF7ED',
-        iconColor: isReaction ? '#EF4444' : '#F97316',
+        iconBg: notifIconBg,
+        iconColor: notifIconColor,
         metadata: {
           momentId: data.momentId,
-          friendId: data.userId || data.commenterId,
-          friendName: cName,
+          friendId: data.groupId || data.userId || data.commenterId,
+          friendName: data.groupName || cName,
           targetTab: 'feed',
+          isGroup: !!data.groupId,
+          groupId: data.groupId,
+          openChat: !!data.groupId,
         },
       });
     };
@@ -586,6 +610,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (socket) {
       socket.on('receive_message', handleReceiveMessage);
       socket.on('moment_notification', handleMomentNotification);
+      socket.on('group_notification', handleMomentNotification);
     }
 
     // 3. Lắng nghe thông báo chéo giữa các tab trên cùng trình duyệt
