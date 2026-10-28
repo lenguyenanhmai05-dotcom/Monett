@@ -903,11 +903,19 @@ export const MomentFormModal = ({
                 </View>
 
                 {/* Kho ảnh mẫu */}
-                <View style={{ marginTop: 2, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Text style={createStyles.sectionLabel}>Kho ảnh mẫu ({samplePhotos.length})</Text>
-                  <Text style={{ fontSize: 11.5, color: '#94A3B8' }}>Bấm để chọn nhanh</Text>
+                <View style={{ marginTop: 6, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="images" size={15} color="#059669" />
+                    <Text style={[createStyles.sectionLabel, { marginBottom: 0 }]}>Kho ảnh mẫu ({samplePhotos.length})</Text>
+                  </View>
+                  <Text style={{ fontSize: 11.5, color: '#94A3B8', fontWeight: '500' }}>Bấm để chọn nhanh</Text>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ flexGrow: 0 }}
+                  contentContainerStyle={{ alignItems: 'flex-start', paddingVertical: 2, paddingHorizontal: 2 }}
+                >
                   <View style={createStyles.photosRow}>
                     {samplePhotos.map((item, idx) => {
                       const isSelected = selectedPhoto === item.uri;
@@ -1139,10 +1147,19 @@ export const MomentFormModal = ({
                 </View>
 
                 {/* Thư viện ảnh mẫu */}
-                <View style={{ marginTop: 4, marginBottom: 6 }}>
-                  <Text style={createStyles.sectionLabel}>Kho ảnh mẫu</Text>
+                <View style={{ marginTop: 4, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="images" size={15} color="#059669" />
+                    <Text style={[createStyles.sectionLabel, { marginBottom: 0 }]}>Kho ảnh mẫu ({samplePhotos.length})</Text>
+                  </View>
+                  <Text style={{ fontSize: 11.5, color: '#94A3B8', fontWeight: '500' }}>Bấm để chọn nhanh</Text>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ marginBottom: 14, flexGrow: 0 }}
+                  contentContainerStyle={{ alignItems: 'flex-start', paddingVertical: 2, paddingHorizontal: 2 }}
+                >
                   <View style={createStyles.photosRow}>
                     {samplePhotos.map((item, idx) => {
                       const isSelected = selectedPhoto === item.uri;
@@ -1480,48 +1497,56 @@ const createStyles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     paddingVertical: 4,
+    alignItems: 'flex-start',
   },
   photoThumbCard: {
-    width: 80,
-    borderRadius: 16,
+    width: 90,
+    height: 94,
+    borderRadius: 14,
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: '#E2E8F0',
     backgroundColor: '#FFFFFF',
-    alignItems: 'center',
     position: 'relative',
+    alignSelf: 'flex-start',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowRadius: 3,
+    elevation: 2,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', transition: 'all 0.18s ease' } : {}),
   },
   photoThumbCardActive: {
     borderColor: '#059669',
+    backgroundColor: '#ECFDF5',
     shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 4,
+    ...(Platform.OS === 'web' ? { transform: 'translateY(-2px)' } : {}),
   },
   photoThumbImg: {
     width: '100%',
-    height: 58,
+    height: 64,
     resizeMode: 'cover',
   },
   photoThumbLabelWrap: {
     width: '100%',
-    paddingVertical: 3,
+    height: 26,
     backgroundColor: '#F8FAFC',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
   },
   photoThumbLabelWrapActive: {
     backgroundColor: '#ECFDF5',
   },
   photoThumbLabel: {
     fontSize: 10.5,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#64748B',
+    textAlign: 'center',
   },
   photoThumbLabelActive: {
     color: '#047857',
@@ -1529,16 +1554,20 @@ const createStyles = StyleSheet.create({
   },
   photoThumbCheckCircle: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    top: 5,
+    right: 5,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: '#059669',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
   },
   catChip: {
     backgroundColor: '#F8FAFC',
