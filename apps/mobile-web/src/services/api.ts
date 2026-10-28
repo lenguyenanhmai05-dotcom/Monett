@@ -412,27 +412,12 @@ export const uploadReceiptApi = async (imageUri: string, mimeType: string = 'ima
   return normalizeAvatarUrl(json.url) || json.url;
 };
 
-export const scanReceiptOcrApi = async (imageUrl: string): Promise<any> => {
-  try {
-    const res = await request<any>('/api/ocr/scan', {
-      method: 'POST',
-      body: JSON.stringify({ imageUrl }),
-    });
-    return res.data;
-  } catch (err: any) {
-    console.warn('Backend OCR scan error, using smart fallback client-side:', err);
-    return {
-      supplier: 'Hóa đơn Cà phê & Ăn uống',
-      amount: 85000,
-      currency: 'VND',
-      date: new Date().toISOString().split('T')[0],
-      category: 'Ăn uống',
-      items: [
-        { name: 'Cà phê muối sữa Monett', quantity: 1, price: 35000, total: 35000 },
-        { name: 'Bánh Croissant bơ tỏi', quantity: 1, price: 50000, total: 50000 },
-      ],
-    };
-  }
+export const scanReceiptOcrApi = async (imageUrl: string, apiKey?: string): Promise<any> => {
+  const res = await request<any>('/api/ocr/scan', {
+    method: 'POST',
+    body: JSON.stringify({ imageUrl, apiKey }),
+  });
+  return res.data;
 };
 
 // Friends API

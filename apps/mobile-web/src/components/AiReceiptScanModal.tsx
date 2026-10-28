@@ -131,6 +131,13 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
     return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
   });
   const [items, setItems] = useState<AiReceiptItem[]>([]);
+  const [apiKeyInput, setApiKeyInput] = useState<string>(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return localStorage.getItem('monett_gemini_api_key') || '';
+    }
+    return '';
+  });
+  const [showApiKeySetting, setShowApiKeySetting] = useState<boolean>(false);
 
   // Reset form when modal opens with initial photo
   useEffect(() => {
@@ -195,8 +202,9 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
     setScanSuccess(false);
 
     try {
-      // Gọi OCR API (Gemini Vision backend hoặc fallback thông minh)
-      const res = await scanReceiptOcrApi(photoToScan);
+      const savedKey = typeof window !== 'undefined' ? localStorage.getItem('monett_gemini_api_key') : '';
+      const keyToUse = apiKeyInput.trim() || savedKey || undefined;
+      const res = await scanReceiptOcrApi(photoToScan, keyToUse);
 
       if (res) {
         const rawAmount = res.amount || 0;
@@ -220,16 +228,11 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
       }
     } catch (err: any) {
       console.warn('Lỗi quét hóa đơn:', err);
-      // Fallback thân thiện nếu có sự cố
-      setSupplier('Hóa đơn Cà phê & Ăn uống');
-      setAmountStr('85000');
-      setSelectedCategory('Cà phê & Nước');
-      setCategoryIcon('☕');
-      setItems([
-        { name: 'Cà phê muối sữa Monett', quantity: 1, price: 35000, total: 35000 },
-        { name: 'Bánh Croissant bơ tỏi', quantity: 1, price: 50000, total: 50000 },
-      ]);
-      setScanSuccess(true);
+      setErrorMessage(
+        language === 'vi'
+          ? 'Không thể đọc hóa đơn từ ảnh này. Vui lòng thử lại với ảnh rõ nét hơn hoặc cài đặt Gemini API Key bên dưới.'
+          : 'Could not scan receipt. Please try with a clearer photo or configure your Gemini API Key.'
+      );
     } finally {
       setIsScanning(false);
     }
@@ -517,6 +520,52 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
                       <Text style={styles.sampleChipText}>🛒 WinMart+ (168k)</Text>
                     </TouchableOpacity>
                   </View>
+                </View>
+
+                {/* Cài đặt Gemini API Key (Tùy chọn) */}
+                <View style={{ marginTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(148, 163, 184, 0.2)', paddingTop: 10 }}>
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 }}
+                    onPress={() => setShowApiKeySetting((v) => !v)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: isDark ? '#94A3B8' : '#64748B' }}>
+                      🔑 Cài đặt Google Gemini API Key (Miễn phí)
+                    </Text>
+                    <Text style={{ fontSize: 11, color: '#059669', fontWeight: '800' }}>
+                      {showApiKeySetting ? '▲ Đóng' : '▼ Cài đặt'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {showApiKeySetting && (
+                    <View style={{ marginTop: 6, padding: 10, borderRadius: 10, backgroundColor: isDark ? '#334155' : '#F1F5F9', gap: 6 }}>
+                      <Text style={{ fontSize: 10.5, color: '#64748B', lineHeight: 14 }}>
+                        Lấy API Key miễn phí tại <Text style={{ color: '#059669', fontWeight: '700' }}>aistudio.google.com</Text> để AI đọc ảnh với độ chính xác cao nhất:
+                      </Text>
+                      <TextInput
+                        style={{
+                          borderWidth: 1,
+                          borderColor: isDark ? '#475569' : '#CBD5E1',
+                          backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+                          color: isDark ? '#F8FAFC' : '#0F172A',
+                          borderRadius: 8,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          fontSize: 12,
+                        }}
+                        value={apiKeyInput}
+                        onChangeText={(txt) => {
+                          setApiKeyInput(txt);
+                          if (typeof window !== 'undefined') {
+                            localStorage.setItem('monett_gemini_api_key', txt.trim());
+                          }
+                        }}
+                        placeholder="Dán AIzaSy... vào đây"
+                        placeholderTextColor="#94A3B8"
+                        secureTextEntry
+                      />
+                    </View>
+                  )}
                 </View>
               </View>
 
