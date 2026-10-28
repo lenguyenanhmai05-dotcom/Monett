@@ -586,8 +586,22 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
               </View>
             </View>
 
-            <Text style={styles.statCardValuePastel} numberOfLines={1}>
-              {formatVND(stats.totalPaid)} <Text style={styles.currencySubPastel}>đ</Text>
+            <Text
+              style={[
+                styles.statCardValuePastel,
+                { color: activeTab === 'lent' ? '#047857' : '#991B1B' },
+              ]}
+              numberOfLines={1}
+            >
+              {formatVND(stats.totalPaid)}{' '}
+              <Text
+                style={[
+                  styles.currencySubPastel,
+                  { color: activeTab === 'lent' ? '#047857' : '#991B1B' },
+                ]}
+              >
+                đ
+              </Text>
             </Text>
 
             <Text
@@ -1532,7 +1546,7 @@ const styles = StyleSheet.create({
   statCardValuePastel: {
     fontSize: 30,
     fontWeight: '900',
-    color: '#221D18',
+    color: '#047857',
     letterSpacing: -0.5,
     marginTop: 10,
     marginBottom: 4,
@@ -1540,7 +1554,7 @@ const styles = StyleSheet.create({
   currencySubPastel: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#221D18',
+    color: '#047857',
   },
   statCardSubPastel: {
     fontSize: 13,
@@ -1554,7 +1568,7 @@ const styles = StyleSheet.create({
   statCardValueBlue: {
     fontSize: 30,
     fontWeight: '900',
-    color: '#221D18',
+    color: '#92400E',
     letterSpacing: -0.5,
     marginTop: 10,
     marginBottom: 4,
