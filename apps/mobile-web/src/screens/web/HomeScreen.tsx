@@ -2057,6 +2057,16 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
     dayNum: number;
     item: ExpenseItem;
   } | null>(null);
+  const [returnToTimelineOnScanClose, setReturnToTimelineOnScanClose] = useState<boolean>(false);
+
+  const handleCloseAiScanModal = () => {
+    setShowAiScanModal(false);
+    setEditingExpenseItem(null);
+    if (returnToTimelineOnScanClose) {
+      setReturnToTimelineOnScanClose(false);
+      setTimelineModalVisible(true);
+    }
+  };
 
   // Day Timeline Modal State (Xem tất cả chi tiêu của ngày)
   const [timelineModalVisible, setTimelineModalVisible] = useState<boolean>(false);
@@ -2418,6 +2428,10 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
         }).catch((err) => console.warn('Lỗi cập nhật backend:', err));
       }
 
+      if (returnToTimelineOnScanClose) {
+        setReturnToTimelineOnScanClose(false);
+        setTimelineModalVisible(true);
+      }
       setEditingExpenseItem(null);
       setShowAiScanModal(false);
       return;
@@ -2679,6 +2693,8 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
 
   const handleOpenAiScanForExistingItem = (item: ExpenseItem) => {
     setEditingExpenseItem({ dayNum: timelineDayNum, item });
+    setReturnToTimelineOnScanClose(true);
+    setTimelineModalVisible(false);
     setShowAiScanModal(true);
   };
 
@@ -3710,20 +3726,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
         </View>
       </Modal>
 
-      {/* Modal Quét hóa đơn thông minh bằng AI */}
-      <AiReceiptScanModal
-        visible={showAiScanModal}
-        onClose={() => {
-          setShowAiScanModal(false);
-          setEditingExpenseItem(null);
-        }}
-        onApply={handleApplyAiReceiptScan}
-        initialPhotoUri={editingExpenseItem ? editingExpenseItem.item.photoUri : quickPhotoUri}
-        targetDate={editingExpenseItem
-          ? `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(editingExpenseItem.dayNum).padStart(2, '0')}`
-          : `${pickerYear}-${String(pickerMonth + 1).padStart(2, '0')}-${String(quickDayNum).padStart(2, '0')}`}
-        targetDayNum={editingExpenseItem ? editingExpenseItem.dayNum : quickDayNum}
-      />
+
 
       {/* ===================== 2. MODAL XEM TẤT CẢ CHI TIÊU CỦA NGÀY (SPLIT 2-COLUMN MASTER-DETAIL) ===================== */}
       {(() => {
@@ -4179,6 +4182,18 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
           </View>
         </View>
       </Modal>
+
+      {/* ===================== 7. MODAL QUÉT HÓA ĐƠN THÔNG MINH BẰNG AI ===================== */}
+      <AiReceiptScanModal
+        visible={showAiScanModal}
+        onClose={handleCloseAiScanModal}
+        onApply={handleApplyAiReceiptScan}
+        initialPhotoUri={quickPhotoUri}
+        targetDate={editingExpenseItem
+          ? `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(editingExpenseItem.dayNum).padStart(2, '0')}`
+          : `${pickerYear}-${String(pickerMonth + 1).padStart(2, '0')}-${String(quickDayNum).padStart(2, '0')}`}
+        targetDayNum={editingExpenseItem ? editingExpenseItem.dayNum : quickDayNum}
+      />
     </ScrollView>
   );
 };

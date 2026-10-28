@@ -820,6 +820,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 16,
+    zIndex: 999999,
   },
   modalContainer: {
     borderRadius: 20,
@@ -828,9 +829,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.25,
     shadowRadius: 28,
-    elevation: 20,
+    elevation: 25,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
+    zIndex: 1000000,
   },
   modalDesktop: {
     width: 920,
