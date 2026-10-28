@@ -1590,7 +1590,6 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
                 <Text style={[styles.menuText, activeTab === 'feed' && styles.menuTextActive]}>Bảng tin</Text>
               </TouchableOpacity>
 
-
               {/* ĐOẠN CHAT (MESSENGER POPUP BUTTON) */}
               <TouchableOpacity
                 style={[styles.menuItem, isMessengerOpen && styles.menuItemActive]}
@@ -1598,24 +1597,13 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
                 activeOpacity={0.75}
               >
                 <Ionicons name="chatbubble-ellipses" size={20} color={isMessengerOpen ? "#059669" : "#64748B"} />
-                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginLeft: 12 }}>
-                  <Text style={[styles.menuText, { marginLeft: 0 }, isMessengerOpen && styles.menuTextActive]}>
-                    Đoạn chat
-                  </Text>
-                  <View style={styles.messengerNavBadge}>
-                    <Text style={styles.messengerNavBadgeText}>
-                      {chatGroups.length + friendsList.length > 0 ? (chatGroups.length + friendsList.length) : '•'}
-                    </Text>
-                  </View>
-                </View>
+                <Text style={[styles.menuText, isMessengerOpen && styles.menuTextActive]}>Đoạn chat</Text>
               </TouchableOpacity>
 
+              {/* BẠN BÈ */}
               <TouchableOpacity style={[styles.menuItem, activeTab === 'friends' && styles.menuItemActive]} onPress={() => setActiveTab('friends')}>
                 <Ionicons name="people" size={20} color={activeTab === 'friends' ? "#059669" : "#64748B"} />
-                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginLeft: 12 }}>
-                  <Text style={[styles.menuText, { marginLeft: 0 }, activeTab === 'friends' && styles.menuTextActive]}>Bạn bè</Text>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: activeTab === 'friends' ? '#059669' : '#64748B' }}>({friendsList.length})</Text>
-                </View>
+                <Text style={[styles.menuText, activeTab === 'friends' && styles.menuTextActive]}>Bạn bè</Text>
               </TouchableOpacity>
 
               {/* TẠO NHÓM */}
@@ -1629,13 +1617,8 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
                 }}
                 activeOpacity={0.75}
               >
-                <Ionicons name="people-circle" size={20} color="#059669" />
-                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginLeft: 12 }}>
-                  <Text style={styles.menuText}>Tạo nhóm</Text>
-                  <View style={styles.createGroupMiniBadge}>
-                    <Ionicons name="add" size={13} color="#FFFFFF" />
-                  </View>
-                </View>
+                <Ionicons name="person-add" size={20} color="#64748B" />
+                <Text style={styles.menuText}>Tạo nhóm</Text>
               </TouchableOpacity>
             </View>
 
