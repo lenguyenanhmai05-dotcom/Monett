@@ -138,6 +138,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const isSendingRef = useRef(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
   const [momentReply, setMomentReply] = useState<ChatMomentReplyData | null>(null);
@@ -254,6 +256,56 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   const displayName = nickname || rawFriendName;
 
   // ─── LOAD & SAVE LOCAL/API MESSAGES ─────────────────────────────────────────
+  const deduplicateMessages = (msgs: Message[]): Message[] => {
+    const result: Message[] = [];
+
+    for (const msg of msgs) {
+      if (!msg) continue;
+
+      const msgSender = String(msg.sender?._id || msg.sender || '');
+      const msgText = (msg.text || '').trim();
+      const msgImg = msg.imageUrl || '';
+      const msgTime = new Date(msg.createdAt).getTime();
+
+      const existingIndex = result.findIndex((existing) => {
+        // 1. Trùng chính xác _id
+        if (existing._id && msg._id && existing._id === msg._id) {
+          return true;
+        }
+
+        // 2. Hệ thống (biệt danh, thông báo)
+        if (existing.isSystem && msg.isSystem && existing.text === msg.text) {
+          return true;
+        }
+
+        // 3. Tin nhắn người dùng: cùng người gửi, cùng nội dung, cùng hình ảnh (hoặc cùng không ảnh),
+        // và gửi trong khoảng thời gian sát nhau (dưới 15 giây)
+        const existingSender = String(existing.sender?._id || existing.sender || '');
+        const existingText = (existing.text || '').trim();
+        const existingImg = existing.imageUrl || '';
+        const existingTime = new Date(existing.createdAt).getTime();
+
+        const sameSender = existingSender === msgSender;
+        const sameText = existingText === msgText;
+        const sameImg = existingImg === msgImg;
+        const closeTime = Math.abs(existingTime - msgTime) < 15000;
+
+        return sameSender && sameText && sameImg && closeTime;
+      });
+
+      if (existingIndex === -1) {
+        result.push(msg);
+      } else {
+        // Nếu đã có nhưng tin nhắn hiện tại mang MongoDB ID thật (không phải msg_...) thì cập nhật ID thật
+        if (msg._id && !msg._id.startsWith('msg_') && result[existingIndex]._id.startsWith('msg_')) {
+          result[existingIndex] = { ...result[existingIndex], _id: msg._id };
+        }
+      }
+    }
+
+    return result.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  };
+
   const getLocalStorageMessages = (): Message[] => {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
@@ -282,7 +334,9 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 
     if (isGroup) {
       // Nhóm chat dùng bộ nhớ local bền vững
-      setMessages(localMsgs);
+      const cleaned = deduplicateMessages(localMsgs);
+      setMessages(cleaned);
+      saveLocalStorageMessages(cleaned);
       return;
     }
 
@@ -290,20 +344,17 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       const data = await getMessagesApi(convId);
       const apiMsgs: Message[] = Array.isArray(data) ? data : [];
 
-      // Hợp nhất tin nhắn API & tin nhắn local (đính kèm ảnh, bill)
-      const mergedMap = new Map<string, Message>();
-      apiMsgs.forEach((m) => mergedMap.set(m._id, m));
-      localMsgs.forEach((m) => mergedMap.set(m._id, m));
-
-      const mergedList = Array.from(mergedMap.values()).sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
+      // Hợp nhất tin nhắn API & tin nhắn local (đính kèm ảnh, bill) và loại bỏ trùng lặp triệt để
+      const combined = [...apiMsgs, ...localMsgs];
+      const mergedList = deduplicateMessages(combined);
 
       setMessages(mergedList);
       saveLocalStorageMessages(mergedList);
     } catch (e) {
       console.warn('Lỗi tải tin nhắn từ server:', e);
-      setMessages(localMsgs);
+      const cleaned = deduplicateMessages(localMsgs);
+      setMessages(cleaned);
+      saveLocalStorageMessages(cleaned);
     }
   };
 
@@ -322,17 +373,23 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 
   // ─── SEND MESSAGE ──────────────────────────────────────────────────────────
   const handleSend = async () => {
+    if (isSendingRef.current) return;
     if ((!text.trim() && !attachedImage && !momentReply) || !convId) return;
+
+    isSendingRef.current = true;
+    setIsSending(true);
 
     const currentText = text.trim();
     const currentImg = attachedImage || (momentReply ? momentReply.photo : null);
     const replyTargetMoment = momentReply;
+    const tempId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+
     setText('');
     setAttachedImage(null);
     setMomentReply(null);
 
     const newMsg: Message = {
-      _id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      _id: tempId,
       sender: currentUserId,
       senderName: currentUserName,
       receiver: convId,
@@ -341,15 +398,26 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       createdAt: new Date().toISOString(),
     };
 
-    const nextMsgs = [...messages, newMsg];
-    setMessages(nextMsgs);
-    saveLocalStorageMessages(nextMsgs);
+    setMessages((prev) => {
+      const nextMsgs = deduplicateMessages([...prev, newMsg]);
+      saveLocalStorageMessages(nextMsgs);
+      return nextMsgs;
+    });
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
 
     // Gửi lên API server
     if (!isGroup) {
       try {
-        await sendMessageApi(convId, currentText, currentImg || undefined);
+        const savedMsg = await sendMessageApi(convId, currentText, currentImg || undefined);
+        if (savedMsg && (savedMsg._id || savedMsg.id)) {
+          const realId = String(savedMsg._id || savedMsg.id);
+          setMessages((prev) => {
+            const updated = prev.map((m) => (m._id === tempId ? { ...m, _id: realId } : m));
+            const deduplicated = deduplicateMessages(updated);
+            saveLocalStorageMessages(deduplicated);
+            return deduplicated;
+          });
+        }
       } catch (e) {
         console.warn('Failed to sync to API:', e);
       }
@@ -364,6 +432,11 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         console.warn('Failed to sync moment comment to API:', e);
       }
     }
+
+    setTimeout(() => {
+      isSendingRef.current = false;
+      setIsSending(false);
+    }, 400);
   };
 
   // ─── IMAGE PICKER (BROWSER / EXPO) ─────────────────────────────────────────
@@ -1031,10 +1104,10 @@ export const ChatModal: React.FC<ChatModalProps> = ({
               style={[
                 styles.sendButton,
                 { backgroundColor: activeTheme.primary },
-                !text.trim() && !attachedImage && { opacity: 0.5, backgroundColor: '#94A3B8' },
+                ((!text.trim() && !attachedImage) || isSending) && { opacity: 0.5, backgroundColor: '#94A3B8' },
               ]}
               onPress={handleSend}
-              disabled={!text.trim() && !attachedImage}
+              disabled={(!text.trim() && !attachedImage) || isSending}
               activeOpacity={0.85}
             >
               <Ionicons name="send" size={16} color="#FFFFFF" />
