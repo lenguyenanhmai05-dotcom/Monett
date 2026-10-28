@@ -607,7 +607,7 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
             </Text>
           </View>
 
-          {/* Card 3: Số khoản nợ (#B7D9F2 Pastel Sky Blue) */}
+          {/* Card 3: Số khoản nợ (#FEF3C7 Vàng nhạt thanh lịch) */}
           <View
             style={[
               styles.statCard,
@@ -617,7 +617,7 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
           >
             <View style={styles.statCardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <SvgBook size={15} color="#1E3A8A" />
+                <SvgBook size={15} color="#B45309" />
                 <Text style={styles.statCardLabelBlue}>
                   {isVi ? 'Số khoản' : 'Debts count'}
                 </Text>
@@ -1479,8 +1479,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   statCardBlue: {
-    backgroundColor: '#E0F2FE',
-    borderColor: '#BAE6FD',
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FDE68A',
     flex: 1,
   },
   statCardHeader: {
@@ -1549,7 +1549,7 @@ const styles = StyleSheet.create({
   statCardLabelBlue: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#1E3A8A',
+    color: '#B45309',
   },
   statCardValueBlue: {
     fontSize: 30,
@@ -1562,7 +1562,7 @@ const styles = StyleSheet.create({
   statCardSubBlue: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#1E3A8A',
+    color: '#B45309',
   },
 
   // 3. Section Header & Filters
