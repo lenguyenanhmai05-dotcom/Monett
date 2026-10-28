@@ -3115,11 +3115,11 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
               </TouchableOpacity>
             </View>
 
-            {/* Scrollable Container for Form (fluid height, no cramped inner box) */}
+            {/* Scrollable Container for Form (tight fit, no blank gap) */}
             <ScrollView
               showsVerticalScrollIndicator={false}
-              style={{ maxHeight: isDesktop ? 620 : 540 }}
-              contentContainerStyle={{ paddingBottom: 6 }}
+              style={{ flexGrow: 0, maxHeight: isDesktop ? 540 : 480 }}
+              contentContainerStyle={{ paddingBottom: 0 }}
             >
               <View style={[styles.quickSaveLayoutRow, !isDesktop && styles.quickSaveLayoutCol]}>
                 
@@ -3187,7 +3187,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
                   </View>
 
                   {/* 2. Danh mục chi tiêu */}
-                  <View style={[styles.quickSaveSectionCard, { marginTop: 14 }]}>
+                  <View style={[styles.quickSaveSectionCard, { marginTop: 10 }]}>
                     <View style={styles.sectionHeaderRow}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <View style={[styles.sectionIconBadge, { backgroundColor: isDark ? 'rgba(5, 150, 105, 0.2)' : '#ECFDF5' }]}>
@@ -3261,7 +3261,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
                 </View>
 
                 {/* ========== CỘT PHẢI (RIGHT COLUMN): NGÀY/GIỜ, GHI CHÚ, ẢNH HÓA ĐƠN ========== */}
-                <View style={[styles.quickSaveRightCol, !isDesktop && { width: '100%', marginTop: 14 }]}>
+                <View style={[styles.quickSaveRightCol, !isDesktop && { width: '100%', marginTop: 10 }]}>
                   {/* 3. Ngày & Giờ chi tiêu */}
                   <View style={styles.quickSaveSectionCard}>
                     <View style={styles.sectionHeaderRow}>
@@ -3441,7 +3441,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
                   </View>
 
                   {/* 4. Ghi chú / Tên món */}
-                  <View style={[styles.quickSaveSectionCard, { marginTop: 14 }]}>
+                  <View style={[styles.quickSaveSectionCard, { marginTop: 10 }]}>
                     <View style={styles.sectionHeaderRow}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <View style={[styles.sectionIconBadge, { backgroundColor: isDark ? 'rgba(100, 116, 139, 0.2)' : '#F1F5F9' }]}>
@@ -3468,7 +3468,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
                   </View>
 
                   {/* 5. Ảnh hóa đơn / khoảnh khắc */}
-                  <View style={[styles.quickSaveSectionCard, { marginTop: 14 }]}>
+                  <View style={[styles.quickSaveSectionCard, { marginTop: 10 }]}>
                     <View style={styles.sectionHeaderRow}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <View style={[styles.sectionIconBadge, { backgroundColor: isDark ? 'rgba(5, 150, 105, 0.2)' : '#ECFDF5' }]}>
@@ -4930,21 +4930,21 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     borderColor: isDark ? '#334155' : '#E2E8F0',
   },
   quickSaveModalCardDesktop: {
-    maxWidth: 960,
-    padding: 26,
-    borderRadius: 24,
+    maxWidth: 920,
+    padding: 20,
+    borderRadius: 22,
   },
   quickSaveModalCardMobile: {
     maxWidth: 520,
-    padding: 18,
+    padding: 16,
     borderRadius: 20,
   },
   quickSaveHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 18,
-    paddingBottom: 14,
+    marginBottom: 10,
+    paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: isDark ? '#334155' : '#F1F5F9',
   },
@@ -5032,8 +5032,8 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   },
   quickSaveSectionCard: {
     backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 14,
+    padding: 11,
     borderWidth: 1,
     borderColor: isDark ? '#1E293B' : '#EDF2F7',
   },
@@ -5394,63 +5394,63 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    borderWidth: 2,
+    gap: 4,
+    borderWidth: 1.5,
     borderStyle: 'dashed',
     borderColor: isDark ? '#059669' : '#10B981',
     backgroundColor: isDark ? 'rgba(5, 150, 105, 0.08)' : 'rgba(5, 150, 105, 0.035)',
-    borderRadius: 16,
-    paddingVertical: 22,
-    paddingHorizontal: 16,
-    marginTop: 8,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginTop: 6,
     cursor: 'pointer' as any,
   },
   quickPhotoUploadIconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: isDark ? 'rgba(5, 150, 105, 0.25)' : '#DCFCE7',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 2,
+    marginBottom: 1,
     shadowColor: '#059669',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
   },
   quickPhotoUploadCardTitle: {
-    fontSize: 13.5,
+    fontSize: 12.5,
     fontWeight: '800',
     color: '#059669',
     textAlign: 'center',
   },
   quickPhotoUploadCardSub: {
-    fontSize: 11.5,
+    fontSize: 10.5,
     color: '#64748B',
     fontWeight: '500',
     textAlign: 'center',
-    lineHeight: 16,
+    lineHeight: 14,
   },
   quickPhotoFormatPill: {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : '#F1F5F9',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 12,
-    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginTop: 2,
   },
   quickPhotoFormatPillText: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontWeight: '700',
     color: '#64748B',
   },
   quickSaveAiScanBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 14,
+    gap: 8,
+    marginTop: 6,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 12,
     borderWidth: 1.5,
     borderColor: isDark ? '#059669' : '#10B981',
     backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : '#F0FDF4',
@@ -5462,32 +5462,32 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     cursor: 'pointer' as any,
   },
   quickSaveAiScanIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     backgroundColor: isDark ? 'rgba(16, 185, 129, 0.25)' : '#DCFCE7',
     justifyContent: 'center',
     alignItems: 'center',
   },
   quickSaveAiScanTitle: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '800',
     color: isDark ? '#34D399' : '#059669',
   },
   quickSaveAiBadge: {
     backgroundColor: '#10B981',
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 5,
   },
   quickSaveAiBadgeText: {
     color: '#FFFFFF',
-    fontSize: 9.5,
+    fontSize: 9,
     fontWeight: '900',
     letterSpacing: 0.3,
   },
   quickSaveAiScanSubtitle: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: '#64748B',
     marginTop: 1,
     fontWeight: '500',
@@ -5597,12 +5597,12 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 18,
-    paddingTop: 14,
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: isDark ? '#334155' : '#F1F5F9',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
   },
   quickSaveFooterTip: {
     flex: 1,
