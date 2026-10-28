@@ -60,7 +60,7 @@ export class OcrService {
             "items": [{"name": "string", "quantity": 1, "price": 0, "total": 0}]
           }
           Quy tắc:
-          - "amount": Tổng số tiền phải trả (số nguyên, ví dụ 6479000, không chứa dấu phẩy hay chữ).
+          - "amount": Tổng số tiền thực tế khách phải trả (Net Total / Final Amount) sau khi đã trừ giảm giá / chiết khấu / voucher và cộng VAT (nếu có). TUYỆT ĐỐI KHÔNG lấy tiền khách đưa, KHÔNG lấy tiền thối / tiền thừa, KHÔNG lấy số tiền trước giảm giá. Trả về số nguyên ví dụ 85000.
           - "supplier": Tên công ty / quán / cửa hàng trên hóa đơn (ví dụ "Công ty TNHH Công Nghệ KEKO Việt Nam", "Highlands Coffee").
           - "date": Ngày trên hóa đơn dạng YYYY-MM-DD (ví dụ "2022-11-07").
           - "category": Chọn 1 trong các danh mục: "Ăn uống", "Cà phê & Nước", "Đi chợ & Siêu thị", "Mua sắm", "Di chuyển & Xăng", "Hóa đơn", "Nhà cửa & Phòng", "Giải trí", "Y tế & Sức khỏe", "Làm đẹp & Bản thân", "Học tập & Sách", "Khác".
@@ -177,7 +177,7 @@ export class OcrService {
       date = `${year}-${month}-${day}`;
     }
 
-    // 3. Tách các dòng KHÔNG PHẢI LÀ SỐ ĐIỆN THOẠI, MÃ SỐ THUẾ, SỐ PHIẾU
+    // 3. Tách các dòng KHÔNG PHẢI LÀ SỐ ĐIỆN THOẠI, MÃ SỐ THUẾ, SỐ PHIẾU, TIỀN THỐI/THỪA
     const safeLines = rawLines.filter((line) => {
       // Bỏ dòng điện thoại
       if (/^(?:ĐT|Điện thoại|Tel|Hotline|Fax|Phone)[:\s]/i.test(line)) return false;
@@ -185,18 +185,36 @@ export class OcrService {
       if (/^(?:Số|Số phiếu|Mã|MST|Mã số thuế|Bàn|Giờ|In lúc)[:\s]/i.test(line)) return false;
       // Bỏ số điện thoại bắt đầu bằng 0 (09xx, 08xx, 07xx, 03xx, 05xx)
       if (/^0[35789]\d{1,2}[.\s]?\d{3}[.\s]?\d{3,4}/.test(line)) return false;
+      // Bỏ các dòng tiền thối / tiền thừa / tiền trả lại khách
+      if (/(?:tiền thối|tiền thừa|tiền trả lại|trả lại khách|thối lại|change)[:\s]/i.test(line)) return false;
       return true;
     });
 
     const safeText = safeLines.join('\n');
 
-    // 4. Tìm số tiền tổng (Tổng cộng, Tổng, Tiền hàng, Thanh toán, Khách đưa)
+    // 4. Tìm số tiền tổng theo cấp độ ưu tiên chính xác
     let amount = 0;
 
-    // Pattern A: Dòng chứa "Tổng:" hoặc "Tổng cộng:" theo sau ngay bởi số tiền
-    const inlineTotalMatch = safeText.match(/(?:tổng cộng|tổng tiền|tiền hàng|thanh toán|khách đưa)[^0-9\r\n]*([0-9]{1,3}(?:[.,][0-9]{3})+)/i);
-    if (inlineTotalMatch) {
-      amount = parseInt(inlineTotalMatch[1].replace(/\D/g, ''), 10);
+    // Cấp 1: Cụm từ chốt thanh toán sau khi đã trừ giảm giá / khuyến mãi
+    const primaryTotalMatch = safeText.match(/(?:tổng cộng thanh toán|tổng thanh toán|tổng cộng|cần thanh toán|thanh toán|phải trả|khách phải trả|tổng tiền|tổng bill)[^0-9\r\n]*([0-9]{1,3}(?:[.,][0-9]{3})+)/i);
+    if (primaryTotalMatch) {
+      amount = parseInt(primaryTotalMatch[1].replace(/\D/g, ''), 10);
+    }
+
+    // Cấp 2: Từ khóa "Tổng:" hoặc "Total:" trên 1 dòng
+    if (!amount) {
+      const secondaryTotalMatch = safeText.match(/(?:^|\n)\s*(?:tổng|total|t\.tiền)\s*[:\s]*([0-9]{1,3}(?:[.,][0-9]{3})+)/i);
+      if (secondaryTotalMatch) {
+        amount = parseInt(secondaryTotalMatch[1].replace(/\D/g, ''), 10);
+      }
+    }
+
+    // Cấp 3: Dòng "Tiền hàng" (khi hóa đơn không có mục chiết khấu riêng)
+    if (!amount) {
+      const tienHangMatch = safeText.match(/(?:tiền hàng)[^0-9\r\n]*([0-9]{1,3}(?:[.,][0-9]{3})+)/i);
+      if (tienHangMatch) {
+        amount = parseInt(tienHangMatch[1].replace(/\D/g, ''), 10);
+      }
     }
 
     // Pattern B: Dòng có "Tổng:" rồi số tiền ở cuối hóa đơn hoặc sau dòng "Tổng:"
@@ -236,10 +254,11 @@ export class OcrService {
       }
     }
 
-    // Pattern D: Lấy số tiền hợp lý lớn nhất trong các dòng an toàn (loại bỏ SĐT)
+    // Pattern D: Lấy số tiền hợp lý lớn nhất trong các dòng an toàn (loại bỏ SĐT, giảm giá, điểm tích lũy)
     if (!amount) {
       const moneyList: number[] = [];
       for (const l of safeLines) {
+        if (/giảm giá|chiết khấu|voucher|khuyến mãi|điểm|tích lũy/i.test(l)) continue;
         const matches = [...l.matchAll(/([0-9]{1,3}(?:[.,][0-9]{3})+)/g)];
         for (const m of matches) {
           const val = parseInt(m[1].replace(/\D/g, ''), 10);
