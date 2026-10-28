@@ -1802,7 +1802,7 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 8 }}>
                 <TextInput
                   style={{ flex: 1, backgroundColor: isDark ? '#333' : '#F1F5F9', borderRadius: 8, paddingHorizontal: 16, paddingVertical: 10, color: isDark ? '#FFF' : '#000' }}
-                  placeholder="Nhập ID kết bạn..."
+                  placeholder="Nhập ID (6 ký tự) kết bạn..."
                   placeholderTextColor={isDark ? '#94A3B8' : '#64748B'}
                   value={friendIdInput}
                   onChangeText={setFriendIdInput}

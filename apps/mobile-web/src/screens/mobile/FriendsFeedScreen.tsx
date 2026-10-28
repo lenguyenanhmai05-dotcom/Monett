@@ -2830,7 +2830,7 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void; onNavigateToMess
       <InviteModal
         visible={showInvite}
         onClose={() => setShowInvite(false)}
-        userId={myId}
+        userId={user?.shortId || myId}
         onSuccess={loadData}
         isVi={isVi}
       />

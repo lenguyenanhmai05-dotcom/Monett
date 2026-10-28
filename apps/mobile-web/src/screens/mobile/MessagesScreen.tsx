@@ -332,7 +332,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
         getFriendsApi().catch(() => []),
         getFriendRequestsApi().catch(() => []),
       ]);
-      const myId = user?.id || (user as any)?._id || '';
+      const myId = user?.shortId || user?.id || (user as any)?._id || '';
       const normalized = ((friends as any[]) || []).map((f: any) => {
         const friend = (f.requester || f.recipient)
           ? ((f.requester?._id === myId || f.requester?.id === myId) ? f.recipient : f.requester)
@@ -395,7 +395,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
 
   // ── Sao chép ID cá nhân ──
   const handleCopyId = async () => {
-    const myId = user?.id || (user as any)?._id || '';
+    const myId = user?.shortId || user?.id || (user as any)?._id || '';
     if (myId) {
       if (typeof navigator !== 'undefined' && navigator.clipboard) {
         try {
@@ -1828,7 +1828,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
                     <View style={styles.qrCodeWrapper}>
                       <View style={styles.qrCodeBox}>
                         <QRCode
-                          value={user?.id || (user as any)?._id || 'monett-user'}
+                          value={user?.shortId || user?.id || (user as any)?._id || 'monett-user'}
                           size={156}
                           fgColor="#047857"
                         />
@@ -1838,7 +1838,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
                     <View style={styles.userIdDisplayBox}>
                       <Text style={styles.userIdLabel}>{isVi ? 'ID Monett của bạn:' : 'Your Monett ID:'}</Text>
                       <Text style={styles.userIdText} numberOfLines={1} selectable>
-                        {user?.id || (user as any)?._id || '...'}
+                        {user?.shortId || (user?.id ? user.id.slice(0, 6).toUpperCase() : '...')}
                       </Text>
                       <TouchableOpacity
                         style={styles.copyIdBtn}

@@ -303,7 +303,7 @@ export const ProfileScreen: React.FC = () => {
 
 
   const handleCopyId = () => {
-    const idToCopy = user?.id || (user as any)?._id;
+    const idToCopy = user?.shortId || user?.id || (user as any)?._id;
     if (idToCopy && typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(idToCopy).then(() => {
         setCopiedId(true);
@@ -469,10 +469,12 @@ export const ProfileScreen: React.FC = () => {
             </View>
             <View style={styles.qrContainer}>
               <View style={styles.qrFrame}>
-                <QRCode value={user?.id || 'monett-user'} size={150} fgColor="#047857" />
+                <QRCode value={user?.shortId || user?.id || 'monett-user'} size={150} fgColor="#047857" />
               </View>
               <Text style={styles.userIdDisplay}>ID của bạn:</Text>
-              <Text style={[styles.userIdBold, { fontSize: 12, marginBottom: 16, textAlign: 'center', flexWrap: 'wrap' }]}>{user?.id || 'loading...'}</Text>
+              <Text style={[styles.userIdBold, { fontSize: 24, letterSpacing: 4, fontWeight: '800', color: '#047857', marginBottom: 14, textAlign: 'center' }]}>
+                {user?.shortId || (user?.id ? user.id.slice(0, 6).toUpperCase() : '...')}
+              </Text>
               <TouchableOpacity
                 style={[styles.actionBtnSoft, copiedId && { backgroundColor: isDark ? '#064E3B' : '#ECFDF5', borderColor: '#10B981' }]}
                 onPress={handleCopyId}
@@ -488,7 +490,7 @@ export const ProfileScreen: React.FC = () => {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <TextInput 
                     style={[styles.textInput, { flex: 1, paddingVertical: 10, paddingHorizontal: 16, fontSize: 14 }]} 
-                    placeholder={language === 'vi' ? 'Nhập ID bạn bè...' : 'Enter friend ID...'}
+                    placeholder={language === 'vi' ? 'Nhập ID (6 ký tự) bạn bè...' : 'Enter 6-char friend ID...'}
                     placeholderTextColor={isDark ? '#475569' : '#94A3B8'}
                     value={friendIdInput}
                     onChangeText={(val) => {

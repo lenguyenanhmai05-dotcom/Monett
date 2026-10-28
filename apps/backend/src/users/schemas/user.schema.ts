@@ -60,6 +60,10 @@ export class User {
 
   @Prop({ default: false })
   isPro: boolean;
+
+  // Mã ID kết bạn 6 ký tự (cả chữ cả số, ví dụ M8K2F9)
+  @Prop({ default: null, unique: true, sparse: true, uppercase: true, trim: true })
+  shortId?: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
@@ -68,6 +72,7 @@ export const UserSchema = SchemaFactory.createForClass(User);
 UserSchema.set('toJSON', {
   transform: (doc, ret: any) => {
     ret.id = ret._id ? ret._id.toString() : ret.id;
+    ret.shortId = doc.shortId || ret.shortId;
     delete ret._id;
     delete ret.__v;
     delete ret.password;

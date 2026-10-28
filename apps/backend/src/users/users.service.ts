@@ -23,7 +23,27 @@ export class UsersService {
     @InjectModel(Moment.name) private readonly momentModel: Model<MomentDocument>,
   ) {}
 
+  async generateUniqueShortId(): Promise<string> {
+    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    let code = '';
+    let exists = true;
+    while (exists) {
+      code = '';
+      for (let i = 0; i < 6; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      const found = await this.userModel.findOne({ shortId: code }).exec();
+      if (!found) {
+        exists = false;
+      }
+    }
+    return code;
+  }
+
   async create(userData: Partial<User>): Promise<UserDocument> {
+    if (!userData.shortId) {
+      userData.shortId = await this.generateUniqueShortId();
+    }
     const newUser = new this.userModel(userData);
     return newUser.save();
   }
@@ -32,6 +52,10 @@ export class UsersService {
     const user = await this.userModel.findOne({ email: email.toLowerCase().trim() }).exec();
     if (user && isSystemAdminEmail(user.email) && user.role !== UserRole.ADMIN) {
       user.role = UserRole.ADMIN;
+      await user.save();
+    }
+    if (user && !user.shortId) {
+      user.shortId = await this.generateUniqueShortId();
       await user.save();
     }
     return user;
@@ -43,6 +67,10 @@ export class UsersService {
       user.role = UserRole.ADMIN;
       await user.save();
     }
+    if (user && !user.shortId) {
+      user.shortId = await this.generateUniqueShortId();
+      await user.save();
+    }
     return user;
   }
 
@@ -50,6 +78,10 @@ export class UsersService {
     const user = await this.userModel.findOne({ googleId }).exec();
     if (user && isSystemAdminEmail(user.email) && user.role !== UserRole.ADMIN) {
       user.role = UserRole.ADMIN;
+      await user.save();
+    }
+    if (user && !user.shortId) {
+      user.shortId = await this.generateUniqueShortId();
       await user.save();
     }
     return user;
@@ -79,7 +111,11 @@ export class UsersService {
       if (needsSave) {
         await user.save();
       }
-      return user;
+      if (user && !user.shortId) {
+      user.shortId = await this.generateUniqueShortId();
+      await user.save();
+    }
+    return user;
     }
 
     // 2. Nếu chưa có googleId, kiểm tra email đã đăng ký chưa

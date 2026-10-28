@@ -2,26 +2,57 @@ import { Injectable, BadRequestException, NotFoundException } from '@nestjs/comm
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Friendship } from './schemas/friendship.schema';
+import { User, UserDocument } from '../users/schemas/user.schema';
 
 @Injectable()
 export class FriendsService {
   constructor(
     @InjectModel(Friendship.name) private friendshipModel: Model<Friendship>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
   ) {}
 
-  async sendFriendRequest(requesterId: string, recipientId: string) {
+  async sendFriendRequest(requesterId: string, recipientInput: string) {
+    if (!recipientInput || !recipientInput.trim()) {
+      throw new BadRequestException('Vui lòng nhập ID bạn bè');
+    }
+
+    const cleanedInput = recipientInput.trim().replace(/^#/, '');
+
+    // 1. Tìm người dùng nhận lời mời (Recipient) theo Short ID (6 ký tự) hoặc ObjectId hoặc Email
+    let recipientUser: UserDocument | null = null;
+
+    // Tìm theo 6 ký tự Short ID (không phân biệt hoa thường)
+    if (cleanedInput.length === 6) {
+      recipientUser = await this.userModel.findOne({
+        shortId: { $regex: new RegExp(`^${cleanedInput}$`, 'i') },
+      }).exec();
+    }
+
+    // Nếu không khớp shortId 6 ký tự, thử tìm theo MongoDB ObjectId
+    if (!recipientUser && Types.ObjectId.isValid(cleanedInput)) {
+      recipientUser = await this.userModel.findById(cleanedInput).exec();
+    }
+
+    // Nếu người dùng nhập email
+    if (!recipientUser && cleanedInput.includes('@')) {
+      recipientUser = await this.userModel.findOne({
+        email: cleanedInput.toLowerCase(),
+      }).exec();
+    }
+
+    if (!recipientUser) {
+      throw new NotFoundException('Không tìm thấy người dùng với mã ID này. Vui lòng kiểm tra lại!');
+    }
+
+    const recipientId = recipientUser._id.toString();
+
     if (requesterId === recipientId) {
+
       throw new BadRequestException('Không thể tự gửi lời mời kết bạn cho chính mình');
     }
 
-    let requesterObjId: Types.ObjectId;
-    let recipientObjId: Types.ObjectId;
-    try {
-      requesterObjId = new Types.ObjectId(requesterId);
-      recipientObjId = new Types.ObjectId(recipientId);
-    } catch (e) {
-      throw new BadRequestException('Mã ID người dùng không hợp lệ - vui lòng kiểm tra lại');
-    }
+    const requesterObjId = new Types.ObjectId(requesterId);
+    const recipientObjId = recipientUser._id as Types.ObjectId;
 
     // Check if request already exists
     const existing = await this.friendshipModel.findOne({
