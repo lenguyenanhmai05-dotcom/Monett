@@ -829,24 +829,113 @@ const STANDEE_SLIDES = [
   },
 ];
 
-const SUGGESTED_FRIENDS = [
+interface FinancialTip {
+  id: string;
+  category: string;
+  badgeColor: string;
+  badgeBg: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  content: string;
+  actionHint?: string;
+}
+
+const FINANCIAL_TIPS: FinancialTip[] = [
   {
-    id: 'sugg_1',
-    name: 'Vũ Khánh Vân',
-    mutualFriends: 8,
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&auto=format&fit=crop&q=80',
+    id: 'tip_1',
+    category: 'Quy tắc vàng',
+    badgeColor: '#059669',
+    badgeBg: '#ECFDF5',
+    icon: 'pie-chart',
+    title: 'Quy tắc 50 / 30 / 20',
+    content: '50% cho nhu cầu thiết yếu, 30% cho sở thích linh hoạt và 20% gửi thẳng vào quỹ tiết kiệm ngay khi nhận lương.',
+    actionHint: 'Chia lương thông minh ngay hôm nay ✨',
   },
   {
-    id: 'sugg_2',
-    name: 'Lê Minh Trí',
-    mutualFriends: 14,
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&auto=format&fit=crop&q=80',
+    id: 'tip_2',
+    category: 'Thói quen chi tiêu',
+    badgeColor: '#D97706',
+    badgeBg: '#FFFBEB',
+    icon: 'time',
+    title: 'Quy tắc trì hoãn 72 giờ',
+    content: 'Khi muốn mua một món đồ không cấp bách, hãy chờ 72 giờ. Hơn 80% trường hợp bạn sẽ nhận ra mình không thực sự cần nó.',
+    actionHint: 'Tránh mua sắm bốc đồng ⏳',
   },
   {
-    id: 'sugg_3',
-    name: 'Đặng Thảo Linh',
-    mutualFriends: 6,
-    avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200&auto=format&fit=crop&q=80',
+    id: 'tip_3',
+    category: 'Chi tiêu hằng ngày',
+    badgeColor: '#8B5CF6',
+    badgeBg: '#F5F3FF',
+    icon: 'cafe',
+    title: 'Hiệu ứng ly cà phê / trà sữa',
+    content: 'Tự pha đồ uống 3 ngày/tuần thay vì mua ngoài giúp bạn giữ lại từ 500.000đ đến 1.200.000đ mỗi tháng.',
+    actionHint: 'Tiết kiệm từ điều nhỏ nhất ☕',
+  },
+  {
+    id: 'tip_4',
+    category: 'Tâm lý mua sắm',
+    badgeColor: '#EF4444',
+    badgeBg: '#FEF2F2',
+    icon: 'pricetag',
+    title: 'Đừng mắc bẫy giảm giá',
+    content: 'Một món đồ giảm giá 50% vẫn khiến bạn mất 100% số tiền nếu như ban đầu bạn vốn không có kế hoạch mua nó.',
+    actionHint: 'Mua vì cần, đừng mua vì rẻ 🏷️',
+  },
+  {
+    id: 'tip_5',
+    category: 'An toàn tài chính',
+    badgeColor: '#0284C7',
+    badgeBg: '#F0F9FF',
+    icon: 'shield-checkmark',
+    title: 'Quỹ khẩn cấp 3 - 6 tháng',
+    content: 'Hãy luôn có một khoản tiền dự phòng tương đương 3-6 tháng sinh hoạt phí trước khi nghĩ đến đầu tư mạo hiểm.',
+    actionHint: 'Tấm khiên an tâm tài chính 🛡️',
+  },
+  {
+    id: 'tip_6',
+    category: 'Chánh niệm tài chính',
+    badgeColor: '#EC4899',
+    badgeBg: '#FDF2F8',
+    icon: 'heart-circle',
+    title: 'Ghi chép chi tiêu liền tay',
+    content: 'Ghi lại chi tiêu ngay khi vừa thanh toán giúp não bộ nhận thức rõ giá trị đồng tiền và giảm ngay 25% chi tiêu vô thức.',
+    actionHint: 'Thói quen nhỏ, tự do lớn 📝',
+  },
+];
+
+interface SavingChallenge {
+  id: string;
+  title: string;
+  targetDays: number;
+  emoji: string;
+  tagline: string;
+  description: string;
+}
+
+const SAVING_CHALLENGES: SavingChallenge[] = [
+  {
+    id: 'challenge_nosip',
+    title: '3 Ngày Tự Pha Nước / Không Mua Ngoài',
+    targetDays: 3,
+    emoji: '🥤',
+    tagline: 'Tiết kiệm ~150.000đ tuần này',
+    description: 'Tự mang bình nước hoặc uống nước lọc trong 3 ngày tuần này.',
+  },
+  {
+    id: 'challenge_homecook',
+    title: 'Nấu Ăn Tại Nhà 5 Bữa',
+    targetDays: 5,
+    emoji: '🍳',
+    tagline: 'Vừa khỏe mạnh vừa tiết kiệm',
+    description: 'Tự chuẩn bị cơm nhà thay vì đặt đồ ăn giao tận nơi.',
+  },
+  {
+    id: 'challenge_nospend',
+    title: 'Ngày Chủ Nhật Không Rút Ví (No-Spend Day)',
+    targetDays: 1,
+    emoji: '🌿',
+    tagline: 'Thanh lọc thói quen chi tiêu',
+    description: 'Một ngày trọn vẹn tận hưởng niềm vui giản dị mà không tốn tiền.',
   },
 ];
 
@@ -877,7 +966,35 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
     hiddenChatIds,
     deleteConversation,
   } = useChat();
-  const [sentFriendIds, setSentFriendIds] = useState<string[]>([]);
+
+  // ─── MẸO TÀI CHÍNH & THỬ THÁCH TIẾT KIỆM HÀNG TUẦN ───
+  const [tipIndex, setTipIndex] = useState(0);
+  const [challengeProgress, setChallengeProgress] = useState<number[]>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const saved = window.localStorage.getItem('monett_saving_challenge_days');
+        if (saved) return JSON.parse(saved);
+      }
+    } catch {}
+    return [0, 1]; // Mặc định tích lũy sẵn 2 ngày đầu tuần
+  });
+  const [currentChallengeIndex, setCurrentChallengeIndex] = useState(0);
+
+  const handleToggleChallengeDay = (dayIdx: number) => {
+    setChallengeProgress((prev) => {
+      const next = prev.includes(dayIdx) ? prev.filter((d) => d !== dayIdx) : [...prev, dayIdx];
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('monett_saving_challenge_days', JSON.stringify(next));
+        }
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleNextTip = () => {
+    setTipIndex((prev) => (prev + 1) % FINANCIAL_TIPS.length);
+  };
 
   // ─── STANDEE CAROUSEL NHẢY QUA NHẢY LẠI (VUI VẺ & ĐỘNG LỰC) ───
   const [standeeIndex, setStandeeIndex] = useState(0);
@@ -2272,77 +2389,216 @@ export const WebFeedScreen: React.FC<WebFeedScreenProps> = ({ initialTab = 'feed
               );
             })()}
 
-            {/* 2. GỢI Ý KẾT BẠN */}
+            {/* 2. MẸO TÀI CHÍNH & THỬ THÁCH TIẾT KIỆM THỰC TẾ */}
             <View style={styles.card}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <Text style={{ fontSize: 16, fontWeight: '800', color: isDark ? '#F1F5F9' : '#0F172A' }}>
-                  Gợi ý kết bạn
-                </Text>
+              {/* Header: Tiêu đề & Nút Đổi mẹo */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+                  <View
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 14,
+                      backgroundColor: isDark ? 'rgba(5, 150, 105, 0.2)' : '#ECFDF5',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Ionicons name="bulb" size={16} color="#059669" />
+                  </View>
+                  <Text style={{ fontSize: 15, fontWeight: '800', color: isDark ? '#F1F5F9' : '#0F172A' }}>
+                    Mẹo tài chính mỗi ngày
+                  </Text>
+                </View>
+
                 <TouchableOpacity
-                  onPress={() => setActiveTab('friends')}
+                  onPress={handleNextTip}
                   activeOpacity={0.7}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 4,
+                    paddingHorizontal: 9,
+                    paddingVertical: 4.5,
+                    borderRadius: 12,
+                    backgroundColor: isDark ? '#334155' : '#F1F5F9',
+                  }}
+                  accessibilityLabel="Đổi mẹo tài chính ngẫu nhiên"
                 >
-                  <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#059669' }}>
-                    Xem thêm
+                  <Ionicons name="dice-outline" size={14} color="#059669" />
+                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#059669' }}>
+                    Đổi mẹo
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              <View style={{ gap: 12 }}>
-                {SUGGESTED_FRIENDS.map((friend) => {
-                  const isSent = sentFriendIds.includes(friend.id);
-                  return (
-                    <View
-                      key={friend.id}
-                      style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 10 }}>
-                        <Avatar uri={friend.avatar} name={friend.name} size={42} />
-                        <View style={{ marginLeft: 10, flex: 1 }}>
-                          <Text style={{ fontSize: 13.5, fontWeight: '700', color: isDark ? '#F1F5F9' : '#0F172A' }} numberOfLines={1}>
-                            {friend.name}
+              {/* Thẻ Mẹo chi tiết */}
+              {(() => {
+                const currentTip = FINANCIAL_TIPS[tipIndex];
+                return (
+                  <View
+                    style={{
+                      borderRadius: 14,
+                      padding: 12,
+                      backgroundColor: isDark ? '#1E293B' : currentTip.badgeBg,
+                      borderWidth: 1,
+                      borderColor: isDark ? '#334155' : 'rgba(5, 150, 105, 0.15)',
+                      marginBottom: 16,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 6 }}>
+                        <Ionicons name={currentTip.icon} size={15} color={currentTip.badgeColor} />
+                        <Text
+                          style={{ fontSize: 13.5, fontWeight: '800', color: isDark ? '#F8FAFC' : '#0F172A' }}
+                          numberOfLines={1}
+                        >
+                          {currentTip.title}
+                        </Text>
+                      </View>
+                      <View
+                        style={{
+                          paddingHorizontal: 7,
+                          paddingVertical: 2,
+                          borderRadius: 6,
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : '#FFFFFF',
+                        }}
+                      >
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: currentTip.badgeColor }}>
+                          {currentTip.category}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Text style={{ fontSize: 12, lineHeight: 18, color: isDark ? '#CBD5E1' : '#334155' }}>
+                      {currentTip.content}
+                    </Text>
+
+                    {currentTip.actionHint && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
+                        <Ionicons name="sparkles" size={12} color="#059669" />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#059669' }}>
+                          {currentTip.actionHint}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })()}
+
+              {/* Đường phân cách */}
+              <View style={{ height: 1, backgroundColor: isDark ? '#334155' : '#F1F5F9', marginBottom: 14 }} />
+
+              {/* Phần 2: Thử thách tiết kiệm tuần này */}
+              {(() => {
+                const challenge = SAVING_CHALLENGES[currentChallengeIndex];
+                const daysCompleted = challengeProgress.length;
+                const isCompleted = daysCompleted >= challenge.targetDays;
+                const progressPercent = Math.min(100, Math.round((daysCompleted / challenge.targetDays) * 100));
+                const DAYS_OF_WEEK = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+
+                return (
+                  <View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, marginRight: 8 }}>
+                        <Text style={{ fontSize: 18 }}>{challenge.emoji}</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13.5, fontWeight: '800', color: isDark ? '#F8FAFC' : '#0F172A' }} numberOfLines={1}>
+                            Thử thách tuần này
                           </Text>
-                          <Text style={{ fontSize: 11.5, color: isDark ? '#94A3B8' : '#64748B', marginTop: 2 }}>
-                            {friend.mutualFriends} bạn chung
+                          <Text style={{ fontSize: 11, color: isDark ? '#94A3B8' : '#64748B' }} numberOfLines={1}>
+                            {challenge.title}
                           </Text>
                         </View>
                       </View>
 
-                      <TouchableOpacity
+                      <View
                         style={{
-                          width: 38,
-                          height: 38,
-                          borderRadius: 10,
-                          backgroundColor: isSent ? (isDark ? '#064E3B' : '#DCFCE7') : (isDark ? '#064E3B' : '#A7F3D0'),
-                          justifyContent: 'center',
-                          alignItems: 'center',
+                          paddingHorizontal: 7,
+                          paddingVertical: 3,
+                          borderRadius: 8,
+                          backgroundColor: isCompleted ? '#DCFCE7' : (isDark ? '#334155' : '#F1F5F9'),
                         }}
-                        onPress={() => {
-                          if (!isSent) {
-                            setSentFriendIds((prev) => [...prev, friend.id]);
-                            addNotification({
-                              type: 'friend',
-                              title: `Đã gửi lời mời kết bạn! 👋`,
-                              message: `Lời mời kết bạn đã được gửi đến ${friend.name}.`,
-                              iconBg: '#ECFDF5',
-                              iconColor: '#059669',
-                              metadata: { targetTab: 'friends' },
-                            });
-                          }
-                        }}
-                        activeOpacity={0.7}
-                        accessibilityLabel={`Kết bạn với ${friend.name}`}
                       >
-                        <Ionicons
-                          name={isSent ? 'checkmark' : 'person-add'}
-                          size={18}
-                          color={isSent ? '#059669' : '#047857'}
-                        />
-                      </TouchableOpacity>
+                        <Text
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: '800',
+                            color: isCompleted ? '#059669' : (isDark ? '#94A3B8' : '#64748B'),
+                          }}
+                        >
+                          {isCompleted ? '✓ Hoàn thành' : `${daysCompleted}/${challenge.targetDays} ngày`}
+                        </Text>
+                      </View>
                     </View>
-                  );
-                })}
-              </View>
+
+                    {/* Thanh tiến độ */}
+                    <View style={{ width: '100%', height: 6, borderRadius: 3, backgroundColor: isDark ? '#334155' : '#F1F5F9', overflow: 'hidden', marginVertical: 8 }}>
+                      <View
+                        style={{
+                          width: `${progressPercent}%`,
+                          height: '100%',
+                          backgroundColor: isCompleted ? '#10B981' : '#059669',
+                          borderRadius: 3,
+                        }}
+                      />
+                    </View>
+
+                    {/* Dãy nút check-in các ngày trong tuần (T2 - CN) */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                      {DAYS_OF_WEEK.map((day, idx) => {
+                        const isChecked = challengeProgress.includes(idx);
+                        return (
+                          <TouchableOpacity
+                            key={day}
+                            onPress={() => handleToggleChallengeDay(idx)}
+                            activeOpacity={0.7}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 8,
+                              backgroundColor: isChecked
+                                ? '#059669'
+                                : isDark
+                                ? '#1E293B'
+                                : '#F8FAFC',
+                              borderWidth: 1,
+                              borderColor: isChecked
+                                ? '#059669'
+                                : isDark
+                                ? '#334155'
+                                : '#E2E8F0',
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              position: 'relative',
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 10,
+                                fontWeight: '800',
+                                color: isChecked ? '#FFFFFF' : isDark ? '#94A3B8' : '#64748B',
+                                marginBottom: isChecked ? 4 : 0,
+                              }}
+                            >
+                              {day}
+                            </Text>
+                            {isChecked && (
+                              <View style={{ position: 'absolute', bottom: 2 }}>
+                                <Ionicons name="checkmark" size={10} color="#FFFFFF" />
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    <Text style={{ fontSize: 10.5, color: isDark ? '#64748B' : '#94A3B8', textAlign: 'center', marginTop: 9 }}>
+                      Chạm vào các ngày để check-in hoàn thành thử thách ✨
+                    </Text>
+                  </View>
+                );
+              })()}
             </View>
           </View>
         )}
