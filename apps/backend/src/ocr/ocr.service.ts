@@ -177,16 +177,18 @@ export class OcrService {
       date = `${year}-${month}-${day}`;
     }
 
-    // 3. Tách các dòng KHÔNG PHẢI LÀ SỐ ĐIỆN THOẠI, MÃ SỐ THUẾ, SỐ PHIẾU, TIỀN THỐI/THỪA
+    // 3. Tách các dòng KHÔNG PHẢI LÀ SỐ ĐIỆN THOẠI, MÃ SỐ THUẾ, SỐ PHIẾU, TIỀN THỐI/THỪA, ĐIỂM TÍCH LŨY
     const safeLines = rawLines.filter((line) => {
       // Bỏ dòng điện thoại
       if (/^(?:ĐT|Điện thoại|Tel|Hotline|Fax|Phone)[:\s]/i.test(line)) return false;
       // Bỏ dòng số phiếu / bàn / giờ
-      if (/^(?:Số|Số phiếu|Mã|MST|Mã số thuế|Bàn|Giờ|In lúc)[:\s]/i.test(line)) return false;
+      if (/^(?:Số|Số phiếu|Mã|MST|Mã số thuế|Bàn|Giờ|In lúc|Giờ vào|Giờ ra|Liên)[:\s]/i.test(line)) return false;
       // Bỏ số điện thoại bắt đầu bằng 0 (09xx, 08xx, 07xx, 03xx, 05xx)
       if (/^0[35789]\d{1,2}[.\s]?\d{3}[.\s]?\d{3,4}/.test(line)) return false;
       // Bỏ các dòng tiền thối / tiền thừa / tiền trả lại khách
       if (/(?:tiền thối|tiền thừa|tiền trả lại|trả lại khách|thối lại|change)[:\s]/i.test(line)) return false;
+      // Bỏ các dòng điểm tích lũy
+      if (/(?:điểm|tích lũy|loyalty|point)/i.test(line)) return false;
       return true;
     });
 
@@ -195,21 +197,71 @@ export class OcrService {
     // 4. Tìm số tiền tổng theo cấp độ ưu tiên chính xác
     let amount = 0;
 
-    // Cấp 1: Cụm từ chốt thanh toán sau khi đã trừ giảm giá / khuyến mãi
-    const primaryTotalMatch = safeText.match(/(?:tổng cộng thanh toán|tổng thanh toán|tổng cộng|cần thanh toán|thanh toán|phải trả|khách phải trả|tổng tiền|tổng bill)[^0-9\r\n]*([0-9]{1,3}(?:[.,][0-9]{3})+)/i);
-    if (primaryTotalMatch) {
-      amount = parseInt(primaryTotalMatch[1].replace(/\D/g, ''), 10);
+    // Cấp 1: Cụm từ chốt thanh toán sau khi đã trừ giảm giá / chiết khấu VIP (KHÁCH TRẢ, CẦN THANH TOÁN, TỔNG CỘNG, T.CỘNG)
+    const finalPayMatch = safeText.match(/(?:khách trả|khách phải trả|cần thanh toán|phải thanh toán|tổng cộng thanh toán|tổng thanh toán|t\s*\.?\s*cộng|tổng cộng|tổng tiền|tổng bill)[^0-9\r\n]*([0-9]{1,3}(?:[.,][0-9]{3})+)/i);
+    if (finalPayMatch) {
+      amount = parseInt(finalPayMatch[1].replace(/\D/g, ''), 10);
     }
 
-    // Cấp 2: Từ khóa "Tổng:" hoặc "Total:" trên 1 dòng
+    // Cấp 2: Nếu KHÁCH TRẢ / CẦN THANH TOÁN / VND ở 1 dòng riêng và số tiền ở các dòng sau (như bill Lucky Restaurant)
     if (!amount) {
-      const secondaryTotalMatch = safeText.match(/(?:^|\n)\s*(?:tổng|total|t\.tiền)\s*[:\s]*([0-9]{1,3}(?:[.,][0-9]{3})+)/i);
-      if (secondaryTotalMatch) {
-        amount = parseInt(secondaryTotalMatch[1].replace(/\D/g, ''), 10);
+      const ktIdx = rawLines.findIndex((l) => /^(?:khách trả|khách phải trả|cần thanh toán|phải trả|vnd\s*:)[:\s]*$/i.test(l));
+      if (ktIdx !== -1) {
+        for (let i = ktIdx + 1; i < Math.min(rawLines.length, ktIdx + 5); i++) {
+          if (/cảm ơn|thank|hẹn gặp|cam on|tên hàng/i.test(rawLines[i])) break;
+          const m = rawLines[i].match(/([0-9]{1,3}(?:[.,][0-9]{3})+)/);
+          if (m) {
+            const val = parseInt(m[1].replace(/\D/g, ''), 10);
+            if (val >= 1000 && val < 500000000) {
+              amount = val;
+              break;
+            }
+          }
+        }
       }
     }
 
-    // Cấp 3: Dòng "Tiền hàng" (khi hóa đơn không có mục chiết khấu riêng)
+    // Cấp 3: Nếu có dòng T . CỘNG / Tổng cộng / Total ở dạng cột (tìm các số sau đó và xử lý phép trừ giảm giá)
+    if (!amount) {
+      const tcIdx = rawLines.findIndex((l) => /^(?:t\s*\.?\s*cộng|tổng cộng|total|t\.tiền)[:\s]*$/i.test(l) || /^Tổng[:\s]/i.test(l));
+      if (tcIdx !== -1) {
+        const candidates: number[] = [];
+        for (let i = tcIdx + 1; i < rawLines.length; i++) {
+          const line = rawLines[i];
+          if (/cảm ơn|thank|hẹn gặp|cam on|tên hàng/i.test(line)) break;
+          if (/điểm|tích lũy|loyalty|point/i.test(line)) break;
+          const m = line.match(/([0-9]{1,3}(?:[.,][0-9]{3})+)/);
+          if (m) {
+            const val = parseInt(m[1].replace(/\D/g, ''), 10);
+            if (val >= 1000 && val < 500000000) {
+              candidates.push(val);
+            }
+          }
+        }
+
+        // Nếu có giảm giá (A - B = C, ví dụ 390k - 19.5k = 370.5k): ưu tiên lấy C (số tiền sau giảm giá)
+        if (candidates.length >= 3) {
+          for (let a = 0; a < candidates.length; a++) {
+            for (let b = 0; b < candidates.length; b++) {
+              if (a === b) continue;
+              const diff = candidates[a] - candidates[b];
+              if (diff > 0 && candidates.includes(diff)) {
+                amount = diff;
+                break;
+              }
+            }
+            if (amount) break;
+          }
+        }
+
+        // Nếu không có phép trừ giảm giá, lấy số đầu tiên xuất hiện ngay sau Tổng: (như KEKO 6,479,000 hay Hoàng Phúc 54,000)
+        if (!amount && candidates.length > 0) {
+          amount = candidates[0];
+        }
+      }
+    }
+
+    // Cấp 4: Tiền hàng
     if (!amount) {
       const tienHangMatch = safeText.match(/(?:tiền hàng)[^0-9\r\n]*([0-9]{1,3}(?:[.,][0-9]{3})+)/i);
       if (tienHangMatch) {
@@ -217,27 +269,7 @@ export class OcrService {
       }
     }
 
-    // Pattern B: Dòng có "Tổng:" rồi số tiền ở cuối hóa đơn hoặc sau dòng "Tổng:"
-    if (!amount) {
-      const tongIdx = rawLines.findIndex((l) => /^(?:Tổng|Tổng cộng|Total|T\.tiền)[:\s]*$/i.test(l) || /^Tổng[:\s]/i.test(l));
-      if (tongIdx !== -1) {
-        const linesAfterTong = rawLines.slice(tongIdx);
-        const amountsAfter: number[] = [];
-        for (const l of linesAfterTong) {
-          if (/cảm ơn|thank|hẹn gặp|cam on/i.test(l)) break;
-          const m = l.match(/([0-9]{1,3}(?:[.,][0-9]{3})+)/);
-          if (m) {
-            const val = parseInt(m[1].replace(/\D/g, ''), 10);
-            if (val >= 1000 && val < 500000000) amountsAfter.push(val);
-          }
-        }
-        if (amountsAfter.length > 0) {
-          amount = amountsAfter[amountsAfter.length - 1];
-        }
-      }
-    }
-
-    // Pattern C: Lấy số tiền trước câu cảm ơn ở cuối hóa đơn
+    // Cấp 5: Lấy số tiền trước câu cảm ơn ở cuối hóa đơn
     if (!amount) {
       const thankIdx = rawLines.findIndex((l) => /cảm ơn|thank|hẹn gặp|cam on/i.test(l));
       if (thankIdx > 0) {
@@ -254,7 +286,7 @@ export class OcrService {
       }
     }
 
-    // Pattern D: Lấy số tiền hợp lý lớn nhất trong các dòng an toàn (loại bỏ SĐT, giảm giá, điểm tích lũy)
+    // Cấp 6: Lấy số tiền hợp lý lớn nhất trong các dòng an toàn (loại bỏ SĐT, giảm giá, điểm tích lũy)
     if (!amount) {
       const moneyList: number[] = [];
       for (const l of safeLines) {
@@ -281,7 +313,7 @@ export class OcrService {
       category = 'Cà phê & Nước';
     } else if (/siêu thị|chợ|thịt|cá|rau|trứng|sữa|winmart|bách hóa|coopmart/i.test(lower)) {
       category = 'Đi chợ & Siêu thị';
-    } else if (/cơm|bún|phở|mì|lẩu|nướng|bánh|pizza|kfc|gà rán|nhà hàng|quán ăn/i.test(lower)) {
+    } else if (/cơm|bún|phở|mì|lẩu|lau|nướng|nuong|tôm|tom|cua|hải sản|bánh|pizza|kfc|gà rán|nhà hàng|quán ăn|restaurant|coca|pepsi/i.test(lower)) {
       category = 'Ăn uống';
     } else if (/xăng|dầu|xe|grab|be|taxi|gửi xe/i.test(lower)) {
       category = 'Di chuyển & Xăng';
@@ -298,61 +330,94 @@ export class OcrService {
     // 6. Chi tiết các món (Items)
     const items: Array<{ name: string; quantity: number; price: number; total: number }> = [];
     const matHangIdx = rawLines.findIndex((l) => /mặt hàng|tên món|diễn giải|tên hàng/i.test(l));
-    const tongIdx = rawLines.findIndex((l) => /^(?:Tổng|Tổng cộng|Total)[:\s]*$/i.test(l) || /^Tổng[:\s]/i.test(l));
+    const tongIdx = rawLines.findIndex((l) => /^(?:t\s*\.?\s*cộng|tổng cộng|tổng|total|t\.tiền)[:\s]*$/i.test(l) || /^Tổng[:\s]/i.test(l));
 
-    let hasItemWithInlinePrice = false;
-    if (matHangIdx !== -1 && tongIdx !== -1 && tongIdx > matHangIdx) {
-      for (let i = matHangIdx + 1; i < tongIdx; i++) {
-        if (/([0-9]{1,3}(?:[.,][0-9]{3})+)/.test(rawLines[i])) {
-          hasItemWithInlinePrice = true;
-          break;
-        }
-      }
-    }
+    if (matHangIdx !== -1) {
+      // 6.1: Định dạng bảng in cột dọc như Hoàng Phúc (tất cả tên món nằm trên, cột giá nằm dưới Tổng:)
+      if (tongIdx !== -1 && tongIdx > matHangIdx) {
+        const itemLines = rawLines.slice(matHangIdx + 1, tongIdx).filter((l) => !/^(?:SL|Số|Giá|T tiền|ĐVT|Tổng|Tổng:)$/i.test(l));
+        const hasNumbersInItemLines = itemLines.some((l) => /[0-9]{3}/.test(l));
 
-    if (hasItemWithInlinePrice && matHangIdx !== -1 && tongIdx !== -1) {
-      // Kiểu hóa đơn KEKO: mỗi dòng có Tên hàng ... SL ... Giá ... Thành tiền
-      for (let i = matHangIdx + 1; i < tongIdx; i++) {
-        const l = rawLines[i];
-        if (/^(?:Tổng SL|SL|Giá|T tiền|ĐVT)/i.test(l)) continue;
-        const m = l.match(/^(.+?)\s+(\d+)\s+(?:cái|ly|bát|phần|đĩa|hộp|gói|chai|lon|bộ|kg)?\s*([0-9]{1,3}(?:[.,][0-9]{3})+)\s+([0-9]{1,3}(?:[.,][0-9]{3})+)$/i);
-        if (m) {
-          items.push({
-            name: m[1].trim(),
-            quantity: parseInt(m[2], 10),
-            price: parseInt(m[3].replace(/\D/g, ''), 10),
-            total: parseInt(m[4].replace(/\D/g, ''), 10),
+        if (!hasNumbersInItemLines && itemLines.length > 0) {
+          const priceCandidates: number[] = [];
+          for (let i = tongIdx + 1; i < rawLines.length; i++) {
+            if (/cảm ơn|thank|hẹn gặp|cam on/i.test(rawLines[i])) break;
+            const m = rawLines[i].match(/^([0-9]{1,3}(?:[.,][0-9]{3})+)$/);
+            if (m) {
+              priceCandidates.push(parseInt(m[1].replace(/\D/g, ''), 10));
+            }
+          }
+
+          const uniquePrices: number[] = [];
+          for (const p of priceCandidates) {
+            if (p !== amount && uniquePrices.length < itemLines.length) {
+              uniquePrices.push(p);
+            }
+          }
+
+          itemLines.forEach((name, idx) => {
+            const price = uniquePrices[idx] || 0;
+            items.push({
+              name,
+              quantity: 1,
+              price,
+              total: price,
+            });
           });
         }
       }
-    } else if (matHangIdx !== -1 && tongIdx !== -1 && tongIdx > matHangIdx) {
-      // Kiểu hóa đơn Hoàng Phúc: Cột tên món ở trên, cột giá tiền ở dưới
-      const itemLines = rawLines.slice(matHangIdx + 1, tongIdx).filter((l) => !/^(?:SL|Giá|T tiền|ĐVT)$/i.test(l));
-      const priceCandidates: number[] = [];
-      for (let i = tongIdx + 1; i < rawLines.length; i++) {
-        if (/cảm ơn|thank|hẹn gặp|cam on/i.test(rawLines[i])) break;
-        const m = rawLines[i].match(/^([0-9]{1,3}(?:[.,][0-9]{3})+)$/);
-        if (m) {
-          priceCandidates.push(parseInt(m[1].replace(/\D/g, ''), 10));
+
+      // 6.2: Định dạng bảng in thông thường (KEKO) hoặc in từng khối nhiều dòng (Lucky Restaurant)
+      if (items.length === 0) {
+        const linesAfter = rawLines.slice(matHangIdx + 1).filter((l) => !/^(?:Đơn Giá|SL|Số|Thành tiền|Thành tiên|ĐVT|Giá|Tổng SL)$/i.test(l));
+        let i = 0;
+        while (i < linesAfter.length) {
+          const line = linesAfter[i];
+          if (/pham thai|cảm ơn|thank|hẹn gặp|cam on/i.test(line)) break;
+
+          // Kiểu 1 dòng kèm SL, Giá, Thành tiền (như KEKO)
+          const inlineMatch = line.match(/^(.+?)\s+(\d+)\s+(?:cái|ly|bát|phần|đĩa|hộp|gói|chai|lon|bộ|kg)?\s*([0-9]{1,3}(?:[.,][0-9]{3})+)\s+([0-9]{1,3}(?:[.,][0-9]{3})+)$/i);
+          if (inlineMatch) {
+            items.push({
+              name: inlineMatch[1].trim(),
+              quantity: parseInt(inlineMatch[2], 10),
+              price: parseInt(inlineMatch[3].replace(/\D/g, ''), 10),
+              total: parseInt(inlineMatch[4].replace(/\D/g, ''), 10),
+            });
+            i++;
+            continue;
+          }
+
+          // Kiểu nhiều dòng liên tiếp: Tên món -> Đơn giá -> SL -> Thành tiền (như Lucky Restaurant)
+          if (!/[0-9]{3}/.test(line) && linesAfter[i + 1] && /[0-9]{1,3}(?:[.,][0-9]{3})+/.test(linesAfter[i + 1])) {
+            const name = line;
+            const price = parseInt(linesAfter[i + 1].replace(/\D/g, ''), 10);
+            let qty = 1;
+            let total = price;
+
+            if (linesAfter[i + 2] && /^\d+(?:\.\d+)?$/.test(linesAfter[i + 2])) {
+              qty = Math.round(parseFloat(linesAfter[i + 2]));
+              if (linesAfter[i + 3] && /[0-9]{1,3}(?:[.,][0-9]{3})+/.test(linesAfter[i + 3])) {
+                total = parseInt(linesAfter[i + 3].replace(/\D/g, ''), 10);
+                i += 4;
+              } else {
+                total = price * qty;
+                i += 3;
+              }
+            } else if (linesAfter[i + 2] && /[0-9]{1,3}(?:[.,][0-9]{3})+/.test(linesAfter[i + 2])) {
+              total = parseInt(linesAfter[i + 2].replace(/\D/g, ''), 10);
+              i += 3;
+            } else {
+              i += 2;
+            }
+
+            items.push({ name, quantity: qty, price, total });
+            continue;
+          }
+
+          i++;
         }
       }
-
-      const uniquePrices: number[] = [];
-      for (const p of priceCandidates) {
-        if (p !== amount && uniquePrices.length < itemLines.length) {
-          uniquePrices.push(p);
-        }
-      }
-
-      itemLines.forEach((name, idx) => {
-        const price = uniquePrices[idx] || 0;
-        items.push({
-          name,
-          quantity: 1,
-          price,
-          total: price,
-        });
-      });
     }
 
     return {
