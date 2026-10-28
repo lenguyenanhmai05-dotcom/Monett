@@ -29,6 +29,7 @@ import {
   syncIncomesFromBackendTransactions,
 } from '../../services/incomeStorage';
 import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
+import { AiReceiptScanModal, AiReceiptScanResult } from '../../components/AiReceiptScanModal';
 import { loadRecurringItems, getFrequencyLabel } from '../../services/recurringStorage';
 import {
   loadEventsFromStorage,
@@ -2051,6 +2052,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
   const [quickPhotoUri, setQuickPhotoUri] = useState<string>('');
   const [quickTimeStr, setQuickTimeStr] = useState<string>('');
   const [isCompressingPhoto, setIsCompressingPhoto] = useState<boolean>(false);
+  const [showAiScanModal, setShowAiScanModal] = useState<boolean>(false);
 
   // Day Timeline Modal State (Xem tất cả chi tiêu của ngày)
   const [timelineModalVisible, setTimelineModalVisible] = useState<boolean>(false);
@@ -2332,6 +2334,40 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
     });
 
     setQuickSaveModalVisible(false);
+  };
+
+  const handleApplyAiReceiptScan = (data: AiReceiptScanResult) => {
+    if (data.amount > 0) {
+      setQuickAmountStr(String(data.amount));
+    }
+    if (data.supplier) {
+      setQuickNote(data.supplier);
+    }
+    if (data.category) {
+      setQuickCategory(data.category);
+    }
+    if (data.categoryIcon) {
+      setQuickCategoryIcon(data.categoryIcon);
+    }
+    if (data.photoUri) {
+      setQuickPhotoUri(data.photoUri);
+    }
+    if (data.date) {
+      try {
+        const parts = data.date.split('-');
+        if (parts.length === 3) {
+          const parsedDay = parseInt(parts[2], 10);
+          if (parsedDay >= 1 && parsedDay <= 31) {
+            setQuickDayNum(parsedDay);
+          }
+        }
+      } catch (err) {
+        console.warn('Error parsing date from receipt:', err);
+      }
+    }
+    if (data.time) {
+      setQuickTimeStr(data.time);
+    }
   };
 
   const handleDeleteExpenseItem = async (dayNum: number, itemId: string) => {
@@ -3519,6 +3555,43 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
                         </View>
                       </TouchableOpacity>
                     )}
+
+                    {/* Nút Quét hóa đơn bằng AI */}
+                    <TouchableOpacity
+                      style={styles.quickSaveAiScanBtn}
+                      onPress={() => setShowAiScanModal(true)}
+                      activeOpacity={0.82}
+                    >
+                      <View style={styles.quickSaveAiScanIconWrap}>
+                        <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+                          <Path
+                            d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"
+                            stroke="#059669"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <Line x1="7" y1="12" x2="17" y2="12" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" />
+                          <Circle cx="12" cy="12" r="2" fill="#059669" />
+                        </Svg>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={styles.quickSaveAiScanTitle}>
+                            {language === 'vi' ? 'Quét hóa đơn thông minh bằng AI' : 'Scan Receipt with Smart AI'}
+                          </Text>
+                          <View style={styles.quickSaveAiBadge}>
+                            <Text style={styles.quickSaveAiBadgeText}>AI OCR</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.quickSaveAiScanSubtitle}>
+                          {language === 'vi'
+                            ? 'Tự động trích xuất tên quán, danh mục & tổng tiền'
+                            : 'Auto-extract supplier, category & total amount'}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 16, color: '#059669', fontWeight: '800' }}>›</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
@@ -3556,6 +3629,14 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
           </View>
         </View>
       </Modal>
+
+      {/* Modal Quét hóa đơn thông minh bằng AI */}
+      <AiReceiptScanModal
+        visible={showAiScanModal}
+        onClose={() => setShowAiScanModal(false)}
+        onApply={handleApplyAiReceiptScan}
+        initialPhotoUri={quickPhotoUri}
+      />
 
       {/* ===================== 2. MODAL XEM TẤT CẢ CHI TIÊU CỦA NGÀY (SPLIT 2-COLUMN MASTER-DETAIL) ===================== */}
       {(() => {
@@ -5361,6 +5442,55 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     fontSize: 10.5,
     fontWeight: '700',
     color: '#64748B',
+  },
+  quickSaveAiScanBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: isDark ? '#059669' : '#10B981',
+    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : '#F0FDF4',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 2,
+    cursor: 'pointer' as any,
+  },
+  quickSaveAiScanIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: isDark ? 'rgba(16, 185, 129, 0.25)' : '#DCFCE7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quickSaveAiScanTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: isDark ? '#34D399' : '#059669',
+  },
+  quickSaveAiBadge: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+  },
+  quickSaveAiBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9.5,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+  quickSaveAiScanSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+    fontWeight: '500',
   },
   quickPhotoUploadingBox: {
     flexDirection: 'row',
