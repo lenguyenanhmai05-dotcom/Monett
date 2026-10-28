@@ -829,13 +829,19 @@ const SUGGESTED_FRIENDS = [
     id: 'sugg_1',
     name: 'Vũ Khánh Vân',
     mutualFriends: 8,
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200&auto=format&fit=crop&q=80',
   },
   {
     id: 'sugg_2',
     name: 'Lê Minh Trí',
     mutualFriends: 14,
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=200&auto=format&fit=crop&q=80',
+  },
+  {
+    id: 'sugg_3',
+    name: 'Đặng Thảo Linh',
+    mutualFriends: 6,
+    avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=200&auto=format&fit=crop&q=80',
   },
 ];
 
