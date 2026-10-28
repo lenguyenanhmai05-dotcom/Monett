@@ -714,6 +714,8 @@ export const MomentFormModal = ({
   const isEdit = !!editingItem;
   const { addNotification } = useNotifications();
   const { user } = useAuth();
+  const { width } = useWindowDimensions();
+  const isWide = width >= 860;
   const inputRef = useRef<TextInput>(null);
   const [caption, setCaption] = useState(editingItem?.caption || '');
   const [category, setCategory] = useState(editingItem?.category || initialCategory || CATEGORIES[0]);
@@ -827,7 +829,7 @@ export const MomentFormModal = ({
         {/* Backdrop Tap to close */}
         <TouchableOpacity style={createStyles.backdropTap} activeOpacity={1} onPress={onClose} />
 
-        <View style={createStyles.sheet}>
+        <View style={[createStyles.sheet, isWide && createStyles.sheetWide]}>
           {/* Header Modal Sang Trọng */}
           <View style={createStyles.header}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -854,189 +856,378 @@ export const MomentFormModal = ({
             </TouchableOpacity>
           </View>
 
-          {/* Nội dung cuộn mượt mà */}
-          <ScrollView
-            style={{ flex: 1 }}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 16 }}
-          >
-            {/* 1. Ô nhập lời nhắn / chú thích ngay trên đầu */}
-            <View style={createStyles.inputSection}>
-              <TextInput
-                ref={inputRef}
-                style={createStyles.input}
-                placeholder={`${(user as any)?.fullName || 'Ánh Mai'} ơi, bạn có khoảnh khắc gì thú vị muốn chia sẻ hôm nay? ✨`}
-                value={caption}
-                onChangeText={setCaption}
-                placeholderTextColor="#94A3B8"
-                multiline
-                numberOfLines={2}
-              />
-            </View>
-
-            {/* Gợi ý caption */}
-            <View style={{ marginBottom: 6, marginTop: 4 }}>
-              <Text style={createStyles.sectionLabel}>Gợi ý caption</Text>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
-              <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 2 }}>
-                {suggestedCaptions.map((text, idx) => {
-                  const isSelected = caption === text;
-                  return (
-                    <TouchableOpacity
-                      key={idx}
-                      onPress={() => setCaption(isSelected ? '' : text)}
-                      style={[
-                        createStyles.sampleCaptionChip,
-                        isSelected && createStyles.sampleCaptionChipActive,
-                      ]}
-                      activeOpacity={0.7}
-                    >
-                      <Text
-                        style={[
-                          createStyles.sampleCaptionText,
-                          isSelected && createStyles.sampleCaptionTextActive,
-                        ]}
-                      >
-                        {text}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </ScrollView>
-
-            {/* 2. Preview ảnh 16:9 sắc nét, gọn gàng */}
-            <View style={createStyles.previewContainer}>
-              {selectedPhoto ? (
-                <View style={createStyles.previewBox}>
-                  <Image source={{ uri: normalizeAvatarUrl(selectedPhoto) || selectedPhoto }} style={createStyles.previewImg} />
-                  
-                  {/* Floating category badge ở góc trên bên trái */}
-                  <View style={createStyles.floatingCategoryBadge}>
-                    <Text style={createStyles.floatingCategoryBadgeText}>{category}</Text>
-                  </View>
-
-                  {/* Floating Nút đổi ảnh / tải ảnh ở góc trên bên phải */}
-                  <TouchableOpacity
-                    style={createStyles.floatingChangeBtn}
-                    onPress={handlePickPhoto}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="cloud-upload" size={14} color="#059669" style={{ marginRight: 5 }} />
-                    <Text style={createStyles.floatingChangeBtnText}>
-                      {uploadingPhoto ? 'Đang tải...' : 'Tải ảnh từ máy'}
-                    </Text>
-                  </TouchableOpacity>
-
-                  {uploadingPhoto && (
-                    <View style={createStyles.uploadingOverlay}>
-                      <ActivityIndicator size="large" color="#fff" />
-                      <Text style={{ color: '#fff', marginTop: 8, fontWeight: '700' }}>Đang tải ảnh lên...</Text>
-                    </View>
-                  )}
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={[createStyles.previewImg, createStyles.emptyPreviewBox]}
-                  onPress={handlePickPhoto}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="image-outline" size={42} color="#94A3B8" />
-                  <Text style={{ color: '#64748B', fontWeight: '700', marginTop: 8 }}>Chạm để chọn ảnh khoảnh khắc</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Thư viện ảnh mẫu */}
-            <View style={{ marginTop: 4, marginBottom: 6 }}>
-              <Text style={createStyles.sectionLabel}>Kho ảnh mẫu</Text>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
-              <View style={createStyles.photosRow}>
-                {samplePhotos.map((item, idx) => {
-                  const isSelected = selectedPhoto === item.uri;
-                  return (
-                    <TouchableOpacity
-                      key={idx}
-                      onPress={() => {
-                        setSelectedPhoto(item.uri);
-                        if (!editingItem) setCategory(item.cat);
-                      }}
-                      style={[createStyles.photoThumbCard, isSelected && createStyles.photoThumbCardActive]}
-                      activeOpacity={0.75}
-                    >
-                      <Image source={{ uri: item.uri }} style={createStyles.photoThumbImg} />
-                      <View style={[createStyles.photoThumbLabelWrap, isSelected && createStyles.photoThumbLabelWrapActive]}>
-                        <Text style={[createStyles.photoThumbLabel, isSelected && createStyles.photoThumbLabelActive]}>
-                          {item.label}
-                        </Text>
+          {isWide ? (
+            /* ================= GIAO DIỆN MỞ RỘNG NGANG (2 CỘT HIỆN ĐẠI CHO DESKTOP) ================= */
+            <View style={createStyles.wideLayout}>
+              {/* CỘT TRÁI: HÌNH ẢNH TO RÕ & KHO ẢNH MẪU */}
+              <View style={createStyles.wideLeftCol}>
+                <View style={createStyles.previewContainer}>
+                  {selectedPhoto ? (
+                    <View style={[createStyles.previewBox, createStyles.previewBoxWide]}>
+                      <Image source={{ uri: normalizeAvatarUrl(selectedPhoto) || selectedPhoto }} style={[createStyles.previewImg, createStyles.previewImgWide]} />
+                      
+                      {/* Floating category badge ở góc trên bên trái */}
+                      <View style={createStyles.floatingCategoryBadge}>
+                        <Text style={createStyles.floatingCategoryBadgeText}>{category}</Text>
                       </View>
-                      {isSelected && (
-                        <View style={createStyles.photoThumbCheckCircle}>
-                          <Ionicons name="checkmark" size={11} color="#FFFFFF" />
+
+                      {/* Floating Nút đổi ảnh / tải ảnh ở góc trên bên phải */}
+                      <TouchableOpacity
+                        style={createStyles.floatingChangeBtn}
+                        onPress={handlePickPhoto}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="cloud-upload" size={14} color="#059669" style={{ marginRight: 5 }} />
+                        <Text style={createStyles.floatingChangeBtnText}>
+                          {uploadingPhoto ? 'Đang tải...' : 'Tải ảnh từ máy'}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {uploadingPhoto && (
+                        <View style={createStyles.uploadingOverlay}>
+                          <ActivityIndicator size="large" color="#fff" />
+                          <Text style={{ color: '#fff', marginTop: 8, fontWeight: '700' }}>Đang tải ảnh lên...</Text>
                         </View>
                       )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </ScrollView>
-
-            {/* Chọn chủ đề */}
-            <View style={{ marginTop: 2, marginBottom: 6 }}>
-              <Text style={createStyles.sectionLabel}>Chủ đề</Text>
-            </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }}>
-              <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 2 }}>
-                {CATEGORIES.map((cat) => {
-                  const isActive = category === cat;
-                  return (
+                    </View>
+                  ) : (
                     <TouchableOpacity
-                      key={cat}
-                      onPress={() => setCategory(cat)}
-                      style={[createStyles.catChip, isActive && createStyles.catChipActive]}
-                      activeOpacity={0.7}
+                      style={[createStyles.previewImg, createStyles.previewImgWide, createStyles.emptyPreviewBox]}
+                      onPress={handlePickPhoto}
+                      activeOpacity={0.8}
                     >
-                      <Text style={[createStyles.catChipText, isActive && createStyles.catChipTextActive]}>
-                        {cat}
-                      </Text>
+                      <Ionicons name="image-outline" size={48} color="#94A3B8" />
+                      <Text style={{ color: '#64748B', fontWeight: '700', marginTop: 10, fontSize: 14 }}>Chạm để chọn ảnh khoảnh khắc</Text>
                     </TouchableOpacity>
-                  );
-                })}
+                  )}
+                </View>
+
+                {/* Kho ảnh mẫu */}
+                <View style={{ marginTop: 2, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={createStyles.sectionLabel}>Kho ảnh mẫu ({samplePhotos.length})</Text>
+                  <Text style={{ fontSize: 11.5, color: '#94A3B8' }}>Bấm để chọn nhanh</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={createStyles.photosRow}>
+                    {samplePhotos.map((item, idx) => {
+                      const isSelected = selectedPhoto === item.uri;
+                      return (
+                        <TouchableOpacity
+                          key={idx}
+                          onPress={() => {
+                            setSelectedPhoto(item.uri);
+                            if (!editingItem) setCategory(item.cat);
+                          }}
+                          style={[createStyles.photoThumbCard, isSelected && createStyles.photoThumbCardActive]}
+                          activeOpacity={0.75}
+                        >
+                          <Image source={{ uri: item.uri }} style={createStyles.photoThumbImg} />
+                          <View style={[createStyles.photoThumbLabelWrap, isSelected && createStyles.photoThumbLabelWrapActive]}>
+                            <Text style={[createStyles.photoThumbLabel, isSelected && createStyles.photoThumbLabelActive]} numberOfLines={1}>
+                              {item.label}
+                            </Text>
+                          </View>
+                          {isSelected && (
+                            <View style={createStyles.photoThumbCheckCircle}>
+                              <Ionicons name="checkmark" size={11} color="#FFFFFF" />
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
               </View>
-            </ScrollView>
-          </ScrollView>
 
-          {/* Footer PINNED Cố Định ở Đáy Modal (Không bị cuộn mất nút) */}
-          <View style={createStyles.footerActionRow}>
-            <TouchableOpacity
-              style={createStyles.cancelActionBtn}
-              onPress={onClose}
-              activeOpacity={0.7}
-            >
-              <Text style={createStyles.cancelActionText}>Hủy bỏ</Text>
-            </TouchableOpacity>
+              {/* CỘT PHẢI: LỜI NHẮN, GỢI Ý CAPTION, CHỦ ĐỀ & FOOTER NÚT BẤM */}
+              <View style={createStyles.wideRightCol}>
+                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                  {/* Ô nhập lời nhắn / caption */}
+                  <View style={{ marginBottom: 6 }}>
+                    <Text style={createStyles.sectionLabel}>Nội dung khoảnh khắc</Text>
+                  </View>
+                  <View style={createStyles.inputSection}>
+                    <TextInput
+                      ref={inputRef}
+                      style={[createStyles.input, { minHeight: 88 }]}
+                      placeholder={`${(user as any)?.fullName || 'Ánh Mai'} ơi, bạn có khoảnh khắc gì thú vị muốn chia sẻ hôm nay? ✨`}
+                      value={caption}
+                      onChangeText={setCaption}
+                      placeholderTextColor="#94A3B8"
+                      multiline
+                    />
+                  </View>
 
-            <TouchableOpacity
-              style={[createStyles.submitBtn, (submitting || uploadingPhoto) && { opacity: 0.7 }]}
-              onPress={handleSubmit}
-              disabled={submitting || uploadingPhoto}
-              activeOpacity={0.85}
-            >
-              {submitting ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <Ionicons name={isEdit ? "checkmark-circle" : "paper-plane"} size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
-                  <Text style={createStyles.submitBtnText}>
-                    {isEdit ? 'Lưu thay đổi' : 'Đăng lên Bảng tin'}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
+                  {/* Gợi ý caption */}
+                  <View style={{ marginBottom: 6, marginTop: 4 }}>
+                    <Text style={createStyles.sectionLabel}>Gợi ý caption theo chủ đề</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 14 }}>
+                    {suggestedCaptions.map((text, idx) => {
+                      const isSelected = caption === text;
+                      return (
+                        <TouchableOpacity
+                          key={idx}
+                          onPress={() => setCaption(isSelected ? '' : text)}
+                          style={[
+                            createStyles.sampleCaptionChip,
+                            isSelected && createStyles.sampleCaptionChipActive,
+                          ]}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={[
+                              createStyles.sampleCaptionText,
+                              isSelected && createStyles.sampleCaptionTextActive,
+                            ]}
+                          >
+                            {text}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* Chọn chủ đề */}
+                  <View style={{ marginTop: 2, marginBottom: 6 }}>
+                    <Text style={createStyles.sectionLabel}>Chọn chủ đề bài viết</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 10 }}>
+                    {CATEGORIES.map((cat) => {
+                      const isActive = category === cat;
+                      return (
+                        <TouchableOpacity
+                          key={cat}
+                          onPress={() => setCategory(cat)}
+                          style={[createStyles.catChip, isActive && createStyles.catChipActive]}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[createStyles.catChipText, isActive && createStyles.catChipTextActive]}>
+                            {cat}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+
+                {/* Footer Buttons ở đáy Cột Phải */}
+                <View style={createStyles.footerActionRow}>
+                  <TouchableOpacity
+                    style={createStyles.cancelActionBtn}
+                    onPress={onClose}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={createStyles.cancelActionText}>Hủy bỏ</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[createStyles.submitBtn, (submitting || uploadingPhoto) && { opacity: 0.7 }]}
+                    onPress={handleSubmit}
+                    disabled={submitting || uploadingPhoto}
+                    activeOpacity={0.85}
+                  >
+                    {submitting ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <>
+                        <Ionicons name={isEdit ? "checkmark-circle" : "paper-plane"} size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
+                        <Text style={createStyles.submitBtnText}>
+                          {isEdit ? 'Lưu thay đổi' : 'Đăng lên Bảng tin'}
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          ) : (
+            /* ================= GIAO DIỆN MOBILE / MÀN HÌNH NHỎ (CUỘN DỌC) ================= */
+            <>
+              <ScrollView
+                style={{ flex: 1 }}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 16 }}
+              >
+                {/* 1. Ô nhập lời nhắn / chú thích ngay trên đầu */}
+                <View style={createStyles.inputSection}>
+                  <TextInput
+                    ref={inputRef}
+                    style={createStyles.input}
+                    placeholder={`${(user as any)?.fullName || 'Ánh Mai'} ơi, bạn có khoảnh khắc gì thú vị muốn chia sẻ hôm nay? ✨`}
+                    value={caption}
+                    onChangeText={setCaption}
+                    placeholderTextColor="#94A3B8"
+                    multiline
+                    numberOfLines={2}
+                  />
+                </View>
+
+                {/* Gợi ý caption */}
+                <View style={{ marginBottom: 6, marginTop: 4 }}>
+                  <Text style={createStyles.sectionLabel}>Gợi ý caption</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                  <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 2 }}>
+                    {suggestedCaptions.map((text, idx) => {
+                      const isSelected = caption === text;
+                      return (
+                        <TouchableOpacity
+                          key={idx}
+                          onPress={() => setCaption(isSelected ? '' : text)}
+                          style={[
+                            createStyles.sampleCaptionChip,
+                            isSelected && createStyles.sampleCaptionChipActive,
+                          ]}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={[
+                              createStyles.sampleCaptionText,
+                              isSelected && createStyles.sampleCaptionTextActive,
+                            ]}
+                          >
+                            {text}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+
+                {/* 2. Preview ảnh 16:9 sắc nét, gọn gàng */}
+                <View style={createStyles.previewContainer}>
+                  {selectedPhoto ? (
+                    <View style={createStyles.previewBox}>
+                      <Image source={{ uri: normalizeAvatarUrl(selectedPhoto) || selectedPhoto }} style={createStyles.previewImg} />
+                      
+                      {/* Floating category badge ở góc trên bên trái */}
+                      <View style={createStyles.floatingCategoryBadge}>
+                        <Text style={createStyles.floatingCategoryBadgeText}>{category}</Text>
+                      </View>
+
+                      {/* Floating Nút đổi ảnh / tải ảnh ở góc trên bên phải */}
+                      <TouchableOpacity
+                        style={createStyles.floatingChangeBtn}
+                        onPress={handlePickPhoto}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="cloud-upload" size={14} color="#059669" style={{ marginRight: 5 }} />
+                        <Text style={createStyles.floatingChangeBtnText}>
+                          {uploadingPhoto ? 'Đang tải...' : 'Tải ảnh từ máy'}
+                        </Text>
+                      </TouchableOpacity>
+
+                      {uploadingPhoto && (
+                        <View style={createStyles.uploadingOverlay}>
+                          <ActivityIndicator size="large" color="#fff" />
+                          <Text style={{ color: '#fff', marginTop: 8, fontWeight: '700' }}>Đang tải ảnh lên...</Text>
+                        </View>
+                      )}
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[createStyles.previewImg, createStyles.emptyPreviewBox]}
+                      onPress={handlePickPhoto}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="image-outline" size={42} color="#94A3B8" />
+                      <Text style={{ color: '#64748B', fontWeight: '700', marginTop: 8 }}>Chạm để chọn ảnh khoảnh khắc</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* Thư viện ảnh mẫu */}
+                <View style={{ marginTop: 4, marginBottom: 6 }}>
+                  <Text style={createStyles.sectionLabel}>Kho ảnh mẫu</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                  <View style={createStyles.photosRow}>
+                    {samplePhotos.map((item, idx) => {
+                      const isSelected = selectedPhoto === item.uri;
+                      return (
+                        <TouchableOpacity
+                          key={idx}
+                          onPress={() => {
+                            setSelectedPhoto(item.uri);
+                            if (!editingItem) setCategory(item.cat);
+                          }}
+                          style={[createStyles.photoThumbCard, isSelected && createStyles.photoThumbCardActive]}
+                          activeOpacity={0.75}
+                        >
+                          <Image source={{ uri: item.uri }} style={createStyles.photoThumbImg} />
+                          <View style={[createStyles.photoThumbLabelWrap, isSelected && createStyles.photoThumbLabelWrapActive]}>
+                            <Text style={[createStyles.photoThumbLabel, isSelected && createStyles.photoThumbLabelActive]}>
+                              {item.label}
+                            </Text>
+                          </View>
+                          {isSelected && (
+                            <View style={createStyles.photoThumbCheckCircle}>
+                              <Ionicons name="checkmark" size={11} color="#FFFFFF" />
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+
+                {/* Chọn chủ đề */}
+                <View style={{ marginTop: 2, marginBottom: 6 }}>
+                  <Text style={createStyles.sectionLabel}>Chủ đề</Text>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 6 }}>
+                  <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 2 }}>
+                    {CATEGORIES.map((cat) => {
+                      const isActive = category === cat;
+                      return (
+                        <TouchableOpacity
+                          key={cat}
+                          onPress={() => setCategory(cat)}
+                          style={[createStyles.catChip, isActive && createStyles.catChipActive]}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[createStyles.catChipText, isActive && createStyles.catChipTextActive]}>
+                            {cat}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </ScrollView>
+              </ScrollView>
+
+              {/* Footer PINNED Cố Định ở Đáy Modal */}
+              <View style={createStyles.footerActionRow}>
+                <TouchableOpacity
+                  style={createStyles.cancelActionBtn}
+                  onPress={onClose}
+                  activeOpacity={0.7}
+                >
+                  <Text style={createStyles.cancelActionText}>Hủy bỏ</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[createStyles.submitBtn, (submitting || uploadingPhoto) && { opacity: 0.7 }]}
+                  onPress={handleSubmit}
+                  disabled={submitting || uploadingPhoto}
+                  activeOpacity={0.85}
+                >
+                  {submitting ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name={isEdit ? "checkmark-circle" : "paper-plane"} size={17} color="#FFFFFF" style={{ marginRight: 6 }} />
+                      <Text style={createStyles.submitBtnText}>
+                        {isEdit ? 'Lưu thay đổi' : 'Đăng lên Bảng tin'}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
         </View>
       </View>
     </Modal>
@@ -1076,6 +1267,34 @@ const createStyles = StyleSheet.create({
     shadowRadius: 32,
     elevation: 16,
     overflow: 'hidden',
+  },
+  sheetWide: {
+    maxWidth: 960,
+    width: '92%',
+    paddingHorizontal: 28,
+    paddingTop: 22,
+    paddingBottom: 22,
+    maxHeight: '90%',
+  },
+  wideLayout: {
+    flexDirection: 'row',
+    gap: 26,
+    flex: 1,
+    minHeight: 450,
+  },
+  wideLeftCol: {
+    flex: 1.15,
+    justifyContent: 'flex-start',
+  },
+  wideRightCol: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  previewBoxWide: {
+    height: 310,
+  },
+  previewImgWide: {
+    height: 310,
   },
   header: {
     flexDirection: 'row',
