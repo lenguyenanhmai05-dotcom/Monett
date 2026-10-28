@@ -33,6 +33,7 @@ interface AuthContextType {
   googleLogin: (dto: GoogleAuthDto) => Promise<void>;
   logout: () => void;
   refreshUser: () => Promise<void>;
+  updateUserData: (newUser: IUser | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -44,6 +45,7 @@ const AuthContext = createContext<AuthContextType>({
   googleLogin: async () => {},
   logout: () => {},
   refreshUser: async () => {},
+  updateUserData: () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -213,6 +215,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         googleLogin,
         logout,
         refreshUser,
+        updateUserData,
       }}
     >
       {children}

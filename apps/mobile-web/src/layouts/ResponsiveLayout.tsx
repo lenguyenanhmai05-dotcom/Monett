@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { FloatingFrogAIChat } from '../components/FloatingFrogAIChat';
 import { useChat } from '../contexts/ChatContext';
 import { MessengerPopover } from '../components/MessengerPopover';
 import { ChatModal } from '../components/ChatModal';
+import { normalizeAvatarUrl } from '../services/api';
 
 export type TabKey =
   | 'home'
@@ -52,6 +53,12 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
   const { isMessengerOpen, toggleMessenger, activeChatFriend, activeMomentReply, closeChat } = useChat();
   const [imageError, setImageError] = useState(false);
   const styles = getStyles(isDark, colors);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [user?.avatarUrl]);
+
+  const avatarUri = normalizeAvatarUrl(user?.avatarUrl);
 
   const getAvatarColor = (name: string) => {
     const colors = [
@@ -164,9 +171,9 @@ export const ResponsiveLayout: React.FC<ResponsiveLayoutProps> = ({
                 onPress={() => onSelectTab('profile')}
                 activeOpacity={0.75}
               >
-                {user?.avatarUrl && !imageError ? (
+                {avatarUri && !imageError ? (
                   <Image
-                    source={{ uri: user.avatarUrl }}
+                    source={{ uri: avatarUri }}
                     style={styles.userChipAvatar}
                     onError={() => setImageError(true)}
                   />

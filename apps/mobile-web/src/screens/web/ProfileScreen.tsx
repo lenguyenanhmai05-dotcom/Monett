@@ -8,7 +8,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { FROGS } from '../../../assets/frogIndex';
 import QRCode from 'react-qr-code';
-import { updateProfileApi, changePasswordApi, uploadAvatarApi, sendFriendRequestApi, getFriendRequestsApi, getFriendsApi, respondFriendRequestApi, removeFriendApi, exportDataApi, submitFeedbackApi, submitRatingApi, getStreakApi } from '../../services/api';
+import { updateProfileApi, changePasswordApi, uploadAvatarApi, sendFriendRequestApi, getFriendRequestsApi, getFriendsApi, respondFriendRequestApi, removeFriendApi, exportDataApi, submitFeedbackApi, submitRatingApi, getStreakApi, normalizeAvatarUrl } from '../../services/api';
 import { useTransactions } from '../../contexts/TransactionContext';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -18,7 +18,7 @@ import { useNotifications } from '../../contexts/NotificationContext';
 export const ProfileScreen: React.FC = () => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 960;
-  const { user, logout, refreshUser } = useAuth();
+  const { user, logout, refreshUser, updateUserData } = useAuth();
   const { language, setLanguage } = useLanguage();
   const { isDark } = useTheme();
   const { addNotification } = useNotifications();
@@ -32,6 +32,10 @@ export const ProfileScreen: React.FC = () => {
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [imageError, setImageError] = useState(false);
+  useEffect(() => {
+    setImageError(false);
+  }, [user?.avatarUrl]);
+  const avatarUri = normalizeAvatarUrl(user?.avatarUrl);
   
   const [isPasswordModalVisible, setIsPasswordModalVisible] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -289,7 +293,10 @@ export const ProfileScreen: React.FC = () => {
         setIsUploading(true);
         const asset = result.assets[0];
         const match = /\.(\w+)$/.exec(asset.fileName || asset.uri.split('/').pop() || 'avatar.jpg');
-        await uploadAvatarApi(asset.uri, match ? `image/${match[1]}` : `image`, asset.fileName || 'avatar.jpg');
+        const updated = await uploadAvatarApi(asset.uri, match ? `image/${match[1]}` : `image`, asset.fileName || 'avatar.jpg');
+        if (updateUserData && updated) {
+          updateUserData(updated);
+        }
         if (refreshUser) await refreshUser();
         setImageError(false);
       }
@@ -435,8 +442,8 @@ export const ProfileScreen: React.FC = () => {
         <View style={styles.coverBanner} />
         <View style={styles.profileMetaBox}>
           <View style={styles.avatarContainer}>
-            {user?.avatarUrl && !imageError ? (
-              <Image source={{ uri: user.avatarUrl }} style={styles.avatarImg} onError={() => setImageError(true)} />
+            {avatarUri && !imageError ? (
+              <Image source={{ uri: avatarUri }} style={styles.avatarImg} onError={() => setImageError(true)} />
             ) : (
               <View style={[styles.avatarImg, { backgroundColor: avatarColor.bg, justifyContent: 'center', alignItems: 'center' }]}>
                 <Text style={[styles.avatarInitials, { color: avatarColor.text }]}>{getInitial()}</Text>
@@ -616,30 +623,6 @@ export const ProfileScreen: React.FC = () => {
                 onPress={() => setIsCurrencyModalVisible(true)} 
               />
 
-            </View>
-          </View>
-
-          {/* 🌟 TIỆN ÍCH & DỮ LIỆU */}
-          <View style={styles.settingsGroup}>
-            <Text style={styles.settingsGroupTitle}>{language === 'vi' ? 'Tiện ích & Dữ liệu' : 'Utilities & Data'}</Text>
-            <View style={styles.settingsBlock}>
-              <SettingRow 
-                icon={<Ionicons name="people" size={24} color="#F59E0B" />} 
-                title={language === 'vi' ? 'Danh sách bạn bè' : 'Friends'} 
-                subtitle={language === 'vi' ? 'Quản lý bạn bè của bạn' : 'Manage your network'} 
-                color="#F59E0B" 
-                onPress={handleOpenFriendsModal} 
-              />
-              <SettingRow 
-                icon={<Ionicons name={hasReminder ? "notifications" : "notifications-off-outline"} size={24} color={hasReminder ? "#10B981" : "#94A3B8"} />} 
-                title={language === 'vi' ? 'Giờ Nhắc Nhở' : 'Reminder Time'} 
-                subtitle={getReminderSubtitle()} 
-                value={hasReminder ? user?.reminderTime : (language === 'vi' ? 'Tắt' : 'Off')} 
-                color={hasReminder ? "#10B981" : "#94A3B8"} 
-                onPress={() => setIsReminderModalVisible(true)} 
-              />
-              <SettingRow icon={<Ionicons name="cloud-done-outline" size={24} color="#0EA5E9" />} title={language === 'vi' ? 'Đồng bộ đám mây' : 'Cloud Sync'} subtitle={language === 'vi' ? 'Dữ liệu đã được sao lưu an toàn' : 'Data is safely backed up'} color="#0EA5E9" onPress={() => window.alert(language === 'vi' ? 'Dữ liệu của bạn đang được đồng bộ hóa an toàn!' : 'Your data is safely synced!')} />
-              
               {!(user as any)?.googleId && (
                 <SettingRow 
                   icon={<Ionicons name="key-outline" size={24} color="#D97706" />} 
@@ -648,10 +631,6 @@ export const ProfileScreen: React.FC = () => {
                   color="#D97706" 
                   onPress={() => setIsPasswordModalVisible(true)} 
                 />
-              )}
-
-              {user?.authProvider !== 'google' && (
-                <SettingRow icon={<Ionicons name="shield-checkmark-outline" size={24} color="#14B8A6" />} title={language === 'vi' ? 'Xác thực 2 bước' : 'Two-Factor Auth'} subtitle={language === 'vi' ? 'Bảo vệ tài khoản bằng mã OTP' : 'Protect with OTP code'} color="#14B8A6" isPro isSwitch switchValue={isFaceId} onSwitchChange={setIsFaceId} />
               )}
             </View>
           </View>
