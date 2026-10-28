@@ -265,21 +265,13 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
       setAmountStr('85000');
       setSelectedCategory('Cà phê & Nước');
       setCategoryIcon('☕');
-      setItems([
-        { name: 'Phin Sữa Đá (Cỡ Vừa)', quantity: 1, price: 39000, total: 39000 },
-        { name: 'Bánh Mousse Đào', quantity: 1, price: 46000, total: 46000 },
-      ]);
+      setItems([]);
     } else {
       setSupplier('WinMart+ Cửa Hàng Tiện Lợi');
       setAmountStr('168000');
       setSelectedCategory('Đi chợ & Siêu thị');
       setCategoryIcon('🛒');
-      setItems([
-        { name: 'Sữa tươi tiệt trùng TH True Milk 1L', quantity: 1, price: 38000, total: 38000 },
-        { name: 'Trứng gà Ba Huân (10 quả)', quantity: 1, price: 35000, total: 35000 },
-        { name: 'Bánh mì sandwich bơ sữa', quantity: 1, price: 25000, total: 25000 },
-        { name: 'Táo Envy New Zealand (0.8kg)', quantity: 1, price: 70000, total: 70000 },
-      ]);
+      setItems([]);
     }
 
     setScanSuccess(true);
@@ -713,59 +705,7 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
                   </View>
                 </View>
 
-                {/* 5. Chi tiết các món (Itemized Breakdown) nếu có */}
-                {items && items.length > 0 && (
-                  <View style={styles.fieldCard}>
-                    <Text style={styles.fieldLabel}>
-                      {language === 'vi' ? 'Chi tiết các món trích xuất' : 'Itemized Breakdown'} ({items.length})
-                    </Text>
-                    <View
-                      style={[
-                        styles.itemsTableBox,
-                        {
-                          backgroundColor: isDark ? '#1E293B' : '#F8FAFC',
-                          borderColor: isDark ? '#334155' : '#E2E8F0',
-                        },
-                      ]}
-                    >
-                      {items.map((it, idx) => (
-                        <View
-                          key={idx}
-                          style={[
-                            styles.itemTableRow,
-                            idx < items.length - 1 && {
-                              borderBottomWidth: 1,
-                              borderBottomColor: isDark ? '#334155' : '#E2E8F0',
-                            },
-                          ]}
-                        >
-                          <View style={{ flex: 1, paddingRight: 8 }}>
-                            <Text
-                              style={[
-                                styles.itemNameText,
-                                { color: isDark ? '#F1F5F9' : '#0F172A' },
-                              ]}
-                              numberOfLines={1}
-                            >
-                              {it.name}
-                            </Text>
-                            <Text style={styles.itemQuantityText}>
-                              {language === 'vi' ? 'SL' : 'Qty'}: {it.quantity} x {Number(it.price || 0).toLocaleString('vi-VN')} đ
-                            </Text>
-                          </View>
-                          <Text
-                            style={[
-                              styles.itemPriceText,
-                              { color: isDark ? '#34D399' : '#059669' },
-                            ]}
-                          >
-                            {Number(it.total || it.price || 0).toLocaleString('vi-VN')} đ
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                )}
+
               </View>
             </View>
           </ScrollView>
