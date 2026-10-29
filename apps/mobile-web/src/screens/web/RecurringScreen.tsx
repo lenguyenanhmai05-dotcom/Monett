@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Rect, Circle, Line } from 'react-native-svg';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import {
   RecurringItem,
   RecurringFrequency,
@@ -146,6 +147,7 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
   const { width } = useWindowDimensions();
   const isDesktop = width >= 860;
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const { language } = useLanguage();
   const isVi = language === 'vi';
 
@@ -308,14 +310,14 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
 
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: isDark ? '#0B0F17' : '#F5F0E8' }]}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
       {/* ================= 1. TIÊU ĐỀ TRANG ================= */}
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={styles.screenHeading}>
+          <Text style={[styles.screenHeading, isDark && { color: '#F8FAFC' }]}>
             {isVi ? 'Định kỳ' : 'Recurring'}
           </Text>
         </View>
@@ -324,7 +326,7 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
       {/* ================= 2. CỤM CHỌN TAB & NÚT THÊM KHOẢN ================= */}
       <View style={styles.tabBarControlsRow}>
         {/* Tab Switcher: Chi định kỳ vs Thu định kỳ */}
-        <View style={styles.tabSwitcherBox}>
+        <View style={[styles.tabSwitcherBox, isDark && { backgroundColor: '#162032', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
           <TouchableOpacity
             style={[styles.tabPillBtn, activeTab === 'expense' && styles.tabPillBtnActive]}
             onPress={() => setActiveTab('expense')}
@@ -358,12 +360,12 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
 
         {/* Nút + Thêm khoản bên phải */}
         <TouchableOpacity
-          style={styles.addRecurringBtn}
+          style={[styles.addRecurringBtn, isDark && { backgroundColor: '#059669', shadowColor: '#059669' }]}
           onPress={handleOpenCreateModal}
           activeOpacity={0.85}
         >
-          <SvgPlus size={15} color="#064E3B" style={{ marginRight: 6 }} />
-          <Text style={styles.addRecurringBtnText}>
+          <SvgPlus size={15} color={isDark ? "#FFFFFF" : "#064E3B"} style={{ marginRight: 6 }} />
+          <Text style={[styles.addRecurringBtnText, isDark && { color: "#FFFFFF" }]}>
             {isVi ? 'Thêm khoản' : 'Add Item'}
           </Text>
         </TouchableOpacity>
@@ -493,7 +495,7 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
               const dayStr = item.dayOfPayment ? ` • ngày ${item.dayOfPayment}` : '';
 
               return (
-                <View key={item.id} style={styles.recurringItemCard}>
+                <View key={item.id} style={[styles.recurringItemCard, isDark && { backgroundColor: '#121A27', borderColor: 'rgba(255, 255, 255, 0.08)' }]}>
                   {/* Hàng trên: Icon + Tên + Tần suất và Switch Bật/Tắt */}
                   <View style={styles.itemTopRow}>
                     <View style={styles.itemLeftGroup}>
@@ -501,8 +503,8 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
                         <SvgSync size={17} color="#059669" />
                       </View>
                       <View>
-                        <Text style={styles.itemTitleText}>{item.title}</Text>
-                        <Text style={styles.itemSubtitleText}>
+                        <Text style={[styles.itemTitleText, isDark && { color: '#F8FAFC' }]}>{item.title}</Text>
+                        <Text style={[styles.itemSubtitleText, isDark && { color: '#94A3B8' }]}>
                           {freqText}
                           {dayStr}
                         </Text>

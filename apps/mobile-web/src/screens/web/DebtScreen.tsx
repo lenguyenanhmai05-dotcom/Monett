@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Path, Rect, Circle, Line } from 'react-native-svg';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import {
   DebtItem,
   DebtType,
@@ -176,6 +177,7 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
   const { width } = useWindowDimensions();
   const isDesktop = width >= 860;
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const { language } = useLanguage();
   const isVi = language === 'vi';
 
@@ -443,7 +445,7 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
   };
 
   return (
-    <View style={styles.screenContainer}>
+    <View style={[styles.screenContainer, { backgroundColor: isDark ? '#0B0F17' : '#F5F0E8' }]}>
       <ScrollView
         style={styles.scrollArea}
         contentContainerStyle={styles.scrollContent}
@@ -452,7 +454,7 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
         {/* ========================================================================= */}
         <View style={styles.headerRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={styles.screenHeading}>
+            <Text style={[styles.screenHeading, isDark && { color: '#F8FAFC' }]}>
               {isVi ? 'Sổ ghi nợ' : 'Debt Book'}
             </Text>
           </View>
