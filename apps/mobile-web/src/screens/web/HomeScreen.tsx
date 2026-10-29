@@ -2073,6 +2073,107 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
   const [timelineDayNum, setTimelineDayNum] = useState<number>(todayDate > 0 ? todayDate : 1);
   const [selectedTimelineItem, setSelectedTimelineItem] = useState<ExpenseItem | null>(null);
 
+  // Timeline Item Inline Editing State
+  const [isEditingTimelineItem, setIsEditingTimelineItem] = useState<boolean>(false);
+  const [editAmountStr, setEditAmountStr] = useState<string>('');
+  const [editCategory, setEditCategory] = useState<string>('Ăn uống');
+  const [editCategoryIcon, setEditCategoryIcon] = useState<string>('🍜');
+  const [editNote, setEditNote] = useState<string>('');
+  const [editTimeStr, setEditTimeStr] = useState<string>('');
+  const [isSavingEditItem, setIsSavingEditItem] = useState<boolean>(false);
+
+  const handleStartEditingItem = (item: ExpenseItem) => {
+    setSelectedTimelineItem(item);
+    setEditAmountStr(String(item.amount || ''));
+    setEditCategory(item.category || 'Ăn uống');
+    setEditCategoryIcon(item.categoryIcon || '🍜');
+    setEditNote(item.note || '');
+    setEditTimeStr(item.time || '');
+    setIsEditingTimelineItem(true);
+  };
+
+  const handleCancelEditingItem = () => {
+    setIsEditingTimelineItem(false);
+  };
+
+  const handleSaveEditingItem = async (activeItem: ExpenseItem) => {
+    if (!activeItem) return;
+    const rawNum = parseInt(editAmountStr.replace(/\D/g, ''), 10);
+    if (isNaN(rawNum) || rawNum <= 0) {
+      alert(language === 'vi' ? 'Vui lòng nhập số tiền hợp lệ (> 0 VNĐ)' : 'Please enter a valid amount (> 0 VND)');
+      return;
+    }
+
+    setIsSavingEditItem(true);
+    try {
+      const oldAmount = activeItem.amount || 0;
+      const newAmount = rawNum;
+      const amountDelta = newAmount - oldAmount;
+
+      if (amountDelta !== 0) {
+        const updatedBudget = applyBudgetDelta(amountDelta, budget);
+        setBudget(updatedBudget);
+      }
+
+      const photoKey = `${currentYear}-${currentMonth + 1}-${timelineDayNum}`;
+      const paddedKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(timelineDayNum).padStart(2, '0')}`;
+
+      const updatedItem: ExpenseItem = {
+        ...activeItem,
+        amount: newAmount,
+        category: editCategory,
+        categoryIcon: editCategoryIcon,
+        note: editNote.trim(),
+        time: editTimeStr.trim() || activeItem.time,
+      };
+
+      setDayRecords((prev) => {
+        const existing = prev[photoKey] || prev[paddedKey];
+        if (!existing || !existing.items) return prev;
+        const updatedItems = existing.items.map((it) => (it.id === activeItem.id ? updatedItem : it));
+        updatedItems.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+        const totalAmount = updatedItems.reduce((sum, it) => sum + (it.amount || 0), 0);
+        const updatedRecord: DayExpenseRecord = {
+          ...existing,
+          amount: totalAmount,
+          items: updatedItems,
+        };
+        const next = { ...prev, [photoKey]: updatedRecord, [paddedKey]: updatedRecord };
+        saveDayRecordsToStorage(next, currentUserId);
+        return next;
+      });
+
+      setSelectedTimelineItem(updatedItem);
+      setIsEditingTimelineItem(false);
+
+      if (activeItem.id && !activeItem.id.startsWith('exp-') && !activeItem.id.startsWith('legacy-')) {
+        try {
+          await updateTransactionApi(activeItem.id, {
+            amount: -Math.abs(newAmount),
+            category: editCategory,
+            categoryIcon: editCategoryIcon,
+            title: editNote.trim() || editCategory,
+            note: editNote.trim(),
+            time: editTimeStr.trim() || activeItem.time,
+          });
+          getBudgetApi()
+            .then((fresh) => {
+              if (fresh && fresh.limit) {
+                setBudget(fresh);
+                saveCachedBudget(fresh);
+                notifyBudgetUpdated(fresh);
+              }
+            })
+            .catch(() => {});
+        } catch (err) {
+          console.warn('Lỗi cập nhật backend:', err);
+        }
+      }
+    } finally {
+      setIsSavingEditItem(false);
+    }
+  };
+
   // Full-image lightbox preview
   const [lightboxUri, setLightboxUri] = useState<string | null>(null);
 
@@ -2143,6 +2244,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
   };
 
   const handleOpenTimelineForDay = (dayNum: number) => {
+    setIsEditingTimelineItem(false);
     setTimelineDayNum(dayNum);
     setSelectedDay(dayNum);
     const photoKey = `${currentYear}-${currentMonth + 1}-${dayNum}`;
@@ -2540,6 +2642,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
   const handleConfirmDeleteExpense = async () => {
     if (!deletingExpense) return;
     setIsDeletingExpense(true);
+    setIsEditingTimelineItem(false);
     try {
       await handleDeleteExpenseItem(deletingExpense.dayNum, deletingExpense.item.id);
     } catch (err) {
@@ -3741,7 +3844,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
             visible={timelineModalVisible}
             transparent
             animationType="fade"
-            onRequestClose={() => setTimelineModalVisible(false)}
+            onRequestClose={() => { setIsEditingTimelineItem(false); setTimelineModalVisible(false); }}
           >
             <View style={styles.modalBackdrop}>
               <View
@@ -3859,7 +3962,16 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
                                 styles.timelineInteractiveCard,
                                 isSelected && styles.timelineInteractiveCardSelected,
                               ]}
-                              onPress={() => setSelectedTimelineItem(it)}
+                              onPress={() => {
+                                setSelectedTimelineItem(it);
+                                if (isEditingTimelineItem) {
+                                  setEditAmountStr(String(it.amount || ''));
+                                  setEditCategory(it.category || 'Ăn uống');
+                                  setEditCategoryIcon(it.categoryIcon || '🍜');
+                                  setEditNote(it.note || '');
+                                  setEditTimeStr(it.time || '');
+                                }
+                              }}
                               activeOpacity={0.85}
                             >
                               {/* Top row: Time + Category + Amount */}
@@ -3881,7 +3993,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
                                 </Text>
                               </View>
 
-                              {/* Bottom row: Note preview + Photo badge + Delete btn */}
+                              {/* Bottom row: Note preview + Photo badge + Quick Edit & Delete */}
                               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <Text style={[styles.timelineItemNotePreview, isSelected && { color: isDark ? '#E2E8F0' : '#1E293B' }]} numberOfLines={1}>
                                   {it.note ? `📝 ${it.note}` : (language === 'vi' ? 'Không có ghi chú' : 'No note')}
@@ -3893,6 +4005,16 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
                                       <Text style={styles.timelineHasPhotoText}>📷 {language === 'vi' ? 'Có ảnh' : 'Photo'}</Text>
                                     </View>
                                   ) : null}
+                                  <TouchableOpacity
+                                    onPress={(e) => {
+                                      e.stopPropagation();
+                                      handleStartEditingItem(it);
+                                    }}
+                                    style={styles.timelineItemQuickEditBtn}
+                                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                                  >
+                                    <Text style={{ fontSize: 11 }}>✏️</Text>
+                                  </TouchableOpacity>
                                   <TouchableOpacity
                                     onPress={(e) => {
                                       e.stopPropagation();
@@ -4012,59 +4134,272 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
                           </View>
                         )}
 
-                        {/* Financial Details Card */}
-                        <View style={styles.detailMainInfoCard}>
-                          {/* Category Row */}
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                            <View style={styles.detailCategoryIconWrap}>
-                              <CategorySvgIcon categoryId={activeItem.category} categoryIcon={activeItem.categoryIcon} size={24} />
+                        {/* Financial Details Card (EDIT or VIEW mode) */}
+                        {isEditingTimelineItem ? (
+                          <View style={[styles.detailMainInfoCard, { borderColor: isDark ? 'rgba(5, 150, 105, 0.4)' : '#A7F3D0', borderWidth: 1.5 }]}>
+                            {/* Edit Header */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: isDark ? '#334155' : '#F1F5F9' }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <View style={[styles.sectionIconBadge, { backgroundColor: isDark ? 'rgba(5, 150, 105, 0.2)' : '#DCFCE7' }]}>
+                                  <Text style={{ fontSize: 13 }}>✏️</Text>
+                                </View>
+                                <Text style={{ fontSize: 14, fontWeight: '800', color: colors.textPrimary }}>
+                                  {language === 'vi' ? 'Chỉnh sửa khoản chi' : 'Edit Expense'}
+                                </Text>
+                              </View>
+                              <TouchableOpacity
+                                onPress={handleCancelEditingItem}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                style={{ padding: 4 }}
+                              >
+                                <Text style={{ fontSize: 14, color: '#64748B', fontWeight: '800' }}>✕</Text>
+                              </TouchableOpacity>
                             </View>
-                            <View>
-                              <Text style={styles.detailCategoryLabel}>
-                                {language === 'vi' ? 'Danh mục chi tiêu' : 'Expense Category'}
-                              </Text>
-                              <Text style={styles.detailCategoryName}>
-                                {activeItem.category || 'Ăn uống'}
-                              </Text>
+
+                            {/* 1. Edit Amount */}
+                            <View style={{ marginBottom: 14 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? '#E2E8F0' : '#475569' }}>
+                                  {language === 'vi' ? 'Số tiền thanh toán (VNĐ)' : 'Amount Paid (VND)'} <Text style={{ color: '#EF4444' }}>*</Text>
+                                </Text>
+                                {editAmountStr && parseInt(editAmountStr.replace(/\D/g, ''), 10) > 0 ? (
+                                  <View style={styles.amountLiveBadge}>
+                                    <Text style={styles.amountLiveBadgeText}>
+                                      = {parseInt(editAmountStr.replace(/\D/g, ''), 10).toLocaleString('vi-VN')} đ
+                                    </Text>
+                                  </View>
+                                ) : null}
+                              </View>
+
+                              <View style={styles.amountInputWrap}>
+                                <Text style={styles.amountCurrencyPrefix}>₫</Text>
+                                <TextInput
+                                  style={styles.amountLargeInput}
+                                  value={editAmountStr}
+                                  onChangeText={setEditAmountStr}
+                                  placeholder="0"
+                                  placeholderTextColor="#94A3B8"
+                                  keyboardType="numeric"
+                                  autoFocus
+                                />
+                              </View>
+
+                              {/* Quick Add Chips */}
+                              <View style={[styles.quickAmountRow, { marginTop: 8 }]}>
+                                {[20000, 50000, 100000, 200000, 500000].map((val) => (
+                                  <TouchableOpacity
+                                    key={val}
+                                    style={styles.quickAmountChip}
+                                    onPress={() => {
+                                      const cur = parseInt(editAmountStr.replace(/\D/g, ''), 10) || 0;
+                                      setEditAmountStr(String(cur + val));
+                                    }}
+                                    activeOpacity={0.7}
+                                  >
+                                    <Text style={styles.quickAmountText}>+{formatAmountShort(val)}</Text>
+                                  </TouchableOpacity>
+                                ))}
+                                <TouchableOpacity
+                                  style={styles.quickAmountClearChip}
+                                  onPress={() => setEditAmountStr('')}
+                                  activeOpacity={0.7}
+                                >
+                                  <Text style={styles.quickAmountClearText}>{language === 'vi' ? 'Xóa' : 'Clear'}</Text>
+                                </TouchableOpacity>
+                              </View>
                             </View>
-                          </View>
 
-                          {/* Big Amount Box */}
-                          <View style={styles.detailAmountBox}>
-                            <Text style={styles.detailAmountLabel}>
-                              {language === 'vi' ? 'Số tiền thanh toán' : 'Amount Paid'}
-                            </Text>
-                            <Text style={styles.detailAmountValue}>
-                              -{(activeItem.amount || 0).toLocaleString('vi-VN')} <Text style={{ fontSize: 20 }}>đ</Text>
-                            </Text>
-                          </View>
+                            {/* 2. Edit Category */}
+                            <View style={{ marginBottom: 14 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? '#E2E8F0' : '#475569' }}>
+                                  {language === 'vi' ? 'Danh mục chi tiêu' : 'Expense Category'}
+                                </Text>
+                                <View style={styles.selectedCategoryPill}>
+                                  <Text style={styles.selectedCategoryPillText}>{editCategory}</Text>
+                                </View>
+                              </View>
 
-                          {/* Full Note */}
-                          <View style={styles.detailNoteCard}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                              <Text style={{ fontSize: 13 }}>📝</Text>
-                              <Text style={styles.detailNoteHeading}>
+                              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
+                                {EXPENSE_CATEGORIES.map((cat) => {
+                                  const isSelected = editCategory === cat.name;
+                                  const theme = CATEGORY_THEMES[cat.id] || CATEGORY_THEMES.other;
+                                  return (
+                                    <TouchableOpacity
+                                      key={cat.id}
+                                      style={[
+                                        styles.categoryChip,
+                                        { width: 84, paddingVertical: 8, paddingHorizontal: 4 },
+                                        isSelected && {
+                                          borderColor: theme.primary,
+                                          borderWidth: 2,
+                                          backgroundColor: isDark ? theme.bgDark : theme.bgLight,
+                                        },
+                                      ]}
+                                      onPress={() => {
+                                        setEditCategory(cat.name);
+                                        setEditCategoryIcon(cat.icon);
+                                      }}
+                                      activeOpacity={0.75}
+                                    >
+                                      <View
+                                        style={[
+                                          styles.categoryIconCircle,
+                                          { width: 36, height: 36 },
+                                          isSelected && {
+                                            backgroundColor: isDark ? theme.circleDark : theme.circleLight,
+                                          },
+                                        ]}
+                                      >
+                                        <CategorySvgIcon categoryId={cat.id} size={20} isSelected={isSelected} />
+                                      </View>
+                                      <Text
+                                        style={[
+                                          styles.categoryChipText,
+                                          { fontSize: 10, marginTop: 4 },
+                                          isSelected && {
+                                            fontWeight: '900',
+                                            color: isDark ? theme.textDark : theme.textLight,
+                                          },
+                                        ]}
+                                        numberOfLines={1}
+                                      >
+                                        {cat.name}
+                                      </Text>
+                                    </TouchableOpacity>
+                                  );
+                                })}
+                              </ScrollView>
+                            </View>
+
+                            {/* 3. Edit Note */}
+                            <View style={{ marginBottom: 12 }}>
+                              <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? '#E2E8F0' : '#475569', marginBottom: 6 }}>
                                 {language === 'vi' ? 'Ghi chú chi tiết' : 'Detailed Note'}
                               </Text>
+                              <TextInput
+                                style={[
+                                  styles.modalInput,
+                                  {
+                                    minHeight: 56,
+                                    textAlignVertical: 'top',
+                                    paddingVertical: 8,
+                                  },
+                                ]}
+                                value={editNote}
+                                onChangeText={setEditNote}
+                                placeholder={language === 'vi' ? 'Nhập ghi chú chi tiêu...' : 'Expense note...'}
+                                placeholderTextColor="#94A3B8"
+                                multiline
+                              />
                             </View>
-                            <Text style={styles.detailNoteContent}>
-                              {activeItem.note || (language === 'vi' ? 'Khoản chi tiêu này không có ghi chú.' : 'No detailed note.')}
-                            </Text>
-                          </View>
 
-                          {/* Bottom Action Buttons */}
-                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
-                            <TouchableOpacity
-                              style={styles.detailDeleteBtn}
-                              onPress={() => setDeletingExpense({ dayNum: timelineDayNum, item: activeItem })}
-                              activeOpacity={0.8}
-                            >
-                              <Text style={styles.detailDeleteBtnText}>
-                                🗑️ {language === 'vi' ? 'Xóa khoản chi này' : 'Delete expense'}
+                            {/* 4. Edit Time */}
+                            <View style={{ marginBottom: 16 }}>
+                              <Text style={{ fontSize: 12, fontWeight: '700', color: isDark ? '#E2E8F0' : '#475569', marginBottom: 6 }}>
+                                {language === 'vi' ? 'Giờ chi tiêu (HH:mm)' : 'Time (HH:mm)'}
                               </Text>
-                            </TouchableOpacity>
+                              <TextInput
+                                style={[styles.modalInput, { width: 120 }]}
+                                value={editTimeStr}
+                                onChangeText={setEditTimeStr}
+                                placeholder="19:30"
+                                placeholderTextColor="#94A3B8"
+                                maxLength={5}
+                              />
+                            </View>
+
+                            {/* Edit Action Buttons */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+                              <TouchableOpacity
+                                style={styles.detailCancelEditBtn}
+                                onPress={handleCancelEditingItem}
+                                activeOpacity={0.8}
+                                disabled={isSavingEditItem}
+                              >
+                                <Text style={styles.detailCancelEditBtnText}>
+                                  ✕ {language === 'vi' ? 'Hủy' : 'Cancel'}
+                                </Text>
+                              </TouchableOpacity>
+
+                              <TouchableOpacity
+                                style={styles.detailSaveEditBtn}
+                                onPress={() => handleSaveEditingItem(activeItem)}
+                                activeOpacity={0.85}
+                                disabled={isSavingEditItem}
+                              >
+                                <Text style={styles.detailSaveEditBtnText}>
+                                  {isSavingEditItem
+                                    ? (language === 'vi' ? 'Đang lưu...' : 'Saving...')
+                                    : (language === 'vi' ? '💾 Lưu thay đổi' : '💾 Save changes')}
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
                           </View>
-                        </View>
+                        ) : (
+                          <View style={styles.detailMainInfoCard}>
+                            {/* Category Row */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                              <View style={styles.detailCategoryIconWrap}>
+                                <CategorySvgIcon categoryId={activeItem.category} categoryIcon={activeItem.categoryIcon} size={24} />
+                              </View>
+                              <View>
+                                <Text style={styles.detailCategoryLabel}>
+                                  {language === 'vi' ? 'Danh mục chi tiêu' : 'Expense Category'}
+                                </Text>
+                                <Text style={styles.detailCategoryName}>
+                                  {activeItem.category || 'Ăn uống'}
+                                </Text>
+                              </View>
+                            </View>
+
+                            {/* Big Amount Box */}
+                            <View style={styles.detailAmountBox}>
+                              <Text style={styles.detailAmountLabel}>
+                                {language === 'vi' ? 'Số tiền thanh toán' : 'Amount Paid'}
+                              </Text>
+                              <Text style={styles.detailAmountValue}>
+                                -{(activeItem.amount || 0).toLocaleString('vi-VN')} <Text style={{ fontSize: 20 }}>đ</Text>
+                              </Text>
+                            </View>
+
+                            {/* Full Note */}
+                            <View style={styles.detailNoteCard}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                                <Text style={{ fontSize: 13 }}>📝</Text>
+                                <Text style={styles.detailNoteHeading}>
+                                  {language === 'vi' ? 'Ghi chú chi tiết' : 'Detailed Note'}
+                                </Text>
+                              </View>
+                              <Text style={styles.detailNoteContent}>
+                                {activeItem.note || (language === 'vi' ? 'Khoản chi tiêu này không có ghi chú.' : 'No detailed note.')}
+                              </Text>
+                            </View>
+
+                            {/* Bottom Action Buttons: Sửa + Xóa */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+                              <TouchableOpacity
+                                style={styles.detailEditBtn}
+                                onPress={() => handleStartEditingItem(activeItem)}
+                                activeOpacity={0.8}
+                              >
+                                <Text style={styles.detailEditBtnText}>
+                                  ✏️ {language === 'vi' ? 'Sửa khoản chi' : 'Edit expense'}
+                                </Text>
+                              </TouchableOpacity>
+
+                              <TouchableOpacity
+                                style={styles.detailDeleteBtn}
+                                onPress={() => setDeletingExpense({ dayNum: timelineDayNum, item: activeItem })}
+                                activeOpacity={0.8}
+                              >
+                                <Text style={styles.detailDeleteBtnText}>
+                                  🗑️ {language === 'vi' ? 'Xóa khoản chi này' : 'Delete expense'}
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        )}
                       </ScrollView>
                     ) : (
                       /* When no item selected */
@@ -4087,7 +4422,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
                 <View style={styles.timelineModalBottom}>
                   <TouchableOpacity
                     style={styles.timelineCloseBtn}
-                    onPress={() => setTimelineModalVisible(false)}
+                    onPress={() => { setIsEditingTimelineItem(false); setTimelineModalVisible(false); }}
                     activeOpacity={0.8}
                   >
                     <Text style={styles.timelineCloseBtnText}>{language === 'vi' ? 'Đóng' : 'Close'}</Text>
@@ -6302,6 +6637,51 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     color: '#DC2626',
+  },
+  detailEditBtn: {
+    backgroundColor: isDark ? 'rgba(5, 150, 105, 0.2)' : '#DCFCE7',
+    borderWidth: 1,
+    borderColor: isDark ? 'rgba(5, 150, 105, 0.4)' : '#A7F3D0',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  detailEditBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: isDark ? '#34D399' : '#059669',
+  },
+  detailCancelEditBtn: {
+    backgroundColor: isDark ? '#334155' : '#F1F5F9',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  detailCancelEditBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: isDark ? '#CBD5E1' : '#64748B',
+  },
+  detailSaveEditBtn: {
+    backgroundColor: '#059669',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  detailSaveEditBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  timelineItemQuickEditBtn: {
+    padding: 4,
+    borderRadius: 4,
+    backgroundColor: isDark ? '#1E293B' : '#DCFCE7',
   },
   detailSelectPromptBox: {
     flex: 1,
