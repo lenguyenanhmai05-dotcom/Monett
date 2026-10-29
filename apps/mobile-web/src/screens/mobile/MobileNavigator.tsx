@@ -28,6 +28,7 @@ import { EventsScreen } from '../web/EventsScreen';
 import { SavingsScreen } from '../web/SavingsScreen';
 import { DebtScreen } from '../web/DebtScreen';
 import { RecurringScreen } from '../web/RecurringScreen';
+import { RemindersScreen } from '../web/RemindersScreen';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { createTransactionApi, getBudgetApi } from '../../services/api';
 import {
@@ -42,7 +43,7 @@ import {
 } from '../../services/calendarStorage';
 import { NotificationModal } from '../../components/NotificationModal';
 
-export type MobileTab = 'home' | 'calendar' | 'messages' | 'analytics' | 'budget' | 'feed' | 'friends' | 'wallets' | 'categories' | 'profile' | 'events' | 'savings' | 'debt' | 'recurring' | 'income';
+export type MobileTab = 'home' | 'calendar' | 'messages' | 'analytics' | 'budget' | 'feed' | 'friends' | 'wallets' | 'categories' | 'profile' | 'events' | 'savings' | 'debt' | 'recurring' | 'income' | 'reminders';
 export type ActiveModal = 'none' | 'camera' | 'add_expense' | 'quick_save' | 'detail' | 'day_expenses' | 'photo_journal';
 
 interface MobileNavigatorProps {
@@ -194,6 +195,13 @@ export const MobileNavigator: React.FC<MobileNavigatorProps> = ({ onOpenAdminDas
       case 'recurring':
         return (
           <RecurringScreen
+            onNavigateToTab={(tab) => setCurrentTab(tab as any)}
+            onBack={() => setCurrentTab('home')}
+          />
+        );
+      case 'reminders':
+        return (
+          <RemindersScreen
             onNavigateToTab={(tab) => setCurrentTab(tab as any)}
             onBack={() => setCurrentTab('home')}
           />

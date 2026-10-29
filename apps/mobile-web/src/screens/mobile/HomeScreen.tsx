@@ -600,7 +600,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         />
 
         {/* 4.5. MỤC NHẮC NHỞ */}
-        <RemindersWidget currentDateStr={selectedDateStr} />
+        <RemindersWidget
+          currentDateStr={selectedDateStr}
+          onNavigateToRemindersTab={() => {
+            if (onNavigateToTab) onNavigateToTab('reminders');
+          }}
+        />
 
         {/* 4.6. GIAO DỊCH GẦN ĐÂY (Khớp 100% hình 2) */}
         <HomeRecentTransactionsWidget

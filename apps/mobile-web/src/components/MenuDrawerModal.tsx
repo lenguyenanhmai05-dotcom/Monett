@@ -307,6 +307,31 @@ export const MenuDrawerModal: React.FC<MenuDrawerModalProps> = ({
               </Text>
             </TouchableOpacity>
 
+            {/* 9. Nhắc nhở */}
+            <TouchableOpacity
+              style={[
+                styles.drawerMenuItem,
+                currentTab === 'reminders' && styles.drawerMenuItemActive,
+              ]}
+              onPress={() => handleSelectTab('reminders')}
+              activeOpacity={0.75}
+            >
+              <Ionicons
+                name="alarm-outline"
+                size={20}
+                color={currentTab === 'reminders' ? '#064E3B' : '#27272A'}
+                style={styles.drawerMenuIcon}
+              />
+              <Text
+                style={[
+                  styles.drawerMenuText,
+                  currentTab === 'reminders' && styles.drawerMenuTextActive,
+                ]}
+              >
+                {isVi ? 'Nhắc nhở' : 'Reminders'}
+              </Text>
+            </TouchableOpacity>
+
             {/* PHÂN MỤC: CỘNG TÁC */}
             <Text style={styles.drawerSectionTitle}>
               {isVi ? 'CỘNG TÁC' : 'COLLABORATION'}
