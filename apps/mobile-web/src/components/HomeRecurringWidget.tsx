@@ -96,7 +96,15 @@ export const HomeRecurringWidget: React.FC<HomeRecurringWidgetProps> = ({
 
       {/* 2. Nội dung bên dưới trong cùng 1 khuôn trắng */}
       <View style={styles.bodyContent}>
-        {displayList.map((item, idx) => {
+        {displayList.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="swap-horizontal-outline" size={22} color="#94A3B8" />
+            <Text style={styles.emptyText}>
+              {isVi ? 'Chưa có khoản chi định kỳ' : 'No recurring expenses'}
+            </Text>
+          </View>
+        ) : (
+          displayList.map((item, idx) => {
           const daysLeft = calculateDaysRemaining(item.dayOfPayment);
           const initialLetter = (item.title || 'T').charAt(0).toUpperCase();
 
@@ -136,7 +144,7 @@ export const HomeRecurringWidget: React.FC<HomeRecurringWidgetProps> = ({
               </View>
             </TouchableOpacity>
           );
-        })}
+        }))}
       </View>
     </View>
   );
@@ -242,7 +250,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#DCFCE7', // Màu xanh mint khớp ảnh 1
+    backgroundColor: '#F3E8FF', // Màu tím pastel đồng bộ với header
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -250,7 +258,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#047857',
+    color: '#6D28D9', // Chữ tím đậm đồng bộ
   },
   infoCol: {
     flex: 1,
@@ -277,7 +285,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   daysBadge: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#F3E8FF', // Màu tím pastel đồng bộ
     paddingHorizontal: 9,
     paddingVertical: 3,
     borderRadius: 10,
@@ -286,6 +294,17 @@ const styles = StyleSheet.create({
   daysBadgeText: {
     fontSize: 11.5,
     fontWeight: '700',
-    color: '#166534',
+    color: '#6D28D9', // Chữ tím đậm đồng bộ
+  },
+  emptyContainer: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
 });

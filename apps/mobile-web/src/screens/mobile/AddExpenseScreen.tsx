@@ -30,6 +30,7 @@ import {
 } from '../../services/calendarStorage';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { TransactionCategorySvgIcon } from '../../components/TransactionCategorySvgIcon';
 
 interface AddExpenseScreenProps {
   initialDate?: string;
@@ -53,6 +54,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   const { language } = useLanguage();
   const { addNotification } = useNotifications();
   const isVi = language === 'vi';
+  const amountInputRef = React.useRef<TextInput>(null);
   const [photoUrl, setPhotoUrl] = useState<string | undefined>(initialPhotoUrl || initialData?.photoUri);
   const [amountStr, setAmountStr] = useState(initialData?.amount ? String(Math.abs(initialData.amount)) : '0');
   const [title, setTitle] = useState(initialData?.title || '');
@@ -76,11 +78,14 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
           setScanMessage(isVi ? 'AI đang phân tích hóa đơn...' : 'AI is analyzing receipt...');
           try {
             const ocrData = await scanReceiptOcrApi(uploadResponse);
-            if (ocrData?.amount && isMounted) {
+            if (ocrData && typeof ocrData.amount === 'number' && ocrData.amount > 0 && isMounted) {
               setAmountStr(String(ocrData.amount));
             }
-            if (ocrData?.supplier && isMounted) {
-              setTitle(ocrData.supplier);
+            if (ocrData && ocrData.supplier && typeof ocrData.supplier === 'string' && ocrData.supplier.trim() && isMounted) {
+              setTitle(ocrData.supplier.trim());
+            }
+            if (ocrData && ocrData.category && typeof ocrData.category === 'string' && isMounted) {
+              setSelectedCategory(ocrData.category);
             }
           } catch (ocrErr) {
             console.log('OCR analysis skipped:', ocrErr);
@@ -104,19 +109,22 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     };
   }, [initialPhotoUrl]);
 
-  const categories = [
-    { id: '1', name: isVi ? 'Ăn uống' : 'Food', icon: '🍜' },
-    { id: '2', name: isVi ? 'Cà phê' : 'Coffee', icon: '☕' },
-    { id: '3', name: isVi ? 'Trà sữa' : 'Milk Tea', icon: '🧋' },
-    { id: '4', name: isVi ? 'Ăn sáng' : 'Breakfast', icon: '🥪' },
-    { id: '5', name: isVi ? 'Ăn trưa' : 'Lunch', icon: '🍱' },
-    { id: '6', name: isVi ? 'Ăn tối' : 'Dinner', icon: '🍲' },
-    { id: '7', name: isVi ? 'Đổ xăng' : 'Gas/Fuel', icon: '🛵' },
-    { id: '8', name: isVi ? 'Đi chợ' : 'Groceries', icon: '🛒' },
-    { id: '9', name: isVi ? 'Mua sắm' : 'Shopping', icon: '🛍️' },
-    { id: '10', name: isVi ? 'Giải trí' : 'Entertainment', icon: '🎮' },
-    { id: '11', name: isVi ? 'Hóa đơn' : 'Bills', icon: '⚡' },
-    { id: '12', name: isVi ? 'Khác' : 'Other', icon: '📦' },
+  const categories: {
+    id: string;
+    name: string;
+    icon: string;
+    color: string;
+    bg: string;
+  }[] = [
+    { id: 'food', name: isVi ? 'Ăn uống' : 'Food', icon: '🍜', color: '#059669', bg: '#ECFDF5' },
+    { id: 'coffee', name: isVi ? 'Cà phê' : 'Coffee', icon: '☕', color: '#7C3AED', bg: '#F5F3FF' },
+    { id: 'milktea', name: isVi ? 'Trà sữa' : 'Milk Tea', icon: '🧋', color: '#DB2777', bg: '#FDF2F8' },
+    { id: 'gas', name: isVi ? 'Đổ xăng' : 'Gas/Fuel', icon: '🛵', color: '#2563EB', bg: '#EFF6FF' },
+    { id: 'market', name: isVi ? 'Đi chợ' : 'Groceries', icon: '🛒', color: '#0D9488', bg: '#F0FDFA' },
+    { id: 'shopping', name: isVi ? 'Mua sắm' : 'Shopping', icon: '🛍️', color: '#4F46E5', bg: '#EEF2FF' },
+    { id: 'entertainment', name: isVi ? 'Giải trí' : 'Entertainment', icon: '🎮', color: '#8B5CF6', bg: '#F5F3FF' },
+    { id: 'bills', name: isVi ? 'Hóa đơn' : 'Bills', icon: '⚡', color: '#EA580C', bg: '#FFF7ED' },
+    { id: 'other', name: isVi ? 'Khác' : 'Other', icon: '📦', color: '#64748B', bg: '#F1F5F9' },
   ];
 
   // Định dạng hiển thị tiền tệ VND
@@ -210,7 +218,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
           iconBg: '#FFF1F2',
           iconColor: '#E11D48',
           metadata: {
-            targetTab: 'home',
+            targetTab: 'photo_journal',
             amount: Math.abs(parsedAmount),
             category: selectedCategory,
           },
@@ -291,11 +299,18 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 2. Hiển thị số tiền & ảnh thumbnail */}
         <View style={styles.amountHeroCard}>
-          <View style={styles.amountWrapper}>
-            <Text style={styles.amountLabel}>{isVi ? 'Số tiền chi (chạm để nhập)' : 'Expense Amount (tap to enter)'}</Text>
+          <TouchableOpacity
+            style={styles.amountWrapper}
+            activeOpacity={1}
+            onPress={() => amountInputRef.current?.focus()}
+          >
+            <Text style={styles.amountLabel}>
+              {isVi ? 'Số tiền chi (chạm để nhập)' : 'Expense Amount (tap to enter)'}
+            </Text>
 
             <View style={styles.amountInputRow}>
               <TextInput
+                ref={amountInputRef}
                 value={amountStr === '0' ? '' : Number(amountStr).toLocaleString('vi-VN')}
                 onChangeText={(val) => {
                   const raw = val.replace(/[^0-9]/g, '');
@@ -304,7 +319,15 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                 placeholder="0"
                 placeholderTextColor="#CBD5E1"
                 keyboardType="numeric"
-                style={styles.amountTextInput}
+                style={[
+                  styles.amountTextInput,
+                  Platform.OS === 'web'
+                    ? ({
+                        width: `${Math.max(1, (amountStr === '0' ? '0' : Number(amountStr).toLocaleString('vi-VN')).length) + 0.3}ch`,
+                        outlineStyle: 'none',
+                      } as any)
+                    : {},
+                ]}
                 selectTextOnFocus
                 autoFocus={!photoUrl}
               />
@@ -327,7 +350,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
                 </TouchableOpacity>
               ))}
             </View>
-          </View>
+          </TouchableOpacity>
 
           {photoUrl ? (
             <View style={styles.photoContainer}>
@@ -357,29 +380,62 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
           </View>
         </View>
 
-        {/* 4. Chọn Danh Mục */}
+        {/* 4. Chọn Danh Mục dạng Lưới 3 Cột (giống hình 2 "Lưu nhanh khoản chi tiêu") */}
         <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>{isVi ? 'Danh mục chi tiêu' : 'Category'}</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
+          <Text style={styles.categoryHeaderTitle}>
+            {isVi ? 'KHOẢN CHI NÀY CHO?' : 'WHAT IS THIS FOR?'}
+          </Text>
+          <View style={styles.catGrid}>
             {categories.map((cat) => {
               const isSelected = selectedCategory === cat.name;
               return (
                 <TouchableOpacity
                   key={cat.id}
-                  style={[styles.categoryChip, isSelected && styles.categoryChipActive]}
+                  style={[
+                    styles.catCard,
+                    isSelected && {
+                      borderColor: cat.color,
+                      borderWidth: 2,
+                      backgroundColor: cat.bg,
+                      shadowColor: cat.color,
+                      shadowOffset: { width: 0, height: 3 },
+                      shadowOpacity: 0.18,
+                      shadowRadius: 6,
+                      elevation: 3,
+                    },
+                  ]}
                   onPress={() => setSelectedCategory(cat.name)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.chipIcon}>{cat.icon}</Text>
+                  <View
+                    style={[
+                      styles.catIconBox,
+                      { backgroundColor: isSelected ? '#FFFFFF' : cat.bg },
+                    ]}
+                  >
+                    <TransactionCategorySvgIcon
+                      category={cat.name}
+                      categoryIcon={cat.icon}
+                      size={24}
+                      color={cat.color}
+                    />
+                  </View>
                   <Text
-                    style={[styles.chipText, isSelected && styles.chipTextActive]}
+                    style={[
+                      styles.catName,
+                      isSelected && {
+                        color: cat.color,
+                        fontWeight: '800',
+                      },
+                    ]}
+                    numberOfLines={1}
                   >
                     {cat.name}
                   </Text>
                 </TouchableOpacity>
               );
             })}
-          </ScrollView>
+          </View>
         </View>
 
         {/* 5. Nút Xác nhận lưu */}
@@ -400,11 +456,11 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   header: {
     flexDirection: 'row',
@@ -413,7 +469,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 6,
     paddingBottom: 10,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
     borderBottomWidth: 1,
     borderBottomColor: '#E8E0D5',
   },
@@ -478,7 +534,8 @@ const styles = StyleSheet.create({
   },
   amountInputRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'baseline',
+    alignSelf: 'flex-start',
     marginTop: 4,
   },
   amountTextInput: {
@@ -487,10 +544,12 @@ const styles = StyleSheet.create({
     color: '#047857',
     padding: 0,
     letterSpacing: -0.5,
-    minWidth: 80,
+    minWidth: 32,
+    flexGrow: 0,
+    flexShrink: 0,
   },
   currencySuffix: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     color: '#059669',
     marginLeft: 6,
@@ -564,36 +623,50 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     paddingVertical: 8,
   },
-  chipRow: {
-    flexDirection: 'row',
+  categoryHeaderTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 10,
   },
-  categoryChip: {
+  catGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 10,
+  },
+  catCard: {
+    width: '31.5%',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    borderRadius: 18,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginRight: 8,
+    borderWidth: 1.5,
+    borderColor: '#F1F5F9',
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  categoryChipActive: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#047857',
+  catIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  chipIcon: {
-    fontSize: 16,
-    marginRight: 6,
-  },
-  chipText: {
-    fontSize: 13,
+  catName: {
+    fontSize: 12.5,
     fontWeight: '600',
-    color: '#4B5563',
-  },
-  chipTextActive: {
-    color: '#047857',
-    fontWeight: '700',
+    color: '#334155',
+    textAlign: 'center',
   },
   submitBtn: {
     backgroundColor: '#047857',

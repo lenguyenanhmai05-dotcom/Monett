@@ -8,8 +8,11 @@ import { Friendship, FriendshipSchema } from '../friends/schemas/friendship.sche
 import { User, UserSchema } from '../users/schemas/user.schema';
 import { MessagesModule } from '../messages/messages.module';
 
+import { StorageModule } from '../storage/storage.module';
+
 @Module({
   imports: [
+    StorageModule,
     MulterModule.register({}),
     MongooseModule.forFeature([
       { name: Moment.name, schema: MomentSchema },

@@ -149,6 +149,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     });
 
+    newSocket.on('message_sent', (msg: SocketMessagePayload) => {
+      setLastMessage(msg);
+    });
+
     return () => {
       Object.values(typingTimeoutsRef.current).forEach((t) => clearTimeout(t));
       newSocket.disconnect();

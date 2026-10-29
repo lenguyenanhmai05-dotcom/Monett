@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { TransactionCategorySvgIcon } from './TransactionCategorySvgIcon';
 import { TxItem } from './TransactionTableWidget';
 import { getTransactionsApi } from '../services/api';
 import {
@@ -269,11 +270,16 @@ export const RecentTransactionsWidget: React.FC<RecentTransactionsWidgetProps> =
             return (
               <React.Fragment key={item.id || idx}>
                 <View style={styles.itemRow}>
-                  {/* Avatar tròn màu vàng pastel khớp mobile */}
+                  {/* Avatar tròn màu vàng pastel với SVG icon theo hình 2 */}
                   <View style={styles.avatarCircle}>
-                    <Text style={styles.avatarText}>
-                      {item.categoryIcon && item.categoryIcon.length === 1 ? item.categoryIcon : initialChar}
-                    </Text>
+                    <TransactionCategorySvgIcon
+                      category={item.category}
+                      categoryIcon={item.categoryIcon}
+                      type={item.type}
+                      title={item.title}
+                      size={21}
+                      color="#92400E"
+                    />
                   </View>
 
                   {/* Thông tin giao dịch */}

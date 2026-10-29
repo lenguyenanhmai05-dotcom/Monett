@@ -291,11 +291,11 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   header: {
     flexDirection: 'row',
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 6,
     paddingBottom: 10,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
     borderBottomWidth: 1,
     borderBottomColor: '#E8E0D5',
   },

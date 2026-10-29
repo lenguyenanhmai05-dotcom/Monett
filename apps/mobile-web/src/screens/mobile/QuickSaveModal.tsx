@@ -49,9 +49,6 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
     { id: 'food', name: isVi ? 'Ăn uống' : 'Food', icon: 'restaurant-outline', color: '#059669', bg: '#ECFDF5' },
     { id: 'coffee', name: isVi ? 'Cà phê' : 'Coffee', icon: 'cafe-outline', color: '#7C3AED', bg: '#F5F3FF' },
     { id: 'milktea', name: isVi ? 'Trà sữa' : 'Milk Tea', icon: 'ice-cream-outline', color: '#DB2777', bg: '#FDF2F8' },
-    { id: 'breakfast', name: isVi ? 'Ăn sáng' : 'Breakfast', icon: 'sunny-outline', color: '#D97706', bg: '#FEF3C7' },
-    { id: 'lunch', name: isVi ? 'Ăn trưa' : 'Lunch', icon: 'fast-food-outline', color: '#10B981', bg: '#ECFDF5' },
-    { id: 'dinner', name: isVi ? 'Ăn tối' : 'Dinner', icon: 'pizza-outline', color: '#DC2626', bg: '#FEF2F2' },
     { id: 'gas', name: isVi ? 'Đổ xăng' : 'Gas/Fuel', icon: 'car-outline', color: '#2563EB', bg: '#EFF6FF' },
     { id: 'groceries', name: isVi ? 'Đi chợ' : 'Groceries', icon: 'cart-outline', color: '#0D9488', bg: '#F0FDFA' },
     { id: 'shopping', name: isVi ? 'Mua sắm' : 'Shopping', icon: 'bag-handle-outline', color: '#4F46E5', bg: '#EEF2FF' },
@@ -205,7 +202,7 @@ export const QuickSaveModal: React.FC<QuickSaveModalProps> = ({
                     message: `Khoản chi "${selectedCategory}" (${selectedAmount.toLocaleString('vi-VN')} đ) đã được ghi nhận thành công.`,
                     iconBg: '#ECFDF5',
                     iconColor: '#059669',
-                    metadata: { targetTab: 'home', amount: selectedAmount, category: selectedCategory },
+                    metadata: { targetTab: 'photo_journal', amount: selectedAmount, category: selectedCategory },
                   });
                   onClose();
                 }
@@ -234,7 +231,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheetContainer: {
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderTopWidth: 1,

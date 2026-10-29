@@ -1,9 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import { sendBrowserNotification } from '../utils/browserNotification';
 import { useAuth } from './AuthContext';
 import { getStreakApi, getFriendRequestsApi, getPendingEventInvitationsApi, getStoredUserId } from '../services/api';
 import { getStoredEventInvitations } from '../services/eventsStorage';
+import { getRemindersApi } from '../services/api';
+import { HeadsUpNotificationBanner, HeadsUpToastData } from '../components/HeadsUpNotificationBanner';
+import { isReminderAlerted, markReminderAsAlerted } from '../components/RemindersWidget';
+import { formatYMD } from '../utils/dateUtils';
 
 export type NotificationType = 'friend' | 'moment' | 'expense' | 'system' | 'budget' | 'reminder' | 'event';
 
@@ -50,6 +54,9 @@ interface NotificationContextType {
   notifications: AppNotification[];
   unreadCount: number;
   isOpen: boolean;
+  activeToast: HeadsUpToastData | null;
+  showHeadsUpToast: (toast: HeadsUpToastData) => void;
+  dismissHeadsUpToast: () => void;
   addNotification: (input: NewNotificationInput) => AppNotification;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
@@ -214,6 +221,9 @@ const NotificationContext = createContext<NotificationContextType>({
   notifications: [],
   unreadCount: 0,
   isOpen: false,
+  activeToast: null,
+  showHeadsUpToast: () => {},
+  dismissHeadsUpToast: () => {},
   addNotification: () => ({} as AppNotification),
   markAsRead: () => {},
   markAllAsRead: () => {},
@@ -238,6 +248,22 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   });
 
   const [isOpen, setIsOpen] = useState(false);
+
+  // Heads-Up Push Notification Banner (Thanh thông báo trượt trên đầu màn hình kiểu Mobile Phone)
+  const [activeToast, setActiveToast] = useState<HeadsUpToastData | null>(null);
+
+  const triggerHeadsUpToast = useCallback((toast: HeadsUpToastData) => {
+    setActiveToast(toast);
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      try {
+        navigator.vibrate([200, 100, 200, 100, 300]);
+      } catch {}
+    }
+  }, []);
+
+  const dismissHeadsUpToast = useCallback(() => {
+    setActiveToast(null);
+  }, []);
 
   // Khi chuyển đổi người dùng (login / logout / switch account), đổi ngay sang thông báo của tài khoản đó
   useEffect(() => {
@@ -515,10 +541,147 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         body: newNotif.message,
         playSound: false,
       });
+
+      // Hiển thị Heads-Up Notification trượt từ trên đầu màn hình kiểu Mobile Phone
+      triggerHeadsUpToast({
+        id: newNotif.id,
+        title: newNotif.title,
+        message: newNotif.message,
+        type: newNotif.type,
+        iconName: newNotif.iconName || (newNotif.type === "reminder" ? "alarm-outline" : "notifications-outline"),
+        iconColor: newNotif.iconColor || (newNotif.type === "reminder" ? "#D97706" : "#047857"),
+        iconBg: newNotif.iconBg || (newNotif.type === "reminder" ? "#FEF3C7" : "#DCFCE7"),
+        actionText: newNotif.type === 'expense' ? 'Chạm để xem' : 'Xem chi tiết',
+        onPress: () => {
+          if (newNotif.type === 'expense' || newNotif.metadata?.targetTab === 'photo_journal') {
+            if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+              window.dispatchEvent(new CustomEvent('monett:open_photo_journal'));
+            }
+          } else {
+            setIsOpen(true);
+          }
+        },
+        onAction: () => {
+          if (newNotif.type === 'expense' || newNotif.metadata?.targetTab === 'photo_journal') {
+            if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+              window.dispatchEvent(new CustomEvent('monett:open_photo_journal'));
+            }
+          } else {
+            setIsOpen(true);
+          }
+        },
+      });
     }
 
     return newNotif;
-  }, []);
+  }, [triggerHeadsUpToast]);
+
+  // Global Reminder Service: Tự động quét và phát hiện các lịch nhắc nhở đến giờ trên toàn bộ ứng dụng (kể cả khi không mở tab Reminders)
+  useEffect(() => {
+    if (!currentUserId || currentUserId === 'guest') return;
+
+    let isCancelled = false;
+
+    const checkAllReminders = async () => {
+      try {
+        const now = new Date();
+        const nowYMD = formatYMD(now);
+        const currentTimeMs = now.getTime();
+
+        // 1. Lấy danh sách lời nhắc hôm nay (ưu tiên cache, sau đó API)
+        let todayReminders: any[] = [];
+        const cacheKey = `monett_reminders_cache_${currentUserId}_${nowYMD}`;
+        if (typeof window !== 'undefined' && window.localStorage) {
+          const cached = window.localStorage.getItem(cacheKey);
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed)) todayReminders = parsed;
+            } catch {}
+          }
+        }
+
+        if (todayReminders.length === 0) {
+          try {
+            const serverReminders = await getRemindersApi(nowYMD);
+            if (!isCancelled && Array.isArray(serverReminders) && serverReminders.length > 0) {
+              todayReminders = serverReminders;
+              if (typeof window !== 'undefined' && window.localStorage) {
+                window.localStorage.setItem(cacheKey, JSON.stringify(serverReminders));
+              }
+            }
+          } catch {}
+        }
+
+        // 2. Kiểm tra từng lời nhắc chưa hoàn thành
+        todayReminders.forEach((item) => {
+          if (item.isCompleted) return;
+          if (item.date && item.date !== nowYMD) return;
+
+          // Kiểm tra xem đã báo chưa
+          if (isReminderAlerted(item.id, nowYMD, currentUserId)) return;
+
+          const [hhStr, mmStr] = (item.time || '12:00').split(':');
+          const targetHours = parseInt(hhStr, 10);
+          const targetMinutes = parseInt(mmStr, 10);
+          if (isNaN(targetHours) || isNaN(targetMinutes)) return;
+
+          const targetDate = new Date();
+          targetDate.setHours(targetHours, targetMinutes, 0, 0);
+
+          const alertLeadMinutes = item.remindBeforeMinutes !== undefined ? item.remindBeforeMinutes : 10;
+          const triggerTime = targetDate.getTime() - alertLeadMinutes * 60 * 1000;
+          const expireTime = triggerTime + 10 * 60 * 1000;
+
+          if (currentTimeMs >= triggerTime && currentTimeMs <= expireTime) {
+            markReminderAsAlerted(item.id, nowYMD, currentUserId);
+
+            const leadText = alertLeadMinutes === 0 ? 'Đúng giờ' : `Báo trước ${alertLeadMinutes} phút`;
+            addNotification({
+              id: `reminder-alarm-${item.id}-${Date.now()}`,
+              type: 'reminder',
+              title: `Nhắc nhở: ${item.title} ⏰`,
+              message: `Đã đến giờ nhắc nhở (${item.time} - ${leadText}). Đừng quên công việc của bạn nhé!`,
+              createdAt: new Date().toISOString(),
+              read: false,
+              iconBg: '#EDE9FE',
+              iconColor: '#7C3AED',
+              metadata: {
+                targetTab: 'home',
+              },
+            });
+          }
+        });
+      } catch (e) {
+        console.warn('Lỗi Global Reminder Service:', e);
+      }
+    };
+
+    checkAllReminders();
+    const timer = setInterval(checkAllReminders, 10000);
+
+    const handleResume = () => {
+      checkAllReminders();
+    };
+
+    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+      document.addEventListener('visibilitychange', handleResume);
+    }
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('focus', handleResume);
+    }
+
+    return () => {
+      isCancelled = true;
+      clearInterval(timer);
+      if (typeof document !== 'undefined' && typeof document.removeEventListener === 'function') {
+        document.removeEventListener('visibilitychange', handleResume);
+      }
+      if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+        window.removeEventListener('focus', handleResume);
+      }
+    };
+  }, [currentUserId, addNotification]);
 
   // Tự động kiểm tra và gửi thông báo nhắc nhở vào chuông khi đến giờ cài đặt (reminderTime)
   useEffect(() => {
@@ -606,6 +769,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       notifications,
       unreadCount,
       isOpen,
+      activeToast,
+      showHeadsUpToast: triggerHeadsUpToast,
+      dismissHeadsUpToast,
       addNotification,
       markAsRead,
       markAllAsRead,
@@ -619,6 +785,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       notifications,
       unreadCount,
       isOpen,
+      activeToast,
+      triggerHeadsUpToast,
+      dismissHeadsUpToast,
       addNotification,
       markAsRead,
       markAllAsRead,
@@ -630,7 +799,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     ]
   );
 
-  return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;
+  return (
+    <NotificationContext.Provider value={value}>
+      {children}
+      <HeadsUpNotificationBanner toast={activeToast} onDismiss={dismissHeadsUpToast} />
+    </NotificationContext.Provider>
+  );
 };
 
 export const useNotifications = () => {

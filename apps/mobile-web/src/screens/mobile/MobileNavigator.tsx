@@ -19,8 +19,10 @@ import { WalletsScreen } from './WalletsScreen';
 import { CategoriesScreen } from './CategoriesScreen';
 import { ProfileScreen } from './ProfileScreen';
 import { FriendsFeedScreen } from './FriendsFeedScreen';
+import { FriendsScreen } from './FriendsScreen';
 import { MessagesScreen } from './MessagesScreen';
 import { DayExpensesScreen } from './DayExpensesScreen';
+import { PhotoJournalModal } from '../../components/PhotoJournalModal';
 import { IncomeManagementScreen } from './IncomeManagementScreen';
 import { EventsScreen } from '../web/EventsScreen';
 import { SavingsScreen } from '../web/SavingsScreen';
@@ -40,8 +42,8 @@ import {
 } from '../../services/calendarStorage';
 import { NotificationModal } from '../../components/NotificationModal';
 
-export type MobileTab = 'home' | 'calendar' | 'analytics' | 'feed' | 'wallets' | 'categories' | 'profile' | 'events' | 'savings' | 'debt' | 'recurring' | 'income';
-export type ActiveModal = 'none' | 'camera' | 'add_expense' | 'quick_save' | 'detail' | 'day_expenses';
+export type MobileTab = 'home' | 'calendar' | 'messages' | 'analytics' | 'budget' | 'feed' | 'friends' | 'wallets' | 'categories' | 'profile' | 'events' | 'savings' | 'debt' | 'recurring' | 'income';
+export type ActiveModal = 'none' | 'camera' | 'add_expense' | 'quick_save' | 'detail' | 'day_expenses' | 'photo_journal';
 
 interface MobileNavigatorProps {
   onOpenAdminDashboard?: () => void;
@@ -65,6 +67,19 @@ export const MobileNavigator: React.FC<MobileNavigatorProps> = ({ onOpenAdminDas
   const triggerRefresh = () => {
     setRefreshKey((prev) => prev + 1);
   };
+
+  // Lắng nghe sự kiện mở Nhật Ký Ảnh Chi Tiêu từ thông báo hoặc phím tắt
+  React.useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      const handler = () => {
+        setActiveModal('photo_journal');
+      };
+      window.addEventListener('monett:open_photo_journal', handler);
+      return () => {
+        window.removeEventListener('monett:open_photo_journal', handler);
+      };
+    }
+  }, []);
 
   const handlePhotoCaptured = (photoUrl: string, mode?: 'bill' | 'food' | 'auto') => {
     setCapturedPhoto(photoUrl);
@@ -98,7 +113,13 @@ export const MobileNavigator: React.FC<MobileNavigatorProps> = ({ onOpenAdminDas
             onNavigateToAnalytics={() => setCurrentTab('analytics')}
             onNavigateToCalendar={() => setCurrentTab('calendar')}
             onNavigateToProfile={() => setCurrentTab('profile')}
-            onNavigateToTab={(tab) => setCurrentTab(tab as any)}
+            onNavigateToTab={(tab) => {
+              if (tab === 'photo_journal' || tab === 'journal') {
+                setActiveModal('photo_journal');
+                return;
+              }
+              setCurrentTab(tab as any);
+            }}
             onNavigateToDayExpenses={(dateStr, label) => {
               setSelectedDayExpensesDate(dateStr);
               setSelectedDayExpensesLabel(label);
@@ -107,6 +128,7 @@ export const MobileNavigator: React.FC<MobileNavigatorProps> = ({ onOpenAdminDas
           />
         );
       case 'calendar':
+      case 'messages':
         return (
           <MessagesScreen
             refreshTrigger={refreshKey}
@@ -136,6 +158,14 @@ export const MobileNavigator: React.FC<MobileNavigatorProps> = ({ onOpenAdminDas
             onNavigateToMessages={() => setCurrentTab('calendar')}
           />
         );
+      case 'friends':
+        return (
+          <FriendsScreen
+            onBack={() => setCurrentTab('home')}
+            onNavigateToMessages={() => setCurrentTab('calendar')}
+          />
+        );
+      
       case 'wallets':
         return <WalletsScreen onBack={() => setCurrentTab('home')} />;
       case 'categories':
@@ -169,13 +199,16 @@ export const MobileNavigator: React.FC<MobileNavigatorProps> = ({ onOpenAdminDas
           />
         );
       case 'income':
+      case 'budget':
         return <IncomeManagementScreen onBack={() => setCurrentTab('home')} />;
       case 'profile':
         return (
           <ProfileScreen
+            onBack={() => setCurrentTab('home')}
             onNavigateToWallets={() => setCurrentTab('wallets')}
             onNavigateToCategories={() => setCurrentTab('categories')}
             onNavigateToFeed={() => setCurrentTab('feed')}
+            onNavigateToTab={(tab) => setCurrentTab(tab as any)}
             onOpenAdminDashboard={onOpenAdminDashboard}
           />
         );
@@ -519,8 +552,31 @@ export const MobileNavigator: React.FC<MobileNavigatorProps> = ({ onOpenAdminDas
         </View>
       )}
 
+      {/* 8. Màn hình Nhật Ký Ảnh Chi Tiêu */}
+      {activeModal === 'photo_journal' && (
+        <PhotoJournalModal
+          visible={true}
+          onClose={() => setActiveModal('none')}
+          onNavigateToCamera={() => {
+            setActiveModal('camera');
+          }}
+          onSelectTransaction={(id) => {
+            setSelectedTxId(id);
+            setActiveModal('detail');
+          }}
+        />
+      )}
+
       {/* Modal Thông báo hoạt động ứng dụng */}
-      <NotificationModal onNavigateToTab={(tab) => setCurrentTab(tab as any)} />
+      <NotificationModal
+        onNavigateToTab={(tab) => {
+          if (tab === 'photo_journal' || tab === 'journal') {
+            setActiveModal('photo_journal');
+            return;
+          }
+          setCurrentTab(tab as any);
+        }}
+      />
     </View>
   );
 };
@@ -528,28 +584,39 @@ export const MobileNavigator: React.FC<MobileNavigatorProps> = ({ onOpenAdminDas
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   mainContent: {
     flex: 1,
   },
   bottomNavWrapper: {
-    backgroundColor: '#FAF7F2',
-    borderTopWidth: 1,
-    borderTopColor: '#E8E0D5',
-    shadowColor: '#221D18',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 8,
+    backgroundColor: '#F5F0E8',
+    paddingHorizontal: 16,
+    paddingBottom: Platform.OS === 'ios' ? 8 : 12,
+    paddingTop: 4,
+    borderTopWidth: 0,
+    elevation: 0,
+    shadowOpacity: 0,
+    alignItems: 'center',
+    width: '100%',
   },
   bottomNav: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    height: 62,
-    backgroundColor: '#FAF7F2',
+    height: 64,
+    width: '100%',
+    maxWidth: 500,
+    backgroundColor: '#FAF7F2', // Giữ nguyên màu nền danh mục như cũ
+    borderRadius: 32, // Phong cách bo tròn dạng capsule giống Our Ledger
     paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#E8E0D5',
+    shadowColor: '#221D18',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
     position: 'relative',
   },
   navItem: {
@@ -609,7 +676,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.45,
   } as any,
   socialTopNavWrapper: {
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
     borderBottomWidth: 1,
     borderBottomColor: '#E8E0D5',
   },

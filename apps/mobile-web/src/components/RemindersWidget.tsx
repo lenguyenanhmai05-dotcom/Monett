@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Path, Rect, Circle, Line, Polyline } from 'react-native-svg';
 import { IReminder } from '@monett/shared';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -36,14 +37,102 @@ import {
   requestBrowserNotificationPermission,
 } from '../utils/browserNotification';
 
-// Gợi ý nhanh các việc cần làm phổ biến
-const QUICK_REMINDER_TITLES = [
-  '🛒 Đi chợ mua cá & rau tươi',
-  '💡 Đóng tiền điện & nước',
-  '🏠 Nộp tiền phòng trọ',
-  '💊 Uống thuốc / vitamin',
-  '☕ Cà phê với bạn bè',
+// Gợi ý nhanh các việc cần làm phổ biến với biểu tượng SVG chuẩn Fintech
+export interface QuickReminderPreset {
+  id: string;
+  title: string;
+  iconType: 'market' | 'bulb' | 'housing' | 'pill' | 'coffee';
+  color: string;
+}
+
+export const QUICK_REMINDER_PRESETS: QuickReminderPreset[] = [
+  { id: 'market', title: 'Đi chợ mua cá & rau tươi', iconType: 'market', color: '#059669' },
+  { id: 'bulb', title: 'Đóng tiền điện & nước', iconType: 'bulb', color: '#D97706' },
+  { id: 'housing', title: 'Nộp tiền phòng trọ', iconType: 'housing', color: '#2563EB' },
+  { id: 'pill', title: 'Uống thuốc / vitamin', iconType: 'pill', color: '#EF4444' },
+  { id: 'coffee', title: 'Cà phê với bạn bè', iconType: 'coffee', color: '#854D0E' },
 ];
+
+const QuickReminderSvgIcon: React.FC<{ type: string; color: string; size?: number }> = ({ type, color, size = 14 }) => {
+  switch (type) {
+    case 'market':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Circle cx="8" cy="21" r="1.5" fill={color} />
+          <Circle cx="19" cy="21" r="1.5" fill={color} />
+          <Path
+            d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"
+            stroke={color}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    case 'bulb':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M9 18h6m-5 3h4M12 2a7 7 0 0 0-7 7c0 2.5 1.5 4.5 3 6h8c1.5-1.5 3-3.5 3-6a7 7 0 0 0-7-7z"
+            stroke={color}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    case 'housing':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+            stroke={color}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Polyline points="9 22 9 12 15 12 15 22" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
+      );
+    case 'pill':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M10.5 20.5l10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7z"
+            stroke={color}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Line x1="8.5" y1="8.5" x2="15.5" y2="15.5" stroke={color} strokeWidth="2" strokeLinecap="round" />
+        </Svg>
+      );
+    case 'coffee':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M17 8h1a4 4 0 0 1 0 8h-1"
+            stroke={color}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Path
+            d="M3 8h14v7a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"
+            stroke={color}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <Line x1="6" y1="2" x2="6" y2="5" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+          <Line x1="10" y1="2" x2="10" y2="5" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+          <Line x1="14" y1="2" x2="14" y2="5" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+        </Svg>
+      );
+    default:
+      return null;
+  }
+};
 
 // Dữ liệu mẫu ban đầu: để trống để người dùng tự tạo dữ liệu thật
 const INITIAL_SAMPLE_REMINDERS: IReminder[] = [];
@@ -85,6 +174,11 @@ export const unmarkReminderAsAlerted = (id: string, dateStr: string, userId?: st
       window.localStorage.setItem(key, JSON.stringify(Array.from(current)));
     }
   } catch {}
+};
+
+export const isReminderAlerted = (id: string, dateStr: string, userId?: string): boolean => {
+  const alerted = getAlertedReminderIds(dateStr, userId);
+  return alerted.has(id);
 };
 
 export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr, noMargin, onNavigateToRemindersTab }) => {
@@ -129,8 +223,8 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
 
   // Nhập giờ & phút trực tiếp (Không giật, không tự ý nhảy số lung tung)
-  const hourInputRef = useRef<TextInput>(null);
-  const minuteInputRef = useRef<TextInput>(null);
+  const hourInputRef = useRef<any>(null);
+  const minuteInputRef = useRef<any>(null);
   const [hourInputText, setHourInputText] = useState<string>(() => String(new Date().getHours()).padStart(2, '0'));
   const [minuteInputText, setMinuteInputText] = useState<string>(() => String(new Date().getMinutes()).padStart(2, '0'));
   const [isHourFocused, setIsHourFocused] = useState<boolean>(false);
@@ -602,17 +696,16 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
 
       {/* KHUNG THẺ NHẮC NHỞ HIỆN ĐẠI, CAO CẤP */}
       <View style={[styles.cardContainer, noMargin && { minHeight: 220, flex: 1 }]}>
-        {/* 1. Header Bar Màu Xanh Dương Pastel Sang Trọng */}
+        {/* 1. Header Bar Màu Xanh Dương Pastel Khớp Phong Cách 3 Mục Ở Dưới */}
         <View style={styles.headerBar}>
           <TouchableOpacity
             style={styles.headerLeft}
-            onPress={onNavigateToRemindersTab}
-            disabled={!onNavigateToRemindersTab}
-            activeOpacity={0.7}
+            onPress={onNavigateToRemindersTab || handleOpenCreateForm}
+            activeOpacity={0.75}
           >
             {/* White rounded square icon badge with notifications icon */}
             <View style={styles.iconBadge}>
-              <Ionicons name="notifications" size={18} color="#0284C7" />
+              <Ionicons name="notifications-outline" size={17} color="#0369A1" />
             </View>
 
             {/* Title */}
@@ -622,26 +715,19 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
 
             {/* White count badge */}
             <View style={styles.countBadge}>
-              <Text style={styles.countBadgeText}>
-                {pendingCount} {isVi ? 'việc' : 'tasks'}
-              </Text>
+              <Text style={styles.countBadgeText}>{reminders.length}</Text>
             </View>
-
-            {onNavigateToRemindersTab && (
-              <Ionicons name="chevron-forward" size={15} color="#0284C7" style={{ marginLeft: 2 }} />
-            )}
           </TouchableOpacity>
 
-          {/* Nút Thêm lời nhắc dạng pill trắng cao cấp */}
+          {/* Nút Xem tất cả dạng pill trắng */}
           <TouchableOpacity
             style={styles.viewAllBtn}
-            onPress={handleOpenCreateForm}
-            activeOpacity={0.8}
+            onPress={onNavigateToRemindersTab || handleOpenCreateForm}
+            activeOpacity={0.75}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="add" size={15} color="#0284C7" style={{ marginRight: 2 }} />
             <Text style={styles.viewAllText}>
-              {isVi ? 'Thêm lời nhắc' : 'Add reminder'}
+              {isVi ? 'Xem tất cả →' : 'View all →'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -656,24 +742,17 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
             </View>
           ) : reminders.length === 0 ? (
             <TouchableOpacity
-              style={styles.emptyCard}
+              style={styles.emptyContainer}
               onPress={handleOpenCreateForm}
-              activeOpacity={0.8}
+              activeOpacity={0.75}
             >
-              <View style={styles.emptyIconCircle}>
-                <Ionicons name="notifications-outline" size={26} color="#0284C7" />
-              </View>
-              <Text style={styles.emptyTitle}>
-                {isVi ? 'Chưa có lời nhắc nào hôm nay' : 'No reminders for today'}
-              </Text>
-              <Text style={styles.emptySub}>
-                {isVi
-                  ? 'Bấm "+ Thêm lời nhắc" để không quên việc mua sắm, trả tiền phòng hay đi chợ nhé!'
-                  : 'Tap "+ Add reminder" to schedule alerts for shopping, rent, or chores!'}
+              <Ionicons name="notifications-outline" size={22} color="#94A3B8" />
+              <Text style={styles.emptyText}>
+                {isVi ? 'Chưa có lời nhắc nào' : 'No reminders available'}
               </Text>
             </TouchableOpacity>
           ) : (
-            reminders.map((item, idx) => {
+            reminders.slice(0, 3).map((item, idx) => {
               const isDone = item.isCompleted;
 
               return (
@@ -895,28 +974,33 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
                 )}
               </View>
 
-              {/* Các gợi ý nhanh nội dung nhắc việc */}
+              {/* Các gợi ý nhanh nội dung nhắc việc với SVG icons chuẩn Fintech */}
               <View style={styles.quickTitlesWrap}>
-                {QUICK_REMINDER_TITLES.map((preset) => (
-                  <TouchableOpacity
-                    key={preset}
-                    style={[
-                      styles.quickTitleChip,
-                      newTitle === preset && styles.quickTitleChipActive,
-                    ]}
-                    onPress={() => setNewTitle(preset)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
+                {QUICK_REMINDER_PRESETS.map((item) => {
+                  const isActive = newTitle === item.title;
+                  const iconColor = isActive ? '#047857' : item.color;
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
                       style={[
-                        styles.quickTitleText,
-                        newTitle === preset && styles.quickTitleTextActive,
+                        styles.quickTitleChip,
+                        isActive && styles.quickTitleChipActive,
                       ]}
+                      onPress={() => setNewTitle(item.title)}
+                      activeOpacity={0.7}
                     >
-                      {preset}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      <QuickReminderSvgIcon type={item.iconType} color={iconColor} size={14} />
+                      <Text
+                        style={[
+                          styles.quickTitleText,
+                          isActive && styles.quickTitleTextActive,
+                        ]}
+                      >
+                        {item.title}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
               {/* 2. Giờ hẹn thông báo (Tối giản: hiển thị đúng giờ thực tế & nhập số mượt mà) */}
@@ -1090,93 +1174,100 @@ const styles = StyleSheet.create({
   },
   cardContainer: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E5E7EB',
     overflow: 'hidden',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 2,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
     width: '100%',
   },
   headerBar: {
-    backgroundColor: '#F0F9FF',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    backgroundColor: '#E0F2FE', // Màu xanh dương pastel đồng bộ phong cách
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0F2FE',
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   iconBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
   },
   headerTitle: {
-    fontSize: 16.5,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0369A1',
     letterSpacing: -0.2,
   },
   countBadge: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 9,
-    paddingVertical: 2.5,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
+    minWidth: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   countBadgeText: {
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: '800',
-    color: '#0284C7',
+    color: '#0369A1',
   },
   viewAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#BAE6FD',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
     shadowColor: '#0284C7',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
     elevation: 1,
   },
   viewAllText: {
     fontSize: 12.5,
     fontWeight: '700',
-    color: '#0284C7',
+    color: '#0369A1',
   },
   headerDivider: {
     height: 1,
-    backgroundColor: 'rgba(2, 132, 199, 0.08)',
+    backgroundColor: 'rgba(2, 132, 199, 0.12)',
   },
   bodyContent: {
     paddingHorizontal: 16,
     paddingVertical: 14,
     backgroundColor: '#FFFFFF',
     flex: 1,
+  },
+  emptyContainer: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
   reminderRow: {
     flexDirection: 'row',
@@ -1525,6 +1616,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   quickTitleChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: '#F1F5F9',
     paddingHorizontal: 8,
     paddingVertical: 3.5,

@@ -139,8 +139,14 @@ export const LandingScreen: React.FC<LandingScreenProps> = ({ onNavigateToAuth }
       setActiveNav(null);
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('scroll', handleScroll, { passive: true });
+      return () => {
+        if (typeof window.removeEventListener === 'function') {
+          window.removeEventListener('scroll', handleScroll);
+        }
+      };
+    }
   }, []);
 
   // Hiệu ứng chữ động Canva (Kinetic Staggered Typography)

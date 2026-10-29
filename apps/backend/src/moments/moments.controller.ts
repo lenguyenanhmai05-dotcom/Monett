@@ -17,12 +17,16 @@ import { diskStorage } from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';
 import { MomentsService } from './moments.service';
+import { StorageService } from '../storage/storage.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @Controller('api/moments')
 @UseGuards(JwtAuthGuard)
 export class MomentsController {
-  constructor(private readonly momentsService: MomentsService) {}
+  constructor(
+    private readonly momentsService: MomentsService,
+    private readonly storageService: StorageService,
+  ) {}
 
   private getUserId(req: any): string {
     return (req.user?._id || req.user?.id).toString();
@@ -58,8 +62,28 @@ export class MomentsController {
     if (!file) {
       throw new BadRequestException('Vui lòng chọn ảnh để tải lên');
     }
-    const baseUrl = req.protocol + '://' + req.get('host');
-    const photoUrl = `${baseUrl}/uploads/${file.filename}`;
+
+    let photoUrl = '';
+
+    // 1. Thử tải lên Cloudinary
+    try {
+      if (this.storageService.isCloudinaryConfigured()) {
+        const result: any = await this.storageService.uploadImage(file, 'monett_moments');
+        if (result && result.secure_url) {
+          photoUrl = result.secure_url;
+          console.log('[MomentsController] Đã lưu ảnh khoảnh khắc thành công lên Cloudinary:', photoUrl);
+        }
+      }
+    } catch (cErr: any) {
+      console.warn('[MomentsController] Upload Cloudinary thất bại, dùng local storage:', cErr?.message);
+    }
+
+    // 2. Fallback local nếu chưa có photoUrl
+    if (!photoUrl) {
+      const baseUrl = req.protocol + '://' + req.get('host');
+      photoUrl = `${baseUrl}/uploads/${file.filename}`;
+    }
+
     return {
       message: 'Tải ảnh lên thành công',
       photoUrl,

@@ -314,11 +314,18 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
     >
       {/* ================= 1. TIÊU ĐỀ TRANG ================= */}
       <View style={styles.headerRow}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <Text style={styles.screenHeading}>
-            {isVi ? 'Định kỳ' : 'Recurring'}
-          </Text>
-        </View>
+        <Text style={styles.screenHeading}>
+          {isVi ? 'Định kỳ' : 'Recurring'}
+        </Text>
+
+        <TouchableOpacity
+          style={styles.closeBtn}
+          onPress={handleBack}
+          activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="close" size={20} color="#221D18" />
+        </TouchableOpacity>
       </View>
 
       {/* ================= 2. CỤM CHỌN TAB & NÚT THÊM KHOẢN ================= */}
@@ -408,10 +415,10 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
       ) : (
         /* HÌNH 3: GIAO DIỆN SAU KHI ĐÃ CÓ KHOẢN ĐỊNH KỲ */
         <View style={styles.activeContentContainer}>
-          {/* Cụm 3 Thẻ Chỉ Số Thống Kê (Overview Stat Cards) */}
-          <View style={[styles.statsRow, !isDesktop && styles.statsRowMobile]}>
-            {/* Card 1: Ước tính tháng */}
-            <View style={[styles.statCard, styles.statCardDark, !isDesktop && styles.statCardMobile]}>
+          {/* Cụm 3 Thẻ Chỉ Số Thống Kê (Giống trang Tích lũy) */}
+          <View style={styles.statsContainer}>
+            {/* Card 1: Ước tính tháng (Hẹp lại / thon gọn) */}
+            <View style={[styles.statCard, styles.statCardDark, styles.statCardDarkSlim]}>
               <View style={styles.statCardHeader}>
                 <Text style={styles.statCardLabelDark}>
                   {isVi ? 'ƯỚC TÍNH THÁNG' : 'MONTHLY ESTIMATE'}
@@ -426,46 +433,49 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
               </Text>
             </View>
 
-            {/* Card 2: Ước tính năm (#BEE3C2 - Xanh mint giống Sự kiện) */}
-            <View style={[styles.statCard, styles.statCardMint, !isDesktop && styles.statCardMobile]}>
-              <View style={styles.statCardHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <SvgCalendar size={15} color="#047857" />
-                  <Text style={styles.statCardLabelMint}>
-                    {isVi ? 'Ước tính năm' : 'Yearly estimate'}
-                  </Text>
+            {/* Gộp Tab 2 & Tab 3: Bên trái là Tab 3 (Số khoản), bên phải là Tab 2 (Ước tính năm) */}
+            <View style={styles.twoCardsRow}>
+              {/* Bên trái: Tab 3 (Số khoản - thẻ vàng) */}
+              <View style={[styles.statCard, styles.statCardBlue, styles.halfCard]}>
+                <View style={styles.statCardHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <SvgBill size={15} color="#B45309" />
+                    <Text style={styles.statCardLabelBlue} numberOfLines={1}>
+                      {isVi ? 'Số khoản' : 'Items count'}
+                    </Text>
+                  </View>
                 </View>
+                <Text style={styles.halfCardAmount} numberOfLines={1}>
+                  {currentTabItems.length}
+                </Text>
+                <Text style={styles.statCardSubBlue} numberOfLines={1}>
+                  {activeTab === 'expense'
+                    ? isVi
+                      ? 'chi định kỳ'
+                      : 'recurring expenses'
+                    : isVi
+                      ? 'thu định kỳ'
+                      : 'recurring income'}
+                </Text>
               </View>
-              <Text style={styles.statCardValueMint} numberOfLines={1}>
-                {formatVND(estimatedYearly)}
-              </Text>
-              <Text style={styles.statCardSubMint}>
-                {isVi ? 'x12 từ mức tháng' : 'x12 from monthly'}
-              </Text>
-            </View>
 
-            {/* Card 3: Số khoản (#FEF3C7 - Vàng nhạt thanh lịch) */}
-            <View style={[styles.statCard, styles.statCardBlue, !isDesktop && styles.statCardMobile]}>
-              <View style={styles.statCardHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <SvgBill size={15} color="#B45309" />
-                  <Text style={styles.statCardLabelBlue}>
-                    {isVi ? 'Số khoản' : 'Items count'}
-                  </Text>
+              {/* Bên phải: Tab 2 (Ước tính năm - thẻ xanh mint) */}
+              <View style={[styles.statCard, styles.statCardMint, styles.halfCard]}>
+                <View style={styles.statCardHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <SvgCalendar size={15} color="#047857" />
+                    <Text style={styles.statCardLabelMint} numberOfLines={1}>
+                      {isVi ? 'Ước tính năm' : 'Yearly estimate'}
+                    </Text>
+                  </View>
                 </View>
+                <Text style={styles.halfCardAmountMint} numberOfLines={1}>
+                  {formatVND(estimatedYearly)}
+                </Text>
+                <Text style={styles.statCardSubMint} numberOfLines={1}>
+                  {isVi ? 'x12 từ mức tháng' : 'x12 from monthly'}
+                </Text>
               </View>
-              <Text style={styles.statCardValueBlue} numberOfLines={1}>
-                {currentTabItems.length}
-              </Text>
-              <Text style={styles.statCardSubBlue}>
-                {activeTab === 'expense'
-                  ? isVi
-                    ? 'chi định kỳ'
-                    : 'recurring expenses'
-                  : isVi
-                    ? 'thu định kỳ'
-                    : 'recurring income'}
-              </Text>
             </View>
           </View>
 
@@ -497,8 +507,13 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
                   {/* Hàng trên: Icon + Tên + Tần suất và Switch Bật/Tắt */}
                   <View style={styles.itemTopRow}>
                     <View style={styles.itemLeftGroup}>
-                      <View style={styles.itemBadgeCircle}>
-                        <SvgSync size={17} color="#059669" />
+                      <View
+                        style={[
+                          styles.itemBadgeCircle,
+                          activeTab === 'expense' && { backgroundColor: '#F3E8FF' },
+                        ]}
+                      >
+                        <SvgSync size={17} color={activeTab === 'expense' ? '#7C3AED' : '#059669'} />
                       </View>
                       <View>
                         <Text style={styles.itemTitleText}>{item.title}</Text>
@@ -783,16 +798,41 @@ const styles = StyleSheet.create({
 
   // 1. Header
   headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 20,
   },
+  closeBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E8E0D5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#221D18',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
   backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E4E4E7',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 4,
+    marginRight: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
   },
   screenHeading: {
     fontSize: 26,
@@ -920,6 +960,46 @@ const styles = StyleSheet.create({
     gap: 20,
     width: '100%',
   },
+  statsContainer: {
+    marginBottom: 20,
+    gap: 12,
+  },
+  statCardDarkSlim: {
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 20,
+    minHeight: 96,
+    width: '100%',
+  },
+  twoCardsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  halfCard: {
+    flex: 1,
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    minHeight: 96,
+    justifyContent: 'space-between',
+  },
+  halfCardAmount: {
+    fontSize: 21,
+    fontWeight: '900',
+    color: '#92400E',
+    letterSpacing: -0.4,
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  halfCardAmountMint: {
+    fontSize: 21,
+    fontWeight: '900',
+    color: '#047857',
+    letterSpacing: -0.4,
+    marginTop: 6,
+    marginBottom: 2,
+  },
   statsRow: {
     flexDirection: 'row',
     gap: 16,
@@ -931,10 +1011,10 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 1,
-    padding: 24,
-    minHeight: 160,
+    padding: 16,
+    minHeight: 96,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
@@ -959,7 +1039,7 @@ const styles = StyleSheet.create({
   cardDarkDivider: {
     height: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    marginVertical: 6,
+    marginVertical: 4,
   },
   statCardMint: {
     backgroundColor: '#BEE3C2',
@@ -975,63 +1055,63 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   statCardLabelDark: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '800',
     color: '#A7F3D0',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
   },
   statCardValueDark: {
-    fontSize: 34,
+    fontSize: 26,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: -0.5,
-    marginTop: 6,
-    marginBottom: 6,
+    marginTop: 4,
+    marginBottom: 4,
   },
   currencySubDark: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
     color: '#FFFFFF',
   },
   statCardSubDark: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     fontWeight: '600',
     color: '#A7F3D0',
   },
   statCardLabelMint: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#047857',
   },
   statCardValueMint: {
-    fontSize: 30,
+    fontSize: 22,
     fontWeight: '900',
     color: '#047857',
     letterSpacing: -0.5,
-    marginTop: 8,
+    marginTop: 2,
     marginBottom: 4,
   },
   statCardSubMint: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     fontWeight: '500',
     color: '#065F46',
   },
   statCardLabelBlue: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#B45309',
   },
   statCardValueBlue: {
-    fontSize: 30,
+    fontSize: 22,
     fontWeight: '900',
     color: '#92400E',
     letterSpacing: -0.5,
-    marginTop: 8,
+    marginTop: 2,
     marginBottom: 4,
   },
   statCardSubBlue: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     fontWeight: '600',
     color: '#B45309',
   },

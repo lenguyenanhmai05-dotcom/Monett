@@ -184,7 +184,7 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
 
     reloadData();
 
-    if (typeof window !== 'undefined') {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('storage', reloadData);
       window.addEventListener('focus', reloadData);
     }
@@ -197,7 +197,7 @@ export const FinancialReportScreen: React.FC<FinancialReportScreenProps> = ({
 
     return () => {
       isMounted = false;
-      if (typeof window !== 'undefined') {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
         window.removeEventListener('storage', reloadData);
         window.removeEventListener('focus', reloadData);
       }

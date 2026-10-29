@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { TransactionCategorySvgIcon } from './TransactionCategorySvgIcon';
 
 interface TransactionItem {
   id: string;
@@ -29,21 +30,8 @@ export const HomeRecentTransactionsWidget: React.FC<HomeRecentTransactionsWidget
 }) => {
   const isVi = language === 'vi';
 
-  // Dữ liệu mẫu ban đầu nếu chưa có giao dịch
-  const sampleFallback: TransactionItem[] = [
-    {
-      id: 'tx_netflix_sample',
-      title: isVi ? 'Đăng ký định kỳ: Netflix' : 'Subscription: Netflix',
-      category: isVi ? 'Đăng ký' : 'Subscription',
-      date: isVi ? 'Hôm qua' : 'Yesterday',
-      amount: '-20.000',
-      rawAmount: 20000,
-      type: 'expense',
-    },
-  ];
-
-  const totalCount = transactions?.length ?? 1;
-  const displayList = transactions && transactions.length > 0 ? transactions.slice(0, 2) : sampleFallback;
+  const totalCount = transactions?.length || 0;
+  const displayList = transactions && transactions.length > 0 ? transactions.slice(0, 3) : [];
 
   const formatAmountText = (item: TransactionItem) => {
     if (typeof item.amount === 'string') {
@@ -92,7 +80,15 @@ export const HomeRecentTransactionsWidget: React.FC<HomeRecentTransactionsWidget
 
       {/* 2. Nội dung bên dưới trong cùng 1 khuôn trắng */}
       <View style={styles.bodyContent}>
-        {displayList.map((item, idx) => {
+        {displayList.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="receipt-outline" size={22} color="#94A3B8" />
+            <Text style={styles.emptyText}>
+              {isVi ? 'Chưa có giao dịch gần đây' : 'No recent transactions'}
+            </Text>
+          </View>
+        ) : (
+          displayList.map((item, idx) => {
           const isExpense = item.type !== 'income';
           const initialChar = (item.title || 'Đ').charAt(0).toUpperCase();
 
@@ -106,11 +102,16 @@ export const HomeRecentTransactionsWidget: React.FC<HomeRecentTransactionsWidget
               onPress={() => onSelectTransaction?.(item.id)}
               activeOpacity={0.75}
             >
-              {/* Circle Avatar Màu Vàng Pastel Khớp Hình */}
+              {/* Circle Avatar Màu Vàng Pastel với Icon SVG theo yêu cầu hình 2 */}
               <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>
-                  {item.categoryIcon && item.categoryIcon.length === 1 ? item.categoryIcon : initialChar}
-                </Text>
+                <TransactionCategorySvgIcon
+                  category={item.category}
+                  categoryIcon={item.categoryIcon}
+                  type={item.type}
+                  title={item.title}
+                  size={21}
+                  color="#92400E"
+                />
               </View>
 
               {/* Title & Subtitle */}
@@ -134,7 +135,7 @@ export const HomeRecentTransactionsWidget: React.FC<HomeRecentTransactionsWidget
               </Text>
             </TouchableOpacity>
           );
-        })}
+        }))}
       </View>
     </View>
   );
@@ -269,6 +270,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '900',
     letterSpacing: -0.2,
+  },
+  emptyContainer: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
 });
 

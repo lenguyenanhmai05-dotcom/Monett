@@ -15,40 +15,11 @@ export const HomeEventsWidget: React.FC<HomeEventsWidgetProps> = ({
   const isVi = language === 'vi';
 
   const [events, setEvents] = useState<MonettEvent[]>(() => {
-    const loaded = loadEventsFromStorage();
-    if (loaded && loaded.length > 0) return loaded;
-    // Dữ liệu mẫu khớp hình 2
-    return [
-      {
-        id: 'evt-111',
-        title: '111',
-        startDate: '18/10/2026',
-        location: '111',
-        estimatedBudget: 1000000,
-        spentAmount: 0,
-        status: 'ongoing',
-        createdAt: new Date().toISOString(),
-        expenses: [],
-      },
-      {
-        id: 'evt-123',
-        title: '123',
-        startDate: '18/10/2026',
-        location: 'Đà Lạt',
-        estimatedBudget: 20000000,
-        spentAmount: 0,
-        status: 'ongoing',
-        createdAt: new Date().toISOString(),
-        expenses: [],
-      },
-    ];
+    return loadEventsFromStorage() || [];
   });
 
   useEffect(() => {
-    const loaded = loadEventsFromStorage();
-    if (loaded && loaded.length > 0) {
-      setEvents(loaded);
-    }
+    setEvents(loadEventsFromStorage() || []);
   }, []);
 
   const activeEvents = events.filter((e) => e.status !== 'completed');
@@ -92,7 +63,15 @@ export const HomeEventsWidget: React.FC<HomeEventsWidgetProps> = ({
 
       {/* 2. Nội dung bên dưới trong cùng 1 khuôn trắng */}
       <View style={styles.bodyContent}>
-        {displayEvents.map((evt, idx) => {
+        {displayEvents.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="calendar-outline" size={22} color="#94A3B8" />
+            <Text style={styles.emptyText}>
+              {isVi ? 'Chưa có sự kiện nào' : 'No events available'}
+            </Text>
+          </View>
+        ) : (
+          displayEvents.map((evt, idx) => {
           const spent = evt.spentAmount || 0;
           const budget = evt.estimatedBudget || 1;
           const pct = Math.min(100, Math.max(0, Math.round((spent / budget) * 100)));
@@ -151,7 +130,7 @@ export const HomeEventsWidget: React.FC<HomeEventsWidgetProps> = ({
               </View>
             </TouchableOpacity>
           );
-        })}
+        }))}
       </View>
     </View>
   );
@@ -317,6 +296,17 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '500',
     color: '#6B7280',
+  },
+  emptyContainer: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: '#94A3B8',
+    fontWeight: '500',
   },
 });
 

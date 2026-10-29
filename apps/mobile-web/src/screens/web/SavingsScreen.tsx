@@ -371,25 +371,32 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
           <Text style={styles.headerTitle}>{isVi ? 'Tích lũy' : 'Savings'}</Text>
-          <Text style={styles.headerSubtitle}>
-            {isVi ? 'Mục tiêu tích lũy của sổ' : 'Savings goals of your wallet'}
-          </Text>
         </View>
 
         <TouchableOpacity
-          style={styles.mainAddBtn}
-          onPress={handleOpenCreateModal}
-          activeOpacity={0.85}
+          style={styles.closeBtn}
+          onPress={handleBack}
+          activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="add" size={18} color="#064E3B" style={{ marginRight: 4 }} />
-          <Text style={styles.mainAddBtnText}>{isVi ? 'Thêm' : 'New'}</Text>
+          <Ionicons name="close" size={20} color="#221D18" />
         </TouchableOpacity>
       </View>
 
-      {/* ================= 3. OVERVIEW STATS CARDS (ĐỒNG BỘ MÀU 100% VỚI SỰ KIỆN: 221D18, BEE3C2, B7D9F2) ================= */}
-      <View style={[styles.statsRow, !isDesktop && styles.statsRowMobile]}>
-        {/* Card 1: Tổng đã tích (#221D18) */}
-        <View style={[styles.statCard, styles.cardDark, !isDesktop && styles.statCardMobile]}>
+      {/* ================= 2. NÚT THÊM (GIỐNG ĐỊNH KỲ) ================= */}
+      <TouchableOpacity
+        style={styles.mainAddBtn}
+        onPress={handleOpenCreateModal}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="add" size={16} color="#064E3B" style={{ marginRight: 6 }} />
+        <Text style={styles.mainAddBtnText}>{isVi ? 'Thêm' : 'Add'}</Text>
+      </TouchableOpacity>
+
+      {/* ================= 3. OVERVIEW STATS CARDS ================= */}
+      <View style={styles.statsContainer}>
+        {/* Tab 1: Tổng đã tích (#064E3B) - Hẹp lại / thon gọn */}
+        <View style={[styles.statCard, styles.cardDark, styles.cardDarkSlim]}>
           <View style={styles.cardHeaderRow}>
             <Text style={styles.cardDarkLabel}>
               {isVi ? 'TỔNG ĐÃ TÍCH' : 'TOTAL SAVED'}
@@ -410,32 +417,43 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
           </Text>
         </View>
 
-        {/* Card 2: Mục tiêu (#BEE3C2) */}
-        <View style={[styles.statCard, styles.cardMint, !isDesktop && styles.statCardMobile]}>
-          <View style={styles.cardHeaderRowLeft}>
-            <Ionicons name="flag-outline" size={17} color="#047857" style={{ marginRight: 6 }} />
-            <Text style={styles.cardMintLabel}>{isVi ? 'Mục tiêu' : 'Target'}</Text>
+        {/* Gộp Tab 2 & Tab 3: Bên trái là Tab 3 (Còn cần), bên phải là Tab 2 (Mục tiêu) */}
+        <View style={styles.twoCardsRow}>
+          {/* Bên trái: Tab 3 (Còn cần - thẻ vàng) */}
+          <View style={[styles.statCard, styles.cardSky, styles.halfCard]}>
+            <View style={styles.cardHeaderRowLeft}>
+              <Ionicons name="cash-outline" size={16} color="#B45309" style={{ marginRight: 5 }} />
+              <Text style={styles.cardSkyLabel} numberOfLines={1}>
+                {isVi ? 'Còn cần' : 'Remaining'}
+              </Text>
+            </View>
+
+            <Text style={styles.halfCardAmount} numberOfLines={1}>
+              {formatVND(totalRemaining)}
+            </Text>
+
+            <Text style={styles.cardSkySub} numberOfLines={1}>
+              {isVi ? 'để chạm mục tiêu' : 'to reach goal'}
+            </Text>
           </View>
 
-          <Text style={styles.cardMintAmount}>{formatVND(totalTarget)}</Text>
+          {/* Bên phải: Tab 2 (Mục tiêu - thẻ xanh mint) */}
+          <View style={[styles.statCard, styles.cardMint, styles.halfCard]}>
+            <View style={styles.cardHeaderRowLeft}>
+              <Ionicons name="flag-outline" size={15} color="#047857" style={{ marginRight: 5 }} />
+              <Text style={styles.cardMintLabel} numberOfLines={1}>
+                {isVi ? 'Mục tiêu' : 'Target'}
+              </Text>
+            </View>
 
-          <Text style={styles.cardMintSub}>
-            {isVi ? `${goals.length} kế hoạch` : `${goals.length} plans`}
-          </Text>
-        </View>
+            <Text style={styles.halfCardAmountMint} numberOfLines={1}>
+              {formatVND(totalTarget)}
+            </Text>
 
-        {/* Card 3: Còn cần (#FEF3C7 - Vàng nhạt thanh lịch) */}
-        <View style={[styles.statCard, styles.cardSky, !isDesktop && styles.statCardMobile]}>
-          <View style={styles.cardHeaderRowLeft}>
-            <Ionicons name="cash-outline" size={18} color="#B45309" style={{ marginRight: 6 }} />
-            <Text style={styles.cardSkyLabel}>{isVi ? 'Còn cần' : 'Remaining'}</Text>
+            <Text style={styles.cardMintSub} numberOfLines={1}>
+              {isVi ? `${goals.length} kế hoạch` : `${goals.length} plans`}
+            </Text>
           </View>
-
-          <Text style={styles.cardSkyAmount}>{formatVND(totalRemaining)}</Text>
-
-          <Text style={styles.cardSkySub}>
-            {isVi ? 'để chạm mục tiêu' : 'to reach goal'}
-          </Text>
         </View>
       </View>
 
@@ -972,6 +990,22 @@ const styles = StyleSheet.create({
   headerLeft: {
     flex: 1,
   },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E4E4E7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
+    elevation: 1,
+  },
   headerTitle: {
     fontSize: 26,
     fontWeight: '800',
@@ -987,23 +1021,82 @@ const styles = StyleSheet.create({
   mainAddBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#A7F3D0',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    backgroundColor: '#98E4B0',
+    paddingVertical: 12,
+    paddingHorizontal: 22,
     borderRadius: 18,
-    shadowColor: '#059669',
+    borderWidth: 1,
+    borderColor: '#82D99E',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
     elevation: 2,
+    alignSelf: 'flex-start',
+    marginBottom: 20,
   },
   mainAddBtnText: {
-    fontSize: 14.5,
+    fontSize: 15,
     fontWeight: '800',
     color: '#064E3B',
   },
+  closeBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E8E0D5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#221D18',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
 
-  // 3. Stats Row
+  // 3. Stats Row & Containers
+  statsContainer: {
+    marginBottom: 20,
+    gap: 12,
+  },
+  cardDarkSlim: {
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 20,
+    minHeight: 96,
+    width: '100%',
+  },
+  twoCardsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  halfCard: {
+    flex: 1,
+    borderRadius: 20,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    minHeight: 96,
+    justifyContent: 'space-between',
+  },
+  halfCardAmount: {
+    fontSize: 21,
+    fontWeight: '900',
+    color: '#92400E',
+    letterSpacing: -0.4,
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  halfCardAmountMint: {
+    fontSize: 21,
+    fontWeight: '900',
+    color: '#047857',
+    letterSpacing: -0.4,
+    marginTop: 6,
+    marginBottom: 2,
+  },
   statsRow: {
     flexDirection: 'row',
     gap: 16,
@@ -1014,9 +1107,9 @@ const styles = StyleSheet.create({
   },
   statCard: {
     flex: 1,
-    borderRadius: 24,
-    padding: 22,
-    minHeight: 155,
+    borderRadius: 20,
+    padding: 16,
+    minHeight: 96,
     justifyContent: 'space-between',
   },
   statCardMobile: {
@@ -1058,20 +1151,20 @@ const styles = StyleSheet.create({
     color: '#064E3B',
   },
   cardDarkAmount: {
-    fontSize: 34,
+    fontSize: 26,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: -0.5,
-    marginTop: 6,
-    marginBottom: 8,
+    marginTop: 4,
+    marginBottom: 4,
   },
   cardDarkDivider: {
     height: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    marginVertical: 6,
+    marginVertical: 4,
   },
   cardDarkSub: {
-    fontSize: 12,
+    fontSize: 11.5,
     color: '#A7F3D0',
     fontWeight: '600',
   },
@@ -1083,7 +1176,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardMintLabel: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#047857',
   },
@@ -1096,7 +1189,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   cardMintSub: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     fontWeight: '500',
     color: '#065F46',
   },
@@ -1108,7 +1201,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardSkyLabel: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#B45309',
   },
@@ -1121,7 +1214,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   cardSkySub: {
-    fontSize: 12.5,
+    fontSize: 11.5,
     fontWeight: '600',
     color: '#B45309',
   },

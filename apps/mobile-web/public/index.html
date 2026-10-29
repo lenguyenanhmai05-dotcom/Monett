@@ -38,5 +38,16 @@
     </noscript>
     <!-- The root element for your Expo app. -->
     <div id="root"></div>
+
+    <!-- Monett Service Worker Registration for Mobile & Desktop Notifications -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function(err) {
+            console.warn('Monett SW registration failed:', err);
+          });
+        });
+      }
+    </script>
   </body>
 </html>

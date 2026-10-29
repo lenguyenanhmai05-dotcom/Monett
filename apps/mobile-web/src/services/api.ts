@@ -407,18 +407,8 @@ export const scanReceiptOcrApi = async (imageUrl: string): Promise<any> => {
     });
     return res.data;
   } catch (err: any) {
-    console.warn('Backend OCR scan error, using smart fallback client-side:', err);
-    return {
-      supplier: 'Hóa đơn Cà phê & Ăn uống',
-      amount: 85000,
-      currency: 'VND',
-      date: new Date().toISOString().split('T')[0],
-      category: 'Ăn uống',
-      items: [
-        { name: 'Cà phê muối sữa Monett', quantity: 1, price: 35000, total: 35000 },
-        { name: 'Bánh Croissant bơ tỏi', quantity: 1, price: 50000, total: 50000 },
-      ],
-    };
+    console.warn('Backend OCR scan error / no receipt data detected:', err);
+    return null;
   }
 };
 
@@ -458,6 +448,9 @@ export const respondFriendRequestApi = async (requestId: string, status: 'accept
   });
   return res;
 };
+
+
+
 
 export const getMomentsFeedApi = async () => {
   const res = await request<any>('/api/moments/feed');
@@ -876,10 +869,16 @@ export const getMessagesApi = async (friendId: string): Promise<any> => {
   return (res as any).data || res;
 };
 
-export const sendMessageApi = async (receiverId: string, text: string, imageUrl?: string): Promise<any> => {
+export const sendMessageApi = async (
+  receiverId: string,
+  text: string,
+  imageUrl?: string,
+  type: string = 'text',
+  billData?: any,
+): Promise<any> => {
   const res = await request<any>('/api/messages', {
     method: 'POST',
-    body: JSON.stringify({ receiverId, text, imageUrl }),
+    body: JSON.stringify({ receiverId, text, imageUrl, type, billData }),
   });
   return (res as any).data || res;
 };
