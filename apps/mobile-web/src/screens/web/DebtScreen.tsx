@@ -673,7 +673,6 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
               </Text>
             </View>
           </View>
-          </View>
         </View>
 
         {/* ========================================================================= */}

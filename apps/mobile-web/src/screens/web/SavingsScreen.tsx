@@ -487,8 +487,6 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
           </View>
         </View>
       </View>
-        </View>
-      </View>
 
       {/* ================= 4. SECTION GOALS LIST HEADER ================= */}
       <View style={styles.sectionHeaderRow}>

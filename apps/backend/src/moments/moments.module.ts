@@ -9,8 +9,6 @@ import { User, UserSchema } from '../users/schemas/user.schema';
 import { MessagesModule } from '../messages/messages.module';
 import { StorageModule } from '../storage/storage.module';
 
-import { StorageModule } from '../storage/storage.module';
-
 @Module({
   imports: [
     StorageModule,
@@ -21,7 +19,6 @@ import { StorageModule } from '../storage/storage.module';
       { name: User.name, schema: UserSchema },
     ]),
     MessagesModule,
-    StorageModule,
   ],
   controllers: [MomentsController],
   providers: [MomentsService],

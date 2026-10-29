@@ -223,8 +223,6 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
       }
       return;
     }
-      return;
-    }
 
     if (notif.metadata?.targetTab && onNavigateToTab) {
       onNavigateToTab(notif.metadata.targetTab);

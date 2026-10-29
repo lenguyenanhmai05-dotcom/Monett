@@ -529,8 +529,6 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
               </View>
             </View>
           </View>
-            </View>
-          </View>
 
           {/* Section: Danh sách chi / Danh sách thu */}
           <View style={styles.sectionHeaderRow}>

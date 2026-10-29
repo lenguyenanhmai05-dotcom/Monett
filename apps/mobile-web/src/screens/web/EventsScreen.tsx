@@ -663,8 +663,6 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
           </View>
         </View>
       </View>
-        </View>
-      </View>
 
       {/* ================= SEARCH & STATUS FILTERS ================= */}
       <View style={[styles.filterBar, { backgroundColor: cardBg, borderColor: cardBorder }]}>
