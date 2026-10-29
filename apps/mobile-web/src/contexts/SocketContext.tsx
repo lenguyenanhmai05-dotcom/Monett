@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
+import { Platform, AppState } from 'react-native';
 import { io, Socket } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import { getBaseUrl } from '../services/api';
@@ -151,6 +152,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     });
 
+    newSocket.on('message_sent', (msg: SocketMessagePayload) => {
+      setLastMessage(msg);
+    });
+
     // Định kỳ lấy danh sách người dùng online mỗi 15 giây
     const onlineSyncInterval = setInterval(() => {
       if (newSocket.connected) {
@@ -158,19 +163,30 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     }, 15000);
 
-    const handleWindowFocus = () => {
+    const handleFocusSync = () => {
       if (newSocket.connected) {
         newSocket.emit('get_online_users');
       }
     };
-    if (typeof window !== 'undefined') {
-      window.addEventListener('focus', handleWindowFocus);
+
+    let appStateSubscription: any = null;
+    if (Platform.OS !== 'web') {
+      appStateSubscription = AppState.addEventListener('change', (nextAppState) => {
+        if (nextAppState === 'active') {
+          handleFocusSync();
+        }
+      });
+    } else if (typeof window !== 'undefined' && typeof (window as any).addEventListener === 'function') {
+      (window as any).addEventListener('focus', handleFocusSync);
     }
 
     return () => {
       clearInterval(onlineSyncInterval);
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('focus', handleWindowFocus);
+      if (appStateSubscription && typeof appStateSubscription.remove === 'function') {
+        appStateSubscription.remove();
+      }
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof (window as any).removeEventListener === 'function') {
+        (window as any).removeEventListener('focus', handleFocusSync);
       }
       Object.values(typingTimeoutsRef.current).forEach((t) => clearTimeout(t));
       newSocket.disconnect();

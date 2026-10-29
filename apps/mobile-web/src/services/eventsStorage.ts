@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 export interface EventExpenseItem {
   id: string;
   title: string;
@@ -303,13 +304,22 @@ export const loadEventsFromStorage = (userEmail?: string, userId?: string): Mone
   return normEmail === TARGET_EMAIL ? REAL_EVENTS_FOR_USER : [];
 };
 
+
+function dispatchCustomEventSafely(name: string, detail?: any): void {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent(name, { detail }));
+    } catch (_) {}
+  }
+}
+
 export const saveEventsToStorage = (events: MonettEvent[], userEmail?: string, userId?: string): void => {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
       const normEmail = (userEmail || '').trim().toLowerCase();
       const key = getEventsStorageKey(normEmail, userId);
       window.localStorage.setItem(key, JSON.stringify(events));
-      window.dispatchEvent(new CustomEvent('monett:events_updated', { detail: events }));
+      dispatchCustomEventSafely('monett:events_updated', events);
     }
   } catch (err) {
     console.warn('Lỗi lưu sự kiện vào localStorage:', err);
@@ -361,7 +371,7 @@ export const saveStoredEventInvitations = (list: EventInvitation[]): void => {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
       window.localStorage.setItem(INVITATIONS_STORAGE_KEY, JSON.stringify(list));
-      window.dispatchEvent(new CustomEvent('monett:event_invitations_updated', { detail: list }));
+      dispatchCustomEventSafely('monett:event_invitations_updated', list);
     }
   } catch (err) {
     console.warn('Lỗi lưu lời mời sự kiện:', err);
@@ -440,7 +450,7 @@ export const sendEventInvitation = (data: {
 
       notifs = [notifItem, ...notifs];
       window.localStorage.setItem(recipientNotifKey, JSON.stringify(notifs));
-      window.dispatchEvent(new CustomEvent('monett:notification_added', { detail: notifItem }));
+      dispatchCustomEventSafely('monett:notification_added', notifItem);
     }
   } catch (e) {
     console.warn('Lỗi ghi thông báo mời sự kiện:', e);
@@ -584,9 +594,7 @@ export const acceptEventInvitation = (
       console.warn('Lỗi lưu thông báo chấp nhận sự kiện:', e);
     }
 
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('monett:event_accepted', { detail: { event: updatedEvent, recipientId } }));
-    }
+    dispatchCustomEventSafely('monett:event_accepted', { event: updatedEvent, recipientId });
 
     return updatedEvent;
   }
@@ -636,8 +644,6 @@ export const declineEventInvitation = (inviteId: string): void => {
     console.warn(e);
   }
 
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('monett:event_declined', { detail: { inviteId } }));
-  }
+  dispatchCustomEventSafely('monett:event_declined', { inviteId });
 };
 

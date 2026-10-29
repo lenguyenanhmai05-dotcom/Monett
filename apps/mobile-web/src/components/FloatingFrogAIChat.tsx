@@ -322,8 +322,10 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
       onNavigateToTab(tabKey);
     }
 
-    if (tabKey === 'budget' && typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('monett_open_savings_tab'));
+    if (tabKey === 'budget' && Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
+      try {
+        window.dispatchEvent(new CustomEvent('monett_open_savings_tab'));
+      } catch (_) {}
     }
 
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -707,12 +709,16 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
       }
     };
 
-    window.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('mousedown', handleMouseDown);
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        if (typeof window.removeEventListener === 'function') {
+          window.removeEventListener('mousedown', handleMouseDown);
+          window.removeEventListener('keydown', handleKeyDown);
+        }
+      };
+    }
   }, [isOpen]);
 
   const renderChatWindow = () => (

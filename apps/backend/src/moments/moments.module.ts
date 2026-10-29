@@ -11,6 +11,7 @@ import { StorageModule } from '../storage/storage.module';
 
 @Module({
   imports: [
+    StorageModule,
     MulterModule.register({}),
     MongooseModule.forFeature([
       { name: Moment.name, schema: MomentSchema },
@@ -18,7 +19,6 @@ import { StorageModule } from '../storage/storage.module';
       { name: User.name, schema: UserSchema },
     ]),
     MessagesModule,
-    StorageModule,
   ],
   controllers: [MomentsController],
   providers: [MomentsService],

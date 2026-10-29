@@ -16,6 +16,8 @@
       }
     },
     "android": {
+      "package": "com.monett.app",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"

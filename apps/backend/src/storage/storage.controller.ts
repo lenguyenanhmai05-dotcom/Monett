@@ -29,11 +29,13 @@ export class StorageController {
       throw new BadRequestException('Không tìm thấy tệp tải lên hoặc định dạng không hợp lệ.');
     }
     
+    let lastCloudinaryError: any = null;
     // 1. Thử tải lên Cloudinary nếu có cấu hình
     try {
-      if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY) {
-        const result: any = await this.storageService.uploadImage(file);
+      if (this.storageService.isCloudinaryConfigured()) {
+        const result: any = await this.storageService.uploadImage(file, 'monett_receipts');
         if (result && result.secure_url) {
+          console.log('[Storage] Đã lưu ảnh thành công lên Cloudinary:', result.secure_url);
           return {
             success: true,
             url: result.secure_url,
@@ -41,7 +43,8 @@ export class StorageController {
         }
       }
     } catch (error: any) {
-      console.warn('[Storage] Cloudinary không khả dụng hoặc lỗi 403, tự động chuyển sang lưu trữ cục bộ:', error?.message);
+      lastCloudinaryError = error?.message || String(error);
+      console.warn('[Storage] Cloudinary không khả dụng hoặc lỗi, tự động chuyển sang lưu trữ cục bộ:', error?.message);
     }
 
     // 2. Fallback lưu trữ cục bộ (Local Disk Storage) 100% tin cậy & mượt mà

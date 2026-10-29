@@ -26,7 +26,12 @@ import {
   getCategoryBreakdownApi,
   getTransactionsApi,
 } from '../../services/api';
-import { isIncomeTransactionOrItem } from '../../services/calendarStorage';
+import {
+  isIncomeTransactionOrItem,
+  getInitialDayRecordsFromLocalStorage,
+  subscribeCalendarUpdates,
+  isSampleRecordItem,
+} from '../../services/calendarStorage';
 import { getCurrentWeekRange } from '../../utils/dateUtils';
 
 interface AnalyticsScreenProps {
@@ -97,13 +102,6 @@ const getCategoryMeta = (catName: string) => {
   return { icon: 'grid-outline' as const, color: '#047857', bg: '#ECFDF5' };
 };
 
-const DEFAULT_CATEGORIES: CategoryItem[] = [
-  { name: 'Ăn uống', icon: 'restaurant-outline', amount: 520000, amountFormatted: '520.000 đ', percent: 50, color: '#059669', bg: '#ECFDF5' },
-  { name: 'Mua sắm', icon: 'bag-handle-outline', amount: 200000, amountFormatted: '200.000 đ', percent: 19, color: '#2563EB', bg: '#EFF6FF' },
-  { name: 'Di chuyển', icon: 'car-outline', amount: 180000, amountFormatted: '180.000 đ', percent: 17, color: '#D97706', bg: '#FEF3C7' },
-  { name: 'Cà phê & Trà', icon: 'cafe-outline', amount: 145000, amountFormatted: '145.000 đ', percent: 14, color: '#DB2777', bg: '#FCE7F3' },
-];
-
 export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refreshTrigger }) => {
   const { width } = useWindowDimensions();
   const { language } = useLanguage();
@@ -114,12 +112,15 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
   const [chartViewMode, setChartViewMode] = useState<ChartViewMode>('bar');
 
   // Metrics
-  const [totalExpense, setTotalExpense] = useState<number>(1045000);
+  const [totalExpense, setTotalExpense] = useState<number>(0);
 
   // Chart data & interactive focus
   const [chartData, setChartData] = useState<ChartItem[]>([]);
-  const [selectedBarIndex, setSelectedBarIndex] = useState<number>(2); // Mặc định chọn mốc ngày/tuần
-  const [categoryBreakdown, setCategoryBreakdown] = useState<CategoryItem[]>(DEFAULT_CATEGORIES);
+  const [selectedBarIndex, setSelectedBarIndex] = useState<number>(() => {
+    const d = new Date().getDay();
+    return d === 0 ? 6 : d - 1;
+  });
+  const [categoryBreakdown, setCategoryBreakdown] = useState<CategoryItem[]>([]);
 
   const now = useMemo(() => new Date(), []);
   const currentMonth = now.getMonth() + 1;
@@ -162,24 +163,83 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
   // ── Xử lý dữ liệu chuẩn hóa theo Ngày / Tuần / Tháng ────────────────────────
   const fetchAnalyticsData = useCallback(async () => {
     try {
-      const [txRes, overviewRes, catRes] = await Promise.allSettled([
-        getTransactionsApi({ limit: 200, sort: 'date_desc' }),
-        getAnalyticsOverviewApi(period, currentMonth, currentYear),
-        getCategoryBreakdownApi(period, currentMonth, currentYear),
-      ]);
+      const txRes = await getTransactionsApi({ limit: 500, sort: 'date_desc' }).catch(() => null);
 
-      let allTxs: any[] = [];
-      if (txRes.status === 'fulfilled' && (txRes.value as any)?.items) {
-        allTxs = (txRes.value as any).items;
+      let apiTxs: any[] = [];
+      if (txRes && (txRes as any).items && Array.isArray((txRes as any).items)) {
+        apiTxs = (txRes as any).items;
+      } else if (Array.isArray(txRes)) {
+        apiTxs = txRes;
       }
 
-      // Lọc transactions chi tiêu
-      const expenseTxs = allTxs.filter((t: any) => {
+      // Lấy thêm các transaction lưu trong localStorage / offline dayRecords
+      const dayRecords = getInitialDayRecordsFromLocalStorage();
+      const localTxs: any[] = [];
+      Object.entries(dayRecords).forEach(([dateStr, record]) => {
+        if (!record) return;
+        if (Array.isArray(record.items) && record.items.length > 0) {
+          record.items.forEach((it) => {
+            if (isIncomeTransactionOrItem(it)) return;
+            if (isSampleRecordItem(it)) return;
+            localTxs.push({
+              _id: it.id || `local-${dateStr}-${it.title || it.note}`,
+              id: it.id,
+              amount: Math.abs(it.amount || 0),
+              title: it.note || it.title || 'Khoản chi tiêu',
+              category: it.category || 'Khác',
+              date: it.createdAt || (it as any).date || dateStr,
+              type: 'expense',
+            });
+          });
+        } else if (record.amount && record.amount > 0 && !record.photoUri?.includes('unsplash.com')) {
+          localTxs.push({
+            _id: `local-day-${dateStr}`,
+            amount: Math.abs(record.amount),
+            title: record.note || 'Chi tiêu trong ngày',
+            category: record.category || 'Khác',
+            date: dateStr,
+            type: 'expense',
+          });
+        }
+      });
+
+      // Hợp nhất API transactions và local transactions (deduplicate)
+      const existingIds = new Set<string>();
+      const allMergedTxs: any[] = [];
+
+      apiTxs.forEach((tx: any) => {
+        const idKey = String(tx._id || tx.id || '');
+        if (idKey) existingIds.add(idKey);
+        allMergedTxs.push(tx);
+      });
+
+      localTxs.forEach((tx: any) => {
+        const idKey = String(tx._id || tx.id || '');
+        if (!idKey || !existingIds.has(idKey)) {
+          allMergedTxs.push(tx);
+        }
+      });
+
+      // Lọc transactions chi tiêu hợp lệ cho kỳ được chọn
+      const getTxDate = (t: any): Date | null => {
+        if (t.date) {
+          const d = new Date(t.date);
+          if (!isNaN(d.getTime())) return d;
+        }
+        if (t.createdAt) {
+          const d = new Date(t.createdAt);
+          if (!isNaN(d.getTime())) return d;
+        }
+        return null;
+      };
+
+      const expenseTxs = allMergedTxs.filter((t: any) => {
         if (isIncomeTransactionOrItem(t)) return false;
+        if (isSampleRecordItem(t)) return false;
         const isExp = t.type === 'expense' || t.amount < 0 || !t.type;
         if (!isExp) return false;
-        if (!t.date) return true;
-        const txDate = new Date(t.date);
+        const txDate = getTxDate(t);
+        if (!txDate) return false;
 
         if (period === 'year') {
           return txDate.getFullYear() === currentYear;
@@ -187,93 +247,53 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
         if (period === 'month') {
           return txDate.getFullYear() === currentYear && txDate.getMonth() + 1 === currentMonth;
         }
-        // week
+        // period === 'week'
         const mondayOffset = now.getDay() === 0 ? -6 : 1 - now.getDay();
-        const monday = new Date(now);
-        monday.setDate(now.getDate() + mondayOffset);
-        monday.setHours(0, 0, 0, 0);
-
-        const sunday = new Date(monday);
-        sunday.setDate(monday.getDate() + 6);
-        sunday.setHours(23, 59, 59, 999);
-
+        const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mondayOffset, 0, 0, 0, 0);
+        const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 23, 59, 59, 999);
         return txDate >= monday && txDate <= sunday;
       });
 
       // ── CHẾ ĐỘ 1: TUẦN (7 NGÀY: T2, T3, T4, T5, T6, T7, CN) ────────────────
       if (period === 'week') {
         const mondayOffset = now.getDay() === 0 ? -6 : 1 - now.getDay();
-        const monday = new Date(now);
-        monday.setDate(now.getDate() + mondayOffset);
+        const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mondayOffset, 0, 0, 0, 0);
 
         const dayShorts = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
         const dayFullNames = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
         const currentDOW = now.getDay() === 0 ? 6 : now.getDay() - 1;
 
-        // Dữ liệu mẫu thực tế của tuần
-        const fallbackWeekDetails: ExpenseDetailItem[][] = [
-          [
-            { id: 'exp-w1-1', title: 'Cơm trưa văn phòng', amount: 55000, amountFormatted: '-55.000 đ', category: 'Ăn uống', icon: 'restaurant-outline', color: '#059669', bg: '#ECFDF5', timeStr: '12:15' },
-            { id: 'exp-w1-2', title: 'Gửi xe & di chuyển', amount: 30000, amountFormatted: '-30.000 đ', category: 'Di chuyển', icon: 'car-outline', color: '#D97706', bg: '#FEF3C7', timeStr: '08:00' },
-          ],
-          [
-            { id: 'exp-w2-1', title: 'Trà đào hạt sen Phúc Long', amount: 45000, amountFormatted: '-45.000 đ', category: 'Cà phê & Trà', icon: 'cafe-outline', color: '#DB2777', bg: '#FCE7F3', timeStr: '15:20' },
-          ],
-          [
-            { id: 'exp-w3-1', title: 'Lẩu Haidilao cuối ngày', amount: 250000, amountFormatted: '-250.000 đ', category: 'Ăn uống', icon: 'restaurant-outline', color: '#059669', bg: '#ECFDF5', timeStr: '19:30' },
-            { id: 'exp-w3-2', title: 'Cà phê Highlands Coffee', amount: 70000, amountFormatted: '-70.000 đ', category: 'Cà phê', icon: 'cafe-outline', color: '#DB2777', bg: '#FCE7F3', timeStr: '14:15' },
-          ],
-          [
-            { id: 'exp-w4-1', title: 'Nhu yếu phẩm tạp hóa WinMart', amount: 150000, amountFormatted: '-150.000 đ', category: 'Mua sắm', icon: 'bag-handle-outline', color: '#2563EB', bg: '#EFF6FF', timeStr: '17:45' },
-          ],
-          [
-            { id: 'exp-w5-1', title: 'Đổ xăng xe máy Petrolimex', amount: 70000, amountFormatted: '-70.000 đ', category: 'Di chuyển', icon: 'car-outline', color: '#D97706', bg: '#FEF3C7', timeStr: '08:30' },
-            { id: 'exp-w5-2', title: 'Cà phê đen đá sáng', amount: 25000, amountFormatted: '-25000 đ', category: 'Cà phê', icon: 'cafe-outline', color: '#DB2777', bg: '#FCE7F3', timeStr: '09:15' },
-          ],
-          [
-            { id: 'exp-w6-1', title: 'Xem phim rạp CGV cuối tuần', amount: 120000, amountFormatted: '-120.000 đ', category: 'Giải trí', icon: 'film-outline', color: '#7C3AED', bg: '#F5F3FF', timeStr: '21:00' },
-            { id: 'exp-w6-2', title: 'Trà sữa trân châu', amount: 45000, amountFormatted: '-45.000 đ', category: 'Cà phê & Trà', icon: 'cafe-outline', color: '#DB2777', bg: '#FCE7F3', timeStr: '16:45' },
-          ],
-          [
-            { id: 'exp-w7-1', title: 'Bún bò Huế & trà đá tối', amount: 85000, amountFormatted: '-85.000 đ', category: 'Ăn uống', icon: 'restaurant-outline', color: '#059669', bg: '#ECFDF5', timeStr: '20:15' },
-            { id: 'exp-w7-2', title: 'Mua sắm siêu thị mini', amount: 100000, amountFormatted: '-100.000 đ', category: 'Mua sắm', icon: 'bag-handle-outline', color: '#2563EB', bg: '#EFF6FF', timeStr: '10:30' },
-          ],
-        ];
-
-        const calculated = dayShorts.map((d, idx) => {
-          const curD = new Date(monday);
-          curD.setDate(monday.getDate() + idx);
+        const calculated: ChartItem[] = dayShorts.map((d, idx) => {
+          const curD = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + idx);
           const dateNum = curD.getDate() < 10 ? `0${curD.getDate()}` : `${curD.getDate()}`;
           const monthNum = curD.getMonth() + 1 < 10 ? `0${curD.getMonth() + 1}` : `${curD.getMonth() + 1}`;
           const yearNum = curD.getFullYear();
           const fullLabel = `${dayFullNames[idx]}, ${dateNum}/${monthNum}/${yearNum}`;
 
           const dayTxs = expenseTxs.filter((t) => {
-            const dow = new Date(t.date).getDay();
-            const normDow = dow === 0 ? 6 : dow - 1;
-            return normDow === idx;
+            const dt = getTxDate(t);
+            if (!dt) return false;
+            return dt.getFullYear() === curD.getFullYear() &&
+                   dt.getMonth() === curD.getMonth() &&
+                   dt.getDate() === curD.getDate();
           });
 
-          let details: ExpenseDetailItem[] = [];
-          if (dayTxs.length > 0) {
-            details = dayTxs.map((t, tIdx) => {
-              const meta = getCategoryMeta(t.category || 'Chi tiêu');
-              const amt = Math.abs(t.amount);
-              return {
-                id: t._id || `tx-${idx}-${tIdx}`,
-                title: t.title || 'Khoản chi tiêu',
-                amount: amt,
-                amountFormatted: `-${amt.toLocaleString('vi-VN')} đ`,
-                category: t.category || 'Chi tiêu',
-                icon: meta.icon,
-                color: meta.color,
-                bg: meta.bg,
-                timeStr: t.date ? new Date(t.date).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'Hôm nay',
-              };
-            });
-          } else {
-            details = fallbackWeekDetails[idx];
-          }
+          const details: ExpenseDetailItem[] = dayTxs.map((t, tIdx) => {
+            const cat = t.category || 'Khác';
+            const meta = getCategoryMeta(cat);
+            const amt = Math.abs(t.amount || 0);
+            return {
+              id: t._id || `tx-w-${idx}-${tIdx}`,
+              title: t.title || t.note || 'Khoản chi tiêu',
+              amount: amt,
+              amountFormatted: `-${amt.toLocaleString('vi-VN')} đ`,
+              category: cat,
+              icon: meta.icon,
+              color: meta.color,
+              bg: meta.bg,
+              timeStr: t.date ? new Date(t.date).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'Hôm nay',
+            };
+          });
 
           const sum = details.reduce((acc, cur) => acc + cur.amount, 0);
 
@@ -296,74 +316,46 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
 
         setChartData(finalWeek);
         const focusIdx = finalWeek.findIndex((c) => c.isHighest);
-        setSelectedBarIndex(focusIdx >= 0 ? focusIdx : currentDOW);
+        setSelectedBarIndex(focusIdx >= 0 && finalWeek[focusIdx].amount > 0 ? focusIdx : currentDOW);
         setTotalExpense(finalWeek.reduce((acc, cur) => acc + cur.amount, 0));
       }
 
       // ── CHẾ ĐỘ 2: THÁNG (CÁC TUẦN TRONG THÁNG) ─────────────────────────────
       else if (period === 'month') {
         const lastDayOfMonth = new Date(currentYear, currentMonth, 0).getDate();
+        const padM = currentMonth < 10 ? `0${currentMonth}` : `${currentMonth}`;
         const weeksDef = [
-          { label: 'Tuần 1', full: `Tuần 1 (01/10 - 07/10/${currentYear})`, start: 1, end: 7 },
-          { label: 'Tuần 2', full: `Tuần 2 (08/10 - 14/10/${currentYear})`, start: 8, end: 14 },
-          { label: 'Tuần 3', full: `Tuần 3 (15/10 - 21/10/${currentYear})`, start: 15, end: 21 },
-          { label: 'Tuần 4', full: `Tuần 4 (22/10 - 28/10/${currentYear})`, start: 22, end: 28 },
-          { label: 'Tuần 5', full: `Tuần 5 (29/10 - ${lastDayOfMonth}/10/${currentYear})`, start: 29, end: lastDayOfMonth },
+          { label: 'Tuần 1', full: `Tuần 1 (01/${padM} - 07/${padM}/${currentYear})`, start: 1, end: 7 },
+          { label: 'Tuần 2', full: `Tuần 2 (08/${padM} - 14/${padM}/${currentYear})`, start: 8, end: 14 },
+          { label: 'Tuần 3', full: `Tuần 3 (15/${padM} - 21/${padM}/${currentYear})`, start: 15, end: 21 },
+          { label: 'Tuần 4', full: `Tuần 4 (22/${padM} - 28/${padM}/${currentYear})`, start: 22, end: 28 },
+          { label: 'Tuần 5', full: `Tuần 5 (29/${padM} - ${lastDayOfMonth}/${padM}/${currentYear})`, start: 29, end: lastDayOfMonth },
         ];
 
-        const fallbackMonthDetails: ExpenseDetailItem[][] = [
-          [
-            { id: 'm1-1', title: 'Đi chợ đầu tháng', amount: 380000, amountFormatted: '-380.000 đ', category: 'Ăn uống', icon: 'restaurant-outline', color: '#059669', bg: '#ECFDF5', timeStr: '02/10' },
-            { id: 'm1-2', title: 'Mua sắm đồ cá nhân', amount: 200000, amountFormatted: '-200.000 đ', category: 'Mua sắm', icon: 'bag-handle-outline', color: '#2563EB', bg: '#EFF6FF', timeStr: '05/10' },
-            { id: 'm1-3', title: 'Nạp cước điện thoại 4G', amount: 100000, amountFormatted: '-100.000 đ', category: 'Dịch vụ', icon: 'wifi-outline' as any, color: '#0284C7', bg: '#F0F9FF', timeStr: '01/10' },
-          ],
-          [
-            { id: 'm2-1', title: 'Mua thực phẩm tươi cả tuần', amount: 520000, amountFormatted: '-520.000 đ', category: 'Ăn uống', icon: 'restaurant-outline', color: '#059669', bg: '#ECFDF5', timeStr: '10/10' },
-            { id: 'm2-2', title: 'Đổ xăng xe & rửa xe máy', amount: 250000, amountFormatted: '-250.000 đ', category: 'Di chuyển', icon: 'car-outline', color: '#D97706', bg: '#FEF3C7', timeStr: '12/10' },
-            { id: 'm2-3', title: 'Đồ gia dụng phòng ở', amount: 150000, amountFormatted: '-150.000 đ', category: 'Nhà cửa', icon: 'home-outline', color: '#7C3AED', bg: '#F5F3FF', timeStr: '09/10' },
-          ],
-          [
-            { id: 'm3-1', title: 'Tiệc liên hoan Haidilao cuối tuần', amount: 750000, amountFormatted: '-750.000 đ', category: 'Ăn uống', icon: 'restaurant-outline', color: '#059669', bg: '#ECFDF5', timeStr: '18/10' },
-            { id: 'm3-2', title: 'Mua sắm quần áo Uniqlo', amount: 420000, amountFormatted: '-420.000 đ', category: 'Mua sắm', icon: 'bag-handle-outline', color: '#2563EB', bg: '#EFF6FF', timeStr: '19/10' },
-            { id: 'm3-3', title: 'Cà phê & trà sữa tuần', amount: 180000, amountFormatted: '-180.000 đ', category: 'Cà phê', icon: 'cafe-outline', color: '#DB2777', bg: '#FCE7F3', timeStr: '16/10' },
-          ],
-          [
-            { id: 'm4-1', title: 'Ăn ngoài & giao lưu bạn bè', amount: 480000, amountFormatted: '-480.000 đ', category: 'Ăn uống', icon: 'restaurant-outline', color: '#059669', bg: '#ECFDF5', timeStr: '25/10' },
-            { id: 'm4-2', title: 'Mua sách & học tập', amount: 180000, amountFormatted: '-180.000 đ', category: 'Học tập', icon: 'book-outline', color: '#2563EB', bg: '#EFF6FF', timeStr: '23/10' },
-            { id: 'm4-3', title: 'Cà phê chiều cuối tuần', amount: 100000, amountFormatted: '-100.000 đ', category: 'Cà phê', icon: 'cafe-outline', color: '#DB2777', bg: '#FCE7F3', timeStr: '27/10' },
-          ],
-          [
-            { id: 'm5-1', title: 'Ăn tối nhẹ cuối tháng', amount: 280000, amountFormatted: '-280.000 đ', category: 'Ăn uống', icon: 'restaurant-outline', color: '#059669', bg: '#ECFDF5', timeStr: '30/10' },
-            { id: 'm5-2', title: 'Cà phê thư giãn', amount: 160000, amountFormatted: '-160.000 đ', category: 'Cà phê', icon: 'cafe-outline', color: '#DB2777', bg: '#FCE7F3', timeStr: '31/10' },
-          ],
-        ];
-
-        const calculated = weeksDef.map((w, idx) => {
+        const calculated: ChartItem[] = weeksDef.map((w, idx) => {
           const wTxs = expenseTxs.filter((t) => {
-            const dt = new Date(t.date).getDate();
-            return dt >= w.start && dt <= w.end;
+            const dt = getTxDate(t);
+            if (!dt) return false;
+            const dayNum = dt.getDate();
+            return dayNum >= w.start && dayNum <= w.end;
           });
 
-          let details: ExpenseDetailItem[] = [];
-          if (wTxs.length > 0) {
-            details = wTxs.map((t, tIdx) => {
-              const meta = getCategoryMeta(t.category || 'Chi tiêu');
-              const amt = Math.abs(t.amount);
-              return {
-                id: t._id || `tx-m-${idx}-${tIdx}`,
-                title: t.title || 'Khoản chi tiêu',
-                amount: amt,
-                amountFormatted: `-${amt.toLocaleString('vi-VN')} đ`,
-                category: t.category || 'Chi tiêu',
-                icon: meta.icon,
-                color: meta.color,
-                bg: meta.bg,
-                timeStr: t.date ? new Date(t.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }) : `Tuần ${idx + 1}`,
-              };
-            });
-          } else {
-            details = fallbackMonthDetails[idx];
-          }
+          const details: ExpenseDetailItem[] = wTxs.map((t, tIdx) => {
+            const cat = t.category || 'Khác';
+            const meta = getCategoryMeta(cat);
+            const amt = Math.abs(t.amount || 0);
+            return {
+              id: t._id || `tx-m-${idx}-${tIdx}`,
+              title: t.title || t.note || 'Khoản chi tiêu',
+              amount: amt,
+              amountFormatted: `-${amt.toLocaleString('vi-VN')} đ`,
+              category: cat,
+              icon: meta.icon,
+              color: meta.color,
+              bg: meta.bg,
+              timeStr: t.date ? new Date(t.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }) : `Tuần ${idx + 1}`,
+            };
+          });
 
           const sum = details.reduce((acc, cur) => acc + cur.amount, 0);
 
@@ -384,44 +376,41 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
         }));
 
         setChartData(finalMonth);
+        const curDay = now.getDate();
+        const curWeekIdx = weeksDef.findIndex((w) => curDay >= w.start && curDay <= w.end);
         const focusIdx = finalMonth.findIndex((c) => c.isHighest);
-        setSelectedBarIndex(focusIdx >= 0 ? focusIdx : 2);
+        setSelectedBarIndex(focusIdx >= 0 && finalMonth[focusIdx].amount > 0 ? focusIdx : (curWeekIdx >= 0 ? curWeekIdx : 0));
         setTotalExpense(finalMonth.reduce((acc, cur) => acc + cur.amount, 0));
       }
 
       // ── CHẾ ĐỘ 3: NĂM (12 THÁNG) ───────────────────────────────────────────
       else {
         const monthNames = ['Th1', 'Th2', 'Th3', 'Th4', 'Th5', 'Th6', 'Th7', 'Th8', 'Th9', 'Th10', 'Th11', 'Th12'];
-        const fallbackAmounts = [4200000, 3800000, 4500000, 3900000, 4100000, 4600000, 4300000, 3950000, 4450000, 5200000, 4100000, 4800000];
 
-        const calculated = monthNames.map((m, idx) => {
-          const mTxs = expenseTxs.filter((t) => new Date(t.date).getMonth() === idx);
+        const calculated: ChartItem[] = monthNames.map((m, idx) => {
+          const mTxs = expenseTxs.filter((t) => {
+            const dt = getTxDate(t);
+            if (!dt) return false;
+            return dt.getMonth() === idx;
+          });
           const fullLabel = `Tháng ${idx + 1}/${currentYear}`;
 
-          let details: ExpenseDetailItem[] = [];
-          if (mTxs.length > 0) {
-            details = mTxs.map((t, tIdx) => {
-              const meta = getCategoryMeta(t.category || 'Chi tiêu');
-              const amt = Math.abs(t.amount);
-              return {
-                id: t._id || `tx-y-${idx}-${tIdx}`,
-                title: t.title || 'Khoản chi tiêu',
-                amount: amt,
-                amountFormatted: `-${amt.toLocaleString('vi-VN')} đ`,
-                category: t.category || 'Chi tiêu',
-                icon: meta.icon,
-                color: meta.color,
-                bg: meta.bg,
-                timeStr: t.date ? new Date(t.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }) : `Tháng ${idx + 1}`,
-              };
-            });
-          } else {
-            details = [
-              { id: `y-${idx}-1`, title: 'Tiền phòng trọ & điện nước', amount: 2500000, amountFormatted: '-2.500.000 đ', category: 'Nhà cửa', icon: 'home-outline', color: '#7C3AED', bg: '#F5F3FF', timeStr: `05/${idx + 1 < 10 ? '0' : ''}${idx + 1}` },
-              { id: `y-${idx}-2`, title: 'Chi tiêu ăn uống & thực phẩm', amount: Math.round((fallbackAmounts[idx] - 2500000) * 0.7), amountFormatted: `-${Math.round((fallbackAmounts[idx] - 2500000) * 0.7).toLocaleString('vi-VN')} đ`, category: 'Ăn uống', icon: 'restaurant-outline', color: '#059669', bg: '#ECFDF5', timeStr: `15/${idx + 1 < 10 ? '0' : ''}${idx + 1}` },
-              { id: `y-${idx}-3`, title: 'Mua sắm & dịch vụ cá nhân', amount: Math.round((fallbackAmounts[idx] - 2500000) * 0.3), amountFormatted: `-${Math.round((fallbackAmounts[idx] - 2500000) * 0.3).toLocaleString('vi-VN')} đ`, category: 'Mua sắm', icon: 'bag-handle-outline', color: '#2563EB', bg: '#EFF6FF', timeStr: `22/${idx + 1 < 10 ? '0' : ''}${idx + 1}` },
-            ];
-          }
+          const details: ExpenseDetailItem[] = mTxs.map((t, tIdx) => {
+            const cat = t.category || 'Khác';
+            const meta = getCategoryMeta(cat);
+            const amt = Math.abs(t.amount || 0);
+            return {
+              id: t._id || `tx-y-${idx}-${tIdx}`,
+              title: t.title || t.note || 'Khoản chi tiêu',
+              amount: amt,
+              amountFormatted: `-${amt.toLocaleString('vi-VN')} đ`,
+              category: cat,
+              icon: meta.icon,
+              color: meta.color,
+              bg: meta.bg,
+              timeStr: t.date ? new Date(t.date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' }) : `Tháng ${idx + 1}`,
+            };
+          });
 
           const sum = details.reduce((acc, cur) => acc + cur.amount, 0);
 
@@ -447,32 +436,38 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
         setTotalExpense(finalYear.reduce((acc, cur) => acc + cur.amount, 0));
       }
 
-      // 3. Cơ cấu danh mục
-      if (catRes.status === 'fulfilled' && Array.isArray(catRes.value) && catRes.value.length > 0) {
-        const cats: CategoryItem[] = catRes.value.map((c: any) => {
-          const catName = c.name || c.category || 'Khác';
-          const meta = getCategoryMeta(catName);
-          const amt = Math.abs(c.amount || c.total || 0);
-          return {
-            name: catName,
-            amount: amt,
-            amountFormatted: `${amt.toLocaleString('vi-VN')} đ`,
-            percent: c.percentage || Math.round(c.percent || 0),
-            icon: meta.icon,
-            color: meta.color,
-            bg: meta.bg,
-          };
-        });
+      // ── CƠ CẤU CHI TIÊU THEO DANH MỤC (100% THỰC TẾ) ────────────────────────
+      const catMap: Record<string, number> = {};
+      let totalExpPeriod = 0;
+
+      expenseTxs.forEach((t: any) => {
+        const amt = Math.abs(t.amount || 0);
+        if (amt > 0) {
+          const cName = t.category || 'Khác';
+          catMap[cName] = (catMap[cName] || 0) + amt;
+          totalExpPeriod += amt;
+        }
+      });
+
+      if (totalExpPeriod > 0) {
+        const cats: CategoryItem[] = Object.entries(catMap)
+          .sort((a, b) => b[1] - a[1])
+          .map(([name, amt]) => {
+            const meta = getCategoryMeta(name);
+            const pct = Math.round((amt / totalExpPeriod) * 100);
+            return {
+              name,
+              amount: amt,
+              amountFormatted: `${amt.toLocaleString('vi-VN')} đ`,
+              percent: pct,
+              icon: meta.icon,
+              color: meta.color,
+              bg: meta.bg,
+            };
+          });
         setCategoryBreakdown(cats);
       } else {
-        const scaleFactor = period === 'month' ? 4 : period === 'year' ? 50 : 1;
-        setCategoryBreakdown(
-          DEFAULT_CATEGORIES.map((cat) => ({
-            ...cat,
-            amount: cat.amount * scaleFactor,
-            amountFormatted: `${(cat.amount * scaleFactor).toLocaleString('vi-VN')} đ`,
-          }))
-        );
+        setCategoryBreakdown([]);
       }
     } catch (e) {
       console.log('Error fetching analytics:', e);
@@ -482,6 +477,15 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
   useEffect(() => {
     fetchAnalyticsData();
   }, [fetchAnalyticsData, refreshTrigger]);
+
+  useEffect(() => {
+    const unsub = subscribeCalendarUpdates(() => {
+      fetchAnalyticsData();
+    });
+    return () => {
+      unsub();
+    };
+  }, [fetchAnalyticsData]);
 
   // ── Tính toán trục tọa độ SVG (Tăng paddingLeft lên 54) ────────────────────
   const chartDimensions = useMemo(() => {
@@ -597,11 +601,6 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
       {/* 1. Header Bar Fintech Gọn Gàng */}
       <View style={styles.header}>
         <View style={styles.headerTitleRow}>
-          {onBack && (
-            <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.7}>
-              <Ionicons name="chevron-back" size={20} color="#0F172A" />
-            </TouchableOpacity>
-          )}
           <View style={styles.brandBadgeIcon}>
             <Ionicons name="stats-chart" size={18} color="#047857" />
           </View>
@@ -610,6 +609,17 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
             <Text style={styles.headerSubtitle}>{isVi ? 'Phân tích & Tối ưu dòng tiền' : 'Cashflow Analysis & Insights'}</Text>
           </View>
         </View>
+
+        {onBack && (
+          <TouchableOpacity
+            style={styles.closeBtn}
+            onPress={onBack}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="close" size={20} color="#221D18" />
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView
@@ -734,7 +744,7 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Text style={styles.tooltipAmount}>{selectedItem.amount.toLocaleString('vi-VN')} đ</Text>
-                {selectedItem.isHighest && (
+                {selectedItem.isHighest && selectedItem.amount > 0 && (
                   <View style={styles.tooltipHighestTag}>
                     <Text style={styles.tooltipHighestTagText}>{isVi ? 'Cao nhất' : 'Peak'}</Text>
                   </View>
@@ -931,75 +941,88 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
             <Ionicons name="pie-chart" size={18} color="#059669" />
           </View>
 
-          <View style={styles.donutContainer}>
-            <View style={{ width: donutData.size, height: donutData.size, position: 'relative' }}>
-              <Svg width={donutData.size} height={donutData.size}>
-                <Circle
-                  cx={donutData.size / 2}
-                  cy={donutData.size / 2}
-                  r={donutData.radius}
-                  stroke="#F1F5F9"
-                  strokeWidth={donutData.strokeWidth}
-                  fill="none"
-                />
-
-                {donutData.segments.map((seg, i) => (
+          {categoryBreakdown.length > 0 ? (
+            <View style={styles.donutContainer}>
+              <View style={{ width: donutData.size, height: donutData.size, position: 'relative' }}>
+                <Svg width={donutData.size} height={donutData.size}>
                   <Circle
-                    key={`donut-${i}`}
                     cx={donutData.size / 2}
                     cy={donutData.size / 2}
                     r={donutData.radius}
-                    stroke={seg.color}
+                    stroke="#F1F5F9"
                     strokeWidth={donutData.strokeWidth}
-                    strokeDasharray={seg.strokeDasharray}
-                    strokeDashoffset={seg.strokeDashoffset}
-                    strokeLinecap="round"
                     fill="none"
-                    transform={`rotate(-90 ${donutData.size / 2} ${donutData.size / 2})`}
                   />
-                ))}
-              </Svg>
 
-              <View style={styles.donutCenterContent}>
-                <Ionicons name="wallet-outline" size={18} color="#047857" />
-                <Text style={styles.donutCenterLabel}>{isVi ? 'Tổng chi' : 'Total'}</Text>
-                <Text style={styles.donutCenterValue}>
-                  {totalExpense >= 1000000
-                    ? `${(totalExpense / 1000000).toFixed(1)}tr`
-                    : `${Math.round(totalExpense / 1000)}k`}
-                </Text>
+                  {donutData.segments.map((seg, i) => (
+                    <Circle
+                      key={`donut-${i}`}
+                      cx={donutData.size / 2}
+                      cy={donutData.size / 2}
+                      r={donutData.radius}
+                      stroke={seg.color}
+                      strokeWidth={donutData.strokeWidth}
+                      strokeDasharray={seg.strokeDasharray}
+                      strokeDashoffset={seg.strokeDashoffset}
+                      strokeLinecap="round"
+                      fill="none"
+                      transform={`rotate(-90 ${donutData.size / 2} ${donutData.size / 2})`}
+                    />
+                  ))}
+                </Svg>
+
+                <View style={styles.donutCenterContent}>
+                  <Ionicons name="wallet-outline" size={18} color="#047857" />
+                  <Text style={styles.donutCenterLabel}>{isVi ? 'Tổng chi' : 'Total'}</Text>
+                  <Text style={styles.donutCenterValue}>
+                    {totalExpense >= 1000000
+                      ? `${(totalExpense / 1000000).toFixed(1)}tr`
+                      : totalExpense > 0
+                      ? `${Math.round(totalExpense / 1000)}k`
+                      : '0 đ'}
+                  </Text>
+                </View>
               </View>
             </View>
-          </View>
+          ) : null}
 
           <View style={styles.categoriesListContainer}>
-            {categoryBreakdown.map((cat, i) => (
-              <View key={i} style={styles.catBreakdownItem}>
-                <View style={styles.catInfoRow}>
-                  <View style={styles.catLeft}>
-                    <View style={[styles.catIconContainer, { backgroundColor: cat.bg }]}>
-                      <Ionicons name={cat.icon} size={15} color={cat.color} />
+            {categoryBreakdown.length > 0 ? (
+              categoryBreakdown.map((cat, i) => (
+                <View key={i} style={styles.catBreakdownItem}>
+                  <View style={styles.catInfoRow}>
+                    <View style={styles.catLeft}>
+                      <View style={[styles.catIconContainer, { backgroundColor: cat.bg }]}>
+                        <Ionicons name={cat.icon} size={15} color={cat.color} />
+                      </View>
+                      <Text style={styles.catTitle}>{cat.name}</Text>
                     </View>
-                    <Text style={styles.catTitle}>{cat.name}</Text>
-                  </View>
-                  <View style={styles.catRight}>
-                    <Text style={styles.catSum}>{cat.amountFormatted}</Text>
-                    <View style={[styles.catPercentBadge, { backgroundColor: cat.bg }]}>
-                      <Text style={[styles.catPct, { color: cat.color }]}>{cat.percent}%</Text>
+                    <View style={styles.catRight}>
+                      <Text style={styles.catSum}>{cat.amountFormatted}</Text>
+                      <View style={[styles.catPercentBadge, { backgroundColor: cat.bg }]}>
+                        <Text style={[styles.catPct, { color: cat.color }]}>{cat.percent}%</Text>
+                      </View>
                     </View>
                   </View>
-                </View>
 
-                <View style={styles.progressTrack}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      { width: `${cat.percent}%`, backgroundColor: cat.color },
-                    ]}
-                  />
+                  <View style={styles.progressTrack}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        { width: `${cat.percent}%`, backgroundColor: cat.color },
+                      ]}
+                    />
+                  </View>
                 </View>
+              ))
+            ) : (
+              <View style={styles.emptyExpenseBox}>
+                <Ionicons name="pie-chart-outline" size={24} color="#94A3B8" />
+                <Text style={styles.emptyExpenseText}>
+                  {isVi ? 'Chưa có dữ liệu danh mục chi tiêu trong kỳ này' : 'No expense categories recorded'}
+                </Text>
               </View>
-            ))}
+            )}
           </View>
         </View>
 
@@ -1117,11 +1140,11 @@ export const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ onBack, refres
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   scrollContent: {
     padding: 16,
@@ -1136,7 +1159,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 10,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
     borderBottomWidth: 1,
     borderBottomColor: '#E8E0D5',
   },
@@ -1165,6 +1188,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748B',
     fontWeight: '500',
+  },
+  closeBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E8E0D5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#221D18',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   backBtn: {
     width: 36,

@@ -30,6 +30,8 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import { useTransactions } from '../../contexts/TransactionContext';
 import { FROGS } from '../../../assets/frogIndex';
 import * as ImagePicker from 'expo-image-picker';
+import { MenuDrawerModal } from '../../components/MenuDrawerModal';
+import { requestBrowserNotificationPermission } from '../../utils/browserNotification';
 
 interface ProfileScreenProps {
   onBack?: () => void;
@@ -37,6 +39,7 @@ interface ProfileScreenProps {
   onNavigateToWallets?: () => void;
   onNavigateToCategories?: () => void;
   onNavigateToFeed?: () => void;
+  onNavigateToTab?: (tab: string) => void;
   onOpenAdminDashboard?: () => void;
 }
 
@@ -46,8 +49,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onNavigateToWallets,
   onNavigateToCategories,
   onNavigateToFeed,
+  onNavigateToTab,
   onOpenAdminDashboard,
 }) => {
+  const [isMenuDrawerVisible, setIsMenuDrawerVisible] = useState(false);
   const { user: authUser, logout, refreshUser } = useAuth();
   const { language, setLanguage } = useLanguage();
   const { addNotification } = useNotifications();
@@ -412,9 +417,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       title: isVi ? 'Ngôn ngữ' : 'Language',
       subtitle: isVi ? 'Tiếng Việt' : 'English',
       rightElement: (
-        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', marginRight: 8 }}>
-          <Image source={{ uri: isVi ? 'https://flagcdn.com/w40/vn.png' : 'https://flagcdn.com/w40/us.png' }} style={{ width: 18, height: 13, marginRight: 6, borderRadius: 2 }} />
-          <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>{isVi ? 'VI' : 'EN'}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', marginRight: 8 }}>
+          <Image source={{ uri: isVi ? 'https://flagcdn.com/w40/vn.png' : 'https://flagcdn.com/w40/us.png' }} style={{ width: 20, height: 14, marginRight: 6, borderRadius: 2 }} />
+          <Text style={{ fontSize: 13.5, fontWeight: '700', color: '#0F172A' }}>{isVi ? 'VI' : 'EN'}</Text>
         </View>
       ),
       onPress: () => setShowLanguageModal(true),
@@ -426,9 +431,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       title: isVi ? 'Đơn vị tiền tệ' : 'Currency',
       subtitle: currentCurrency === 'USD' ? 'US Dollar ($)' : 'Việt Nam Đồng (₫)',
       rightElement: (
-        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', marginRight: 8 }}>
-          <Image source={{ uri: currentCurrency === 'USD' ? 'https://flagcdn.com/w40/us.png' : 'https://flagcdn.com/w40/vn.png' }} style={{ width: 18, height: 13, marginRight: 6, borderRadius: 2 }} />
-          <Text style={{ fontSize: 13, fontWeight: '700', color: '#0F172A' }}>{currentCurrency}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F8FAFC', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', marginRight: 8 }}>
+          <Image source={{ uri: currentCurrency === 'USD' ? 'https://flagcdn.com/w40/us.png' : 'https://flagcdn.com/w40/vn.png' }} style={{ width: 20, height: 14, marginRight: 6, borderRadius: 2 }} />
+          <Text style={{ fontSize: 13.5, fontWeight: '700', color: '#0F172A' }}>{currentCurrency}</Text>
         </View>
       ),
       onPress: () => setShowCurrencyModal(true),
@@ -454,11 +459,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       {/* 1. Header Bar */}
       <View style={styles.header}>
         <View style={styles.headerTitleRow}>
-          {onBack && (
-            <TouchableOpacity style={styles.headerBtn} onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="chevron-back" size={22} color="#1E293B" />
-            </TouchableOpacity>
-          )}
+
           <View style={styles.brandBadgeIcon}>
             <Ionicons name="person" size={20} color="#047857" />
           </View>
@@ -468,8 +469,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           </View>
         </View>
 
-        <TouchableOpacity style={styles.headerBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Ionicons name="settings-outline" size={20} color="#1E293B" />
+        <TouchableOpacity
+          style={styles.hamburgerBtn}
+          onPress={() => setIsMenuDrawerVisible(true)}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityLabel={isVi ? 'Mở menu danh mục' : 'Open menu'}
+        >
+          <Ionicons name="menu-outline" size={23} color="#1E293B" />
         </TouchableOpacity>
       </View>
 
@@ -528,14 +535,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               onPress={item.onPress}
             >
               <View style={[styles.menuIconWrap, { backgroundColor: item.iconBg }]}>
-                <Ionicons name={item.iconName} size={18} color={item.iconColor} />
+                <Ionicons name={item.iconName} size={20} color={item.iconColor} />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={styles.menuTitle}>{item.title}</Text>
                 {item.subtitle ? <Text style={styles.menuSubtitle}>{item.subtitle}</Text> : null}
               </View>
               {item.rightElement}
-              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+              <Ionicons name="chevron-forward" size={20} color="#94A3B8" />
             </TouchableOpacity>
           ))}
           {!(authUser as any)?.googleId && (
@@ -545,7 +552,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               onPress={() => setShowPasswordModal(true)}
             >
               <View style={[styles.menuIconWrap, { backgroundColor: '#FEF3C7' }]}>
-                <Ionicons name="key-outline" size={18} color="#D97706" />
+                <Ionicons name="key-outline" size={20} color="#D97706" />
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={styles.menuTitle}>{isVi ? 'Đổi mật khẩu' : 'Change Password'}</Text>
@@ -1146,8 +1153,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </View>
       </Modal>
 
-
-
+      {/* Menu Drawer Modal */}
+      <MenuDrawerModal
+        visible={isMenuDrawerVisible}
+        onClose={() => setIsMenuDrawerVisible(false)}
+        onNavigateToTab={onNavigateToTab}
+        currentTab="profile"
+      />
     </SafeAreaView>
   );
 };
@@ -1155,11 +1167,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   header: {
     flexDirection: 'row',
@@ -1168,7 +1180,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 6,
     paddingBottom: 10,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
     borderBottomWidth: 1,
     borderBottomColor: '#E8E0D5',
   },
@@ -1195,6 +1207,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748B',
     fontWeight: '500',
+  },
+  hamburgerBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E8E0D5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#221D18',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   headerBtn: {
     width: 36,
@@ -1301,9 +1328,9 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   sectionTitle: {
-    fontSize: 12,
+    fontSize: 13.5,
     fontWeight: '800',
-    color: '#6B7280',
+    color: '#4B5563',
     letterSpacing: 0.8,
     marginBottom: 12,
   },
@@ -1352,14 +1379,15 @@ const styles = StyleSheet.create({
   menuRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F3F4F6',
   },
   menuIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
@@ -1371,14 +1399,14 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   menuTitle: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 15.5,
+    fontWeight: '700',
     color: '#111827',
   },
   menuSubtitle: {
-    fontSize: 11,
-    color: '#9CA3AF',
-    marginTop: 2,
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 3,
   },
   menuArrow: {
     fontSize: 18,

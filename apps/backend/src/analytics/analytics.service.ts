@@ -31,7 +31,7 @@ export class AnalyticsService {
 
   /**
    * GET /api/analytics/overview
-   * Tổng thu, tổng chi, số tiền tiết kiệm trong kỳ.
+   * Tổng thu, tổng chi, số tiền tiết kiệm trong kỳ (100% dữ liệu thực).
    */
   async getOverview(
     userId: string,
@@ -45,7 +45,7 @@ export class AnalyticsService {
 
     // Lấy thông tin user (để lấy streak thực tế)
     const user = await this.userModel.findById(userId).exec();
-    const userStreak = user?.streak && user.streak > 0 ? user.streak : 24;
+    const streakDays = user?.streak || 0;
 
     // Lấy budget hiện tại nếu có
     const budget = await this.budgetModel.findOne({
@@ -105,13 +105,12 @@ export class AnalyticsService {
       }
     }
 
-    // Nếu chưa có giao dịch nào hoặc ít, dùng số liệu chuẩn thiết kế (22M thu, 14.85M chi, 7.15M tiết kiệm)
-    const baseLimit = budget?.limit || 22000000;
-    const totalIncome = calcIncome > 0 ? calcIncome : baseLimit;
-    const totalExpense = calcExpense > 0 ? calcExpense : 14850000;
+    const baseLimit = budget?.limit || 0;
+    const totalIncome = calcIncome;
+    const totalExpense = calcExpense;
     const savings = Math.max(0, totalIncome - totalExpense);
-    const expensePercent = totalIncome > 0 ? Number(((totalExpense / totalIncome) * 100).toFixed(1)) : 67.5;
-    const savingsPercent = totalIncome > 0 ? Number(((savings / totalIncome) * 100).toFixed(1)) : 32.5;
+    const expensePercent = totalIncome > 0 ? Number(((totalExpense / totalIncome) * 100).toFixed(1)) : 0;
+    const savingsPercent = totalIncome > 0 ? Number(((savings / totalIncome) * 100).toFixed(1)) : 0;
 
     // Tính mức chi tiêu trung bình ngày (daily average)
     const daysInPeriod = Math.max(
@@ -120,16 +119,12 @@ export class AnalyticsService {
     );
     const dailyAverage = Math.round(totalExpense / daysInPeriod);
 
-    const isSafe = expensePercent <= 70;
-    const safetyStatus = expensePercent > 90 ? 'danger' : expensePercent > 70 ? 'warning' : 'safe';
+    const isSafe = baseLimit > 0 ? totalExpense <= baseLimit : true;
+    const safetyStatus = baseLimit > 0 && totalExpense > baseLimit ? 'danger' : baseLimit > 0 && totalExpense > baseLimit * 0.8 ? 'warning' : 'safe';
 
-    const totalTransactions = txs.length > 0 ? txs.length : 48;
-    const momentsCount = withPhotoCount > 0 ? withPhotoCount : 38;
-    const momentsRatio = totalTransactions > 0 && withPhotoCount > 0
-      ? Math.round((momentsCount / totalTransactions) * 100)
-      : 82;
-
-    const streakDays = userStreak > 1 ? userStreak : 24;
+    const totalTransactions = txs.length;
+    const momentsCount = withPhotoCount;
+    const momentsRatio = totalTransactions > 0 ? Math.round((momentsCount / totalTransactions) * 100) : 0;
 
     return {
       totalIncome,
@@ -138,7 +133,7 @@ export class AnalyticsService {
       dailyAverage,
       savingsPercent,
       expensePercent,
-      savingsTargetDiffPercent: 15,
+      savingsTargetDiffPercent: 0,
       incomeFixedPercent: 100,
       budgetLimit: baseLimit,
       isSafe,
@@ -150,112 +145,67 @@ export class AnalyticsService {
       banner: {
         streakDays,
         title: isSafe
-          ? 'Tuyệt vời! Bạn đang kiểm soát chi tiêu rất xuất sắc'
+          ? 'Tuyệt vời! Bạn đang kiểm soát chi tiêu rất tốt'
           : 'Chú ý! Chi tiêu tháng này đang tiến gần hạn mức',
-        subtitle: `Chi tiêu Tháng ${targetMonth} đang nằm gọn trong ngưỡng ${isSafe ? 'an toàn' : 'cảnh báo'} ${expensePercent}% tổng thu nhập.`,
+        subtitle: `Chi tiêu Tháng ${targetMonth} ${totalExpense > 0 ? `là ${totalExpense.toLocaleString('vi-VN')}đ` : 'chưa phát sinh'}`,
       },
     };
   }
 
   /**
    * GET /api/analytics/daily-trend
-   * Xu Hướng Chi Tiêu Hàng Ngày theo từng mốc ngày chuẩn trong tháng
+   * Xu Hướng Chi Tiêu Hàng Ngày theo từng mốc ngày thực tế trong tháng
    */
   async getDailyTrend(userId: string, month?: number, year?: number): Promise<IDailySpendingTrend[]> {
     const now = new Date();
     const targetMonth = month ? Number(month) : now.getMonth() + 1;
     const targetYear = year ? Number(year) : now.getFullYear();
 
-    const monthStr = targetMonth < 10 ? `0${targetMonth}` : `${targetMonth}`;
+    const startDate = new Date(targetYear, targetMonth - 1, 1);
+    const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59, 999);
+    const daysInMonth = endDate.getDate();
 
-    // Dữ liệu spline chuẩn khớp chính xác biểu đồ trong hình:
-    // Mốc: 01 Th10, 05 Th10 (750k Tiệc gia đình), 10 Th10, 15 Th10, 18 Th10 (Đỉnh chi: 1.180k), 20 Th10, 25 Th10, 31 Th10
-    // Mức trung bình ngân sách chuẩn: 480.000đ/ngày
-    const standardDailyBenchmark = 480000;
+    const txs = await this.transactionModel.find({
+      user: new Types.ObjectId(userId),
+      date: { $gte: startDate, $lte: endDate },
+      $or: [{ type: 'expense' }, { amount: { $lt: 0 } }],
+    }).exec();
 
-    const trendPoints: IDailySpendingTrend[] = [
-      {
-        day: '01',
-        label: `01 Th${targetMonth}`,
-        amount: 220000,
-        benchmark: standardDailyBenchmark,
-      },
-      {
-        day: '03',
-        label: `03 Th${targetMonth}`,
-        amount: 320000,
-        benchmark: standardDailyBenchmark,
-      },
-      {
-        day: '05',
-        label: `05 Th${targetMonth}`,
-        amount: 750000,
-        benchmark: standardDailyBenchmark,
-        highlightTitle: `Ngày 05: 750k (Tiệc gia đình)`,
-      },
-      {
-        day: '07',
-        label: `07 Th${targetMonth}`,
-        amount: 820000,
-        benchmark: standardDailyBenchmark,
-      },
-      {
-        day: '10',
-        label: `10 Th${targetMonth}`,
-        amount: 350000,
-        benchmark: standardDailyBenchmark,
-      },
-      {
-        day: '12',
-        label: `12 Th${targetMonth}`,
-        amount: 490000,
-        benchmark: standardDailyBenchmark,
-      },
-      {
-        day: '15',
-        label: `15 Th${targetMonth}`,
-        amount: 310000,
-        benchmark: standardDailyBenchmark,
-      },
-      {
-        day: '18',
-        label: `18 Th${targetMonth}`,
-        amount: 1180000,
-        benchmark: standardDailyBenchmark,
-        isPeak: true,
-        highlightTitle: `Đỉnh chi: Ngày 18 (1.180k)`,
-      },
-      {
-        day: '20',
-        label: `20 Th${targetMonth}`,
-        amount: 880000,
-        benchmark: standardDailyBenchmark,
-      },
-      {
-        day: '23',
-        label: `23 Th${targetMonth}`,
-        amount: 510000,
-        benchmark: standardDailyBenchmark,
-      },
-      {
-        day: '25',
-        label: `25 Th${targetMonth}`,
-        amount: 420000,
-        benchmark: standardDailyBenchmark,
-      },
-      {
-        day: '28',
-        label: `28 Th${targetMonth}`,
-        amount: 630000,
-        benchmark: standardDailyBenchmark,
-      },
-      {
-        day: '31',
-        label: `31 Th${targetMonth}`,
-        amount: 590000,
-        benchmark: standardDailyBenchmark,
-      },
-    ];
+    const dayMap = new Map<number, number>();
+    for (const t of txs) {
+      const d = new Date(t.date).getDate();
+      dayMap.set(d, (dayMap.get(d) || 0) + Math.abs(t.amount));
+    }
+
+    const budget = await this.budgetModel.findOne({
+      user: new Types.ObjectId(userId),
+      month: targetMonth,
+      year: targetYear,
+    }).exec();
+    const dailyBenchmark = budget?.limit ? Math.round(budget.limit / daysInMonth) : 0;
+
+    let peakDay = 0;
+    let peakAmount = 0;
+    for (const [day, amt] of dayMap.entries()) {
+      if (amt > peakAmount) {
+        peakAmount = amt;
+        peakDay = day;
+      }
+    }
+
+    const trendPoints: IDailySpendingTrend[] = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dayStr = d < 10 ? '0' + d : String(d);
+      const amt = dayMap.get(d) || 0;
+      trendPoints.push({
+        day: dayStr,
+        label: dayStr + ' Th' + targetMonth,
+        amount: amt,
+        benchmark: dailyBenchmark,
+        isPeak: d === peakDay && peakAmount > 0,
+        highlightTitle: d === peakDay && peakAmount > 0 ? 'Đỉnh chi: Ngày ' + dayStr + ' (' + (peakAmount / 1000).toLocaleString('vi-VN') + 'k)' : undefined,
+      });
+    }
 
     return trendPoints;
   }
@@ -308,7 +258,7 @@ export class AnalyticsService {
       $or: [{ type: 'expense' }, { amount: { $lt: 0 } }],
     }).exec();
 
-    if (txs.length >= 2) {
+    if (txs.length > 0) {
       const catMap = new Map<string, { amount: number; count: number; icon: string }>();
       let total = 0;
       for (const t of txs) {
@@ -328,7 +278,7 @@ export class AnalyticsService {
         for (const [name, val] of catMap.entries()) {
           const percent = Math.round((val.amount / total) * 100);
           result.push({
-            id: `cat-${idx + 1}`,
+            id: 'cat-' + (idx + 1),
             name,
             amount: val.amount,
             percent,
@@ -342,44 +292,7 @@ export class AnalyticsService {
       }
     }
 
-    return [
-      {
-        id: 'cat-1',
-        name: 'Ăn uống & Cà phê',
-        amount: 5643000,
-        percent: 38,
-        color: '#047857', // Forest green
-        icon: '🍜',
-        count: 18,
-      },
-      {
-        id: 'cat-2',
-        name: 'Nhà cửa & Tiền phòng',
-        amount: 3861000,
-        percent: 26,
-        color: '#4F46E5', // Indigo
-        icon: '🏠',
-        count: 4,
-      },
-      {
-        id: 'cat-3',
-        name: 'Mua sắm đồ dùng',
-        amount: 2673000,
-        percent: 18,
-        color: '#F59E0B', // Amber
-        icon: '🛍️',
-        count: 12,
-      },
-      {
-        id: 'cat-4',
-        name: 'Di chuyển & Học tập',
-        amount: 2673000,
-        percent: 18,
-        color: '#94A3B8', // Slate
-        icon: '🚗',
-        count: 14,
-      },
-    ];
+    return [];
   }
 
   /**
@@ -407,9 +320,6 @@ export class AnalyticsService {
       deltaPercent?: number;
     }> = [];
 
-    // Mẫu chi phí 6 tháng chuẩn hóa
-    const baseExpenses = [15200000, 16800000, 15500000, 16400000, 15900000, 14850000];
-    const baseIncomes = [21500000, 22000000, 22000000, 22000000, 22000000, 22000000];
 
     for (let i = 5; i >= 0; i--) {
       let m = targetMonth - i;
@@ -437,15 +347,15 @@ export class AnalyticsService {
         }
       }
 
-      const finalExp = exp > 0 ? exp : baseExpenses[5 - i];
-      const finalInc = inc > 0 ? inc : baseIncomes[5 - i];
+      const finalExp = exp;
+      const finalInc = inc;
       const savings = finalInc - finalExp;
       const isCur = i === 0;
 
       let deltaPercent: number | undefined = undefined;
       if (isCur) {
-        const prevExp = sixMonths.length > 0 ? sixMonths[sixMonths.length - 1].expense : 15900000;
-        deltaPercent = Number((((finalExp - prevExp) / prevExp) * 100).toFixed(1));
+        const prevExp = sixMonths.length > 0 ? sixMonths[sixMonths.length - 1].expense : 0;
+        deltaPercent = prevExp > 0 ? Number((((finalExp - prevExp) / prevExp) * 100).toFixed(1)) : 0;
       }
 
       sixMonths.push({
@@ -479,38 +389,83 @@ export class AnalyticsService {
    * Cảm Xúc Sau Chi Tiêu & Chỉ số hạnh phúc/chánh niệm
    */
   async getEmotions(userId: string, month?: number, year?: number): Promise<IEmoMindfulness> {
+    const now = new Date();
+    const targetMonth = month ? Number(month) : now.getMonth() + 1;
+    const targetYear = year ? Number(year) : now.getFullYear();
+
+    const start = new Date(targetYear, targetMonth - 1, 1);
+    const end = new Date(targetYear, targetMonth, 0, 23, 59, 59, 999);
+
+    const txs = await this.transactionModel
+      .find({
+        user: new Types.ObjectId(userId),
+        date: { $gte: start, $lte: end },
+        $or: [{ type: 'expense' }, { amount: { $lt: 0 } }],
+      })
+      .exec();
+
+    let essential = 0;
+    let happy = 0;
+    let impulse = 0;
+
+    for (const tx of txs) {
+      const amt = Math.abs(tx.amount);
+      const cat = (tx.category || '').toLowerCase();
+      if (cat.includes('nhà') || cat.includes('điện') || cat.includes('nước') || cat.includes('xăng') || cat.includes('học') || cat.includes('thuê') || cat.includes('bảo hiểm')) {
+        essential += amt;
+      } else if (cat.includes('mua sắm') || cat.includes('game') || cat.includes('nhậu') || cat.includes('tiệc')) {
+        impulse += amt;
+      } else {
+        happy += amt;
+      }
+    }
+
+    const total = essential + happy + impulse;
+    if (total === 0) {
+      return {
+        items: [],
+        suggestion: 'Chưa có dữ liệu cảm xúc chi tiêu trong tháng này.',
+      };
+    }
+
+    const happyPct = Math.round((happy / total) * 100);
+    const essPct = Math.round((essential / total) * 100);
+    const impPct = Math.max(0, 100 - happyPct - essPct);
+
     return {
       items: [
         {
           key: 'happy',
           title: 'Hạnh phúc / Đầu tư cho bản thân',
-          percent: 74,
-          amount: 11000000,
+          percent: happyPct,
+          amount: happy,
           color: '#10B981',
           emoji: '😊',
-          description: '11.000.000đ đóng góp vào niềm vui lâu dài & sức khỏe.',
+          description: `${happy.toLocaleString('vi-VN')}đ chi tiêu cho trải nghiệm & sức khỏe.`,
         },
         {
           key: 'essential',
           title: 'Bắt buộc / Sinh hoạt thiết yếu',
-          percent: 19,
-          amount: 2821500,
+          percent: essPct,
+          amount: essential,
           color: '#64748B',
           emoji: '😐',
-          description: 'Các hóa đơn sinh hoạt định kỳ, xăng xe.',
+          description: `${essential.toLocaleString('vi-VN')}đ hóa đơn sinh hoạt định kỳ, xăng xe.`,
         },
         {
           key: 'impulse',
-          title: 'Bốc đồng / Nuối tiếc (Impulse)',
-          percent: 7,
-          amount: 1050000,
+          title: 'Bốc đồng / Khác',
+          percent: impPct,
+          amount: impulse,
           color: '#EF4444',
-          emoji: '😡',
-          description: 'Chi -1.050.000đ (đã giảm một nửa so với Tháng 9).',
+          emoji: '⚡',
+          description: `${impulse.toLocaleString('vi-VN')}đ chi mua sắm, phát sinh ngoài dự kiến.`,
         },
       ],
       suggestion:
-        'Bạn cảm thấy hạnh phúc nhất khi chi cho các buổi hẹn cuối tuần và lớp yoga. Tiếp tục duy trì nhé!',
+        happyPct >= 50
+          ? 'Tỷ lệ chi tiêu mang lại niềm vui chiếm đa số, dòng tiền đang rất lành mạnh!'
+          : 'Hãy cân đối các khoản chi thiết yếu và hạn chế chi tiêu bốc đồng để tích lũy tốt hơn.',
     };
   }
 
@@ -568,7 +523,8 @@ export class AnalyticsService {
       this.getFeaturedMoments(userId),
     ]);
 
-    const dateDisplay = `Hôm nay, 24 Tháng ${targetMonth < 10 ? '0' + targetMonth : targetMonth}, ${targetYear}`;
+    const dNum = now.getDate() < 10 ? '0' + now.getDate() : String(now.getDate());
+    const dateDisplay = `Hôm nay, ${dNum} Tháng ${targetMonth < 10 ? '0' + targetMonth : targetMonth}, ${targetYear}`;
 
     return {
       period,

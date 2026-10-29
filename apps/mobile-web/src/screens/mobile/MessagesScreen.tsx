@@ -236,7 +236,7 @@ const saveToStorage = (key: string, data: any) => {
   }
 };
 
-export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed }) => {
+export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed, onNavigateToHome }) => {
   const { user } = useAuth();
   const { language } = useLanguage();
   const isVi = language === 'vi';
@@ -525,34 +525,52 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
         )
       );
 
-      // Tải cache offline tức thì 0ms
-      const cached = loadFromStorage<ChatMessage[]>(getChatHistoryStorageKey(currentUserId, activeChat.friendId));
-      if (Array.isArray(cached) && cached.length > 0) {
-        setChatMessages(cached);
+      // 1. Tải cache offline tức thì (chỉ lấy tin nhắn sạch của bạn bè, không dính tin AI hay trùng lặp)
+      const rawCached = loadFromStorage<ChatMessage[]>(getChatHistoryStorageKey(currentUserId, activeChat.friendId)) || [];
+      const cleanCached: ChatMessage[] = [];
+      const seenCached = new Set<string>();
+      for (const m of rawCached) {
+        if (m.sender !== 'ai' && !String(m._id).startsWith('ai-') && !seenCached.has(m._id)) {
+          seenCached.add(m._id);
+          cleanCached.push(m);
+        }
       }
+      setChatMessages(cleanCached);
 
+      // 2. Lấy dữ liệu chuẩn xác từ Database
       getMessagesApi(activeChat.friendId)
         .then((data) => {
-          if (Array.isArray(data) && data.length > 0) {
+          if (Array.isArray(data)) {
             const mapped: ChatMessage[] = data.map((m: any) => ({
               _id: m._id || String(Math.random()),
               sender: String(m.sender) === String(currentUserId) ? 'me' : 'other',
               receiver: m.receiver,
               text: m.text,
               createdAt: m.createdAt || new Date().toISOString(),
-              type: m.type || 'text',
-              billData: m.billData,
+              type: m.type || (m.billData ? 'bill_split' : 'text'),
+              billData: typeof m.billData === 'string' ? JSON.parse(m.billData) : m.billData,
             }));
-            setChatMessages(mapped);
-            saveToStorage(getChatHistoryStorageKey(currentUserId, activeChat.friendId!), mapped);
-          } else if (!cached || cached.length === 0) {
-            // Chưa có tin nhắn DB -> load tin nhắn mẫu
+
+            // Loại bỏ hoàn toàn các tin nhắn trùng lặp theo _id
+            const uniqueMsgs: ChatMessage[] = [];
+            const seenIds = new Set<string>();
+            for (const m of mapped) {
+              const idStr = String(m._id);
+              if (!seenIds.has(idStr)) {
+                seenIds.add(idStr);
+                uniqueMsgs.push(m);
+              }
+            }
+
+            setChatMessages(uniqueMsgs);
+            saveToStorage(getChatHistoryStorageKey(currentUserId, activeChat.friendId!), uniqueMsgs);
+          } else if (cleanCached.length === 0) {
             setChatMessages(SAMPLE_MESSAGES_MAP[activeChat.id] || []);
           }
         })
         .catch((err) => {
           console.log('[MessagesScreen] getMessagesApi error:', err);
-          if (!cached || cached.length === 0) {
+          if (cleanCached.length === 0) {
             setChatMessages(SAMPLE_MESSAGES_MAP[activeChat.id] || []);
           }
         })
@@ -590,13 +608,31 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
             receiver: lastMessage.receiver,
             text: lastMessage.text,
             createdAt: lastMessage.createdAt || new Date().toISOString(),
-            type: lastMessage.type || 'text',
-            billData: lastMessage.billData,
+            type: (lastMessage.type as any) || (lastMessage.billData ? 'bill_split' : 'text'),
+            billData: typeof lastMessage.billData === 'string' ? JSON.parse(lastMessage.billData) : lastMessage.billData,
           },
         ];
         saveToStorage(getChatHistoryStorageKey(currentUserId, activeFriendIdStr), next);
         return next;
       });
+    } else {
+      // Lưu tin nhắn vào cache offline ngay cả khi user đang ở ngoài danh sách hội thoại
+      const otherFriendId = senderStr === String(currentUserId) ? receiverStr : senderStr;
+      if (otherFriendId) {
+        const cached = loadFromStorage<ChatMessage[]>(getChatHistoryStorageKey(currentUserId, otherFriendId)) || [];
+        if (!cached.some((m) => m._id === lastMessage._id)) {
+          const newEntry: ChatMessage = {
+            _id: lastMessage._id,
+            sender: senderStr === String(currentUserId) ? 'me' : 'other',
+            receiver: lastMessage.receiver,
+            text: lastMessage.text,
+            createdAt: lastMessage.createdAt || new Date().toISOString(),
+            type: (lastMessage.type as any) || (lastMessage.billData ? 'bill_split' : 'text'),
+            billData: typeof lastMessage.billData === 'string' ? JSON.parse(lastMessage.billData) : lastMessage.billData,
+          };
+          saveToStorage(getChatHistoryStorageKey(currentUserId, otherFriendId), [...cached, newEntry]);
+        }
+      }
     }
 
     // 2. Cập nhật preview tin nhắn mới nhất ngoài danh sách cuộc trò chuyện
@@ -796,26 +832,29 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
   };
 
   // ── Xử lý gửi thẻ Chia tiền / Hóa đơn ──
-  const handleSendSplitBill = () => {
+  const handleSendSplitBill = async () => {
     const amt = parseFloat(splitAmount.replace(/\D/g, ''));
     const count = parseInt(splitCount, 10) || 2;
-    if (!amt || !splitTitle.trim()) return;
+    if (!amt || !splitTitle.trim() || !activeChat) return;
 
     const perPerson = Math.round(amt / count);
+    const billData = {
+      title: splitTitle.trim(),
+      amount: amt,
+      splitCount: count,
+      perPerson,
+      isSettled: false,
+    };
+    const billText = `🧾 Yêu cầu chia tiền: ${splitTitle.trim()}`;
 
     const billMsg: ChatMessage = {
       _id: `split-${Date.now()}`,
       sender: 'me',
-      text: `🧾 Yêu cầu chia tiền: ${splitTitle.trim()}`,
+      receiver: activeChat.friendId,
+      text: billText,
       createdAt: new Date().toISOString(),
       type: 'bill_split',
-      billData: {
-        title: splitTitle.trim(),
-        amount: amt,
-        splitCount: count,
-        perPerson,
-        isSettled: false,
-      },
+      billData,
     };
 
     setChatMessages((prev) => {
@@ -833,7 +872,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
     setConversations((prev) => {
       const updated = prev.map((c) =>
         c.id === activeChat?.id
-          ? { ...c, lastMessage: `🧾 Yêu cầu chia tiền: ${splitTitle.trim()}`, lastMessageTime: isVi ? 'Vừa xong' : 'Just now' }
+          ? { ...c, lastMessage: `Bạn: ${billText}`, lastMessageTime: isVi ? 'Vừa xong' : 'Just now' }
           : c
       );
       saveToStorage(getConversationsStorageKey(currentUserId), updated);
@@ -843,6 +882,43 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
     setIsSplitBillModalVisible(false);
     setSplitTitle('');
     setSplitAmount('');
+
+    // Gửi thực sự qua Socket hoặc API tới Backend và bạn bè
+    if (activeChat?.friendId) {
+      try {
+        let sentResult: any = null;
+        if (isConnected) {
+          sentResult = await sendSocketMessage(
+            activeChat.friendId,
+            billText,
+            'bill_split',
+            billData
+          );
+        }
+        if (!sentResult) {
+          sentResult = await sendMessageApi(
+            activeChat.friendId,
+            billText,
+            undefined,
+            'bill_split',
+            billData
+          );
+        }
+        if (sentResult?._id) {
+          setChatMessages((prev) => {
+            const next = prev.map((m) =>
+              m._id === billMsg._id ? { ...m, _id: sentResult._id } : m
+            );
+            if (activeChat.friendId) {
+              saveToStorage(getChatHistoryStorageKey(currentUserId, activeChat.friendId), next);
+            }
+            return next;
+          });
+        }
+      } catch (err) {
+        console.log('[MessagesScreen] sendSplitBill network error:', err);
+      }
+    }
   };
 
   // ── Lọc danh sách trò chuyện ──
@@ -1078,8 +1154,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
                               item.billData.isSettled && styles.billSettleBtnDone,
                             ]}
                             onPress={() => {
-                              item.billData!.isSettled = !item.billData!.isSettled;
-                              setChatMessages([...chatMessages]);
+                              const nextSettled = !item.billData!.isSettled;
+                              item.billData!.isSettled = nextSettled;
+                              const next = [...chatMessages];
+                              setChatMessages(next);
+                              if (activeChat?.friendId) {
+                                saveToStorage(getChatHistoryStorageKey(currentUserId, activeChat.friendId), next);
+                              }
                             }}
                           >
                             <Ionicons
@@ -1360,6 +1441,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
       {/* 1. Header Bar: Tin nhắn + Nút Tạo mới & Tìm kiếm */}
       <View style={styles.inboxHeader}>
         <View style={styles.inboxHeaderTitleRow}>
+
           <View style={styles.brandBadgeIcon}>
             <Ionicons name="chatbubbles" size={20} color="#047857" />
           </View>
@@ -1370,16 +1452,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
         </View>
 
         <View style={styles.inboxHeaderActions}>
-          {onNavigateToFeed && (
-            <TouchableOpacity
-              style={styles.feedSwitchPill}
-              onPress={onNavigateToFeed}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="images" size={15} color="#047857" />
-              <Text style={styles.feedSwitchPillText}>{isVi ? 'Bảng tin 📸' : 'Feed 📸'}</Text>
-            </TouchableOpacity>
-          )}
+
 
           <TouchableOpacity
             style={styles.circleActionBtn}
@@ -1980,7 +2053,7 @@ export default MessagesScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
 
   // ── Header Inbox ──
@@ -1991,7 +2064,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 6,
     paddingBottom: 10,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
     borderBottomWidth: 1,
     borderBottomColor: '#E8E0D5',
   },
@@ -1999,6 +2072,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  inboxBackBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E4E4E7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 4,
   },
   brandBadgeIcon: {
     width: 38,
@@ -2151,7 +2235,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     gap: 8,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   filterTabPill: {
     paddingHorizontal: 12,

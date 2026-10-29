@@ -1,3 +1,4 @@
+import { useLanguage } from '../../contexts/LanguageContext';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
@@ -13,8 +14,10 @@ import {
   getIncomeRecords,
   deleteIncomeRecord,
   subscribeIncomeUpdates,
+  syncIncomesFromBackendTransactions,
   IncomeRecord,
 } from '../../services/incomeStorage';
+import { getTransactionsApi } from '../../services/api';
 import { IncomeCategorySvgIcon, INCOME_CATEGORIES_LIST } from '../../components/IncomeCategorySvgIcon';
 import { AddIncomeModal } from '../../components/AddIncomeModal';
 
@@ -23,6 +26,8 @@ interface IncomeManagementScreenProps {
 }
 
 export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ onBack }) => {
+  const { language } = useLanguage();
+  const isVi = language === 'vi';
   const [incomes, setIncomes] = useState<IncomeRecord[]>(() => getIncomeRecords());
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -38,10 +43,35 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
     return unsub;
   }, []);
 
+  // Tự động đồng bộ các khoản thu nhập từ backend transactions
+  useEffect(() => {
+    const fetchBackendIncomes = async () => {
+      try {
+        const monthRes: any = await getTransactionsApi({ limit: 300 });
+        const txList = Array.isArray(monthRes) ? monthRes : monthRes?.data || monthRes?.items || [];
+        if (Array.isArray(txList) && txList.length > 0) {
+          const synced = syncIncomesFromBackendTransactions(txList);
+          setIncomes(synced);
+        }
+      } catch (err) {}
+    };
+    fetchBackendIncomes();
+  }, []);
+
   // Tổng thu nhập của tháng hiện tại
   const monthTotalIncome = useMemo(() => {
-    return incomes.reduce((sum, item) => sum + (item.amount || 0), 0);
-  }, [incomes]);
+    return incomes
+      .filter((r) => {
+        if (!r || !r.date) return false;
+        const d = new Date(r.date);
+        if (!isNaN(d.getTime())) {
+          return d.getFullYear() === curYear && d.getMonth() + 1 === curMonth;
+        }
+        const parts = String(r.date).split('-');
+        return Number(parts[0]) === curYear && Number(parts[1]) === curMonth;
+      })
+      .reduce((sum, item) => sum + (item.amount || 0), 0);
+  }, [incomes, curYear, curMonth]);
 
   const handleDelete = (id: string, title: string) => {
     const doDelete = async () => {
@@ -79,7 +109,7 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
           <Ionicons name="chevron-back" size={20} color="#1E293B" />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Quản Lý Thu Nhập</Text>
+        <Text style={styles.headerTitle}>{isVi ? 'Ngân Sách' : 'Budget'}</Text>
 
         <TouchableOpacity
           style={styles.closeBtn}
@@ -127,7 +157,7 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
               activeOpacity={0.85}
             >
               <Ionicons name="add" size={17} color="#FFFFFF" style={{ marginRight: 4 }} />
-              <Text style={styles.addIncomeBtnText}>+ Thêm Thu Nhập</Text>
+              <Text style={styles.addIncomeBtnText}>{isVi ? 'Thêm Thu Nhập' : 'Add Income'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -215,6 +245,16 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
       <AddIncomeModal
         visible={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
+        onSuccess={async () => {
+          try {
+            const monthRes: any = await getTransactionsApi({ limit: 300 });
+            const txList = Array.isArray(monthRes) ? monthRes : monthRes?.data || monthRes?.items || [];
+            if (Array.isArray(txList) && txList.length > 0) {
+              const synced = syncIncomesFromBackendTransactions(txList);
+              setIncomes(synced);
+            }
+          } catch (_) {}
+        }}
       />
     </SafeAreaView>
   );
@@ -223,7 +263,7 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   header: {
     flexDirection: 'row',
@@ -232,7 +272,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 12,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   backBtn: {
     width: 38,
@@ -272,7 +312,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   scrollContent: {
     paddingHorizontal: 16,
