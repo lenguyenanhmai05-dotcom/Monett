@@ -631,6 +631,23 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
     // 1. Nếu đang mở đúng phòng chat với người gửi hoặc người nhận
     if (activeFriendIdStr && (senderStr === activeFriendIdStr || receiverStr === activeFriendIdStr)) {
       setChatMessages((prev) => {
+        // Cập nhật thẻ hóa đơn nếu đã có sẵn
+        const existIdx = prev.findIndex((m) =>
+          m._id === lastMessage._id ||
+          (m.billData && normalizedLastBill && (m.billData.id === normalizedLastBill.id || m.billData.title === normalizedLastBill.title))
+        );
+        if (existIdx !== -1) {
+          const updated = [...prev];
+          updated[existIdx] = {
+            ...updated[existIdx],
+            billData: normalizedLastBill || updated[existIdx].billData,
+            bill: normalizedLastBill || updated[existIdx].bill,
+            text: lastMessage.text || updated[existIdx].text,
+          };
+          saveToStorage(getChatHistoryStorageKey(currentUserId, activeFriendIdStr), updated);
+          return updated;
+        }
+
         if (prev.some((m) => m._id === lastMessage._id)) return prev;
         const next = [
           ...prev,
@@ -893,29 +910,34 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
   // ── Xử lý gửi thẻ Chia tiền / Hóa đơn ──
   const handleSendSplitBill = async () => {
     const amt = parseFloat(splitAmount.replace(/\D/g, ''));
-    const count = parseInt(splitCount, 10) || 2;
     if (!amt || !splitTitle.trim() || !activeChat) return;
 
     const targetFriendId = activeChat.friendId || (activeChat.id?.startsWith('real-') ? activeChat.id.replace('real-', '') : activeChat.id);
     if (!targetFriendId) return;
 
-    const perPerson = Math.round(amt / count);
+    // Chia đôi 50/50 cho 1-1
+    const perPerson = Math.round(amt / 2);
     const billData = {
       id: `bill_${Date.now()}`,
       title: splitTitle.trim(),
       amount: amt,
       totalAmount: amt,
-      splitCount: count,
-      numPeople: count,
+      splitCount: 2,
+      numPeople: 2,
       perPerson,
       perPersonAmount: perPerson,
       isSettled: false,
+      is1to1: true,
+      splitMode: '1to1',
+      peerShare: perPerson,
+      creatorShare: amt - perPerson,
+      peerPaid: false,
       paidMembers: [String(currentUserId)],
       receipts: {},
       createdBy: String(currentUserId),
       creatorName: (user as any)?.fullName || (user as any)?.username || (isVi ? 'Tôi' : 'Me'),
     };
-    const billText = `🧾 Yêu cầu chia tiền: ${splitTitle.trim()}`;
+    const billText = `🧾 Yêu cầu chia tiền: ${splitTitle.trim()} - ${formatCurrency(perPerson)} (Tổng bill: ${formatCurrency(amt)})`;
 
     const billMsg: ChatMessage = {
       _id: `split-${Date.now()}`,
@@ -1224,14 +1246,13 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
                           if (!bill) return null;
                           const title = bill.title || (isVi ? 'Hóa đơn chia tiền 🧾' : 'Split Bill 🧾');
                           const total = bill.amount || bill.totalAmount || 0;
-                          const splitCount = bill.splitCount || bill.numPeople || 2;
-                          const perPerson = bill.perPerson || bill.perPersonAmount || (splitCount > 0 ? Math.round(total / splitCount) : 0);
+                          const perPerson = bill.peerShare || bill.perPerson || bill.perPersonAmount || Math.round(total / 2);
                           const isSettled = !!bill.isSettled || (Array.isArray(bill.paidMembers) && bill.paidMembers.includes(String(currentUserId)));
 
                           return (
                             <View style={styles.billCardBubble}>
                               <View style={styles.billCardHeader}>
-                                <Ionicons name="receipt" size={18} color="#047857" />
+                                <Ionicons name={isSettled ? "checkmark-done-circle" : "receipt"} size={18} color="#047857" />
                                 <Text style={styles.billCardTitle}>{title}</Text>
                               </View>
                               <Text style={styles.billCardTotal}>
@@ -1240,7 +1261,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
                               <View style={styles.billCardDivider} />
                               <View style={styles.billCardSplitRow}>
                                 <Text style={styles.billCardPerPersonLabel}>
-                                  {isVi ? `Mỗi người (${splitCount} người):` : `Per person (${splitCount} people):`}
+                                  {isSettled
+                                    ? (isVi ? 'Hoàn tất thanh toán:' : 'Settled:')
+                                    : (isMe
+                                      ? (isVi ? `Chờ ${activeChat?.name || 'bạn'} chuyển:` : `Waiting for ${activeChat?.name || 'peer'}:`)
+                                      : (isVi ? '👉 Bạn cần chuyển:' : '👉 You need to pay:'))}
                                 </Text>
                                 <Text style={styles.billCardPerPersonValue}>
                                   {formatCurrency(perPerson)}
@@ -1277,7 +1302,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
                                   color="#FFFFFF"
                                 />
                                 <Text style={styles.billSettleBtnText}>
-                                  {isSettled ? (isVi ? 'Đã thanh toán ✅' : 'Paid / Settled ✅') : (isVi ? 'Xác nhận chia tiền' : 'Confirm Split')}
+                                  {isSettled
+                                    ? (isVi ? 'Đã thanh toán hoàn tất 🎉' : 'Fully Settled 🎉')
+                                    : (isMe
+                                      ? (isVi ? 'Xác nhận đã nhận tiền ✅' : 'Confirm Received ✅')
+                                      : (isVi ? 'Tôi đã chuyển tiền ✅' : 'I have transferred ✅'))}
                                 </Text>
                               </TouchableOpacity>
                             </View>
@@ -1491,41 +1520,34 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
                 onChangeText={setSplitAmount}
               />
 
-              <Text style={styles.inputLabel}>{isVi ? 'Số người chia' : 'Number of people'}</Text>
-              <View style={styles.splitCountRow}>
-                {['2', '3', '4', '5'].map((cnt) => (
-                  <TouchableOpacity
-                    key={cnt}
-                    style={[
-                      styles.splitCountBtn,
-                      splitCount === cnt && styles.splitCountBtnActive,
-                    ]}
-                    onPress={() => setSplitCount(cnt)}
-                  >
-                    <Text
-                      style={[
-                        styles.splitCountBtnText,
-                        splitCount === cnt && styles.splitCountBtnTextActive,
-                      ]}
-                    >
-                      {cnt} {isVi ? 'người' : 'people'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              <Text style={styles.inputLabel}>{isVi ? 'Hình thức chia tiền' : 'Split Method'}</Text>
+              <View style={[styles.splitCountBtn, styles.splitCountBtnActive, { alignSelf: 'flex-start', paddingHorizontal: 16, marginBottom: 12 }]}>
+                <Text style={styles.splitCountBtnTextActive}>
+                  {isVi ? 'Chia đôi (50/50)' : 'Split 50/50'}
+                </Text>
               </View>
 
               {splitAmount ? (
-                <View style={styles.splitResultBox}>
-                  <Text style={styles.splitResultLabel}>{isVi ? 'Mỗi người đóng:' : 'Each person pays:'}</Text>
-                  <Text style={styles.splitResultValue}>
-                    {formatCurrency(
-                      Math.round(
-                        (parseFloat(splitAmount.replace(/\D/g, '')) || 0) /
-                          (parseInt(splitCount, 10) || 1)
-                      )
-                    )}
-                  </Text>
-                </View>
+                (() => {
+                  const amtNum = parseFloat(splitAmount.replace(/\D/g, '')) || 0;
+                  const half = Math.round(amtNum / 2);
+                  return (
+                    <View style={styles.splitResultBox}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text style={{ fontSize: 12, color: '#64748B' }}>{isVi ? 'Tổng tiền bạn đã trả:' : 'Total paid upfront:'}</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#1E293B' }}>{formatCurrency(amtNum)}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                        <Text style={styles.splitResultLabel}>
+                          {isVi ? `👉 ${activeChat?.name || 'Bạn kia'} cần chuyển:` : `👉 ${activeChat?.name || 'Peer'} needs to pay:`}
+                        </Text>
+                        <Text style={styles.splitResultValue}>
+                          {formatCurrency(half)}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })()
               ) : null}
 
               <TouchableOpacity
