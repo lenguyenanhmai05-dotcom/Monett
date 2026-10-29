@@ -19,28 +19,35 @@ export class MessagesController {
     @Body('imageUrl') imageUrl?: string,
     @Body('type') type?: string,
     @Body('billData') billData?: Record<string, any>,
+    @Body('bill') bill?: Record<string, any>,
   ) {
     const senderId = req.user?._id?.toString() || req.user?.id || req.user?.sub;
-    const msgType = type || 'text';
+    const finalBillData = billData || bill;
+    const msgType = type || (finalBillData ? 'bill_split' : 'text');
+    const senderName = req.user?.fullName || req.user?.username || req.user?.email || 'Bạn bè';
+    const senderAvatar = req.user?.avatarUrl || null;
+
     const savedMsg = await this.messagesService.sendMessage(
       senderId,
       receiverId,
       text,
       msgType,
-      billData,
+      finalBillData,
       imageUrl,
+      undefined,
+      senderName,
+      senderAvatar,
+      finalBillData,
     );
-
-    const senderName = req.user?.fullName || req.user?.username || req.user?.email || 'Bạn bè';
-    const senderAvatar = req.user?.avatarUrl || null;
 
     const messagePayload = {
       _id: savedMsg._id.toString(),
       sender: senderId,
       receiver: receiverId,
-      text,
+      text: text || '',
       type: msgType,
-      billData,
+      billData: finalBillData,
+      bill: finalBillData,
       imageUrl,
       senderName,
       senderAvatar,
@@ -50,9 +57,21 @@ export class MessagesController {
     if (this.messagesGateway?.server) {
       this.messagesGateway.server.to(`user_${receiverId}`).emit('receive_message', messagePayload);
       this.messagesGateway.server.to(`user_${senderId}`).emit('message_sent', messagePayload);
+
+      // Thông báo chuông cho người nhận
+      this.messagesGateway.server.to(`user_${receiverId}`).emit('moment_notification', {
+        type: 'message',
+        senderId,
+        commenterName: senderName,
+        commenterAvatar: senderAvatar,
+        text: text || (imageUrl ? 'Đã gửi một hình ảnh 📷' : (finalBillData ? 'Đã tạo yêu cầu chia bill 🧾' : 'Đã gửi cho bạn một tin nhắn')),
+        momentId: `msg_${savedMsg._id}`,
+        billData: finalBillData,
+        bill: finalBillData,
+      });
     }
 
-    return savedMsg;
+    return messagePayload;
   }
 
   // ─── NHÓM TRÒ CHUYỆN (GROUPS) ───

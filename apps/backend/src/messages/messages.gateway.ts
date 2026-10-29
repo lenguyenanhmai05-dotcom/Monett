@@ -115,6 +115,7 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
       text: string;
       type?: string;
       billData?: any;
+      bill?: any;
       imageUrl?: string;
     },
   ) {
@@ -123,13 +124,21 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
       return { success: false, message: 'Invalid data' };
     }
 
+    const finalBillData = data.billData || data.bill;
+    const msgType = data.type || (finalBillData ? 'bill_split' : 'text');
+    const senderInfo = await this.messagesService.getUserBasicInfo(senderId);
+
     const savedMsg = await this.messagesService.sendMessage(
       senderId,
       data.receiverId,
       data.text,
-      data.type || 'text',
-      data.billData,
+      msgType,
+      finalBillData,
       data.imageUrl,
+      undefined,
+      senderInfo.name,
+      senderInfo.avatar,
+      finalBillData,
     );
 
     const messagePayload = {
@@ -137,9 +146,12 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
       sender: senderId,
       receiver: data.receiverId,
       text: data.text,
-      type: data.type || 'text',
-      billData: data.billData,
+      type: msgType,
+      billData: finalBillData,
+      bill: finalBillData,
       imageUrl: data.imageUrl,
+      senderName: senderInfo.name,
+      senderAvatar: senderInfo.avatar,
       createdAt: (savedMsg as any).createdAt || new Date().toISOString(),
     };
 
@@ -148,6 +160,18 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     // Emit to sender's room (so all tabs/devices of sender see it)
     this.server.to(`user_${senderId}`).emit('message_sent', messagePayload);
+
+    // Phát thông báo chuông cho người nhận
+    this.server.to(`user_${data.receiverId}`).emit('moment_notification', {
+      type: 'message',
+      senderId,
+      commenterName: senderInfo.name,
+      commenterAvatar: senderInfo.avatar,
+      text: data.text || (data.imageUrl ? 'Đã gửi một hình ảnh 📷' : (finalBillData ? 'Đã tạo chia bill 🧾' : 'Đã gửi cho bạn một tin nhắn')),
+      momentId: `msg_${savedMsg._id}`,
+      billData: finalBillData,
+      bill: finalBillData,
+    });
 
     return { success: true, data: messagePayload };
   }

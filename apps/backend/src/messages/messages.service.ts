@@ -13,6 +13,18 @@ export class MessagesService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
   ) {}
 
+  async getUserBasicInfo(userId: string) {
+    try {
+      const u = await this.userModel.findById(userId).select('fullName email avatarUrl').exec();
+      return {
+        name: u?.fullName || (u as any)?.username || u?.email || 'Bạn bè',
+        avatar: u?.avatarUrl || null,
+      };
+    } catch {
+      return { name: 'Bạn bè', avatar: null };
+    }
+  }
+
   async sendMessage(
     senderId: string,
     receiverId?: string,
@@ -23,12 +35,15 @@ export class MessagesService {
     groupId?: string,
     senderName?: string,
     senderAvatar?: string,
+    bill?: any,
   ) {
+    const finalBill = billData || bill;
     const msgData: any = {
       sender: new Types.ObjectId(senderId),
       text: text || '',
-      type,
-      billData,
+      type: type || (finalBill ? 'bill_split' : 'text'),
+      billData: finalBill,
+      bill: finalBill,
       imageUrl,
       senderName,
       senderAvatar,

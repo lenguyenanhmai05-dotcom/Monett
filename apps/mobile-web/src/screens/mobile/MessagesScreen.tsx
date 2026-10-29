@@ -41,14 +41,9 @@ export interface ChatMessage {
   receiver?: string;
   text: string;
   createdAt: string;
-  type?: 'text' | 'bill_split' | 'payment_confirm';
-  billData?: {
-    title: string;
-    amount: number;
-    splitCount?: number;
-    perPerson?: number;
-    isSettled?: boolean;
-  };
+  type?: 'text' | 'bill_split' | 'bill' | 'payment_confirm';
+  billData?: any;
+  bill?: any;
 }
 
 export interface ConversationItem {
@@ -541,15 +536,34 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
       getMessagesApi(activeChat.friendId)
         .then((data) => {
           if (Array.isArray(data)) {
-            const mapped: ChatMessage[] = data.map((m: any) => ({
-              _id: m._id || String(Math.random()),
-              sender: String(m.sender) === String(currentUserId) ? 'me' : 'other',
-              receiver: m.receiver,
-              text: m.text,
-              createdAt: m.createdAt || new Date().toISOString(),
-              type: m.type || (m.billData ? 'bill_split' : 'text'),
-              billData: typeof m.billData === 'string' ? JSON.parse(m.billData) : m.billData,
-            }));
+            const mapped: ChatMessage[] = data.map((m: any) => {
+              const rawBill = typeof m.billData === 'string'
+                ? JSON.parse(m.billData)
+                : (m.billData || m.bill || (typeof m.bill === 'string' ? JSON.parse(m.bill) : null));
+              const normalizedBill = rawBill ? {
+                ...rawBill,
+                title: rawBill.title || 'Hóa đơn chia tiền 🧾',
+                amount: rawBill.amount || rawBill.totalAmount || 0,
+                totalAmount: rawBill.totalAmount || rawBill.amount || 0,
+                splitCount: rawBill.splitCount || rawBill.numPeople || 2,
+                numPeople: rawBill.numPeople || rawBill.splitCount || 2,
+                perPerson: rawBill.perPerson || rawBill.perPersonAmount || (rawBill.amount ? Math.round(rawBill.amount / (rawBill.splitCount || 2)) : 0),
+                perPersonAmount: rawBill.perPersonAmount || rawBill.perPerson || 0,
+                isSettled: !!rawBill.isSettled || (Array.isArray(rawBill.paidMembers) && rawBill.paidMembers.includes(String(currentUserId))),
+                paidMembers: Array.isArray(rawBill.paidMembers) ? rawBill.paidMembers : [],
+              } : undefined;
+
+              return {
+                _id: m._id || String(Math.random()),
+                sender: String(m.sender) === String(currentUserId) ? 'me' : 'other',
+                receiver: m.receiver,
+                text: m.text,
+                createdAt: m.createdAt || new Date().toISOString(),
+                type: m.type || (normalizedBill ? 'bill_split' : 'text'),
+                billData: normalizedBill,
+                bill: normalizedBill,
+              };
+            });
 
             // Loại bỏ hoàn toàn các tin nhắn trùng lặp theo _id
             const uniqueMsgs: ChatMessage[] = [];
@@ -596,6 +610,24 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
     const receiverStr = String(lastMessage.receiver);
     const activeFriendIdStr = activeChat?.friendId ? String(activeChat.friendId) : '';
 
+    const rawLastBill = typeof lastMessage.billData === 'string'
+      ? JSON.parse(lastMessage.billData)
+      : (lastMessage.billData || (lastMessage as any).bill || (typeof (lastMessage as any).bill === 'string' ? JSON.parse((lastMessage as any).bill) : null));
+    const normalizedLastBill = rawLastBill ? {
+      ...rawLastBill,
+      title: rawLastBill.title || 'Hóa đơn chia tiền 🧾',
+      amount: rawLastBill.amount || rawLastBill.totalAmount || 0,
+      totalAmount: rawLastBill.totalAmount || rawLastBill.amount || 0,
+      splitCount: rawLastBill.splitCount || rawLastBill.numPeople || 2,
+      numPeople: rawLastBill.numPeople || rawLastBill.splitCount || 2,
+      perPerson: rawLastBill.perPerson || rawLastBill.perPersonAmount || (rawLastBill.amount ? Math.round(rawLastBill.amount / (rawLastBill.splitCount || 2)) : 0),
+      perPersonAmount: rawLastBill.perPersonAmount || rawLastBill.perPerson || 0,
+      isSettled: !!rawLastBill.isSettled || (Array.isArray(rawLastBill.paidMembers) && rawLastBill.paidMembers.includes(String(currentUserId))),
+      paidMembers: Array.isArray(rawLastBill.paidMembers) ? rawLastBill.paidMembers : [],
+    } : undefined;
+
+    const incomingType = (lastMessage.type as any) || (normalizedLastBill ? 'bill_split' : 'text');
+
     // 1. Nếu đang mở đúng phòng chat với người gửi hoặc người nhận
     if (activeFriendIdStr && (senderStr === activeFriendIdStr || receiverStr === activeFriendIdStr)) {
       setChatMessages((prev) => {
@@ -608,8 +640,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
             receiver: lastMessage.receiver,
             text: lastMessage.text,
             createdAt: lastMessage.createdAt || new Date().toISOString(),
-            type: (lastMessage.type as any) || (lastMessage.billData ? 'bill_split' : 'text'),
-            billData: typeof lastMessage.billData === 'string' ? JSON.parse(lastMessage.billData) : lastMessage.billData,
+            type: incomingType,
+            billData: normalizedLastBill,
+            bill: normalizedLastBill,
           },
         ];
         saveToStorage(getChatHistoryStorageKey(currentUserId, activeFriendIdStr), next);
@@ -627,8 +660,9 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
             receiver: lastMessage.receiver,
             text: lastMessage.text,
             createdAt: lastMessage.createdAt || new Date().toISOString(),
-            type: (lastMessage.type as any) || (lastMessage.billData ? 'bill_split' : 'text'),
-            billData: typeof lastMessage.billData === 'string' ? JSON.parse(lastMessage.billData) : lastMessage.billData,
+            type: incomingType,
+            billData: normalizedLastBill,
+            bill: normalizedLastBill,
           };
           saveToStorage(getChatHistoryStorageKey(currentUserId, otherFriendId), [...cached, newEntry]);
         }
@@ -636,27 +670,52 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
     }
 
     // 2. Cập nhật preview tin nhắn mới nhất ngoài danh sách cuộc trò chuyện
-    setConversations((prev) =>
-      prev.map((c) => {
-        const isMatch =
+    setConversations((prev) => {
+      const isExisting = prev.some(
+        (c) =>
           c.friendId === senderStr ||
           c.friendId === receiverStr ||
           c.id === `real-${senderStr}` ||
-          c.id === `real-${receiverStr}`;
+          c.id === `real-${receiverStr}`
+      );
 
-        if (isMatch) {
-          const isFromMe = senderStr === String(currentUserId);
-          const isCurrentActive = activeFriendIdStr === senderStr;
-          return {
-            ...c,
-            lastMessage: isFromMe ? (isVi ? `Bạn: ${lastMessage.text}` : `You: ${lastMessage.text}`) : lastMessage.text,
-            lastMessageTime: isVi ? 'Vừa xong' : 'Just now',
-            unreadCount: isCurrentActive || isFromMe ? 0 : (c.unreadCount || 0) + 1,
-          };
-        }
-        return c;
-      })
-    );
+      if (isExisting) {
+        return prev.map((c) => {
+          const isMatch =
+            c.friendId === senderStr ||
+            c.friendId === receiverStr ||
+            c.id === `real-${senderStr}` ||
+            c.id === `real-${receiverStr}`;
+
+          if (isMatch) {
+            const isFromMe = senderStr === String(currentUserId);
+            const isCurrentActive = activeFriendIdStr === senderStr;
+            return {
+              ...c,
+              lastMessage: isFromMe ? (isVi ? `Bạn: ${lastMessage.text}` : `You: ${lastMessage.text}`) : lastMessage.text,
+              lastMessageTime: isVi ? 'Vừa xong' : 'Just now',
+              unreadCount: isCurrentActive || isFromMe ? 0 : (c.unreadCount || 0) + 1,
+            };
+          }
+          return c;
+        });
+      } else {
+        const otherFriendId = senderStr === String(currentUserId) ? receiverStr : senderStr;
+        const newConv: ConversationItem = {
+          id: `real-${otherFriendId}`,
+          friendId: otherFriendId,
+          name: lastMessage.senderName || (isVi ? 'Bạn bè' : 'Friend'),
+          avatarUrl: normalizeAvatarUrl(lastMessage.senderAvatar) || undefined,
+          isOnline: true,
+          lastMessage: lastMessage.text,
+          lastMessageTime: isVi ? 'Vừa xong' : 'Just now',
+          unreadCount: 1,
+        };
+        const nextList = [prev[0], newConv, ...prev.slice(1)];
+        saveToStorage(getConversationsStorageKey(currentUserId), nextList);
+        return nextList;
+      }
+    });
   }, [lastMessage, activeChat?.friendId, currentUserId, isVi]);
 
   // Kiểm tra đối phương trong phòng chat hiện tại có đang gõ không (qua Socket.io hoặc khi test 1 mình)
@@ -837,41 +896,51 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
     const count = parseInt(splitCount, 10) || 2;
     if (!amt || !splitTitle.trim() || !activeChat) return;
 
+    const targetFriendId = activeChat.friendId || (activeChat.id?.startsWith('real-') ? activeChat.id.replace('real-', '') : activeChat.id);
+    if (!targetFriendId) return;
+
     const perPerson = Math.round(amt / count);
     const billData = {
+      id: `bill_${Date.now()}`,
       title: splitTitle.trim(),
       amount: amt,
+      totalAmount: amt,
       splitCount: count,
+      numPeople: count,
       perPerson,
+      perPersonAmount: perPerson,
       isSettled: false,
+      paidMembers: [String(currentUserId)],
+      receipts: {},
+      createdBy: String(currentUserId),
+      creatorName: (user as any)?.fullName || (user as any)?.username || (isVi ? 'Tôi' : 'Me'),
     };
     const billText = `🧾 Yêu cầu chia tiền: ${splitTitle.trim()}`;
 
     const billMsg: ChatMessage = {
       _id: `split-${Date.now()}`,
       sender: 'me',
-      receiver: activeChat.friendId,
+      receiver: targetFriendId,
       text: billText,
       createdAt: new Date().toISOString(),
       type: 'bill_split',
       billData,
+      bill: billData,
     };
 
     setChatMessages((prev) => {
       const next = [...prev, billMsg];
       if (activeChat?.isAi) {
         saveToStorage(getAiStorageKey(currentUserId), next);
-      } else if (activeChat?.friendId) {
-        saveToStorage(getChatHistoryStorageKey(currentUserId, activeChat.friendId), next);
-      } else if (activeChat) {
-        saveToStorage(getChatHistoryStorageKey(currentUserId, activeChat.id), next);
+      } else if (targetFriendId) {
+        saveToStorage(getChatHistoryStorageKey(currentUserId, targetFriendId), next);
       }
       return next;
     });
 
     setConversations((prev) => {
       const updated = prev.map((c) =>
-        c.id === activeChat?.id
+        c.id === activeChat?.id || c.friendId === targetFriendId
           ? { ...c, lastMessage: `Bạn: ${billText}`, lastMessageTime: isVi ? 'Vừa xong' : 'Just now' }
           : c
       );
@@ -884,12 +953,31 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
     setSplitAmount('');
 
     // Gửi thực sự qua Socket hoặc API tới Backend và bạn bè
-    if (activeChat?.friendId) {
+    if (targetFriendId && !activeChat.isAi) {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem(
+            'monett_cross_tab_notif',
+            JSON.stringify({
+              type: 'message',
+              recipientId: targetFriendId,
+              senderId: currentUserId,
+              senderName: (user as any)?.fullName || (user as any)?.username || 'Bạn bè',
+              senderAvatar: (user as any)?.avatarUrl || null,
+              text: billText,
+              billData,
+              bill: billData,
+              timestamp: Date.now(),
+            })
+          );
+        }
+      } catch {}
+
       try {
         let sentResult: any = null;
         if (isConnected) {
           sentResult = await sendSocketMessage(
-            activeChat.friendId,
+            targetFriendId,
             billText,
             'bill_split',
             billData
@@ -897,7 +985,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
         }
         if (!sentResult) {
           sentResult = await sendMessageApi(
-            activeChat.friendId,
+            targetFriendId,
             billText,
             undefined,
             'bill_split',
@@ -909,8 +997,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
             const next = prev.map((m) =>
               m._id === billMsg._id ? { ...m, _id: sentResult._id } : m
             );
-            if (activeChat.friendId) {
-              saveToStorage(getChatHistoryStorageKey(currentUserId, activeChat.friendId), next);
+            if (targetFriendId) {
+              saveToStorage(getChatHistoryStorageKey(currentUserId, targetFriendId), next);
             }
             return next;
           });
@@ -1130,49 +1218,71 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
 
                     <View style={{ maxWidth: '78%' }}>
                       {/* Bong bóng tin nhắn chia bill */}
-                      {item.type === 'bill_split' && item.billData ? (
-                        <View style={styles.billCardBubble}>
-                          <View style={styles.billCardHeader}>
-                            <Ionicons name="receipt" size={18} color="#047857" />
-                            <Text style={styles.billCardTitle}>{item.billData.title}</Text>
-                          </View>
-                          <Text style={styles.billCardTotal}>
-                            {isVi ? 'Tổng bill: ' : 'Total: '}{formatCurrency(item.billData.amount)}
-                          </Text>
-                          <View style={styles.billCardDivider} />
-                          <View style={styles.billCardSplitRow}>
-                            <Text style={styles.billCardPerPersonLabel}>
-                              {isVi ? `Mỗi người (${item.billData.splitCount} người):` : `Per person (${item.billData.splitCount} people):`}
-                            </Text>
-                            <Text style={styles.billCardPerPersonValue}>
-                              {formatCurrency(item.billData.perPerson || 0)}
-                            </Text>
-                          </View>
-                          <TouchableOpacity
-                            style={[
-                              styles.billSettleBtn,
-                              item.billData.isSettled && styles.billSettleBtnDone,
-                            ]}
-                            onPress={() => {
-                              const nextSettled = !item.billData!.isSettled;
-                              item.billData!.isSettled = nextSettled;
-                              const next = [...chatMessages];
-                              setChatMessages(next);
-                              if (activeChat?.friendId) {
-                                saveToStorage(getChatHistoryStorageKey(currentUserId, activeChat.friendId), next);
-                              }
-                            }}
-                          >
-                            <Ionicons
-                              name={item.billData.isSettled ? 'checkmark-circle' : 'card-outline'}
-                              size={16}
-                              color="#FFFFFF"
-                            />
-                            <Text style={styles.billSettleBtnText}>
-                              {item.billData.isSettled ? (isVi ? 'Đã thanh toán ✅' : 'Paid / Settled ✅') : (isVi ? 'Xác nhận chia tiền' : 'Confirm Split')}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
+                      {(item.type === 'bill_split' || item.type === 'bill' || !!item.billData || !!item.bill) ? (
+                        (() => {
+                          const bill = item.billData || item.bill;
+                          if (!bill) return null;
+                          const title = bill.title || (isVi ? 'Hóa đơn chia tiền 🧾' : 'Split Bill 🧾');
+                          const total = bill.amount || bill.totalAmount || 0;
+                          const splitCount = bill.splitCount || bill.numPeople || 2;
+                          const perPerson = bill.perPerson || bill.perPersonAmount || (splitCount > 0 ? Math.round(total / splitCount) : 0);
+                          const isSettled = !!bill.isSettled || (Array.isArray(bill.paidMembers) && bill.paidMembers.includes(String(currentUserId)));
+
+                          return (
+                            <View style={styles.billCardBubble}>
+                              <View style={styles.billCardHeader}>
+                                <Ionicons name="receipt" size={18} color="#047857" />
+                                <Text style={styles.billCardTitle}>{title}</Text>
+                              </View>
+                              <Text style={styles.billCardTotal}>
+                                {isVi ? 'Tổng bill: ' : 'Total: '}{formatCurrency(total)}
+                              </Text>
+                              <View style={styles.billCardDivider} />
+                              <View style={styles.billCardSplitRow}>
+                                <Text style={styles.billCardPerPersonLabel}>
+                                  {isVi ? `Mỗi người (${splitCount} người):` : `Per person (${splitCount} people):`}
+                                </Text>
+                                <Text style={styles.billCardPerPersonValue}>
+                                  {formatCurrency(perPerson)}
+                                </Text>
+                              </View>
+                              <TouchableOpacity
+                                style={[
+                                  styles.billSettleBtn,
+                                  isSettled && styles.billSettleBtnDone,
+                                ]}
+                                onPress={() => {
+                                  const nextSettled = !isSettled;
+                                  bill.isSettled = nextSettled;
+                                  if (Array.isArray(bill.paidMembers)) {
+                                    if (nextSettled) {
+                                      if (!bill.paidMembers.includes(String(currentUserId))) {
+                                        bill.paidMembers.push(String(currentUserId));
+                                      }
+                                    } else {
+                                      bill.paidMembers = bill.paidMembers.filter((id: string) => id !== String(currentUserId));
+                                    }
+                                  }
+                                  const next = [...chatMessages];
+                                  setChatMessages(next);
+                                  const fId = activeChat?.friendId || (activeChat?.id?.startsWith('real-') ? activeChat.id.replace('real-', '') : activeChat?.id);
+                                  if (fId) {
+                                    saveToStorage(getChatHistoryStorageKey(currentUserId, fId), next);
+                                  }
+                                }}
+                              >
+                                <Ionicons
+                                  name={isSettled ? 'checkmark-circle' : 'card-outline'}
+                                  size={16}
+                                  color="#FFFFFF"
+                                />
+                                <Text style={styles.billSettleBtnText}>
+                                  {isSettled ? (isVi ? 'Đã thanh toán ✅' : 'Paid / Settled ✅') : (isVi ? 'Xác nhận chia tiền' : 'Confirm Split')}
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          );
+                        })()
                       ) : (
                         /* Bong bóng văn bản thông thường */
                         <View
