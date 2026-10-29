@@ -96,10 +96,15 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
   useEffect(() => {
     fetchAllEvents();
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-      window.addEventListener('monett:events_updated', fetchAllEvents);
+      const handleEventsUpdated = (e: any) => {
+        if (e?.detail && Array.isArray(e.detail) && e.detail.length > 0) {
+          setEvents(e.detail);
+        }
+      };
+      window.addEventListener('monett:events_updated', handleEventsUpdated);
       return () => {
         if (typeof window.removeEventListener === 'function') {
-          window.removeEventListener('monett:events_updated', fetchAllEvents);
+          window.removeEventListener('monett:events_updated', handleEventsUpdated);
         }
       };
     }
@@ -449,20 +454,24 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
 
   // If an event is selected, render the dedicated Event Detail Page
   if (selectedEventId) {
-    const activeEvent = events.find((e) => e.id === selectedEventId);
+    const activeEvent = events.find((e) => e.id === selectedEventId || (e as any)._id === selectedEventId);
     if (activeEvent) {
       return (
         <EventDetailScreen
           event={activeEvent}
           onBack={() => setSelectedEventId(null)}
           onUpdateEvent={(updatedEvent) => {
+            const targetId = updatedEvent.id || (updatedEvent as any)._id;
             setEvents((prev) => {
-              const next = prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e));
+              const next = prev.map((e) => {
+                const eid = e.id || (e as any)._id;
+                return (eid === targetId || e.id === updatedEvent.id) ? updatedEvent : e;
+              });
               saveEventsToStorage(next, userEmail, userId);
               return next;
             });
-            if (updatedEvent.id) {
-              updateEventApi(updatedEvent.id, {
+            if (targetId && !targetId.startsWith('evt-')) {
+              updateEventApi(targetId, {
                 expenses: updatedEvent.expenses,
                 spentAmount: updatedEvent.spentAmount,
                 incomeAmount: updatedEvent.incomeAmount,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -50,6 +50,15 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
   const { addNotification, unreadCount, openNotifications } = useNotifications();
   const isVi = language === 'vi';
 
+  // Quản lý state cục bộ của sự kiện để giao diện cập nhật NGAY LẬP TỨC mà không bị trễ
+  const [currentEvent, setCurrentEvent] = useState<MonettEvent>(event);
+
+  useEffect(() => {
+    if (event) {
+      setCurrentEvent(event);
+    }
+  }, [event]);
+
   // State for Edit Event modal
   const [isEditEventModalOpen, setIsEditEventModalOpen] = useState(false);
 
@@ -81,30 +90,30 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
   const [hoveredTxId, setHoveredTxId] = useState<string | null>(null);
 
   // Calculate statistics
-  const totalExpense = event.expenses
+  const totalExpense = currentEvent.expenses
     .filter((e) => e.type !== 'income')
     .reduce((sum, e) => sum + e.amount, 0);
 
-  const totalIncome = event.expenses
+  const totalIncome = currentEvent.expenses
     .filter((e) => e.type === 'income')
     .reduce((sum, e) => sum + e.amount, 0);
 
-  const transactionCount = event.expenses.length;
-  const remainingBudget = event.estimatedBudget - totalExpense;
+  const transactionCount = currentEvent.expenses.length;
+  const remainingBudget = currentEvent.estimatedBudget - totalExpense;
 
   const displayedExpenses = React.useMemo(() => {
     if (filterTxType === 'expense') {
-      return event.expenses.filter((e) => e.type !== 'income');
+      return currentEvent.expenses.filter((e) => e.type !== 'income');
     }
     if (filterTxType === 'income') {
-      return event.expenses.filter((e) => e.type === 'income');
+      return currentEvent.expenses.filter((e) => e.type === 'income');
     }
-    return event.expenses;
-  }, [event.expenses, filterTxType]);
+    return currentEvent.expenses;
+  }, [currentEvent.expenses, filterTxType]);
 
   // Category breakdown for expenses
   const categoryBreakdown = React.useMemo(() => {
-    const expenseItems = event.expenses.filter((e) => e.type !== 'income');
+    const expenseItems = currentEvent.expenses.filter((e) => e.type !== 'income');
     const catMap: { [cat: string]: number } = {};
     expenseItems.forEach((item) => {
       const cat = item.category || 'Khác';
@@ -117,23 +126,26 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
         percentage: totalExpense > 0 ? Math.round((amount / totalExpense) * 100) : 0,
       }))
       .sort((a, b) => b.amount - a.amount);
-  }, [event.expenses, totalExpense]);
+  }, [currentEvent.expenses, totalExpense]);
 
   // Open modal to add a new transaction
   const handleOpenAddTxModal = (targetType: 'expense' | 'income' = 'expense') => {
-    setEditingTx(null);
-    setTxType(targetType);
-    setTxTitle('');
-    setTxAmountStr('');
-    setTxCategory('Cafe');
-    setTxCategoryIcon('☕');
-    setTxPayer(event.ownerName || 'Tôi');
-
     const today = new Date();
     const dd = String(today.getDate()).padStart(2, '0');
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const yyyy = today.getFullYear();
-    setTxDate(`${dd}/${mm}/${yyyy}`);
+
+    setEditingTx({
+      id: '',
+      title: targetType === 'income' ? 'Tiết kiệm' : 'Ăn uống',
+      amount: 0,
+      type: targetType,
+      category: targetType === 'income' ? 'Tiết kiệm' : 'Ăn uống',
+      categoryIcon: targetType === 'income' ? '💰' : '☕',
+      payer: currentEvent.ownerName || 'Tôi',
+      date: `${dd}/${mm}/${yyyy}`,
+      createdAt: new Date().toISOString(),
+    });
 
     setIsTxModalOpen(true);
   };
@@ -188,8 +200,8 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
         type: 'expense',
         title: isVi ? 'Cập nhật giao dịch ✏️' : 'Transaction Updated ✏️',
         message: isVi
-          ? `Đã cập nhật khoản "${cleanTitle}" trong sự kiện "${event.title}"`
-          : `Updated "${cleanTitle}" in event "${event.title}"`,
+          ? `Đã cập nhật khoản "${cleanTitle}" trong sự kiện "${currentEvent.title}"`
+          : `Updated "${cleanTitle}" in event "${currentEvent.title}"`,
         iconBg: '#EDE9FE',
         iconColor: '#7C3AED',
       });
@@ -213,8 +225,8 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
         type: 'expense',
         title: txType === 'income' ? 'Ghi nhận khoản thu 💰' : 'Ghi nhận chi tiêu 💸',
         message: isVi
-          ? `Đã thêm ${amount.toLocaleString('vi-VN')} đ ("${cleanTitle}") vào sự kiện "${event.title}"`
-          : `Added ${amount.toLocaleString('vi-VN')} đ ("${cleanTitle}") to event "${event.title}"`,
+          ? `Đã thêm ${amount.toLocaleString('vi-VN')} đ ("${cleanTitle}") vào sự kiện "${currentEvent.title}"`
+          : `Added ${amount.toLocaleString('vi-VN')} đ ("${cleanTitle}") to event "${currentEvent.title}"`,
         iconBg: txType === 'income' ? '#DCFCE7' : '#FEF3C7',
         iconColor: txType === 'income' ? '#059669' : '#D97706',
       });
@@ -250,7 +262,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
       if (!window.confirm(confirmMsg)) return;
     }
 
-    const updatedExpenses = event.expenses.filter((e) => e.id !== txId);
+    const updatedExpenses = currentEvent.expenses.filter((e) => e.id !== txId);
     const updatedSpent = updatedExpenses
       .filter((e) => e.type !== 'income')
       .reduce((sum, e) => sum + e.amount, 0);
@@ -259,12 +271,15 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
       .filter((e) => e.type === 'income')
       .reduce((sum, e) => sum + e.amount, 0);
 
-    onUpdateEvent({
-      ...event,
+    const updatedEvent: MonettEvent = {
+      ...currentEvent,
       expenses: updatedExpenses,
       spentAmount: updatedSpent,
       incomeAmount: updatedIncome,
-    });
+    };
+
+    setCurrentEvent(updatedEvent);
+    onUpdateEvent(updatedEvent);
 
     addNotification({
       type: 'expense',
@@ -335,8 +350,8 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
       type: 'event',
       title: isVi ? 'Đã gửi lời mời 📩' : 'Invite Sent 📩',
       message: isVi
-        ? `Đã gửi lời mời tham gia "${event.title}" đến ${friend.name}. Đang chờ bạn chấp nhận!`
-        : `Sent invitation for "${event.title}" to ${friend.name}. Waiting for acceptance!`,
+        ? `Đã gửi lời mời tham gia "${currentEvent.title}" đến ${friend.name}. Đang chờ bạn chấp nhận!`
+        : `Sent invitation for "${currentEvent.title}" to ${friend.name}. Waiting for acceptance!`,
       iconBg: '#FEF3C7',
       iconColor: '#D97706',
     });
@@ -458,7 +473,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
           {/* Tên sự kiện + Badge trạng thái (bấm để đổi nhanh) */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 2 }}>
             <Text style={[styles.eventTitle, { color: textPrimary }]}>
-              {event.title}
+              {currentEvent.title}
             </Text>
             <TouchableOpacity
               onPress={() => {
@@ -489,25 +504,25 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
 
           {/* Khoảng ngày diễn ra */}
           <Text style={[styles.eventDateRange, { color: textSecondary }]}>
-            {event.startDate}
-            {event.endDate ? ` → ${event.endDate}` : ''}
+            {currentEvent.startDate}
+            {currentEvent.endDate ? ` → ${currentEvent.endDate}` : ''}
           </Text>
 
           {/* Địa điểm */}
-          {event.location ? (
+          {currentEvent.location ? (
             <View style={styles.eventLocationRow}>
               <Ionicons name="location-outline" size={14} color={textSecondary} style={{ marginRight: 2 }} />
               <Text style={[styles.eventLocationText, { color: textSecondary }]}>
-                {event.location}
+                {currentEvent.location}
               </Text>
             </View>
           ) : null}
 
           {/* Cụm avatar thành viên tham gia + Nút "+ Mời bạn" nếu có */}
-          {event.members && event.members.length > 0 && (
+          {currentEvent.members && currentEvent.members.length > 0 && (
             <View style={styles.memberAvatarGroupRow}>
               <View style={styles.avatarStack}>
-                {event.members.slice(0, 5).map((m, idx) => (
+                {currentEvent.members.slice(0, 5).map((m, idx) => (
                   <View
                     key={m.id || idx}
                     style={[
@@ -609,7 +624,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
               activeOpacity={0.8}
             >
               <Text style={[styles.txFilterChipText, { color: filterTxType === 'all' ? '#FFFFFF' : textSecondary, fontWeight: filterTxType === 'all' ? '800' : '600' }]}>
-                {isVi ? `Tất cả (${event.expenses.length})` : `All (${event.expenses.length})`}
+                {isVi ? `Tất cả (${currentEvent.expenses.length})` : `All (${currentEvent.expenses.length})`}
               </Text>
             </TouchableOpacity>
 
@@ -837,12 +852,12 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
                 {isVi ? 'Ngân sách dự kiến' : 'Estimated budget'}
               </Text>
               <Text style={[styles.budgetSummaryValue, { color: textPrimary }]}>
-                {event.estimatedBudget.toLocaleString('vi-VN')} đ
+                {currentEvent.estimatedBudget.toLocaleString('vi-VN')} đ
               </Text>
             </View>
 
             {/* Tiến độ ngân sách */}
-            {event.estimatedBudget > 0 && (
+            {currentEvent.estimatedBudget > 0 && (
               <View style={styles.budgetProgressSection}>
                 <View style={styles.progressTrack}>
                   <View
@@ -850,11 +865,11 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
                       styles.progressFill,
                       {
                         width: `${Math.min(
-                          Math.round((totalExpense / event.estimatedBudget) * 100),
+                          Math.round((totalExpense / currentEvent.estimatedBudget) * 100),
                           100
                         )}%`,
                         backgroundColor:
-                          totalExpense > event.estimatedBudget ? '#DC2626' : '#10B981',
+                          totalExpense > currentEvent.estimatedBudget ? '#DC2626' : '#10B981',
                       },
                     ]}
                   />
@@ -891,7 +906,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
                 </Text>
                 <View style={styles.memberCountBadge}>
                   <Text style={styles.memberCountBadgeText}>
-                    {(event.members || []).length}
+                    {(currentEvent.members || []).length}
                   </Text>
                 </View>
               </View>
@@ -909,7 +924,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
             </View>
 
             <View style={styles.membersList}>
-              {(event.members || []).map((m, index, arr) => (
+              {(currentEvent.members || []).map((m, index, arr) => (
                 <View
                   key={m.id}
                   style={[
@@ -1033,9 +1048,9 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
         onSave={(txData) => {
           let updatedExpenses: EventExpenseItem[];
 
-          if (editingTx) {
+          if (editingTx && editingTx.id) {
             // UPDATE
-            updatedExpenses = event.expenses.map((item) =>
+            updatedExpenses = currentEvent.expenses.map((item) =>
               item.id === editingTx.id
                 ? {
                     ...item,
@@ -1055,8 +1070,8 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
               type: 'expense',
               title: isVi ? 'Cập nhật giao dịch ✏️' : 'Transaction Updated ✏️',
               message: isVi
-                ? `Đã cập nhật khoản "${txData.title}" trong sự kiện "${event.title}"`
-                : `Updated "${txData.title}" in event "${event.title}"`,
+                ? `Đã cập nhật khoản "${txData.title}" trong sự kiện "${currentEvent.title}"`
+                : `Updated "${txData.title}" in event "${currentEvent.title}"`,
               iconBg: '#EDE9FE',
               iconColor: '#7C3AED',
             });
@@ -1068,21 +1083,21 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
               amount: txData.amount,
               type: txData.type,
               category: txData.category,
-              categoryIcon: txData.categoryIcon,
-              payer: txData.payer || event.ownerName || 'Tôi',
+              categoryIcon: txData.categoryIcon || (txData.type === 'income' ? '💰' : '☕'),
+              payer: txData.payer || currentEvent.ownerName || 'Tôi',
               date: txData.date,
               note: txData.note,
               createdAt: new Date().toISOString(),
             };
 
-            updatedExpenses = [newTx, ...event.expenses];
+            updatedExpenses = [newTx, ...currentEvent.expenses];
 
             addNotification({
               type: 'expense',
               title: txData.type === 'income' ? 'Ghi nhận khoản thu 💰' : 'Ghi nhận chi tiêu 💸',
               message: isVi
-                ? `Đã thêm ${txData.amount.toLocaleString('vi-VN')} đ ("${txData.title}") vào sự kiện "${event.title}"`
-                : `Added ${txData.amount.toLocaleString('vi-VN')} đ ("${txData.title}") to event "${event.title}"`,
+                ? `Đã thêm ${txData.amount.toLocaleString('vi-VN')} đ ("${txData.title}") vào sự kiện "${currentEvent.title}"`
+                : `Added ${txData.amount.toLocaleString('vi-VN')} đ ("${txData.title}") to event "${currentEvent.title}"`,
               iconBg: txData.type === 'income' ? '#DCFCE7' : '#FEF3C7',
               iconColor: txData.type === 'income' ? '#059669' : '#D97706',
             });
@@ -1097,18 +1112,24 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
             .filter((e) => e.type === 'income')
             .reduce((sum, e) => sum + e.amount, 0);
 
-          onUpdateEvent({
-            ...event,
+          const updatedEvent: MonettEvent = {
+            ...currentEvent,
             expenses: updatedExpenses,
             spentAmount: updatedSpent,
             incomeAmount: updatedIncome,
-          });
+          };
+
+          // 1. CẬP NHẬT NGAY LẬP TỨC STATE CỦA MÀN HÌNH CHI TIẾT
+          setCurrentEvent(updatedEvent);
+
+          // 2. LƯU RA NGOÀI VÀ ĐỒNG BỘ
+          onUpdateEvent(updatedEvent);
 
           setIsTxModalOpen(false);
           setEditingTx(null);
         }}
         onDelete={
-          editingTx
+          editingTx && editingTx.id
             ? () => {
                 handleDeleteTransaction(editingTx.id, editingTx.title);
                 setIsTxModalOpen(false);
@@ -1117,7 +1138,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
             : undefined
         }
         initialData={editingTx}
-        eventName={event.title}
+        eventName={currentEvent.title}
       />
 
       {/* ================= MODAL SỬA THÔNG TIN SỰ KIỆN ================= */}
@@ -1138,8 +1159,8 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
       <InviteFriendsModal
         visible={isInviteModalOpen}
         onClose={() => setIsInviteModalOpen(false)}
-        eventTitle={event.title}
-        currentMembers={event.members || []}
+        eventTitle={currentEvent.title}
+        currentMembers={currentEvent.members || []}
         onInviteFriend={handleInviteFriend}
       />
 
