@@ -458,7 +458,7 @@ export const DayExpensesScreen: React.FC<DayExpensesScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   header: {
     flexDirection: 'row',
@@ -468,7 +468,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#E8E0D5',
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   backBtn: {
     width: 40,

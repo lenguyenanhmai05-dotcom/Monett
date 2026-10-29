@@ -111,6 +111,7 @@ function MainApp() {
         <MobileAuthScreen
           initialMode={authInitialMode}
           onSuccess={() => {}}
+          onBackToHome={handleBackToLanding}
         />
       );
     }

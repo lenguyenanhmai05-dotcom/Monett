@@ -10,9 +10,14 @@ import { diskStorage } from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';
 
+import { StorageService } from '../storage/storage.service';
+
 @Controller('api/users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly storageService: StorageService,
+  ) {}
 
   private getUserId(req: any): string {
     const id = req.user?._id || req.user?.id || req.user?.sub;
@@ -101,10 +106,26 @@ export class UsersController {
     }
 
     const userId = this.getUserId(req);
+    let avatarUrl = '';
 
-    // Construct the public URL
-    const baseUrl = req.protocol + '://' + req.get('host');
-    const avatarUrl = `${baseUrl}/uploads/${file.filename}`;
+    // 1. Thử tải lên Cloudinary
+    try {
+      if (this.storageService.isCloudinaryConfigured()) {
+        const result: any = await this.storageService.uploadImage(file, 'monett_avatars');
+        if (result && result.secure_url) {
+          avatarUrl = result.secure_url;
+          console.log('[UsersController] Đã lưu avatar thành công lên Cloudinary:', avatarUrl);
+        }
+      }
+    } catch (cErr: any) {
+      console.warn('[UsersController] Upload Cloudinary avatar thất bại, dùng local storage:', cErr?.message);
+    }
+
+    // 2. Fallback local nếu chưa có avatarUrl
+    if (!avatarUrl) {
+      const baseUrl = req.protocol + '://' + req.get('host');
+      avatarUrl = `${baseUrl}/uploads/${file.filename}`;
+    }
 
     // Update user's avatar in DB
     const updatedUser = await this.usersService.updateProfile(userId, { avatarUrl });

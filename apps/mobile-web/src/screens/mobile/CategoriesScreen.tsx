@@ -66,9 +66,16 @@ export const CategoriesScreen: React.FC<CategoriesScreenProps> = ({
           </TouchableOpacity>
         )}
         <Text style={styles.headerTitle}>{isVi ? 'Quản Lý Danh Mục' : 'Category Management'}</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={onAddCategory} activeOpacity={0.8}>
-          <Text style={styles.addBtnText}>{isVi ? '+ Thêm' : '+ Add'}</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity style={styles.addBtn} onPress={onAddCategory} activeOpacity={0.8}>
+            <Text style={styles.addBtnText}>{isVi ? '+ Thêm' : '+ Add'}</Text>
+          </TouchableOpacity>
+          {onBack && (
+            <TouchableOpacity style={styles.closeBtn} onPress={onBack} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="close" size={20} color="#1E293B" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -130,11 +137,11 @@ export const CategoriesScreen: React.FC<CategoriesScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   header: {
     flexDirection: 'row',
@@ -143,7 +150,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 6,
     paddingBottom: 10,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
     borderBottomWidth: 1,
     borderBottomColor: '#E8E0D5',
   },
@@ -177,6 +184,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#047857',
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E8E0D5',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scrollContent: {
     padding: 16,

@@ -151,6 +151,10 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     });
 
+    newSocket.on('message_sent', (msg: SocketMessagePayload) => {
+      setLastMessage(msg);
+    });
+
     // Định kỳ lấy danh sách người dùng online mỗi 15 giây
     const onlineSyncInterval = setInterval(() => {
       if (newSocket.connected) {

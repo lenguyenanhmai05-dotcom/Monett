@@ -17,14 +17,17 @@ export class MessagesController {
     @Body('receiverId') receiverId: string,
     @Body('text') text: string,
     @Body('imageUrl') imageUrl?: string,
+    @Body('type') type?: string,
+    @Body('billData') billData?: Record<string, any>,
   ) {
     const senderId = req.user?._id?.toString() || req.user?.id || req.user?.sub;
+    const msgType = type || 'text';
     const savedMsg = await this.messagesService.sendMessage(
       senderId,
       receiverId,
       text,
-      'text',
-      undefined,
+      msgType,
+      billData,
       imageUrl,
     );
 
@@ -36,7 +39,8 @@ export class MessagesController {
       sender: senderId,
       receiver: receiverId,
       text,
-      type: 'text',
+      type: msgType,
+      billData,
       imageUrl,
       senderName,
       senderAvatar,

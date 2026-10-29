@@ -108,8 +108,13 @@ export function getTotalIncomeForMonth(year: number, month: number, userId?: str
   const records = getIncomeRecords(userId);
   return records
     .filter((r) => {
-      const parts = r.date.split('-');
-      if (parts.length === 3) {
+      if (!r || !r.date) return false;
+      const d = new Date(r.date);
+      if (!isNaN(d.getTime())) {
+        return d.getFullYear() === year && d.getMonth() + 1 === month;
+      }
+      const parts = String(r.date).split('-');
+      if (parts.length >= 2) {
         return Number(parts[0]) === year && Number(parts[1]) === month;
       }
       return false;
@@ -131,7 +136,12 @@ export function syncIncomeWithBudget(records?: IncomeRecord[]): CachedBudgetData
     const curMonth = now.getMonth() + 1;
     const totalMonthIncome = list
       .filter((r) => {
-        const parts = r.date.split('-');
+        if (!r || !r.date) return false;
+        const d = new Date(r.date);
+        if (!isNaN(d.getTime())) {
+          return d.getFullYear() === curYear && d.getMonth() + 1 === curMonth;
+        }
+        const parts = String(r.date).split('-');
         return Number(parts[0]) === curYear && Number(parts[1]) === curMonth;
       })
       .reduce((sum, r) => sum + (r.amount || 0), 0);
@@ -234,7 +244,7 @@ export function subscribeIncomeUpdates(callback: (records: IncomeRecord[]) => vo
   };
 
   const handleStorage = (e: StorageEvent) => {
-    if (e.key === INCOME_STORAGE_KEY) {
+    if (e.key && e.key.startsWith('monett_income_records')) {
       callback(getIncomeRecords());
     }
   };

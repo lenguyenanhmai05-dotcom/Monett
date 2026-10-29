@@ -1016,16 +1016,16 @@ const HomeRecurringEventsRow: React.FC<{
     const handleUpdate = () => {
       fetchEvents();
     };
-    if (typeof window !== 'undefined') {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('monett:events_updated', handleUpdate);
       window.addEventListener('focus', handleUpdate);
+      return () => {
+        if (typeof window.removeEventListener === 'function') {
+          window.removeEventListener('monett:events_updated', handleUpdate);
+          window.removeEventListener('focus', handleUpdate);
+        }
+      };
     }
-    return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('monett:events_updated', handleUpdate);
-        window.removeEventListener('focus', handleUpdate);
-      }
-    };
   }, [fetchEvents]);
 
   const formatItemAmount = (amount: number) => {
@@ -1935,7 +1935,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
     const handleFocus = () => {
       syncWithBackend();
     };
-    if (typeof window !== 'undefined') {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('focus', handleFocus);
     }
 
@@ -1944,7 +1944,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
 
     return () => {
       unsubscribe();
-      if (typeof window !== 'undefined') {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
         window.removeEventListener('focus', handleFocus);
       }
       clearInterval(interval);

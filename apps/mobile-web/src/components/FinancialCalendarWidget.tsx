@@ -18,6 +18,7 @@ import {
 import {
   getTotalIncomeForMonth,
   subscribeIncomeUpdates,
+  getIncomeRecords,
 } from '../services/incomeStorage';
 
 export interface CalendarDayData {
@@ -240,9 +241,50 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
     return Object.values(daysDataMap).filter((d) => Boolean(d.photoUrl)).length;
   }, [daysDataMap]);
 
+  // Tính tổng thu nhập thực tế của tháng đang xem từ transactions và viewMonthIncome
+  const monthTotalIncome = useMemo(() => {
+    let incomeFromTx = 0;
+    const txIdSet = new Set<string>();
+    if (Array.isArray(transactions) && transactions.length > 0) {
+      transactions.forEach((tx: any) => {
+        if (!tx || !tx.date) return;
+        const isInc = tx.type === 'income' || (Number(tx.amount) > 0 && tx.type !== 'expense') || isIncomeTransactionOrItem(tx);
+        if (isInc) {
+          const txDate = new Date(tx.date);
+          if (!isNaN(txDate.getTime()) && txDate.getFullYear() === viewYear && txDate.getMonth() + 1 === viewMonth) {
+            incomeFromTx += Math.abs(Number(tx.rawAmount || tx.amount || 0));
+            if (tx._id || tx.id) txIdSet.add(String(tx._id || tx.id));
+          }
+        }
+      });
+    }
+
+    const localRecords = getIncomeRecords();
+    let localExtra = 0;
+    localRecords.forEach((r) => {
+      if (r && !txIdSet.has(r.id)) {
+        const d = r.date ? new Date(r.date) : null;
+        if (d && !isNaN(d.getTime())) {
+          if (d.getFullYear() === viewYear && d.getMonth() + 1 === viewMonth) {
+            localExtra += (r.amount || 0);
+          }
+        } else {
+          const parts = r.date ? String(r.date).split('-') : [];
+          if (parts.length >= 2 && Number(parts[0]) === viewYear && Number(parts[1]) === viewMonth) {
+            localExtra += (r.amount || 0);
+          }
+        }
+      }
+    });
+
+    return Math.max(incomeFromTx + localExtra, viewMonthIncome);
+  }, [transactions, viewYear, viewMonth, viewMonthIncome]);
+
   // Giá trị hiển thị Chi tiêu và Thu nhập chuẩn xác theo dữ liệu thực tế
   const displayExpense = totalExpense !== undefined && totalExpense !== 6180000 ? totalExpense : monthTotalSpent;
-  const displayIncome = isCurrentViewingMonth && totalIncome !== undefined ? totalIncome : viewMonthIncome;
+  const displayIncome = (isCurrentViewingMonth && totalIncome !== undefined && totalIncome > 0)
+    ? totalIncome
+    : monthTotalIncome;
 
   const handleCellPress = (cell: any) => {
     if (!onSelectDay) return;
@@ -266,7 +308,7 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
           {/* Nút ảnh 📷 1 Ảnh chuẩn như hình 1 */}
           <TouchableOpacity
             style={styles.photoCountPill}
-            onPress={onNavigateToCamera}
+            onPress={onPressExpense || onNavigateToCamera}
             activeOpacity={0.8}
           >
             <Ionicons name="camera-outline" size={13} color="#059669" style={{ marginRight: 4 }} />
@@ -304,7 +346,7 @@ export const FinancialCalendarWidget: React.FC<FinancialCalendarWidgetProps> = (
 
       {/* 2. Khung Card Lịch */}
       <View style={styles.calendarCard}>
-        {/* ================= 2 THẺ TỔNG QUAN: CHI & THU (Nền #FAF7F2 chuẩn hình 1) ================= */}
+        {/* ================= 2 THẺ TỔNG QUAN: CHI & THU (Nền #F5F0E8 chuẩn hình 1) ================= */}
         <View style={styles.summaryCardsRow}>
           {/* Thẻ CHI (Bên trái) */}
           <TouchableOpacity
@@ -541,7 +583,7 @@ const styles = StyleSheet.create({
   monthNavRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
     borderWidth: 1,
     borderColor: '#E7DECF',
     borderRadius: 16,
@@ -588,7 +630,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
 
-  // 2 THẺ TỔNG QUAN: CHI & THU (Nền #FAF7F2 chuẩn theo yêu cầu giống web)
+  // 2 THẺ TỔNG QUAN: CHI & THU (Nền #F5F0E8 chuẩn theo yêu cầu giống web)
   summaryCardsRow: {
     flexDirection: 'row',
     gap: 10,
@@ -596,7 +638,7 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     flex: 1,
-    backgroundColor: '#FAF7F2', // Nền màu be #FAF7F2 chuẩn yêu cầu
+    backgroundColor: '#F5F0E8', // Nền màu be #F5F0E8 chuẩn yêu cầu
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -776,7 +818,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   emptyCell: {
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
     borderWidth: 0.5,
     borderColor: '#EDE7DC',
     justifyContent: 'space-between',

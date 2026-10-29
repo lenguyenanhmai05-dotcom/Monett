@@ -6,8 +6,11 @@ import { UsersController } from './users.controller';
 
 import { Moment, MomentSchema } from '../moments/schemas/moment.schema';
 
+import { StorageModule } from '../storage/storage.module';
+
 @Module({
   imports: [
+    StorageModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Moment.name, schema: MomentSchema },

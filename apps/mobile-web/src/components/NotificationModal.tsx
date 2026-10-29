@@ -206,6 +206,26 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
       return;
     }
 
+    // Nếu là thông báo chi tiêu -> Bấm là nhảy ra ngay Nhật Ký Ảnh Chi Tiêu!
+    const isExpenseNotif =
+      notif.type === 'expense' ||
+      notif.metadata?.targetTab === 'photo_journal' ||
+      notif.metadata?.targetTab === 'journal' ||
+      (notif.title && notif.title.toLowerCase().includes('chi tiêu')) ||
+      (notif.message && notif.message.toLowerCase().includes('khoản chi'));
+
+    if (isExpenseNotif) {
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('monett:open_photo_journal'));
+      }
+      if (onNavigateToTab) {
+        onNavigateToTab('photo_journal');
+      }
+      return;
+    }
+      return;
+    }
+
     if (notif.metadata?.targetTab && onNavigateToTab) {
       onNavigateToTab(notif.metadata.targetTab);
     }
@@ -484,7 +504,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
                     >
                       {browserNotifsEnabled
                         ? (isVi ? 'Hiện popup ngoài màn hình khi có lời nhắc & chi tiêu' : 'Sends desktop alerts for reminders and expenses')
-                        : (isVi ? 'Bật để hiện thông báo ra ngoài màn hình máy tính' : 'Enable to get popups outside the browser')}
+                        : (isVi ? 'Bật để hiện thông báo ra màn hình điện thoại & máy tính' : 'Enable to get alerts on phone & desktop')}
                     </Text>
                   </View>
                 </View>
@@ -743,10 +763,18 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
                               {formatRelativeTime(notif.createdAt)}
                             </Text>
 
-                            {notif.metadata?.targetTab && (
-                              <Text style={styles.notifLinkHint}>
-                                {isVi ? 'Chạm để xem ›' : 'Tap to view ›'}
-                              </Text>
+                            {(notif.metadata?.targetTab || notif.type === 'expense' || notif.title?.includes('chi tiêu')) && (
+                              <TouchableOpacity
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  handleNotificationPress(notif);
+                                }}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              >
+                                <Text style={styles.notifLinkHint}>
+                                  {isVi ? 'Chạm để xem ›' : 'Tap to view ›'}
+                                </Text>
+                              </TouchableOpacity>
                             )}
                           </View>
                         </View>

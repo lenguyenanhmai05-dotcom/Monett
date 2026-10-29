@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Image,
   KeyboardAvoidingView,
+  ScrollView,
   Platform,
   Alert,
 } from 'react-native';
@@ -19,20 +20,39 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { sendOtpApi, verifyOtpApi, forgotPasswordApi, resetPasswordApi } from '../../services/api';
 import { requestGoogleLogin } from '../../services/googleAuth';
 
-interface MobileAuthScreenProps {
+export interface MobileAuthScreenProps {
   initialMode?: 'login' | 'register';
   onSuccess?: () => void;
+  onBackToHome?: () => void;
 }
 
 export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
   initialMode = 'login',
   onSuccess,
+  onBackToHome,
 }) => {
   const { login, register, googleLogin } = useAuth();
   const { language, setLanguage } = useLanguage();
 
   // Mode chính: 'login' | 'register' | 'forgot'
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>(initialMode);
+
+  // Đồng bộ mode khi initialMode prop thay đổi từ bên ngoài (ví dụ từ Landing Screen)
+  useEffect(() => {
+    if (initialMode) {
+      setMode(initialMode);
+      setRegisterStep('form');
+      setForgotStep('email');
+      setErrorMessage(null);
+      setSuccessMessage(null);
+    }
+  }, [initialMode]);
+
+  // Refs hỗ trợ phím Enter chuyển nhanh giữa các ô nhập liệu
+  const passwordInputRef = useRef<TextInput>(null);
+  const regEmailRef = useRef<TextInput>(null);
+  const regPasswordRef = useRef<TextInput>(null);
+  const confirmPassRef = useRef<TextInput>(null);
 
   // Đăng nhập State
   const [email, setEmail] = useState('');
@@ -364,42 +384,43 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.keyboardAvoid}
       >
-        <View style={styles.fixedScreenContainer}>
-          {/* TOP BAR: LANGUAGE TOGGLE & HELP BUTTON */}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* TOP BAR: LANGUAGE TOGGLE (ĐÃ BỎ NÚT LÙI VÀ NÚT ?) */}
           <View style={styles.topBar}>
-            <View />
-            <View style={styles.topRightActions}>
-              <View style={{ flexDirection: 'row', backgroundColor: '#F1F5F9', borderRadius: 24, padding: 4 }}>
-                <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, backgroundColor: isVi ? '#FFFFFF' : 'transparent', ...(isVi ? { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 } : {}) }}
-                  onPress={() => setLanguage('vi')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={{ fontSize: 14, marginRight: 6 }}>🇻🇳</Text>
-                  <Text style={{ fontSize: 13, fontWeight: isVi ? '800' : '600', color: isVi ? '#0F172A' : '#64748B' }}>
-                    VI
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, backgroundColor: !isVi ? '#FFFFFF' : 'transparent', ...(!isVi ? { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 } : {}) }}
-                  onPress={() => setLanguage('en')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={{ fontSize: 14, marginRight: 6 }}>🇺🇸</Text>
-                  <Text style={{ fontSize: 13, fontWeight: !isVi ? '800' : '600', color: !isVi ? '#0F172A' : '#64748B' }}>
-                    EN
-                  </Text>
-                </TouchableOpacity>
-              </View>
+            <View style={styles.langToggleContainer}>
+              <TouchableOpacity
+                style={[styles.langToggleBtn, isVi && styles.langToggleBtnActive]}
+                onPress={() => setLanguage('vi')}
+                activeOpacity={0.8}
+              >
+                <Image
+                  source={require('../../../assets/images/flag_vn.png')}
+                  style={styles.flagIcon}
+                  resizeMode="cover"
+                />
+                <Text style={[styles.langToggleText, isVi && styles.langToggleTextActive]}>
+                  VI
+                </Text>
+              </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.circleIconBtn}
-                onPress={handleHelp}
-                activeOpacity={0.7}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={[styles.langToggleBtn, !isVi && styles.langToggleBtnActive]}
+                onPress={() => setLanguage('en')}
+                activeOpacity={0.8}
               >
-                <Ionicons name="help-circle-outline" size={20} color="#475569" />
+                <Image
+                  source={require('../../../assets/images/flag_gb.png')}
+                  style={styles.flagIcon}
+                  resizeMode="cover"
+                />
+                <Text style={[styles.langToggleText, !isVi && styles.langToggleTextActive]}>
+                  EN
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -485,45 +506,21 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
           {/* ============================================================ */}
           {mode === 'login' && (
             <View style={styles.formSection}>
-              {/* NÚT ĐĂNG NHẬP NHANH DEV MODE */}
-              <TouchableOpacity
-                style={{
-                  backgroundColor: '#ECFDF5',
-                  borderColor: '#A7F3D0',
-                  borderWidth: 1,
-                  borderRadius: 10,
-                  paddingVertical: 9,
-                  paddingHorizontal: 12,
-                  marginBottom: 16,
-                  alignItems: 'center',
-                  flexDirection: 'row',
-                  justifyContent: 'center',
-                }}
-                onPress={() => {
-                  setEmail('admin');
-                  setPassword('admin');
-                  clearMessages();
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={{ fontSize: 13, color: '#047857', fontWeight: '700' }}>
-                  ⚡ {isVi ? 'Điền nhanh Dev: admin / admin' : 'Quick Fill Dev: admin / admin'}
-                </Text>
-              </TouchableOpacity>
-
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>{isVi ? 'Email hoặc Tài khoản' : 'Email or Username'}</Text>
                 <View style={styles.inputBox}>
                   <Ionicons name="mail-outline" size={18} color="#64748B" style={styles.fieldIcon} />
                   <TextInput
                     style={styles.textInput}
-                    placeholder={isVi ? "mai.linh@example.com hoặc admin" : "mai.linh@example.com or admin"}
+                    placeholder={isVi ? "mai.linh@example.com" : "mai.linh@example.com"}
                     placeholderTextColor="#94A3B8"
                     value={email}
                     onChangeText={setEmail}
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
+                    returnKeyType="next"
+                    onSubmitEditing={() => passwordInputRef.current?.focus()}
                   />
                 </View>
               </View>
@@ -533,6 +530,7 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                 <View style={styles.inputBox}>
                   <Ionicons name="lock-closed-outline" size={18} color="#64748B" style={styles.fieldIcon} />
                   <TextInput
+                    ref={passwordInputRef}
                     style={styles.textInput}
                     placeholder={isVi ? "•••••••••••• (hoặc admin)" : "•••••••••••• (or admin)"}
                     placeholderTextColor="#94A3B8"
@@ -540,6 +538,8 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
+                    returnKeyType="go"
+                    onSubmitEditing={handleLoginSubmit}
                   />
                   <TouchableOpacity
                     onPress={() => setShowPassword(!showPassword)}
@@ -614,6 +614,8 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                     value={fullName}
                     onChangeText={setFullName}
                     autoCapitalize="words"
+                    returnKeyType="next"
+                    onSubmitEditing={() => regEmailRef.current?.focus()}
                   />
                 </View>
               </View>
@@ -623,6 +625,7 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                 <View style={styles.inputBox}>
                   <Ionicons name="mail-outline" size={18} color="#64748B" style={styles.fieldIcon} />
                   <TextInput
+                    ref={regEmailRef}
                     style={styles.textInput}
                     placeholder="mai.linh@example.com"
                     placeholderTextColor="#94A3B8"
@@ -631,6 +634,8 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
+                    returnKeyType="next"
+                    onSubmitEditing={() => regPasswordRef.current?.focus()}
                   />
                 </View>
               </View>
@@ -640,6 +645,7 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                 <View style={styles.inputBox}>
                   <Ionicons name="lock-closed-outline" size={18} color="#64748B" style={styles.fieldIcon} />
                   <TextInput
+                    ref={regPasswordRef}
                     style={styles.textInput}
                     placeholder={isVi ? 'Tối thiểu 8 ký tự (chữ, số, ký tự đặc biệt)' : 'At least 8 chars (letters, numbers, special)'}
                     placeholderTextColor="#94A3B8"
@@ -647,6 +653,8 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
+                    returnKeyType="go"
+                    onSubmitEditing={handleSendRegisterOtp}
                   />
                   <TouchableOpacity
                     onPress={() => setShowPassword(!showPassword)}
@@ -703,6 +711,8 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                     keyboardType="number-pad"
                     maxLength={6}
                     autoFocus
+                    returnKeyType="done"
+                    onSubmitEditing={handleVerifyOtpAndRegister}
                   />
                 </View>
               </View>
@@ -769,6 +779,8 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                     onChangeText={setForgotEmail}
                     keyboardType="email-address"
                     autoCapitalize="none"
+                    returnKeyType="go"
+                    onSubmitEditing={handleSendForgotOtp}
                   />
                 </View>
               </View>
@@ -827,6 +839,8 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                     keyboardType="number-pad"
                     maxLength={6}
                     autoFocus={true}
+                    returnKeyType="go"
+                    onSubmitEditing={handleVerifyForgotOtp}
                   />
                 </View>
               </View>
@@ -897,6 +911,8 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                     onChangeText={setNewPassword}
                     secureTextEntry={!showNewPassword}
                     autoCapitalize="none"
+                    returnKeyType="next"
+                    onSubmitEditing={() => confirmPassRef.current?.focus()}
                   />
                   <TouchableOpacity
                     onPress={() => setShowNewPassword(!showNewPassword)}
@@ -921,6 +937,7 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                 <View style={styles.inputBox}>
                   <Ionicons name="lock-closed-outline" size={18} color="#64748B" style={styles.fieldIcon} />
                   <TextInput
+                    ref={confirmPassRef}
                     style={styles.textInput}
                     placeholder={isVi ? 'Nhập lại mật khẩu mới' : 'Re-enter new password'}
                     placeholderTextColor="#94A3B8"
@@ -928,6 +945,8 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                     onChangeText={setConfirmPassword}
                     secureTextEntry={!showNewPassword}
                     autoCapitalize="none"
+                    returnKeyType="go"
+                    onSubmitEditing={handleResetPasswordSubmit}
                   />
                 </View>
               </View>
@@ -1006,7 +1025,7 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
               {isVi ? ' của Monett.' : '.'}
             </Text>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -1020,21 +1039,30 @@ const styles = StyleSheet.create({
   keyboardAvoid: {
     flex: 1,
   },
-  // MÀN HÌNH CỐ ĐỊNH 1 TRANG KHÔNG CUỘN
-  fixedScreenContainer: {
+  scrollView: {
     flex: 1,
+  },
+  scrollContainer: {
+    flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 8,
-    paddingBottom: 20,
+    paddingBottom: 24,
+    justifyContent: 'space-between',
+  },
+  fixedScreenContainer: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 24,
     justifyContent: 'space-between',
   },
 
   // 1. TOP BAR
   topBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   topRightActions: {
     flexDirection: 'row',
@@ -1052,9 +1080,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 5,
-    paddingHorizontal: 9,
+    paddingHorizontal: 10,
     borderRadius: 16,
-    gap: 5,
   },
   langToggleBtnActive: {
     backgroundColor: '#FFFFFF',
@@ -1063,6 +1090,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 3,
     elevation: 2,
+  },
+  flagIcon: {
+    width: 19,
+    height: 13,
+    borderRadius: 2,
+    marginRight: 4,
   },
   flagEmoji: {
     fontSize: 14,

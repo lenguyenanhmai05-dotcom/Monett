@@ -9,6 +9,8 @@ import {
   RefreshControl,
   Modal,
   Alert,
+  useWindowDimensions,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,11 +20,13 @@ import { useNotifications } from '../../contexts/NotificationContext';
 import { getBudgetApi, BudgetData, getTransactionsByDateApi, getTransactionsApi, deleteTransactionApi } from '../../services/api';
 import { FinancialCalendarWidget } from '../../components/FinancialCalendarWidget';
 import { RemindersWidget } from '../../components/RemindersWidget';
+import { MenuDrawerModal } from '../../components/MenuDrawerModal';
 import { HomeRecentTransactionsWidget } from '../../components/HomeRecentTransactionsWidget';
 import { HomeRecurringWidget } from '../../components/HomeRecurringWidget';
 import { HomeEventsWidget } from '../../components/HomeEventsWidget';
 
 import { ConfirmDeleteModal } from '../../components/ConfirmDeleteModal';
+import { PhotoJournalModal } from '../../components/PhotoJournalModal';
 import { IncomeManagementScreen } from './IncomeManagementScreen';
 import { formatYMD } from '../../utils/dateUtils';
 import {
@@ -43,6 +47,8 @@ import {
   getTotalIncomeForMonth,
   subscribeIncomeUpdates,
   syncIncomeWithBudget,
+  syncIncomesFromBackendTransactions,
+  getIncomeRecords,
 } from '../../services/incomeStorage';
 
 interface HomeScreenProps {
@@ -116,6 +122,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const isVi = language === 'vi';
   const avatarUri = authUser?.avatarUrl;
   const [isMenuDrawerVisible, setIsMenuDrawerVisible] = React.useState(false);
+  const { height: screenHeight } = useWindowDimensions();
+  const drawerHeight = useMemo(() => {
+    return Math.min(640, Math.max(440, Math.round(screenHeight * 0.8)));
+  }, [screenHeight]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -188,10 +198,56 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [deletingExpense, setDeletingExpense] = React.useState<ExpenseCardItem | null>(null);
   const [isDeletingTx, setIsDeletingTx] = React.useState<boolean>(false);
   const [isIncomeScreenOpen, setIsIncomeScreenOpen] = React.useState<boolean>(false);
-  const [totalMonthIncome, setTotalMonthIncome] = React.useState<number>(() => {
+  const [isPhotoJournalOpen, setIsPhotoJournalOpen] = React.useState<boolean>(false);
+  const [incomeRefreshTrigger, setIncomeRefreshTrigger] = React.useState<number>(0);
+
+  // Tổng thu nhập thực tế của tháng hiện tại (kết hợp đồng bộ cả backend transactions và incomeStorage)
+  const totalMonthIncome = React.useMemo(() => {
     const n = new Date();
-    return getTotalIncomeForMonth(n.getFullYear(), n.getMonth() + 1);
-  });
+    const curYear = n.getFullYear();
+    const curMonth = n.getMonth() + 1;
+
+    let incomeFromTx = 0;
+    const txIdSet = new Set<string>();
+    if (Array.isArray(monthTransactions) && monthTransactions.length > 0) {
+      monthTransactions.forEach((tx: any) => {
+        if (!tx) return;
+        const isInc = tx.type === 'income' || (Number(tx.amount) > 0 && tx.type !== 'expense') || isIncomeTransactionOrItem(tx);
+        if (isInc) {
+          const d = tx.date ? new Date(tx.date) : (tx.createdAt ? new Date(tx.createdAt) : null);
+          if (d && !isNaN(d.getTime())) {
+            if (d.getFullYear() === curYear && d.getMonth() + 1 === curMonth) {
+              const amt = Math.abs(Number(tx.rawAmount || tx.amount || 0));
+              incomeFromTx += amt;
+              if (tx._id || tx.id) txIdSet.add(String(tx._id || tx.id));
+            }
+          }
+        }
+      });
+    }
+
+    const localRecords = getIncomeRecords();
+    let localExtra = 0;
+    localRecords.forEach((r) => {
+      if (r && !txIdSet.has(r.id)) {
+        const d = r.date ? new Date(r.date) : null;
+        if (d && !isNaN(d.getTime())) {
+          if (d.getFullYear() === curYear && d.getMonth() + 1 === curMonth) {
+            localExtra += (r.amount || 0);
+          }
+        } else {
+          const parts = r.date ? String(r.date).split('-') : [];
+          if (parts.length >= 2 && Number(parts[0]) === curYear && Number(parts[1]) === curMonth) {
+            localExtra += (r.amount || 0);
+          }
+        }
+      }
+    });
+
+    const combined = incomeFromTx + localExtra;
+    const fromStorage = getTotalIncomeForMonth(curYear, curMonth);
+    return Math.max(combined, fromStorage);
+  }, [monthTransactions, incomeRefreshTrigger]);
 
   // Tổng chi tiêu thực tế của tháng hiện tại
   const realMonthSpent = React.useMemo(() => {
@@ -282,6 +338,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         const curRecords = getInitialDayRecordsFromLocalStorage();
         const merged = mergeTransactionsIntoDayRecords(curRecords, txList);
         saveDayRecordsToStorage(merged);
+        syncIncomesFromBackendTransactions(txList);
       }
     } catch (e) {}
 
@@ -347,14 +404,33 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   // Lắng nghe cập nhật các khoản thu nhập để nhảy tổng thu tức thì
   React.useEffect(() => {
     const unsub = subscribeIncomeUpdates(() => {
-      const n = new Date();
-      setTotalMonthIncome(getTotalIncomeForMonth(n.getFullYear(), n.getMonth() + 1));
+      setIncomeRefreshTrigger((c) => c + 1);
     });
     return unsub;
   }, []);
 
+  // Lắng nghe sự kiện mở Nhật Ký Ảnh Chi Tiêu từ thông báo hoặc các widget
+  React.useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      const handler = () => {
+        setIsPhotoJournalOpen(true);
+      };
+      window.addEventListener('monett:open_photo_journal', handler);
+      return () => {
+        window.removeEventListener('monett:open_photo_journal', handler);
+      };
+    }
+  }, []);
+
   if (isIncomeScreenOpen) {
-    return <IncomeManagementScreen onBack={() => setIsIncomeScreenOpen(false)} />;
+    return (
+      <IncomeManagementScreen
+        onBack={() => {
+          setIsIncomeScreenOpen(false);
+          fetchHomeData();
+        }}
+      />
+    );
   }
 
   return (
@@ -509,7 +585,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           transactions={monthTransactions}
           totalIncome={totalMonthIncome}
           onPressIncome={() => setIsIncomeScreenOpen(true)}
-          onPressExpense={onNavigateToAnalytics}
+          onPressExpense={() => setIsPhotoJournalOpen(true)}
           onNavigateToCamera={() => onNavigateToCamera?.()}
           onSelectDay={(dayNum, fullDateStr, dateLabel) => {
             setSelectedWeekDay(dayNum);
@@ -565,228 +641,28 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         onCancel={() => setDeletingExpense(null)}
       />
 
-      {/* 6. MODAL HAMBURGER MENU DRAWER */}
-      <Modal
+      {/* 6. MODAL HAMBURGER MENU (DẠNG DIALOG Ở GIỮA, NGĂN CÁCH TRÊN VÀ NỀN MỜ XUNG QUANH GIỐNG HÌNH 1) */}
+      <MenuDrawerModal
         visible={isMenuDrawerVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsMenuDrawerVisible(false)}
-      >
-        <View style={styles.drawerOverlay}>
-          {/* Backdrop tối mờ */}
-          <TouchableOpacity
-            style={styles.drawerBackdrop}
-            activeOpacity={1}
-            onPress={() => setIsMenuDrawerVisible(false)}
-          />
+        onClose={() => setIsMenuDrawerVisible(false)}
+        onNavigateToTab={onNavigateToTab}
+        currentTab="home"
+      />
 
-          {/* Khung Drawer bên phải */}
-          <View style={styles.drawerContainer}>
-            {/* Header Drawer */}
-            <View style={styles.drawerHeader}>
-              <View style={styles.drawerBrandRow}>
-                <Image
-                  source={require('../../../assets/adaptive-icon.png')}
-                  style={styles.drawerBrandLogo}
-                  resizeMode="contain"
-                />
-                <Text style={styles.drawerBrandTitle}>Monett</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.drawerCloseBtn}
-                onPress={() => setIsMenuDrawerVisible(false)}
-                activeOpacity={0.7}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="close" size={22} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Danh mục: Tổng quan, Bảng tin, Sự kiện, Báo cáo, Tích lũy, Sổ ghi nợ, Cài đặt */}
-            <ScrollView
-              style={styles.drawerMenuList}
-              contentContainerStyle={styles.drawerMenuContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <Text style={styles.drawerSectionTitle}>
-                {isVi ? 'DANH MỤC' : 'CATEGORIES'}
-              </Text>
-
-              {/* 1. Tổng quan */}
-              <TouchableOpacity
-                style={[styles.drawerMenuItem, styles.drawerMenuItemActive]}
-                onPress={() => {
-                  setIsMenuDrawerVisible(false);
-                  onNavigateToTab?.('home');
-                }}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.drawerMenuIconBox, { backgroundColor: '#DCFCE7' }]}>
-                  <Ionicons name="home" size={18} color="#064E3B" />
-                </View>
-                <Text style={[styles.drawerMenuText, styles.drawerMenuTextActive]}>
-                  {isVi ? 'Tổng quan' : 'Overview'}
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color="#059669" />
-              </TouchableOpacity>
-
-              {/* 2. Bảng tin */}
-              <TouchableOpacity
-                style={styles.drawerMenuItem}
-                onPress={() => {
-                  setIsMenuDrawerVisible(false);
-                  onNavigateToTab?.('feed');
-                }}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.drawerMenuIconBox, { backgroundColor: '#EDE9FE' }]}>
-                  <Ionicons name="newspaper-outline" size={18} color="#7C3AED" />
-                </View>
-                <Text style={styles.drawerMenuText}>
-                  {isVi ? 'Bảng tin' : 'Feed'}
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
-              </TouchableOpacity>
-
-              {/* 3. Sự kiện */}
-              <TouchableOpacity
-                style={styles.drawerMenuItem}
-                onPress={() => {
-                  setIsMenuDrawerVisible(false);
-                  onNavigateToTab?.('events');
-                }}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.drawerMenuIconBox, { backgroundColor: '#FEF3C7' }]}>
-                  <Ionicons name="calendar-outline" size={18} color="#D97706" />
-                </View>
-                <Text style={styles.drawerMenuText}>
-                  {isVi ? 'Sự kiện' : 'Events'}
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
-              </TouchableOpacity>
-
-              {/* 4. Báo cáo */}
-              <TouchableOpacity
-                style={styles.drawerMenuItem}
-                onPress={() => {
-                  setIsMenuDrawerVisible(false);
-                  if (onNavigateToTab) onNavigateToTab('analytics');
-                  else onNavigateToAnalytics?.();
-                }}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.drawerMenuIconBox, { backgroundColor: '#E0F2FE' }]}>
-                  <Ionicons name="pie-chart-outline" size={18} color="#0284C7" />
-                </View>
-                <Text style={styles.drawerMenuText}>
-                  {isVi ? 'Báo cáo' : 'Reports'}
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
-              </TouchableOpacity>
-
-              {/* 5. Tích lũy */}
-              <TouchableOpacity
-                style={styles.drawerMenuItem}
-                onPress={() => {
-                  setIsMenuDrawerVisible(false);
-                  onNavigateToTab?.('savings');
-                }}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.drawerMenuIconBox, { backgroundColor: '#FCE7F3' }]}>
-                  <Ionicons name="wallet-outline" size={18} color="#DB2777" />
-                </View>
-                <Text style={styles.drawerMenuText}>
-                  {isVi ? 'Tích lũy' : 'Savings'}
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
-              </TouchableOpacity>
-
-              {/* 6. Sổ ghi nợ */}
-              <TouchableOpacity
-                style={styles.drawerMenuItem}
-                onPress={() => {
-                  setIsMenuDrawerVisible(false);
-                  onNavigateToTab?.('debt');
-                }}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.drawerMenuIconBox, { backgroundColor: '#FFEDD5' }]}>
-                  <Ionicons name="book-outline" size={18} color="#EA580C" />
-                </View>
-                <Text style={styles.drawerMenuText}>
-                  {isVi ? 'Sổ ghi nợ' : 'Debt Book'}
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
-              </TouchableOpacity>
-
-              {/* 7. Cài đặt (Bấm vào cài đặt thì mới đưa tới trang cá nhân) */}
-              <TouchableOpacity
-                style={styles.drawerMenuItem}
-                onPress={() => {
-                  setIsMenuDrawerVisible(false);
-                  if (onNavigateToTab) onNavigateToTab('profile');
-                  else onNavigateToProfile?.();
-                }}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.drawerMenuIconBox, { backgroundColor: '#F1F5F9' }]}>
-                  <Ionicons name="settings-outline" size={18} color="#475569" />
-                </View>
-                <Text style={styles.drawerMenuText}>
-                  {isVi ? 'Cài đặt' : 'Settings'}
-                </Text>
-                <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
-              </TouchableOpacity>
-            </ScrollView>
-
-            {/* Ở DƯỚI CÙNG: Ảnh đại diện, Tên, Gmail, và Icon Đăng xuất */}
-            <View style={styles.drawerFooter}>
-              <View style={styles.drawerUserProfile}>
-                {avatarUri && !imageError ? (
-                  <Image
-                    source={{ uri: avatarUri }}
-                    style={styles.drawerUserAvatar}
-                    onError={() => setImageError(true)}
-                  />
-                ) : (
-                  <View
-                    style={[
-                      styles.drawerUserAvatar,
-                      { backgroundColor: avatarColor.bg, justifyContent: 'center', alignItems: 'center' },
-                    ]}
-                  >
-                    <Text style={{ color: avatarColor.text, fontWeight: '800', fontSize: 16 }}>
-                      {displayName.charAt(0).toUpperCase()}
-                    </Text>
-                  </View>
-                )}
-
-                <View style={styles.drawerUserInfo}>
-                  <Text style={styles.drawerUserName} numberOfLines={1}>
-                    {displayName}
-                  </Text>
-                  <Text style={styles.drawerUserEmail} numberOfLines={1}>
-                    {authUser?.email || 'user@monett.vn'}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Nút Icon Đăng xuất */}
-              <TouchableOpacity
-                style={styles.drawerLogoutBtn}
-                onPress={handleLogout}
-                activeOpacity={0.75}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                accessibilityLabel={isVi ? 'Đăng xuất tài khoản' : 'Log out'}
-              >
-                <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* 7. MODAL NHẬT KÝ ẢNH CHI TIÊU (KHỚP 100% HÌNH 1 VÀ HÌNH 2) */}
+      <PhotoJournalModal
+        visible={isPhotoJournalOpen}
+        onClose={() => setIsPhotoJournalOpen(false)}
+        transactions={monthTransactions}
+        onNavigateToCamera={() => {
+          setIsPhotoJournalOpen(false);
+          if (onNavigateToCamera) onNavigateToCamera();
+        }}
+        onSelectTransaction={(id) => {
+          setIsPhotoJournalOpen(false);
+          if (onNavigateToDetail) onNavigateToDetail(id);
+        }}
+      />
     </SafeAreaView>
   );
 };
@@ -794,11 +670,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   scrollView: {
     flex: 1,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
   },
   header: {
     flexDirection: 'row',
@@ -807,7 +683,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 6,
     paddingBottom: 10,
-    backgroundColor: '#FAF7F2',
+    backgroundColor: '#F5F0E8',
     borderBottomWidth: 1,
     borderBottomColor: '#E8E0D5',
   },
@@ -1196,8 +1072,11 @@ const styles = StyleSheet.create({
   },
   drawerOverlay: {
     flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 28,
   },
   drawerBackdrop: {
     position: 'absolute',
@@ -1205,96 +1084,88 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
   },
   drawerContainer: {
-    width: '78%',
-    maxWidth: 320,
-    height: '100%',
+    width: '100%',
+    maxWidth: 390,
     backgroundColor: '#FFFFFF',
+    borderRadius: 24,
     shadowColor: '#000',
-    shadowOffset: { width: -4, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 20,
-    display: 'flex',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.22,
+    shadowRadius: 30,
+    elevation: 24,
+    overflow: 'hidden',
     flexDirection: 'column',
   },
   drawerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    paddingTop: 48,
+    paddingHorizontal: 20,
+    paddingTop: 18,
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
+    flexShrink: 0,
   },
-  drawerBrandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  drawerBrandLogo: {
-    width: 28,
-    height: 28,
-    marginRight: 8,
-  },
-  drawerBrandTitle: {
+  drawerHeaderTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#064E3B',
+    color: '#18181B',
     letterSpacing: -0.3,
   },
   drawerCloseBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F8FAFC',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: '#E4E4E7',
   },
   drawerMenuList: {
     flex: 1,
   },
   drawerMenuContent: {
-    paddingVertical: 14,
-    paddingHorizontal: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+    flexGrow: 1,
   },
   drawerSectionTitle: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#94A3B8',
+    color: '#9CA3AF',
     letterSpacing: 0.8,
-    marginBottom: 10,
-    marginLeft: 6,
+    marginTop: 14,
+    marginBottom: 6,
+    marginLeft: 14,
+    textTransform: 'uppercase',
   },
   drawerMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    marginBottom: 4,
-    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    borderRadius: 24,
+    marginBottom: 2,
+    backgroundColor: 'transparent',
   },
   drawerMenuItemActive: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#A7F3D0', // Màu xanh mint pastel chuẩn theo Hình 1
   },
-  drawerMenuIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+  drawerMenuIcon: {
+    marginRight: 14,
   },
   drawerMenuText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#334155',
+    color: '#27272A',
+    letterSpacing: -0.2,
   },
   drawerMenuTextActive: {
     fontWeight: '700',
@@ -1304,26 +1175,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    paddingBottom: 28,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     borderTopWidth: 1,
     borderTopColor: '#F1F5F9',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#FFFFFF',
+    flexShrink: 0,
   },
   drawerUserProfile: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    marginRight: 8,
+    marginRight: 10,
   },
   drawerUserAvatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 2,
-    borderColor: '#10B981',
-    marginRight: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
+  },
+  drawerUserAvatarFallback: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  drawerUserAvatarText: {
+    color: '#18181B',
+    fontWeight: '800',
+    fontSize: 16,
   },
   drawerUserInfo: {
     flex: 1,
@@ -1331,18 +1209,20 @@ const styles = StyleSheet.create({
   drawerUserName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#18181B',
     marginBottom: 2,
   },
   drawerUserEmail: {
     fontSize: 11.5,
-    color: '#64748B',
+    color: '#71717A',
   },
   drawerLogoutBtn: {
     width: 38,
     height: 38,
-    borderRadius: 12,
-    backgroundColor: '#FEE2E2',
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E4E4E7',
     justifyContent: 'center',
     alignItems: 'center',
   },

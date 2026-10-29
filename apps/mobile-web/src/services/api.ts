@@ -413,11 +413,16 @@ export const uploadReceiptApi = async (imageUri: string, mimeType: string = 'ima
 };
 
 export const scanReceiptOcrApi = async (imageUrl: string, apiKey?: string): Promise<any> => {
-  const res = await request<any>('/api/ocr/scan', {
-    method: 'POST',
-    body: JSON.stringify({ imageUrl, apiKey }),
-  });
-  return res.data;
+  try {
+    const res = await request<any>('/api/ocr/scan', {
+      method: 'POST',
+      body: JSON.stringify({ imageUrl, apiKey }),
+    });
+    return res.data;
+  } catch (err: any) {
+    console.warn('Backend OCR scan error / no receipt data detected:', err);
+    return null;
+  }
 };
 
 // Friends API
@@ -456,6 +461,9 @@ export const respondFriendRequestApi = async (requestId: string, status: 'accept
   });
   return res;
 };
+
+
+
 
 export const getMomentsFeedApi = async () => {
   const res = await request<any>('/api/moments/feed');
@@ -874,10 +882,16 @@ export const getMessagesApi = async (friendId: string): Promise<any> => {
   return (res as any).data || res;
 };
 
-export const sendMessageApi = async (receiverId: string, text: string, imageUrl?: string): Promise<any> => {
+export const sendMessageApi = async (
+  receiverId: string,
+  text: string,
+  imageUrl?: string,
+  type: string = 'text',
+  billData?: any,
+): Promise<any> => {
   const res = await request<any>('/api/messages', {
     method: 'POST',
-    body: JSON.stringify({ receiverId, text, imageUrl }),
+    body: JSON.stringify({ receiverId, text, imageUrl, type, billData }),
   });
   return (res as any).data || res;
 };

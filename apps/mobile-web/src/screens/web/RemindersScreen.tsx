@@ -479,7 +479,7 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
           </View>
         </View>
 
-        {/* Action Button */}
+        {/* Action Button & Close */}
         <View style={styles.headerActions}>
           {activeSubTab === 'reminders' ? (
             <TouchableOpacity
@@ -504,6 +504,15 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
               </Text>
             </TouchableOpacity>
           )}
+
+          <TouchableOpacity
+            style={styles.closeBtn}
+            onPress={handleBack}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons name="close" size={20} color="#221D18" />
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -1424,6 +1433,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  closeBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E8E0D5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#221D18',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   primaryAddBtn: {
     flexDirection: 'row',
