@@ -81,10 +81,17 @@ export const getBaseUrl = (): string => {
 
   // 4. Nếu có envApiUrl cụ thể
   if (envApiUrl) {
-    return envApiUrl.replace(/\/$/, '');
+    const cleanUrl = envApiUrl.replace(/\/$/, '');
+    if (Platform.OS === 'android' && (cleanUrl.includes('localhost') || cleanUrl.includes('127.0.0.1'))) {
+      return cleanUrl.replace(/localhost|127\.0\.0\.1/, '10.0.2.2');
+    }
+    return cleanUrl;
   }
 
-  // 5. Fallback mặc định
+  // 5. Fallback mặc định (Android Emulator dùng 10.0.2.2 để kết nối vào máy host)
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:3000';
+  }
   return 'http://localhost:3000';
 };
 

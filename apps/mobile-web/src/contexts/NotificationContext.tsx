@@ -7,7 +7,7 @@ import { getStreakApi, getFriendRequestsApi, getPendingEventInvitationsApi, getS
 import { getStoredEventInvitations } from '../services/eventsStorage';
 import { getRemindersApi } from '../services/api';
 import { HeadsUpNotificationBanner, HeadsUpToastData } from '../components/HeadsUpNotificationBanner';
-import { isReminderAlerted, markReminderAsAlerted } from '../components/RemindersWidget';
+import { isReminderAlerted, markReminderAsAlerted } from '../utils/reminderAlerts';
 import { formatYMD } from '../utils/dateUtils';
 
 export type NotificationType = 'friend' | 'moment' | 'expense' | 'system' | 'budget' | 'reminder' | 'event';

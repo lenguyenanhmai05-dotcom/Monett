@@ -138,47 +138,18 @@ const QuickReminderSvgIcon: React.FC<{ type: string; color: string; size?: numbe
 const INITIAL_SAMPLE_REMINDERS: IReminder[] = [];
 
 // Quản lý danh sách ID đã được báo hôm nay để KHÔNG BAO GIỜ lặp lại (theo từng user)
-export const getAlertedReminderIds = (dateStr: string, userId?: string): Set<string> => {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const uid = userId || getStoredUserId();
-      const raw = window.localStorage.getItem(`monett_alerted_reminders_${uid}_${dateStr}`);
-      if (raw) {
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr)) return new Set(arr);
-      }
-    }
-  } catch {}
-  return new Set();
-};
+import {
+  getAlertedReminderIds,
+  markReminderAsAlerted,
+  unmarkReminderAsAlerted,
+  isReminderAlerted,
+} from '../utils/reminderAlerts';
 
-export const markReminderAsAlerted = (id: string, dateStr: string, userId?: string) => {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const uid = userId || getStoredUserId();
-      const key = `monett_alerted_reminders_${uid}_${dateStr}`;
-      const current = getAlertedReminderIds(dateStr, uid);
-      current.add(id);
-      window.localStorage.setItem(key, JSON.stringify(Array.from(current)));
-    }
-  } catch {}
-};
-
-export const unmarkReminderAsAlerted = (id: string, dateStr: string, userId?: string) => {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const uid = userId || getStoredUserId();
-      const key = `monett_alerted_reminders_${uid}_${dateStr}`;
-      const current = getAlertedReminderIds(dateStr, uid);
-      current.delete(id);
-      window.localStorage.setItem(key, JSON.stringify(Array.from(current)));
-    }
-  } catch {}
-};
-
-export const isReminderAlerted = (id: string, dateStr: string, userId?: string): boolean => {
-  const alerted = getAlertedReminderIds(dateStr, userId);
-  return alerted.has(id);
+export {
+  getAlertedReminderIds,
+  markReminderAsAlerted,
+  unmarkReminderAsAlerted,
+  isReminderAlerted,
 };
 
 export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr, noMargin, onNavigateToRemindersTab }) => {
