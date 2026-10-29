@@ -2697,7 +2697,7 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void; onNavigateToMess
             </TouchableOpacity>
           )}
           <View>
-            <Text style={styles.headerTitle}>{isVi ? 'Bảng tin' : 'Feed'}</Text>
+            <Text style={styles.headerTitle}>{isVi ? 'Bảng tin bạn bè 📸' : 'Friends Feed 📸'}</Text>
             <Text style={styles.headerSub}>{isVi ? 'Khoảnh khắc Locket của bạn bè' : 'Friends Locket Moments'}</Text>
           </View>
         </View>
@@ -2705,20 +2705,23 @@ export const FriendsFeedScreen: React.FC<{ onBack?: () => void; onNavigateToMess
         {onNavigateToMessages && (
           <TouchableOpacity
             style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              backgroundColor: '#ECFDF5',
+              flexDirection: 'row',
               alignItems: 'center',
-              justifyContent: 'center',
+              gap: 5,
+              backgroundColor: '#ECFDF5',
+              paddingHorizontal: 12,
+              paddingVertical: 7,
+              borderRadius: 20,
               borderWidth: 1,
               borderColor: '#A7F3D0',
             }}
             onPress={onNavigateToMessages}
             activeOpacity={0.8}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="chatbubble-ellipses" size={18} color="#047857" />
+            <Ionicons name="chatbubble-ellipses" size={15} color="#047857" />
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#047857' }}>
+              {isVi ? 'Nhắn tin 💬' : 'Chat 💬'}
+            </Text>
           </TouchableOpacity>
         )}
       </View>

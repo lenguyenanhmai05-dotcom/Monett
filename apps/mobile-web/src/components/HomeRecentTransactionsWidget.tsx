@@ -31,8 +31,7 @@ export const HomeRecentTransactionsWidget: React.FC<HomeRecentTransactionsWidget
   const isVi = language === 'vi';
 
   const totalCount = transactions?.length || 0;
-  // Hiển thị tối đa 5 giao dịch gần đây nhất để không bỏ sót các khoản chi tiêu gần ngày
-  const displayList = transactions && transactions.length > 0 ? transactions.slice(0, 5) : [];
+  const displayList = transactions && transactions.length > 0 ? transactions.slice(0, 3) : [];
 
   const formatAmountText = (item: TransactionItem) => {
     if (typeof item.amount === 'string') {
