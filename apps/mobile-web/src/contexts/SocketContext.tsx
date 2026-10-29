@@ -9,8 +9,12 @@ export interface SocketMessagePayload {
   sender: string;
   receiver: string;
   text: string;
-  type?: 'text' | 'bill_split' | 'payment_confirm';
+  type?: string;
   billData?: any;
+  bill?: any;
+  imageUrl?: string;
+  senderName?: string;
+  senderAvatar?: string;
   createdAt: string;
 }
 
@@ -228,14 +232,26 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (!socket || !isConnected) return null;
 
       return new Promise((resolve) => {
+        let isResolved = false;
+        const timer = setTimeout(() => {
+          if (!isResolved) {
+            isResolved = true;
+            resolve(null);
+          }
+        }, 2500);
+
         socket.emit(
           'send_message',
-          { receiverId, text, type, billData },
+          { receiverId, text, type, billData, bill: billData },
           (response: any) => {
-            if (response?.success && response?.data) {
-              resolve(response.data);
-            } else {
-              resolve(null);
+            if (!isResolved) {
+              isResolved = true;
+              clearTimeout(timer);
+              if (response?.success && response?.data) {
+                resolve(response.data);
+              } else {
+                resolve(null);
+              }
             }
           }
         );

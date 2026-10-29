@@ -1,6 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
-
 import * as mongoose from 'mongoose';
 
 export type MessageDocument = Message & Document;
@@ -33,6 +32,9 @@ export class Message {
 
   @Prop({ type: Object, required: false })
   billData?: Record<string, any>;
+
+  @Prop({ type: Object, required: false })
+  bill?: Record<string, any>;
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);

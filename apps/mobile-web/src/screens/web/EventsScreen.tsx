@@ -456,9 +456,18 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
           event={activeEvent}
           onBack={() => setSelectedEventId(null)}
           onUpdateEvent={(updatedEvent) => {
-            setEvents((prev) =>
-              prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e))
-            );
+            setEvents((prev) => {
+              const next = prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e));
+              saveEventsToStorage(next, userEmail, userId);
+              return next;
+            });
+            if (updatedEvent.id) {
+              updateEventApi(updatedEvent.id, {
+                expenses: updatedEvent.expenses,
+                spentAmount: updatedEvent.spentAmount,
+                incomeAmount: updatedEvent.incomeAmount,
+              }).catch(() => {});
+            }
           }}
           onDeleteEvent={(id, title) => {
             handleDeleteEvent(id, title);
@@ -864,14 +873,32 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                   <View style={{ height: 12 }} />
                 )}
 
-                {/* 3. Bottom Row: Ngân sách & Chi tiết → */}
+                {/* 3. Bottom Row: Chi | Thu | Ngân sách & Chi tiết → */}
                 <View style={styles.cardBottomRow}>
-                  <Text style={[styles.cardBudgetSimple, { color: isDark ? '#94A3B8' : '#64748B' }]}>
-                    {isVi ? 'Ngân sách ' : 'Budget '}
-                    <Text style={{ fontWeight: '800', color: isDark ? '#F8FAFC' : '#111827' }}>
-                      {(evt.estimatedBudget || 0).toLocaleString('vi-VN')}
+                  <View style={{ gap: 3 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <Text style={[styles.cardBudgetSimple, { color: isDark ? '#94A3B8' : '#64748B', fontSize: 12 }]}>
+                        {isVi ? 'Chi: ' : 'Spent: '}
+                        <Text style={{ fontWeight: '800', color: '#DC2626' }}>
+                          {(evt.spentAmount || 0).toLocaleString('vi-VN')} đ
+                        </Text>
+                      </Text>
+                      {(evt.incomeAmount || 0) > 0 ? (
+                        <Text style={[styles.cardBudgetSimple, { color: isDark ? '#94A3B8' : '#64748B', fontSize: 12 }]}>
+                          {isVi ? 'Thu: ' : 'Income: '}
+                          <Text style={{ fontWeight: '800', color: '#059669' }}>
+                            {(evt.incomeAmount || 0).toLocaleString('vi-VN')} đ
+                          </Text>
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Text style={[styles.cardBudgetSimple, { color: isDark ? '#94A3B8' : '#64748B', fontSize: 11.5 }]}>
+                      {isVi ? 'Ngân sách: ' : 'Budget: '}
+                      <Text style={{ fontWeight: '700', color: isDark ? '#F8FAFC' : '#111827' }}>
+                        {(evt.estimatedBudget || 0).toLocaleString('vi-VN')} đ
+                      </Text>
                     </Text>
-                  </Text>
+                  </View>
 
                   <TouchableOpacity
                     onPress={() => setSelectedEventId(evt.id)}
@@ -879,7 +906,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                     accessibilityLabel={`Chi tiết sự kiện ${evt.title}`}
                     style={styles.detailLinkWrap}
                   >
-                    <Text style={[styles.detailLinkText, { color: isDark ? '#34D399' : '#047857', fontWeight: '700' }]}>
+                    <Text style={[styles.detailLinkText, { color: isDark ? '#34D399' : '#047857', fontWeight: '800' }]}>
                       {isVi ? 'Chi tiết →' : 'Details →'}
                     </Text>
                   </TouchableOpacity>

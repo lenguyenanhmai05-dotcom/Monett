@@ -64,6 +64,10 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<EventExpenseItem | null>(null);
 
+  // Filter state & Transaction detail view modal state
+  const [filterTxType, setFilterTxType] = useState<'all' | 'expense' | 'income'>('all');
+  const [viewingTx, setViewingTx] = useState<EventExpenseItem | null>(null);
+
   // Transaction Form fields
   const [txType, setTxType] = useState<'expense' | 'income'>('expense');
   const [txTitle, setTxTitle] = useState('');
@@ -88,6 +92,16 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
   const transactionCount = event.expenses.length;
   const remainingBudget = event.estimatedBudget - totalExpense;
 
+  const displayedExpenses = React.useMemo(() => {
+    if (filterTxType === 'expense') {
+      return event.expenses.filter((e) => e.type !== 'income');
+    }
+    if (filterTxType === 'income') {
+      return event.expenses.filter((e) => e.type === 'income');
+    }
+    return event.expenses;
+  }, [event.expenses, filterTxType]);
+
   // Category breakdown for expenses
   const categoryBreakdown = React.useMemo(() => {
     const expenseItems = event.expenses.filter((e) => e.type !== 'income');
@@ -106,9 +120,9 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
   }, [event.expenses, totalExpense]);
 
   // Open modal to add a new transaction
-  const handleOpenAddTxModal = () => {
+  const handleOpenAddTxModal = (targetType: 'expense' | 'income' = 'expense') => {
     setEditingTx(null);
-    setTxType('expense');
+    setTxType(targetType);
     setTxTitle('');
     setTxAmountStr('');
     setTxCategory('Cafe');
@@ -569,44 +583,118 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
               {isVi ? 'Giao dịch trong sự kiện' : 'Transactions in event'}
             </Text>
 
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <TouchableOpacity
+                style={styles.addTxPillBtn}
+                onPress={() => handleOpenAddTxModal('expense')}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="add" size={16} color="#064E3B" />
+                <Text style={styles.addTxPillBtnText}>
+                  {isVi ? 'Thêm' : 'Add'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Filter Pills: Tất cả | Chi tiêu | Khoản thu */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
             <TouchableOpacity
-              style={styles.addTxPillBtn}
-              onPress={handleOpenAddTxModal}
-              activeOpacity={0.85}
+              style={[
+                styles.txFilterChip,
+                filterTxType === 'all' && styles.txFilterChipActive,
+                { backgroundColor: filterTxType === 'all' ? (isDark ? '#059669' : '#047857') : (isDark ? '#1E293B' : '#F1F5F9') }
+              ]}
+              onPress={() => setFilterTxType('all')}
+              activeOpacity={0.8}
             >
-              <Ionicons name="add" size={16} color="#064E3B" />
-              <Text style={styles.addTxPillBtnText}>
-                {isVi ? 'Thêm' : 'Add'}
+              <Text style={[styles.txFilterChipText, { color: filterTxType === 'all' ? '#FFFFFF' : textSecondary, fontWeight: filterTxType === 'all' ? '800' : '600' }]}>
+                {isVi ? `Tất cả (${event.expenses.length})` : `All (${event.expenses.length})`}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.txFilterChip,
+                filterTxType === 'expense' && styles.txFilterChipActive,
+                { backgroundColor: filterTxType === 'expense' ? '#DC2626' : (isDark ? '#1E293B' : '#F1F5F9') }
+              ]}
+              onPress={() => setFilterTxType('expense')}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.txFilterChipText, { color: filterTxType === 'expense' ? '#FFFFFF' : textSecondary, fontWeight: filterTxType === 'expense' ? '800' : '600' }]}>
+                💸 {isVi ? `Chi tiêu (${totalExpense.toLocaleString('vi-VN')} đ)` : `Expenses`}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.txFilterChip,
+                filterTxType === 'income' && styles.txFilterChipActive,
+                { backgroundColor: filterTxType === 'income' ? '#059669' : (isDark ? '#1E293B' : '#F1F5F9') }
+              ]}
+              onPress={() => setFilterTxType('income')}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.txFilterChipText, { color: filterTxType === 'income' ? '#FFFFFF' : textSecondary, fontWeight: filterTxType === 'income' ? '800' : '600' }]}>
+                💰 {isVi ? `Khoản thu (${totalIncome.toLocaleString('vi-VN')} đ)` : `Income`}
               </Text>
             </TouchableOpacity>
           </View>
 
           {/* Danh sách giao dịch */}
-          {event.expenses.length === 0 ? (
+          {displayedExpenses.length === 0 ? (
             <View style={[styles.emptyTxBox, { backgroundColor: cardBg, borderColor: dividerColor }]}>
-              <Ionicons name="receipt-outline" size={36} color={textSecondary} />
+              <Ionicons
+                name={filterTxType === 'income' ? 'wallet-outline' : 'receipt-outline'}
+                size={36}
+                color={filterTxType === 'income' ? '#059669' : textSecondary}
+              />
               <Text style={[styles.emptyTxTitle, { color: textPrimary }]}>
-                {isVi ? 'Chưa có giao dịch nào' : 'No transactions yet'}
+                {filterTxType === 'income'
+                  ? (isVi ? 'Chưa có khoản thu nào trong sự kiện' : 'No income recorded yet')
+                  : filterTxType === 'expense'
+                  ? (isVi ? 'Chưa có khoản chi nào trong sự kiện' : 'No expenses recorded yet')
+                  : (isVi ? 'Chưa có giao dịch nào' : 'No transactions yet')}
               </Text>
               <Text style={[styles.emptyTxSubtitle, { color: textSecondary }]}>
-                {isVi
-                  ? 'Bấm nút "+ Thêm" ở trên để ghi lại các khoản cafe, ăn uống, di chuyển hoặc thu tiền!'
-                  : 'Click "+ Add" above to record expenses or income for this event!'}
+                {filterTxType === 'income'
+                  ? (isVi
+                      ? 'Bạn có thể ghi nhận tiền quỹ gom được, tiền đóng góp của thành viên hoặc hoàn tiền!'
+                      : 'Record collected group funds, member contributions or refunds!')
+                  : (isVi
+                      ? 'Bấm nút "+ Thêm" ở trên để ghi lại các khoản cafe, ăn uống, di chuyển hoặc thu tiền!'
+                      : 'Click "+ Add" above to record expenses or income for this event!')}
               </Text>
+              <TouchableOpacity
+                style={[
+                  styles.addTxPillBtn,
+                  { marginTop: 12, backgroundColor: filterTxType === 'income' ? '#059669' : '#047857' }
+                ]}
+                onPress={() => handleOpenAddTxModal(filterTxType === 'income' ? 'income' : 'expense')}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="add" size={16} color="#FFFFFF" />
+                <Text style={[styles.addTxPillBtnText, { color: '#FFFFFF' }]}>
+                  {filterTxType === 'income' ? (isVi ? '+ Ghi nhận khoản thu' : '+ Add Income') : (isVi ? '+ Thêm khoản chi' : '+ Add Expense')}
+                </Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.txList}>
-              {event.expenses.map((tx) => {
+              {displayedExpenses.map((tx) => {
                 const isIncome = tx.type === 'income';
                 const isHovered = hoveredTxId === tx.id;
 
                 return (
-                  <View
+                  <TouchableOpacity
                     key={tx.id}
                     style={[
                       styles.txItemCard,
                       { backgroundColor: cardBg, borderColor: dividerColor },
                     ]}
+                    onPress={() => setViewingTx(tx)}
+                    activeOpacity={0.85}
                     {...({
                       onMouseEnter: () => setHoveredTxId(tx.id),
                       onMouseLeave: () => setHoveredTxId(null),
@@ -629,14 +717,14 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
                           {tx.title}
                         </Text>
                         <Text style={[styles.txItemSubtitle, { color: textSecondary }]}>
-                          {tx.category || 'Chi phí'}
+                          {tx.category || (isIncome ? 'Khoản thu' : 'Chi phí')}
                           {tx.payer ? ` · ${tx.payer}` : ''}
                           {tx.date ? ` · ${tx.date}` : ''}
                         </Text>
                       </View>
                     </View>
 
-                    {/* Bên phải: Số tiền & Nút sửa/xóa khi hover/click */}
+                    {/* Bên phải: Số tiền & Nút sửa/xóa */}
                     <View style={styles.txItemRight}>
                       {/* Số tiền */}
                       <Text
@@ -653,7 +741,10 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
                       <View style={styles.txActionBtnsRow}>
                         <TouchableOpacity
                           style={styles.miniTxActionBtn}
-                          onPress={() => handleOpenEditTxModal(tx)}
+                          onPress={(e) => {
+                            e.stopPropagation?.();
+                            handleOpenEditTxModal(tx);
+                          }}
                           activeOpacity={0.7}
                           accessibilityLabel="Sửa giao dịch"
                         >
@@ -662,7 +753,10 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
 
                         <TouchableOpacity
                           style={styles.miniTxActionBtn}
-                          onPress={() => handleDeleteTransaction(tx.id, tx.title)}
+                          onPress={(e) => {
+                            e.stopPropagation?.();
+                            handleDeleteTransaction(tx.id, tx.title);
+                          }}
                           activeOpacity={0.7}
                           accessibilityLabel="Xóa giao dịch"
                         >
@@ -670,7 +764,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
                         </TouchableOpacity>
                       </View>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -679,37 +773,61 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
 
         {/* ================= CỘT PHẢI: BẢNG CHỈ SỐ TÀI CHÍNH (CHI - THU - SỐ LƯỢNG & NGÂN SÁCH) ================= */}
         <View style={styles.rightCol}>
-          {/* Hàng 3 thẻ mini: Chi | Thu | Giao dịch */}
+          {/* Hàng 3 thẻ mini: Chi | Thu | Giao dịch (Có thể bấm để lọc và xem chi tiết tức thì) */}
           <View style={styles.metricCardsRow}>
             {/* Thẻ 1: Chi */}
-            <View style={[styles.miniMetricCard, { backgroundColor: cardBg, borderColor: dividerColor }]}>
-              <Text style={[styles.miniMetricLabel, { color: textSecondary }]}>
-                {isVi ? 'Chi' : 'Spent'}
+            <TouchableOpacity
+              style={[
+                styles.miniMetricCard,
+                { backgroundColor: cardBg, borderColor: filterTxType === 'expense' ? '#DC2626' : dividerColor },
+                filterTxType === 'expense' && { borderWidth: 2, backgroundColor: isDark ? 'rgba(220, 38, 38, 0.12)' : '#FEF2F2' },
+              ]}
+              onPress={() => setFilterTxType((prev) => (prev === 'expense' ? 'all' : 'expense'))}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.miniMetricLabel, { color: filterTxType === 'expense' ? '#DC2626' : textSecondary, fontWeight: filterTxType === 'expense' ? '800' : '600' }]}>
+                {isVi ? 'Chi' : 'Spent'} {filterTxType === 'expense' ? '✓' : ''}
               </Text>
               <Text style={[styles.miniMetricValue, { color: '#DC2626' }]}>
                 {totalExpense.toLocaleString('vi-VN')}
               </Text>
-            </View>
+            </TouchableOpacity>
 
             {/* Thẻ 2: Thu */}
-            <View style={[styles.miniMetricCard, { backgroundColor: cardBg, borderColor: dividerColor }]}>
-              <Text style={[styles.miniMetricLabel, { color: textSecondary }]}>
-                {isVi ? 'Thu' : 'Income'}
+            <TouchableOpacity
+              style={[
+                styles.miniMetricCard,
+                { backgroundColor: cardBg, borderColor: filterTxType === 'income' ? '#059669' : dividerColor },
+                filterTxType === 'income' && { borderWidth: 2, backgroundColor: isDark ? 'rgba(5, 150, 105, 0.12)' : '#ECFDF5' },
+              ]}
+              onPress={() => setFilterTxType((prev) => (prev === 'income' ? 'all' : 'income'))}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.miniMetricLabel, { color: filterTxType === 'income' ? '#059669' : textSecondary, fontWeight: filterTxType === 'income' ? '800' : '600' }]}>
+                {isVi ? 'Thu' : 'Income'} {filterTxType === 'income' ? '✓' : ''}
               </Text>
               <Text style={[styles.miniMetricValue, { color: '#059669' }]}>
                 {totalIncome.toLocaleString('vi-VN')}
               </Text>
-            </View>
+            </TouchableOpacity>
 
             {/* Thẻ 3: Giao dịch */}
-            <View style={[styles.miniMetricCard, { backgroundColor: cardBg, borderColor: dividerColor }]}>
-              <Text style={[styles.miniMetricLabel, { color: textSecondary }]}>
+            <TouchableOpacity
+              style={[
+                styles.miniMetricCard,
+                { backgroundColor: cardBg, borderColor: filterTxType === 'all' ? '#059669' : dividerColor },
+                filterTxType === 'all' && { borderWidth: 1.5 },
+              ]}
+              onPress={() => setFilterTxType('all')}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.miniMetricLabel, { color: filterTxType === 'all' ? '#059669' : textSecondary, fontWeight: filterTxType === 'all' ? '800' : '600' }]}>
                 {isVi ? 'Giao dịch' : 'Txns'}
               </Text>
               <Text style={[styles.miniMetricValue, { color: textPrimary }]}>
                 {transactionCount}
               </Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* Thẻ Ngân sách dự kiến */}
@@ -1024,6 +1142,142 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
         currentMembers={event.members || []}
         onInviteFriend={handleInviteFriend}
       />
+
+      {/* ================= MODAL XEM CHI TIẾT GIAO DỊCH TRONG SỰ KIỆN ================= */}
+      <Modal
+        visible={!!viewingTx}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setViewingTx(null)}
+      >
+        <TouchableWithoutFeedback onPress={() => setViewingTx(null)}>
+          <View style={styles.detailModalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.detailModalCard, { backgroundColor: cardBg, borderColor: dividerColor }]}>
+                {/* Header */}
+                <View style={styles.detailModalHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, paddingRight: 8 }}>
+                    <View style={[styles.detailModalBadge, { backgroundColor: viewingTx?.type === 'income' ? (isDark ? 'rgba(5, 150, 105, 0.2)' : '#DCFCE7') : (isDark ? 'rgba(220, 38, 38, 0.2)' : '#FEF2F2') }]}>
+                      <Text style={{ fontSize: 18 }}>{viewingTx?.type === 'income' ? '💰' : '💸'}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.detailModalTypeLabel, { color: viewingTx?.type === 'income' ? '#059669' : '#DC2626' }]}>
+                        {viewingTx?.type === 'income' ? (isVi ? 'KHOẢN THU SỰ KIỆN' : 'EVENT INCOME') : (isVi ? 'KHOẢN CHI SỰ KIỆN' : 'EVENT EXPENSE')}
+                      </Text>
+                      <Text style={[styles.detailModalTitle, { color: textPrimary }]} numberOfLines={2}>
+                        {viewingTx?.title}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setViewingTx(null)}
+                    style={{ padding: 4 }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="close" size={20} color={textSecondary} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Big Amount Box */}
+                <View style={[styles.detailModalAmountBox, { backgroundColor: viewingTx?.type === 'income' ? (isDark ? 'rgba(5, 150, 105, 0.15)' : 'rgba(5, 150, 105, 0.08)') : (isDark ? 'rgba(220, 38, 38, 0.15)' : 'rgba(220, 38, 38, 0.08)') }]}>
+                  <Text style={[styles.detailModalAmountLabel, { color: textSecondary }]}>
+                    {isVi ? 'Số tiền thanh toán' : 'Transaction Amount'}
+                  </Text>
+                  <Text style={[styles.detailModalAmountValue, { color: viewingTx?.type === 'income' ? '#059669' : '#DC2626' }]}>
+                    {viewingTx?.type === 'income' ? '+' : '-'}{(viewingTx?.amount || 0).toLocaleString('vi-VN')} đ
+                  </Text>
+                </View>
+
+                {/* Metadata List */}
+                <View style={styles.detailModalMetaList}>
+                  {/* Category */}
+                  <View style={[styles.detailModalMetaRow, { borderBottomColor: isDark ? '#334155' : '#F1F5F9' }]}>
+                    <Text style={[styles.detailModalMetaKey, { color: textSecondary }]}>
+                      {isVi ? 'Danh mục' : 'Category'}
+                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <CategorySvgIcon name={viewingTx?.category || viewingTx?.title || ''} size={16} color={textPrimary} />
+                      <Text style={[styles.detailModalMetaVal, { color: textPrimary }]}>
+                        {viewingTx?.category || (isVi ? 'Chi phí' : 'Expense')}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Payer */}
+                  <View style={[styles.detailModalMetaRow, { borderBottomColor: isDark ? '#334155' : '#F1F5F9' }]}>
+                    <Text style={[styles.detailModalMetaKey, { color: textSecondary }]}>
+                      {isVi ? 'Người thực hiện' : 'Payer / Collector'}
+                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Ionicons name="person-circle-outline" size={16} color="#059669" />
+                      <Text style={[styles.detailModalMetaVal, { color: textPrimary, fontWeight: '700' }]}>
+                        {viewingTx?.payer || (isVi ? 'Tôi' : 'Me')}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Date */}
+                  <View style={[styles.detailModalMetaRow, { borderBottomColor: isDark ? '#334155' : '#F1F5F9' }]}>
+                    <Text style={[styles.detailModalMetaKey, { color: textSecondary }]}>
+                      {isVi ? 'Ngày ghi nhận' : 'Date'}
+                    </Text>
+                    <Text style={[styles.detailModalMetaVal, { color: textPrimary }]}>
+                      {viewingTx?.date || (isVi ? 'Chưa xác định' : 'N/A')}
+                    </Text>
+                  </View>
+
+                  {/* Note */}
+                  <View style={[styles.detailModalMetaRow, { borderBottomWidth: 0, alignItems: 'flex-start' }]}>
+                    <Text style={[styles.detailModalMetaKey, { color: textSecondary, paddingTop: 2 }]}>
+                      {isVi ? 'Ghi chú chi tiết' : 'Detailed Note'}
+                    </Text>
+                    <Text style={[styles.detailModalMetaVal, { color: textPrimary, flex: 1, textAlign: 'right' }]}>
+                      {viewingTx?.note || (isVi ? 'Không có ghi chú' : 'No note provided')}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Actions: Sửa & Xóa */}
+                <View style={styles.detailModalActionsRow}>
+                  <TouchableOpacity
+                    style={[styles.detailModalActionBtn, { backgroundColor: isDark ? 'rgba(220, 38, 38, 0.15)' : '#FEE2E2', borderColor: isDark ? 'rgba(220, 38, 38, 0.4)' : '#FECACA' }]}
+                    onPress={() => {
+                      if (viewingTx) {
+                        const target = viewingTx;
+                        setViewingTx(null);
+                        handleDeleteTransaction(target.id, target.title);
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="trash-outline" size={15} color="#DC2626" />
+                    <Text style={[styles.detailModalActionBtnText, { color: '#DC2626' }]}>
+                      {isVi ? 'Xóa' : 'Delete'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.detailModalActionBtn, { backgroundColor: '#059669', borderColor: '#059669', flex: 1.3 }]}
+                    onPress={() => {
+                      if (viewingTx) {
+                        const target = viewingTx;
+                        setViewingTx(null);
+                        handleOpenEditTxModal(target);
+                      }
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="create-outline" size={15} color="#FFFFFF" />
+                    <Text style={[styles.detailModalActionBtnText, { color: '#FFFFFF', fontWeight: '800' }]}>
+                      {isVi ? 'Chỉnh sửa' : 'Edit'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </ScrollView>
   );
 };
@@ -1848,5 +2102,116 @@ const styles = StyleSheet.create({
   memberSub: {
     fontSize: 11.5,
     fontWeight: '500',
+  },
+  detailModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  detailModalCard: {
+    width: '100%',
+    maxWidth: 480,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 22,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  detailModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  detailModalBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  detailModalTypeLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+  detailModalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  detailModalAmountBox: {
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  detailModalAmountLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  detailModalAmountValue: {
+    fontSize: 26,
+    fontWeight: '900',
+  },
+  detailModalMetaList: {
+    marginBottom: 20,
+  },
+  detailModalMetaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  detailModalMetaKey: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  detailModalMetaVal: {
+    fontSize: 13.5,
+    fontWeight: '600',
+  },
+  detailModalActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  detailModalActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  detailModalActionBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  txFilterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  txFilterChipActive: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  txFilterChipText: {
+    fontSize: 12,
   },
 });

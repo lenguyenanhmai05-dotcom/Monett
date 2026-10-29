@@ -101,6 +101,10 @@ export interface BillSplitData {
   receipts: Record<string, string>; // userId -> receipt base64/url
   createdBy: string;
   creatorName: string;
+  amount?: number;
+  splitCount?: number;
+  perPerson?: number;
+  isSettled?: boolean;
 }
 
 export interface Message {
@@ -379,7 +383,13 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     if (isGroup) {
       try {
         const groupMsgs = await getGroupMessagesApi(convId);
-        const apiMsgs: Message[] = Array.isArray(groupMsgs) ? groupMsgs : [];
+        const apiMsgs: Message[] = Array.isArray(groupMsgs)
+          ? groupMsgs.map((m: any) => ({
+              ...m,
+              _id: String(m._id || m.id),
+              bill: m.bill || m.billData,
+            }))
+          : [];
         const combined = [...apiMsgs, ...localMsgs];
         const mergedList = deduplicateMessages(combined);
         setMessages(mergedList);
@@ -395,7 +405,13 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 
     try {
       const data = await getMessagesApi(convId);
-      const apiMsgs: Message[] = Array.isArray(data) ? data : [];
+      const apiMsgs: Message[] = Array.isArray(data)
+        ? data.map((m: any) => ({
+            ...m,
+            _id: String(m._id || m.id),
+            bill: m.bill || m.billData,
+          }))
+        : [];
 
       // Hợp nhất tin nhắn API & tin nhắn local (đính kèm ảnh, bill) và loại bỏ trùng lặp triệt để
       const combined = [...apiMsgs, ...localMsgs];
@@ -439,7 +455,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
             receiver: convId,
             text: msg.text || '',
             imageUrl: msg.imageUrl,
-            bill: msg.bill,
+            bill: msg.bill || msg.billData,
             createdAt: msg.createdAt || new Date().toISOString(),
           };
           const next = deduplicateMessages([...prev, formatted]);
@@ -461,7 +477,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
             receiver: convId,
             text: msg.text || '',
             imageUrl: msg.imageUrl,
-            bill: msg.bill,
+            bill: msg.bill || msg.billData,
             createdAt: msg.createdAt || new Date().toISOString(),
           };
           const next = deduplicateMessages([...prev, formatted]);
@@ -605,7 +621,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   };
 
   // ─── SPLIT BILL ACTION ─────────────────────────────────────────────────────
-  const handleCreateSplitBill = () => {
+  const handleCreateSplitBill = async () => {
     const rawNum = billTotal.replace(/\D/g, '');
     const total = parseInt(rawNum, 10);
     if (!total || total <= 0) {
@@ -616,12 +632,16 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     const numPeople = billPeopleCount > 1 ? billPeopleCount : 2;
     const perPerson = Math.round(total / numPeople);
 
-    const newBill: BillSplitData = {
+    const newBill: BillSplitData & Record<string, any> = {
       id: 'bill_' + Date.now(),
       title,
       totalAmount: total,
+      amount: total,
       perPersonAmount: perPerson,
+      perPerson: perPerson,
       numPeople,
+      splitCount: numPeople,
+      isSettled: false,
       paidMembers: [currentUserId], // Người tạo bill mặc định coi như đã thanh toán
       receipts: {},
       createdBy: currentUserId,
@@ -638,19 +658,76 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       bill: newBill,
     };
 
-    const nextMsgs = [...messages, billMsg];
+    const nextMsgs = deduplicateMessages([...messages, billMsg]);
     setMessages(nextMsgs);
     saveLocalStorageMessages(nextMsgs);
-
-    if (isGroup) {
-      sendGroupMessageApi(convId, billMsg.text, undefined, newBill).catch(() => {});
-    }
 
     setShowSplitBillModal(false);
     setBillTitle('');
     setBillTotal('');
     setBillPeopleCount(3);
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+
+    if (isGroup) {
+      try {
+        const saved = await sendGroupMessageApi(convId, billMsg.text, undefined, newBill);
+        if (saved && (saved._id || saved.id)) {
+          const realId = String(saved._id || saved.id);
+          setMessages((prev) => {
+            const updated = prev.map((m) => (m._id === billMsg._id ? { ...m, _id: realId } : m));
+            const dedup = deduplicateMessages(updated);
+            saveLocalStorageMessages(dedup);
+            return dedup;
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to send group split bill:', err);
+      }
+    } else {
+      // 1-1 Chat: Gửi cho bạn bè qua Direct Message API và Socket realtime
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem(
+            'monett_cross_tab_notif',
+            JSON.stringify({
+              type: 'message',
+              recipientId: convId,
+              senderId: currentUserId,
+              senderName: currentUserName,
+              senderAvatar: (user as any)?.avatarUrl || null,
+              text: billMsg.text,
+              billData: newBill,
+              bill: newBill,
+              timestamp: Date.now(),
+            })
+          );
+        }
+      } catch {}
+
+      try {
+        if (socket && socket.connected) {
+          socket.emit('send_message', {
+            receiverId: convId,
+            text: billMsg.text,
+            type: 'bill_split',
+            billData: newBill,
+            bill: newBill,
+          });
+        }
+        const savedMsg = await sendMessageApi(convId, billMsg.text, undefined, 'bill_split', newBill);
+        if (savedMsg && (savedMsg._id || savedMsg.id)) {
+          const realId = String(savedMsg._id || savedMsg.id);
+          setMessages((prev) => {
+            const updated = prev.map((m) => (m._id === billMsg._id ? { ...m, _id: realId } : m));
+            const dedup = deduplicateMessages(updated);
+            saveLocalStorageMessages(dedup);
+            return dedup;
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to sync direct split bill to API:', err);
+      }
+    }
   };
 
   // ─── CONFIRM PAYMENT IN SPLIT BILL ─────────────────────────────────────────
@@ -789,9 +866,13 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     // Render thẻ Hóa đơn Chia tiền (Split Bill Card)
     if (item.bill) {
       const bill = item.bill;
-      const isPaidByMe = bill.paidMembers.includes(currentUserId);
-      const paidCount = bill.paidMembers.length;
-      const progressPercent = Math.min(100, Math.round((paidCount / bill.numPeople) * 100));
+      const paidMembersList = Array.isArray(bill.paidMembers) ? bill.paidMembers : [];
+      const isPaidByMe = paidMembersList.includes(currentUserId) || !!bill.isSettled;
+      const numPeople = bill.numPeople || bill.splitCount || 2;
+      const totalAmount = bill.totalAmount || bill.amount || 0;
+      const perPersonAmount = bill.perPersonAmount || bill.perPerson || (numPeople > 0 ? Math.round(totalAmount / numPeople) : 0);
+      const paidCount = paidMembersList.length > 0 ? paidMembersList.length : (bill.isSettled ? 1 : 0);
+      const progressPercent = Math.min(100, Math.round((paidCount / numPeople) * 100));
       const myReceipt = bill.receipts?.[currentUserId];
 
       return (
@@ -817,13 +898,13 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                 <View>
                   <Text style={styles.billCardSubLabel}>Mỗi người chuyển</Text>
                   <Text style={[styles.billCardBigAmount, { color: activeTheme.primary }]}>
-                    {bill.perPersonAmount.toLocaleString('vi-VN')} đ
+                    {perPersonAmount.toLocaleString('vi-VN')} đ
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={styles.billCardSubLabel}>Tổng bill</Text>
                   <Text style={styles.billCardTotalAmount}>
-                    {bill.totalAmount.toLocaleString('vi-VN')} đ ({bill.numPeople} người)
+                    {totalAmount.toLocaleString('vi-VN')} đ ({numPeople} người)
                   </Text>
                 </View>
               </View>
@@ -832,7 +913,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
               <View style={{ marginTop: 10 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
                   <Text style={styles.billCardProgressLabel}>
-                    Tiến độ thanh toán: <Text style={{ fontWeight: '800', color: activeTheme.primary }}>{paidCount}/{bill.numPeople} người</Text>
+                    Tiến độ thanh toán: <Text style={{ fontWeight: '800', color: activeTheme.primary }}>{paidCount}/{numPeople} người</Text>
                   </Text>
                   <Text style={[styles.billCardProgressPercent, { color: activeTheme.primary }]}>
                     {progressPercent}%
