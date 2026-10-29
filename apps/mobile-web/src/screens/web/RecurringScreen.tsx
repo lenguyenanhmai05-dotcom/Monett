@@ -417,43 +417,75 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
       ) : (
         /* HÌNH 3: GIAO DIỆN SAU KHI ĐÃ CÓ KHOẢN ĐỊNH KỲ */
         <View style={styles.activeContentContainer}>
-          {/* Cụm 3 Thẻ Chỉ Số Thống Kê (Giống trang Tích lũy) */}
-          <View style={styles.statsContainer}>
-            {/* Card 1: Ước tính tháng (Hẹp lại / thon gọn) */}
-            <View
-              style={[
-                styles.statCard,
-                styles.statCardDark,
-                styles.statCardDarkSlim,
-                isDark && {
-                  backgroundColor: '#0D2018',
-                  borderColor: 'rgba(16, 185, 129, 0.35)',
-                  shadowColor: '#000',
-                },
-              ]}
-            >
-              <View style={styles.statCardHeader}>
-                <Text style={styles.statCardLabelDark}>
-                  {isVi ? 'ƯỚC TÍNH THÁNG' : 'MONTHLY ESTIMATE'}
+          {/* Cụm 3 Thẻ Chỉ Số Thống Kê */}
+          {isDesktop ? (
+            /* ================= GIAO DIỆN WEB: 3 Ô NGANG HÀNG ================= */
+            <View style={styles.statsRow}>
+              {/* Card 1: Ước tính tháng */}
+              <View
+                style={[
+                  styles.statCard,
+                  styles.statCardDark,
+                  isDark && {
+                    backgroundColor: '#0D2018',
+                    borderColor: 'rgba(16, 185, 129, 0.35)',
+                    shadowColor: '#000',
+                  },
+                ]}
+              >
+                <View style={styles.statCardHeader}>
+                  <Text style={styles.statCardLabelDark}>
+                    {isVi ? 'ƯỚC TÍNH THÁNG' : 'MONTHLY ESTIMATE'}
+                  </Text>
+                </View>
+                <Text style={styles.statCardValueDark} numberOfLines={1}>
+                  {formatVND(estimatedMonthly)} <Text style={styles.currencySubDark}>đ</Text>
+                </Text>
+                <View style={[styles.cardDarkDivider, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.15)' }]} />
+                <Text style={styles.statCardSubDark}>
+                  {activeItems.length} {isVi ? 'đang bật' : 'active'}
                 </Text>
               </View>
-              <Text style={styles.statCardValueDark} numberOfLines={1}>
-                {formatVND(estimatedMonthly)} <Text style={styles.currencySubDark}>đ</Text>
-              </Text>
-              <View style={styles.cardDarkDivider} />
-              <Text style={styles.statCardSubDark}>
-                {activeItems.length} {isVi ? 'đang bật' : 'active'}
-              </Text>
-            </View>
 
-            {/* Gộp Tab 2 & Tab 3: Bên trái là Tab 3 (Số khoản), bên phải là Tab 2 (Ước tính năm) */}
-            <View style={styles.twoCardsRow}>
-              {/* Bên trái: Tab 3 (Số khoản - thẻ vàng) */}
+              {/* Card 2: Ước tính năm */}
+              <View
+                style={[
+                  styles.statCard,
+                  styles.statCardMint,
+                  isDark && {
+                    backgroundColor: '#0F261D',
+                    borderColor: 'rgba(16, 185, 129, 0.3)',
+                  },
+                ]}
+              >
+                <View style={styles.statCardHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <SvgCalendar size={16} color={isDark ? '#34D399' : '#047857'} />
+                    <Text
+                      style={[styles.statCardLabelMint, isDark && { color: '#34D399' }]}
+                    >
+                      {isVi ? 'Ước tính năm' : 'Yearly estimate'}
+                    </Text>
+                  </View>
+                </View>
+                <Text
+                  style={[styles.statCardValueMint, isDark && { color: '#F8FAFC' }]}
+                  numberOfLines={1}
+                >
+                  {formatVND(estimatedYearly)}
+                </Text>
+                <Text
+                  style={[styles.statCardSubMint, isDark && { color: '#6EE7B7' }]}
+                >
+                  {isVi ? 'x12 từ mức tháng' : 'x12 from monthly'}
+                </Text>
+              </View>
+
+              {/* Card 3: Số khoản */}
               <View
                 style={[
                   styles.statCard,
                   styles.statCardBlue,
-                  styles.halfCard,
                   isDark && {
                     backgroundColor: '#241B0E',
                     borderColor: 'rgba(245, 158, 11, 0.3)',
@@ -461,25 +493,23 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
                 ]}
               >
                 <View style={styles.statCardHeader}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                    <SvgBill size={15} color={isDark ? '#FBBF24' : '#B45309'} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <SvgBill size={16} color={isDark ? '#FBBF24' : '#B45309'} />
                     <Text
                       style={[styles.statCardLabelBlue, isDark && { color: '#FBBF24' }]}
-                      numberOfLines={1}
                     >
                       {isVi ? 'Số khoản' : 'Items count'}
                     </Text>
                   </View>
                 </View>
                 <Text
-                  style={[styles.halfCardAmount, isDark && { color: '#F8FAFC' }]}
+                  style={[styles.statCardValueBlue, isDark && { color: '#F8FAFC' }]}
                   numberOfLines={1}
                 >
                   {currentTabItems.length}
                 </Text>
                 <Text
                   style={[styles.statCardSubBlue, isDark && { color: '#FDE68A' }]}
-                  numberOfLines={1}
                 >
                   {activeTab === 'expense'
                     ? isVi
@@ -490,45 +520,121 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
                       : 'recurring income'}
                 </Text>
               </View>
-
-              {/* Bên phải: Tab 2 (Ước tính năm - thẻ xanh mint) */}
+            </View>
+          ) : (
+            /* ================= GIAO DIỆN MOBILE: GIỮ NGUYÊN (1 Ô TRÊN + 2 Ô DƯỚI) ================= */
+            <View style={styles.statsContainer}>
+              {/* Card 1: Ước tính tháng (Hẹp lại / thon gọn) */}
               <View
                 style={[
                   styles.statCard,
-                  styles.statCardMint,
-                  styles.halfCard,
+                  styles.statCardDark,
+                  styles.statCardDarkSlim,
                   isDark && {
-                    backgroundColor: '#0F261D',
-                    borderColor: 'rgba(16, 185, 129, 0.3)',
+                    backgroundColor: '#0D2018',
+                    borderColor: 'rgba(16, 185, 129, 0.35)',
+                    shadowColor: '#000',
                   },
                 ]}
               >
                 <View style={styles.statCardHeader}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                    <SvgCalendar size={15} color={isDark ? '#34D399' : '#047857'} />
-                    <Text
-                      style={[styles.statCardLabelMint, isDark && { color: '#34D399' }]}
-                      numberOfLines={1}
-                    >
-                      {isVi ? 'Ước tính năm' : 'Yearly estimate'}
-                    </Text>
-                  </View>
+                  <Text style={styles.statCardLabelDark}>
+                    {isVi ? 'ƯỚC TÍNH THÁNG' : 'MONTHLY ESTIMATE'}
+                  </Text>
                 </View>
-                <Text
-                  style={[styles.halfCardAmountMint, isDark && { color: '#F8FAFC' }]}
-                  numberOfLines={1}
-                >
-                  {formatVND(estimatedYearly)}
+                <Text style={styles.statCardValueDark} numberOfLines={1}>
+                  {formatVND(estimatedMonthly)} <Text style={styles.currencySubDark}>đ</Text>
                 </Text>
-                <Text
-                  style={[styles.statCardSubMint, isDark && { color: '#6EE7B7' }]}
-                  numberOfLines={1}
-                >
-                  {isVi ? 'x12 từ mức tháng' : 'x12 from monthly'}
+                <View style={styles.cardDarkDivider} />
+                <Text style={styles.statCardSubDark}>
+                  {activeItems.length} {isVi ? 'đang bật' : 'active'}
                 </Text>
               </View>
+
+              {/* Gộp Tab 2 & Tab 3: Bên trái là Tab 3 (Số khoản), bên phải là Tab 2 (Ước tính năm) */}
+              <View style={styles.twoCardsRow}>
+                {/* Bên trái: Tab 3 (Số khoản - thẻ vàng) */}
+                <View
+                  style={[
+                    styles.statCard,
+                    styles.statCardBlue,
+                    styles.halfCard,
+                    isDark && {
+                      backgroundColor: '#241B0E',
+                      borderColor: 'rgba(245, 158, 11, 0.3)',
+                    },
+                  ]}
+                >
+                  <View style={styles.statCardHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                      <SvgBill size={15} color={isDark ? '#FBBF24' : '#B45309'} />
+                      <Text
+                        style={[styles.statCardLabelBlue, isDark && { color: '#FBBF24' }]}
+                        numberOfLines={1}
+                      >
+                        {isVi ? 'Số khoản' : 'Items count'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text
+                    style={[styles.halfCardAmount, isDark && { color: '#F8FAFC' }]}
+                    numberOfLines={1}
+                  >
+                    {currentTabItems.length}
+                  </Text>
+                  <Text
+                    style={[styles.statCardSubBlue, isDark && { color: '#FDE68A' }]}
+                    numberOfLines={1}
+                  >
+                    {activeTab === 'expense'
+                      ? isVi
+                        ? 'chi định kỳ'
+                        : 'recurring expenses'
+                      : isVi
+                        ? 'thu định kỳ'
+                        : 'recurring income'}
+                  </Text>
+                </View>
+
+                {/* Bên phải: Tab 2 (Ước tính năm - thẻ xanh mint) */}
+                <View
+                  style={[
+                    styles.statCard,
+                    styles.statCardMint,
+                    styles.halfCard,
+                    isDark && {
+                      backgroundColor: '#0F261D',
+                      borderColor: 'rgba(16, 185, 129, 0.3)',
+                    },
+                  ]}
+                >
+                  <View style={styles.statCardHeader}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                      <SvgCalendar size={15} color={isDark ? '#34D399' : '#047857'} />
+                      <Text
+                        style={[styles.statCardLabelMint, isDark && { color: '#34D399' }]}
+                        numberOfLines={1}
+                      >
+                        {isVi ? 'Ước tính năm' : 'Yearly estimate'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text
+                    style={[styles.halfCardAmountMint, isDark && { color: '#F8FAFC' }]}
+                    numberOfLines={1}
+                  >
+                    {formatVND(estimatedYearly)}
+                  </Text>
+                  <Text
+                    style={[styles.statCardSubMint, isDark && { color: '#6EE7B7' }]}
+                    numberOfLines={1}
+                  >
+                    {isVi ? 'x12 từ mức tháng' : 'x12 from monthly'}
+                  </Text>
+                </View>
+              </View>
             </View>
-          </View>
+          )}
 
           {/* Section: Danh sách chi / Danh sách thu */}
           <View style={styles.sectionHeaderRow}>

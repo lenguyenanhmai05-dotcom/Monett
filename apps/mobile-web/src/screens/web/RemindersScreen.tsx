@@ -546,77 +546,49 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
       {/* ============================================================ */}
       {activeSubTab === 'reminders' && (
         <View style={styles.tabContentArea}>
-          {/* Cụm 3 Thẻ Chỉ Số Thống Kê (Giống trang Tích lũy) */}
-          <View style={styles.statsContainer}>
-            {/* Card 1: Tổng số việc (Hẹp lại / thon gọn) */}
-            <View
-              style={[
-                styles.statCard,
-                styles.cardDark,
-                styles.cardDarkSlim,
-                isDark && {
-                  backgroundColor: '#0D2018',
-                  borderColor: 'rgba(16, 185, 129, 0.35)',
-                  shadowColor: '#000',
-                },
-              ]}
-            >
-              <View style={styles.cardHeaderRow}>
-                <Text style={styles.cardDarkLabel}>
-                  {isVi ? 'TỔNG SỐ VIỆC CẦN LÀM' : 'TOTAL REMINDERS'}
-                </Text>
-                <View style={[styles.percentBadge, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.2)' }]}>
-                  <Text style={[styles.percentBadgeText, isDark && { color: '#34D399' }]}>{reminderCompletionPercent}%</Text>
-                </View>
-              </View>
-
-              <Text style={styles.cardDarkAmount} numberOfLines={1}>
-                {totalRemindersCount} <Text style={styles.currencySubDark}>{isVi ? 'việc' : 'tasks'}</Text>
-              </Text>
-
-              <View style={[styles.cardDarkDivider, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.15)' }]} />
-
-              <Text style={styles.cardDarkSub}>
-                {pendingRemindersCount} {isVi ? 'chưa hoàn thành' : 'pending'} · {completedRemindersCount} {isVi ? 'đã xong' : 'completed'}
-              </Text>
-            </View>
-
-            {/* Gộp Tab 2 & Tab 3: Bên trái là Tab 3 (Đã hoàn thành), bên phải là Tab 2 (Chưa xong) */}
-            <View style={styles.twoCardsRow}>
-              {/* Bên trái: Tab 3 (Đã hoàn thành - thẻ vàng) */}
+          {/* Cụm 3 Thẻ Chỉ Số Thống Kê */}
+          {isDesktop ? (
+            /* ================= GIAO DIỆN WEB: 3 Ô NGANG HÀNG ================= */
+            <View style={styles.statsRow}>
+              {/* Card 1: Tổng số việc cần làm */}
               <View
                 style={[
                   styles.statCard,
-                  styles.cardSky,
-                  styles.halfCard,
+                  styles.cardDark,
+                  styles.fullStatCard,
                   isDark && {
-                    backgroundColor: '#241B0E',
-                    borderColor: 'rgba(245, 158, 11, 0.3)',
+                    backgroundColor: '#0D2018',
+                    borderColor: 'rgba(16, 185, 129, 0.35)',
+                    shadowColor: '#000',
                   },
                 ]}
               >
-                <View style={styles.cardHeaderRowLeft}>
-                  <Ionicons name="checkmark-done" size={16} color={isDark ? '#FBBF24' : '#92400E'} style={{ marginRight: 5 }} />
-                  <Text style={[styles.cardSkyLabel, isDark && { color: '#FBBF24' }]} numberOfLines={1}>
-                    {isVi ? 'Đã hoàn thành' : 'Completed'}
+                <View style={styles.cardHeaderRow}>
+                  <Text style={styles.cardDarkLabel}>
+                    {isVi ? 'TỔNG SỐ VIỆC CẦN LÀM' : 'TOTAL REMINDERS'}
                   </Text>
+                  <View style={[styles.percentBadge, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.2)' }]}>
+                    <Text style={[styles.percentBadgeText, isDark && { color: '#34D399' }]}>{reminderCompletionPercent}%</Text>
+                  </View>
                 </View>
 
-                <Text style={[styles.halfCardAmount, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
-                  {completedRemindersCount}
+                <Text style={styles.cardDarkAmount} numberOfLines={1}>
+                  {totalRemindersCount} <Text style={styles.currencySubDark}>{isVi ? 'việc' : 'tasks'}</Text>
                 </Text>
 
-                <Text style={[styles.cardSkySub, isDark && { color: '#FDE68A' }]} numberOfLines={1}>
-                  {reminderCompletionPercent}% {isVi ? 'đã hoàn thành' : 'completed'}
+                <View style={[styles.cardDarkDivider, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.15)' }]} />
+
+                <Text style={styles.cardDarkSub}>
+                  {pendingRemindersCount} {isVi ? 'chưa hoàn thành' : 'pending'} · {completedRemindersCount} {isVi ? 'đã xong' : 'completed'}
                 </Text>
               </View>
 
-              {/* Bên phải: Tab 2 (Chưa xong - thẻ xanh mint) */}
+              {/* Card 2: Chưa xong */}
               <View
                 style={[
                   styles.statCard,
                   styles.cardMint,
-                  styles.halfCard,
+                  styles.fullStatCard,
                   isDark && {
                     backgroundColor: '#0F261D',
                     borderColor: 'rgba(16, 185, 129, 0.3)',
@@ -624,13 +596,13 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
                 ]}
               >
                 <View style={styles.cardHeaderRowLeft}>
-                  <Ionicons name="time" size={15} color={isDark ? '#34D399' : '#047857'} style={{ marginRight: 5 }} />
+                  <Ionicons name="time" size={17} color={isDark ? '#34D399' : '#047857'} style={{ marginRight: 6 }} />
                   <Text style={[styles.cardMintLabel, isDark && { color: '#34D399' }]} numberOfLines={1}>
                     {isVi ? 'Chưa xong' : 'Pending'}
                   </Text>
                 </View>
 
-                <Text style={[styles.halfCardAmountMint, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
+                <Text style={[styles.cardMintAmount, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
                   {pendingRemindersCount}
                 </Text>
 
@@ -640,8 +612,133 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
                     : (isVi ? 'việc cần làm đúng hạn' : 'tasks pending')}
                 </Text>
               </View>
+
+              {/* Card 3: Đã hoàn thành */}
+              <View
+                style={[
+                  styles.statCard,
+                  styles.cardSky,
+                  styles.fullStatCard,
+                  isDark && {
+                    backgroundColor: '#241B0E',
+                    borderColor: 'rgba(245, 158, 11, 0.3)',
+                  },
+                ]}
+              >
+                <View style={styles.cardHeaderRowLeft}>
+                  <Ionicons name="checkmark-done" size={17} color={isDark ? '#FBBF24' : '#92400E'} style={{ marginRight: 6 }} />
+                  <Text style={[styles.cardSkyLabel, isDark && { color: '#FBBF24' }]} numberOfLines={1}>
+                    {isVi ? 'Đã hoàn thành' : 'Completed'}
+                  </Text>
+                </View>
+
+                <Text style={[styles.cardSkyAmount, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
+                  {completedRemindersCount}
+                </Text>
+
+                <Text style={[styles.cardSkySub, isDark && { color: '#FDE68A' }]} numberOfLines={1}>
+                  {reminderCompletionPercent}% {isVi ? 'đã hoàn thành' : 'completed'}
+                </Text>
+              </View>
             </View>
-          </View>
+          ) : (
+            /* ================= GIAO DIỆN MOBILE: GIỮ NGUYÊN (1 Ô TRÊN + 2 Ô DƯỚI) ================= */
+            <View style={styles.statsContainer}>
+              {/* Card 1: Tổng số việc (Hẹp lại / thon gọn) */}
+              <View
+                style={[
+                  styles.statCard,
+                  styles.cardDark,
+                  styles.cardDarkSlim,
+                  isDark && {
+                    backgroundColor: '#0D2018',
+                    borderColor: 'rgba(16, 185, 129, 0.35)',
+                    shadowColor: '#000',
+                  },
+                ]}
+              >
+                <View style={styles.cardHeaderRow}>
+                  <Text style={styles.cardDarkLabel}>
+                    {isVi ? 'TỔNG SỐ VIỆC CẦN LÀM' : 'TOTAL REMINDERS'}
+                  </Text>
+                  <View style={[styles.percentBadge, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.2)' }]}>
+                    <Text style={[styles.percentBadgeText, isDark && { color: '#34D399' }]}>{reminderCompletionPercent}%</Text>
+                  </View>
+                </View>
+
+                <Text style={styles.cardDarkAmount} numberOfLines={1}>
+                  {totalRemindersCount} <Text style={styles.currencySubDark}>{isVi ? 'việc' : 'tasks'}</Text>
+                </Text>
+
+                <View style={[styles.cardDarkDivider, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.15)' }]} />
+
+                <Text style={styles.cardDarkSub}>
+                  {pendingRemindersCount} {isVi ? 'chưa hoàn thành' : 'pending'} · {completedRemindersCount} {isVi ? 'đã xong' : 'completed'}
+                </Text>
+              </View>
+
+              {/* Gộp Tab 2 & Tab 3: Bên trái là Tab 3 (Đã hoàn thành), bên phải là Tab 2 (Chưa xong) */}
+              <View style={styles.twoCardsRow}>
+                {/* Bên trái: Tab 3 (Đã hoàn thành - thẻ vàng) */}
+                <View
+                  style={[
+                    styles.statCard,
+                    styles.cardSky,
+                    styles.halfCard,
+                    isDark && {
+                      backgroundColor: '#241B0E',
+                      borderColor: 'rgba(245, 158, 11, 0.3)',
+                    },
+                  ]}
+                >
+                  <View style={styles.cardHeaderRowLeft}>
+                    <Ionicons name="checkmark-done" size={16} color={isDark ? '#FBBF24' : '#92400E'} style={{ marginRight: 5 }} />
+                    <Text style={[styles.cardSkyLabel, isDark && { color: '#FBBF24' }]} numberOfLines={1}>
+                      {isVi ? 'Đã hoàn thành' : 'Completed'}
+                    </Text>
+                  </View>
+
+                  <Text style={[styles.halfCardAmount, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
+                    {completedRemindersCount}
+                  </Text>
+
+                  <Text style={[styles.cardSkySub, isDark && { color: '#FDE68A' }]} numberOfLines={1}>
+                    {reminderCompletionPercent}% {isVi ? 'đã hoàn thành' : 'completed'}
+                  </Text>
+                </View>
+
+                {/* Bên phải: Tab 2 (Chưa xong - thẻ xanh mint) */}
+                <View
+                  style={[
+                    styles.statCard,
+                    styles.cardMint,
+                    styles.halfCard,
+                    isDark && {
+                      backgroundColor: '#0F261D',
+                      borderColor: 'rgba(16, 185, 129, 0.3)',
+                    },
+                  ]}
+                >
+                  <View style={styles.cardHeaderRowLeft}>
+                    <Ionicons name="time" size={15} color={isDark ? '#34D399' : '#047857'} style={{ marginRight: 5 }} />
+                    <Text style={[styles.cardMintLabel, isDark && { color: '#34D399' }]} numberOfLines={1}>
+                      {isVi ? 'Chưa xong' : 'Pending'}
+                    </Text>
+                  </View>
+
+                  <Text style={[styles.halfCardAmountMint, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
+                    {pendingRemindersCount}
+                  </Text>
+
+                  <Text style={[styles.cardMintSub, isDark && { color: '#6EE7B7' }]} numberOfLines={1}>
+                    {pendingRemindersCount === 0
+                      ? (isVi ? 'Đã hoàn thành hết' : 'All done')
+                      : (isVi ? 'việc cần làm đúng hạn' : 'tasks pending')}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
 
           {/* Filter Bar & Search */}
           <View style={[styles.controlsRow, !isDesktop && { flexDirection: 'column', alignItems: 'stretch' }]}>
@@ -875,77 +972,48 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
       {/* ============================================================ */}
       {activeSubTab === 'notes' && (
         <View style={styles.tabContentArea}>
-          {/* Cụm 3 Thẻ Chỉ Số Thống Kê (Giống trang Tích lũy) */}
-          <View style={styles.statsContainer}>
-            {/* Card 1: Tổng số ghi chú (Hẹp lại / thon gọn) */}
-            <View
-              style={[
-                styles.statCard,
-                styles.cardDark,
-                styles.cardDarkSlim,
-                isDark && {
-                  backgroundColor: '#0D2018',
-                  borderColor: 'rgba(16, 185, 129, 0.35)',
-                  shadowColor: '#000',
-                },
-              ]}
-            >
-              <View style={styles.cardHeaderRow}>
-                <Text style={styles.cardDarkLabel}>
-                  {isVi ? 'TỔNG SỐ GHI CHÚ' : 'TOTAL NOTES'}
-                </Text>
-                <View style={[styles.percentBadge, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.2)' }]}>
-                  <Text style={[styles.percentBadgeText, isDark && { color: '#34D399' }]}>{totalNotesCount}</Text>
-                </View>
-              </View>
-
-              <Text style={styles.cardDarkAmount} numberOfLines={1}>
-                {totalNotesCount} <Text style={styles.currencySubDark}>{isVi ? 'ghi chú' : 'notes'}</Text>
-              </Text>
-
-              <View style={[styles.cardDarkDivider, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.15)' }]} />
-
-              <Text style={styles.cardDarkSub}>
-                {pinnedNotesCount} {isVi ? 'đã ghim' : 'pinned'} · {totalNotesCount - pinnedNotesCount} {isVi ? 'ghi chú thường' : 'standard'}
-              </Text>
-            </View>
-
-            {/* Gộp Tab 2 & Tab 3: Bên trái là Tab 3 (Đã ghim), bên phải là Tab 2 (Đang lưu) */}
-            <View style={styles.twoCardsRow}>
-              {/* Bên trái: Tab 3 (Đã ghim - thẻ vàng) */}
+          {isDesktop ? (
+            /* ================= GIAO DIỆN WEB: 3 Ô NGANG HÀNG ================= */
+            <View style={styles.statsRow}>
+              {/* Card 1: Tổng số ghi chú */}
               <View
                 style={[
                   styles.statCard,
-                  styles.cardSky,
-                  styles.halfCard,
+                  styles.cardDark,
+                  styles.fullStatCard,
                   isDark && {
-                    backgroundColor: '#241B0E',
-                    borderColor: 'rgba(245, 158, 11, 0.3)',
+                    backgroundColor: '#0D2018',
+                    borderColor: 'rgba(16, 185, 129, 0.35)',
+                    shadowColor: '#000',
                   },
                 ]}
               >
-                <View style={styles.cardHeaderRowLeft}>
-                  <Ionicons name="pin" size={16} color={isDark ? '#FBBF24' : '#92400E'} style={{ marginRight: 5 }} />
-                  <Text style={[styles.cardSkyLabel, isDark && { color: '#FBBF24' }]} numberOfLines={1}>
-                    {isVi ? 'Đã ghim' : 'Pinned'}
+                <View style={styles.cardHeaderRow}>
+                  <Text style={styles.cardDarkLabel}>
+                    {isVi ? 'TỔNG SỐ GHI CHÚ' : 'TOTAL NOTES'}
                   </Text>
+                  <View style={[styles.percentBadge, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.2)' }]}>
+                    <Text style={[styles.percentBadgeText, isDark && { color: '#34D399' }]}>{totalNotesCount}</Text>
+                  </View>
                 </View>
 
-                <Text style={[styles.halfCardAmount, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
-                  {pinnedNotesCount}
+                <Text style={styles.cardDarkAmount} numberOfLines={1}>
+                  {totalNotesCount} <Text style={styles.currencySubDark}>{isVi ? 'ghi chú' : 'notes'}</Text>
                 </Text>
 
-                <Text style={[styles.cardSkySub, isDark && { color: '#FDE68A' }]} numberOfLines={1}>
-                  {isVi ? 'ghim đầu danh sách' : 'pinned on top'}
+                <View style={[styles.cardDarkDivider, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.15)' }]} />
+
+                <Text style={styles.cardDarkSub}>
+                  {pinnedNotesCount} {isVi ? 'đã ghim' : 'pinned'} · {totalNotesCount - pinnedNotesCount} {isVi ? 'ghi chú thường' : 'standard'}
                 </Text>
               </View>
 
-              {/* Bên phải: Tab 2 (Đang lưu - thẻ xanh mint) */}
+              {/* Card 2: Đang lưu (thẻ xanh mint) */}
               <View
                 style={[
                   styles.statCard,
                   styles.cardMint,
-                  styles.halfCard,
+                  styles.fullStatCard,
                   isDark && {
                     backgroundColor: '#0F261D',
                     borderColor: 'rgba(16, 185, 129, 0.3)',
@@ -953,13 +1021,13 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
                 ]}
               >
                 <View style={styles.cardHeaderRowLeft}>
-                  <Ionicons name="document-text" size={15} color={isDark ? '#34D399' : '#047857'} style={{ marginRight: 5 }} />
+                  <Ionicons name="document-text" size={17} color={isDark ? '#34D399' : '#047857'} style={{ marginRight: 6 }} />
                   <Text style={[styles.cardMintLabel, isDark && { color: '#34D399' }]} numberOfLines={1}>
                     {isVi ? 'Đang lưu' : 'Active'}
                   </Text>
                 </View>
 
-                <Text style={[styles.halfCardAmountMint, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
+                <Text style={[styles.cardMintAmount, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
                   {totalNotesCount}
                 </Text>
 
@@ -967,8 +1035,131 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
                   {isVi ? 'trong sổ tay cá nhân' : 'notes in personal book'}
                 </Text>
               </View>
+
+              {/* Card 3: Đã ghim (thẻ vàng) */}
+              <View
+                style={[
+                  styles.statCard,
+                  styles.cardSky,
+                  styles.fullStatCard,
+                  isDark && {
+                    backgroundColor: '#241B0E',
+                    borderColor: 'rgba(245, 158, 11, 0.3)',
+                  },
+                ]}
+              >
+                <View style={styles.cardHeaderRowLeft}>
+                  <Ionicons name="pin" size={17} color={isDark ? '#FBBF24' : '#92400E'} style={{ marginRight: 6 }} />
+                  <Text style={[styles.cardSkyLabel, isDark && { color: '#FBBF24' }]} numberOfLines={1}>
+                    {isVi ? 'Đã ghim' : 'Pinned'}
+                  </Text>
+                </View>
+
+                <Text style={[styles.cardSkyAmount, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
+                  {pinnedNotesCount}
+                </Text>
+
+                <Text style={[styles.cardSkySub, isDark && { color: '#FDE68A' }]} numberOfLines={1}>
+                  {isVi ? 'ghim đầu danh sách' : 'pinned on top'}
+                </Text>
+              </View>
             </View>
-          </View>
+          ) : (
+            /* ================= GIAO DIỆN MOBILE: GIỮ NGUYÊN (1 Ô TRÊN + 2 Ô DƯỚI) ================= */
+            <View style={styles.statsContainer}>
+              {/* Card 1: Tổng số ghi chú (Hẹp lại / thon gọn) */}
+              <View
+                style={[
+                  styles.statCard,
+                  styles.cardDark,
+                  styles.cardDarkSlim,
+                  isDark && {
+                    backgroundColor: '#0D2018',
+                    borderColor: 'rgba(16, 185, 129, 0.35)',
+                    shadowColor: '#000',
+                  },
+                ]}
+              >
+                <View style={styles.cardHeaderRow}>
+                  <Text style={styles.cardDarkLabel}>
+                    {isVi ? 'TỔNG SỐ GHI CHÚ' : 'TOTAL NOTES'}
+                  </Text>
+                  <View style={[styles.percentBadge, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.2)' }]}>
+                    <Text style={[styles.percentBadgeText, isDark && { color: '#34D399' }]}>{totalNotesCount}</Text>
+                  </View>
+                </View>
+
+                <Text style={styles.cardDarkAmount} numberOfLines={1}>
+                  {totalNotesCount} <Text style={styles.currencySubDark}>{isVi ? 'ghi chú' : 'notes'}</Text>
+                </Text>
+
+                <View style={[styles.cardDarkDivider, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.15)' }]} />
+
+                <Text style={styles.cardDarkSub}>
+                  {pinnedNotesCount} {isVi ? 'đã ghim' : 'pinned'} · {totalNotesCount - pinnedNotesCount} {isVi ? 'ghi chú thường' : 'standard'}
+                </Text>
+              </View>
+
+              {/* Gộp Tab 2 & Tab 3: Bên trái là Tab 3 (Đã ghim), bên phải là Tab 2 (Đang lưu) */}
+              <View style={styles.twoCardsRow}>
+                {/* Bên trái: Tab 3 (Đã ghim - thẻ vàng) */}
+                <View
+                  style={[
+                    styles.statCard,
+                    styles.cardSky,
+                    styles.halfCard,
+                    isDark && {
+                      backgroundColor: '#241B0E',
+                      borderColor: 'rgba(245, 158, 11, 0.3)',
+                    },
+                  ]}
+                >
+                  <View style={styles.cardHeaderRowLeft}>
+                    <Ionicons name="pin" size={16} color={isDark ? '#FBBF24' : '#92400E'} style={{ marginRight: 5 }} />
+                    <Text style={[styles.cardSkyLabel, isDark && { color: '#FBBF24' }]} numberOfLines={1}>
+                      {isVi ? 'Đã ghim' : 'Pinned'}
+                    </Text>
+                  </View>
+
+                  <Text style={[styles.halfCardAmount, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
+                    {pinnedNotesCount}
+                  </Text>
+
+                  <Text style={[styles.cardSkySub, isDark && { color: '#FDE68A' }]} numberOfLines={1}>
+                    {isVi ? 'ghim đầu danh sách' : 'pinned on top'}
+                  </Text>
+                </View>
+
+                {/* Bên phải: Tab 2 (Đang lưu - thẻ xanh mint) */}
+                <View
+                  style={[
+                    styles.statCard,
+                    styles.cardMint,
+                    styles.halfCard,
+                    isDark && {
+                      backgroundColor: '#0F261D',
+                      borderColor: 'rgba(16, 185, 129, 0.3)',
+                    },
+                  ]}
+                >
+                  <View style={styles.cardHeaderRowLeft}>
+                    <Ionicons name="document-text" size={15} color={isDark ? '#34D399' : '#047857'} style={{ marginRight: 5 }} />
+                    <Text style={[styles.cardMintLabel, isDark && { color: '#34D399' }]} numberOfLines={1}>
+                      {isVi ? 'Đang lưu' : 'Active'}
+                    </Text>
+                  </View>
+
+                  <Text style={[styles.halfCardAmountMint, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
+                    {totalNotesCount}
+                  </Text>
+
+                  <Text style={[styles.cardMintSub, isDark && { color: '#6EE7B7' }]} numberOfLines={1}>
+                    {isVi ? 'trong sổ tay cá nhân' : 'notes in personal book'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
 
           {/* Notes Top Toolbar */}
           <View style={[styles.controlsRow, !isDesktop && { flexDirection: 'column', alignItems: 'stretch' }]}>
@@ -1556,6 +1747,36 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   // Overview Stats Containers
+  statsRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 20,
+    width: '100%',
+  },
+  fullStatCard: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    minHeight: 96,
+    justifyContent: 'space-between',
+  },
+  cardMintAmount: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#047857',
+    letterSpacing: -0.4,
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  cardSkyAmount: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#92400E',
+    letterSpacing: -0.4,
+    marginTop: 4,
+    marginBottom: 2,
+  },
   statsContainer: {
     marginBottom: 20,
     gap: 12,

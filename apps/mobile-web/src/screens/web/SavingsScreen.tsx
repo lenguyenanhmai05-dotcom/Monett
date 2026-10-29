@@ -394,76 +394,46 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
       </TouchableOpacity>
 
       {/* ================= 3. OVERVIEW STATS CARDS ================= */}
-      <View style={styles.statsContainer}>
-        {/* Tab 1: Tổng đã tích (#064E3B) - Hẹp lại / thon gọn */}
-        <View
-          style={[
-            styles.statCard,
-            styles.cardDark,
-            styles.cardDarkSlim,
-            isDark && {
-              backgroundColor: '#0D2018',
-              borderColor: 'rgba(16, 185, 129, 0.35)',
-              shadowColor: '#000',
-            },
-          ]}
-        >
-          <View style={styles.cardHeaderRow}>
-            <Text style={styles.cardDarkLabel}>
-              {isVi ? 'TỔNG ĐÃ TÍCH' : 'TOTAL SAVED'}
-            </Text>
-            <View style={[styles.percentBadge, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.2)' }]}>
-              <Text style={[styles.percentBadgeText, isDark && { color: '#34D399' }]}>{overallPercent}%</Text>
-            </View>
-          </View>
-
-          <Text style={styles.cardDarkAmount}>{formatVND(totalSaved)} đ</Text>
-
-          <View style={[styles.cardDarkDivider, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.15)' }]} />
-
-          <Text style={styles.cardDarkSub}>
-            {isVi
-              ? `${completedCount}/${goals.length} mục tiêu hoàn thành · mục tiêu ${formatVND(totalTarget)}`
-              : `${completedCount}/${goals.length} completed · target ${formatVND(totalTarget)}`}
-          </Text>
-        </View>
-
-        {/* Gộp Tab 2 & Tab 3: Bên trái là Tab 3 (Còn cần), bên phải là Tab 2 (Mục tiêu) */}
-        <View style={styles.twoCardsRow}>
-          {/* Bên trái: Tab 3 (Còn cần - thẻ vàng) */}
+      {isDesktop ? (
+        /* ================= GIAO DIỆN WEB: 3 Ô NGANG HÀNG ================= */
+        <View style={styles.statsRow}>
+          {/* Card 1: Tổng đã tích (#064E3B) */}
           <View
             style={[
               styles.statCard,
-              styles.cardSky,
-              styles.halfCard,
+              styles.cardDark,
               isDark && {
-                backgroundColor: '#241B0E',
-                borderColor: 'rgba(245, 158, 11, 0.3)',
+                backgroundColor: '#0D2018',
+                borderColor: 'rgba(16, 185, 129, 0.35)',
+                shadowColor: '#000',
               },
             ]}
           >
-            <View style={styles.cardHeaderRowLeft}>
-              <Ionicons name="cash-outline" size={16} color={isDark ? '#FBBF24' : '#B45309'} style={{ marginRight: 5 }} />
-              <Text style={[styles.cardSkyLabel, isDark && { color: '#FBBF24' }]} numberOfLines={1}>
-                {isVi ? 'Còn cần' : 'Remaining'}
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.cardDarkLabel}>
+                {isVi ? 'TỔNG ĐÃ TÍCH' : 'TOTAL SAVED'}
               </Text>
+              <View style={[styles.percentBadge, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.2)' }]}>
+                <Text style={[styles.percentBadgeText, isDark && { color: '#34D399' }]}>{overallPercent}%</Text>
+              </View>
             </View>
 
-            <Text style={[styles.halfCardAmount, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
-              {formatVND(totalRemaining)}
-            </Text>
+            <Text style={styles.cardDarkAmount}>{formatVND(totalSaved)} đ</Text>
 
-            <Text style={[styles.cardSkySub, isDark && { color: '#FDE68A' }]} numberOfLines={1}>
-              {isVi ? 'để chạm mục tiêu' : 'to reach goal'}
+            <View style={[styles.cardDarkDivider, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.15)' }]} />
+
+            <Text style={styles.cardDarkSub}>
+              {isVi
+                ? `${completedCount}/${goals.length} mục tiêu hoàn thành · mục tiêu ${formatVND(totalTarget)}`
+                : `${completedCount}/${goals.length} completed · target ${formatVND(totalTarget)}`}
             </Text>
           </View>
 
-          {/* Bên phải: Tab 2 (Mục tiêu - thẻ xanh mint) */}
+          {/* Card 2: Mục tiêu (#BEE3C2) */}
           <View
             style={[
               styles.statCard,
               styles.cardMint,
-              styles.halfCard,
               isDark && {
                 backgroundColor: '#0F261D',
                 borderColor: 'rgba(16, 185, 129, 0.3)',
@@ -471,22 +441,136 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
             ]}
           >
             <View style={styles.cardHeaderRowLeft}>
-              <Ionicons name="flag-outline" size={15} color={isDark ? '#34D399' : '#047857'} style={{ marginRight: 5 }} />
-              <Text style={[styles.cardMintLabel, isDark && { color: '#34D399' }]} numberOfLines={1}>
-                {isVi ? 'Mục tiêu' : 'Target'}
-              </Text>
+              <Ionicons name="flag-outline" size={17} color={isDark ? '#34D399' : '#047857'} style={{ marginRight: 6 }} />
+              <Text style={[styles.cardMintLabel, isDark && { color: '#34D399' }]}>{isVi ? 'Mục tiêu' : 'Target'}</Text>
             </View>
 
-            <Text style={[styles.halfCardAmountMint, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
-              {formatVND(totalTarget)}
-            </Text>
+            <Text style={[styles.cardMintAmount, isDark && { color: '#F8FAFC' }]}>{formatVND(totalTarget)}</Text>
 
-            <Text style={[styles.cardMintSub, isDark && { color: '#6EE7B7' }]} numberOfLines={1}>
+            <Text style={[styles.cardMintSub, isDark && { color: '#6EE7B7' }]}>
               {isVi ? `${goals.length} kế hoạch` : `${goals.length} plans`}
             </Text>
           </View>
+
+          {/* Card 3: Còn cần (#FEF3C7) */}
+          <View
+            style={[
+              styles.statCard,
+              styles.cardSky,
+              isDark && {
+                backgroundColor: '#241B0E',
+                borderColor: 'rgba(245, 158, 11, 0.3)',
+              },
+            ]}
+          >
+            <View style={styles.cardHeaderRowLeft}>
+              <Ionicons name="cash-outline" size={17} color={isDark ? '#FBBF24' : '#B45309'} style={{ marginRight: 6 }} />
+              <Text style={[styles.cardSkyLabel, isDark && { color: '#FBBF24' }]}>{isVi ? 'Còn cần' : 'Remaining'}</Text>
+            </View>
+
+            <Text style={[styles.cardSkyAmount, isDark && { color: '#F8FAFC' }]}>{formatVND(totalRemaining)}</Text>
+
+            <Text style={[styles.cardSkySub, isDark && { color: '#FDE68A' }]}>
+              {isVi ? 'để chạm mục tiêu' : 'to reach goal'}
+            </Text>
+          </View>
         </View>
-      </View>
+      ) : (
+        /* ================= GIAO DIỆN MOBILE: GIỮ NGUYÊN (1 Ô TRÊN + 2 Ô DƯỚI) ================= */
+        <View style={styles.statsContainer}>
+          {/* Tab 1: Tổng đã tích (#064E3B) - Hẹp lại / thon gọn */}
+          <View
+            style={[
+              styles.statCard,
+              styles.cardDark,
+              styles.cardDarkSlim,
+              isDark && {
+                backgroundColor: '#0D2018',
+                borderColor: 'rgba(16, 185, 129, 0.35)',
+                shadowColor: '#000',
+              },
+            ]}
+          >
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.cardDarkLabel}>
+                {isVi ? 'TỔNG ĐÃ TÍCH' : 'TOTAL SAVED'}
+              </Text>
+              <View style={[styles.percentBadge, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.2)' }]}>
+                <Text style={[styles.percentBadgeText, isDark && { color: '#34D399' }]}>{overallPercent}%</Text>
+              </View>
+            </View>
+
+            <Text style={styles.cardDarkAmount}>{formatVND(totalSaved)} đ</Text>
+
+            <View style={[styles.cardDarkDivider, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.15)' }]} />
+
+            <Text style={styles.cardDarkSub}>
+              {isVi
+                ? `${completedCount}/${goals.length} mục tiêu hoàn thành · mục tiêu ${formatVND(totalTarget)}`
+                : `${completedCount}/${goals.length} completed · target ${formatVND(totalTarget)}`}
+            </Text>
+          </View>
+
+          {/* Gộp Tab 2 & Tab 3: Bên trái là Tab 3 (Còn cần), bên phải là Tab 2 (Mục tiêu) */}
+          <View style={styles.twoCardsRow}>
+            {/* Bên trái: Tab 3 (Còn cần - thẻ vàng) */}
+            <View
+              style={[
+                styles.statCard,
+                styles.cardSky,
+                styles.halfCard,
+                isDark && {
+                  backgroundColor: '#241B0E',
+                  borderColor: 'rgba(245, 158, 11, 0.3)',
+                },
+              ]}
+            >
+              <View style={styles.cardHeaderRowLeft}>
+                <Ionicons name="cash-outline" size={16} color={isDark ? '#FBBF24' : '#B45309'} style={{ marginRight: 5 }} />
+                <Text style={[styles.cardSkyLabel, isDark && { color: '#FBBF24' }]} numberOfLines={1}>
+                  {isVi ? 'Còn cần' : 'Remaining'}
+                </Text>
+              </View>
+
+              <Text style={[styles.halfCardAmount, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
+                {formatVND(totalRemaining)}
+              </Text>
+
+              <Text style={[styles.cardSkySub, isDark && { color: '#FDE68A' }]} numberOfLines={1}>
+                {isVi ? 'để chạm mục tiêu' : 'to reach goal'}
+              </Text>
+            </View>
+
+            {/* Bên phải: Tab 2 (Mục tiêu - thẻ xanh mint) */}
+            <View
+              style={[
+                styles.statCard,
+                styles.cardMint,
+                styles.halfCard,
+                isDark && {
+                  backgroundColor: '#0F261D',
+                  borderColor: 'rgba(16, 185, 129, 0.3)',
+                },
+              ]}
+            >
+              <View style={styles.cardHeaderRowLeft}>
+                <Ionicons name="flag-outline" size={15} color={isDark ? '#34D399' : '#047857'} style={{ marginRight: 5 }} />
+                <Text style={[styles.cardMintLabel, isDark && { color: '#34D399' }]} numberOfLines={1}>
+                  {isVi ? 'Mục tiêu' : 'Target'}
+                </Text>
+              </View>
+
+              <Text style={[styles.halfCardAmountMint, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
+                {formatVND(totalTarget)}
+              </Text>
+
+              <Text style={[styles.cardMintSub, isDark && { color: '#6EE7B7' }]} numberOfLines={1}>
+                {isVi ? `${goals.length} kế hoạch` : `${goals.length} plans`}
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* ================= 4. SECTION GOALS LIST HEADER ================= */}
       <View style={styles.sectionHeaderRow}>
