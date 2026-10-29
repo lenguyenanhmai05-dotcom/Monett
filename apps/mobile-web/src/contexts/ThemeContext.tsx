@@ -43,15 +43,15 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const colors: ThemeContextType['colors'] = isDark
     ? {
-        bg: '#0F172A',
-        surface: '#1E293B',
-        card: '#1E293B',
-        header: '#1E293B',
-        border: '#334155',
-        borderLight: '#334155',
-        textPrimary: '#F1F5F9',
-        textSecondary: '#CBD5E1',
-        textMuted: '#94A3B8',
+        bg: '#0B0F17',
+        surface: '#121A27',
+        card: '#121A27',
+        header: '#0E1524',
+        border: 'rgba(255, 255, 255, 0.08)',
+        borderLight: 'rgba(255, 255, 255, 0.05)',
+        textPrimary: '#F8FAFC',
+        textSecondary: '#94A3B8',
+        textMuted: '#64748B',
         statusBar: 'light-content',
       }
     : {

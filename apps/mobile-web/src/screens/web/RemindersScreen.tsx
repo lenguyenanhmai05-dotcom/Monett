@@ -591,46 +591,48 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
               </Text>
             </View>
 
-            {/* Card 2: Chưa xong - Màu xanh nhạt (#BEE3C2) */}
+            {/* Card 2: Chưa xong */}
             <View
               style={[
                 styles.statCard,
                 styles.statCardMint,
                 !isDesktop && styles.statCardMobile,
+                isDark && { backgroundColor: '#0F261D', borderColor: 'rgba(16, 185, 129, 0.3)' },
               ]}
             >
               <View style={styles.statCardHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="time" size={16} color="#065F46" />
-                  <Text style={[styles.statCardLabelPastel, { color: '#065F46' }]}>
+                  <Ionicons name="time" size={16} color={isDark ? '#34D399' : '#065F46'} />
+                  <Text style={[styles.statCardLabelPastel, { color: isDark ? '#34D399' : '#065F46' }]}>
                     {isVi ? 'Chưa xong' : 'Pending'}
                   </Text>
                 </View>
               </View>
 
-              <Text style={[styles.statCardValuePastel, { color: '#064E3B' }]} numberOfLines={1}>
-                {pendingRemindersCount} <Text style={[styles.currencySubPastel, { color: '#064E3B' }]}>{isVi ? 'việc' : 'tasks'}</Text>
+              <Text style={[styles.statCardValuePastel, { color: isDark ? '#F8FAFC' : '#064E3B' }]} numberOfLines={1}>
+                {pendingRemindersCount} <Text style={[styles.currencySubPastel, { color: isDark ? '#A7F3D0' : '#064E3B' }]}>{isVi ? 'việc' : 'tasks'}</Text>
               </Text>
 
-              <Text style={[styles.statCardSubPastel, { color: '#065F46' }]}>
+              <Text style={[styles.statCardSubPastel, { color: isDark ? '#6EE7B7' : '#065F46' }]}>
                 {pendingRemindersCount === 0
                   ? (isVi ? 'Tuyệt vời! Đã hoàn thành mọi việc' : 'All done! Great job')
                   : (isVi ? `${pendingRemindersCount} việc cần làm đúng hạn` : `${pendingRemindersCount} tasks remaining`)}
               </Text>
             </View>
 
-            {/* Card 3: Đã hoàn thành - Màu vàng nhạt (#FEF3C7) */}
+            {/* Card 3: Đã hoàn thành */}
             <View
               style={[
                 styles.statCard,
                 styles.statCardYellow,
                 !isDesktop && styles.statCardMobile,
+                isDark && { backgroundColor: '#241B0E', borderColor: 'rgba(245, 158, 11, 0.3)' },
               ]}
             >
               <View style={styles.statCardHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Ionicons name="checkmark-done" size={17} color="#92400E" />
-                  <Text style={[styles.statCardLabelPastel, { color: '#92400E' }]}>
+                  <Ionicons name="checkmark-done" size={17} color={isDark ? '#FBBF24' : '#92400E'} />
+                  <Text style={[styles.statCardLabelPastel, { color: isDark ? '#FBBF24' : '#92400E' }]}>
                     {isVi ? 'Đã hoàn thành' : 'Completed'}
                   </Text>
                 </View>
@@ -640,7 +642,7 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
                 {completedRemindersCount} <Text style={[styles.currencySubPastel, { color: '#92400E' }]}>{isVi ? 'việc' : 'tasks'}</Text>
               </Text>
 
-              <Text style={[styles.statCardSubPastel, { color: '#92400E' }]}>
+              <Text style={[styles.statCardSubPastel, { color: isDark ? '#FDE68A' : '#92400E' }]}>
                 {reminderCompletionPercent}% {isVi ? 'đã hoàn thành xong' : 'completion rate'}
               </Text>
             </View>

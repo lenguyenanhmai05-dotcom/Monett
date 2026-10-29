@@ -411,7 +411,7 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
           {/* Cụm 3 Thẻ Chỉ Số Thống Kê (Overview Stat Cards) */}
           <View style={[styles.statsRow, !isDesktop && styles.statsRowMobile]}>
             {/* Card 1: Ước tính tháng */}
-            <View style={[styles.statCard, styles.statCardDark, !isDesktop && styles.statCardMobile]}>
+            <View style={[styles.statCard, styles.statCardDark, !isDesktop && styles.statCardMobile, isDark && { backgroundColor: '#0D2018', borderColor: 'rgba(16, 185, 129, 0.35)', shadowColor: '#000' }]}>
               <View style={styles.statCardHeader}>
                 <Text style={styles.statCardLabelDark}>
                   {isVi ? 'ƯỚC TÍNH THÁNG' : 'MONTHLY ESTIMATE'}
@@ -426,38 +426,38 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
               </Text>
             </View>
 
-            {/* Card 2: Ước tính năm (#BEE3C2 - Xanh mint giống Sự kiện) */}
-            <View style={[styles.statCard, styles.statCardMint, !isDesktop && styles.statCardMobile]}>
+            {/* Card 2: Ước tính năm */}
+            <View style={[styles.statCard, styles.statCardMint, !isDesktop && styles.statCardMobile, isDark && { backgroundColor: '#0F261D', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
               <View style={styles.statCardHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <SvgCalendar size={15} color="#047857" />
-                  <Text style={styles.statCardLabelMint}>
+                  <SvgCalendar size={15} color={isDark ? '#34D399' : '#047857'} />
+                  <Text style={[styles.statCardLabelMint, isDark && { color: '#34D399' }]}>
                     {isVi ? 'Ước tính năm' : 'Yearly estimate'}
                   </Text>
                 </View>
               </View>
-              <Text style={styles.statCardValueMint} numberOfLines={1}>
+              <Text style={[styles.statCardValueMint, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
                 {formatVND(estimatedYearly)}
               </Text>
-              <Text style={styles.statCardSubMint}>
+              <Text style={[styles.statCardSubMint, isDark && { color: '#6EE7B7' }]}>
                 {isVi ? 'x12 từ mức tháng' : 'x12 from monthly'}
               </Text>
             </View>
 
-            {/* Card 3: Số khoản (#FEF3C7 - Vàng nhạt thanh lịch) */}
-            <View style={[styles.statCard, styles.statCardBlue, !isDesktop && styles.statCardMobile]}>
+            {/* Card 3: Số khoản */}
+            <View style={[styles.statCard, styles.statCardBlue, !isDesktop && styles.statCardMobile, isDark && { backgroundColor: '#241B0E', borderColor: 'rgba(245, 158, 11, 0.3)' }]}>
               <View style={styles.statCardHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <SvgBill size={15} color="#B45309" />
-                  <Text style={styles.statCardLabelBlue}>
+                  <SvgBill size={15} color={isDark ? '#FBBF24' : '#B45309'} />
+                  <Text style={[styles.statCardLabelBlue, isDark && { color: '#FBBF24' }]}>
                     {isVi ? 'Số khoản' : 'Items count'}
                   </Text>
                 </View>
               </View>
-              <Text style={styles.statCardValueBlue} numberOfLines={1}>
+              <Text style={[styles.statCardValueBlue, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
                 {currentTabItems.length}
               </Text>
-              <Text style={styles.statCardSubBlue}>
+              <Text style={[styles.statCardSubBlue, isDark && { color: '#FDE68A' }]}>
                 {activeTab === 'expense'
                   ? isVi
                     ? 'chi định kỳ'

@@ -431,12 +431,12 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
   };
 
   // Color tokens
-  const pageBg = isDark ? '#0B1120' : '#F5F0E8';
-  const cardBg = isDark ? '#1E293B' : '#FFFFFF';
-  const cardBorder = isDark ? '#334155' : '#E7DECF';
+  const pageBg = isDark ? '#0B0F17' : '#F5F0E8';
+  const cardBg = isDark ? '#121A27' : '#FFFFFF';
+  const cardBorder = isDark ? 'rgba(255, 255, 255, 0.08)' : '#E7DECF';
   const textPrimary = isDark ? '#F8FAFC' : '#111827';
   const textSecondary = isDark ? '#94A3B8' : '#64748B';
-  const tagBg = isDark ? '#334155' : '#F1F5F9';
+  const tagBg = isDark ? '#1C2638' : '#F1F5F9';
 
   // If an event is selected, render the dedicated Event Detail Page
   if (selectedEventId) {
@@ -490,15 +490,15 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
 
         {/* Action Button: Nút Tạo Sự Kiện Mới / + Thêm */}
         <TouchableOpacity
-          style={styles.createEventBtn}
+          style={[styles.createEventBtn, isDark && { backgroundColor: '#059669', shadowColor: '#059669' }]}
           onPress={() => {
             setEditingEvent(null);
             setIsCreateModalOpen(true);
           }}
           activeOpacity={0.85}
         >
-          <Ionicons name="add" size={18} color="#064E3B" />
-          <Text style={styles.createEventBtnText}>
+          <Ionicons name="add" size={18} color={isDark ? '#FFFFFF' : '#064E3B'} />
+          <Text style={[styles.createEventBtnText, isDark && { color: '#FFFFFF' }]}>
             {isVi ? 'Thêm' : 'New'}
           </Text>
         </TouchableOpacity>
@@ -565,20 +565,29 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
 
       {/* ================= OVERVIEW STATS CARDS (3 THẺ DÀI RA THẲNG HÀNG) ================= */}
       <View style={[styles.statsGrid, !isDesktop && styles.statsGridMobile]}>
-        {/* Card 1: ĐANG / SẮP TỚI (#221D18 - Thẻ đen/nâu dài ra full width) */}
-        <View style={[styles.statCard, styles.cardDark, !isDesktop && styles.statCardMobile]}>
+        {/* Card 1: ĐANG / SẮP TỚI */}
+        <View style={[
+          styles.statCard,
+          styles.cardDark,
+          !isDesktop && styles.statCardMobile,
+          isDark && {
+            backgroundColor: '#0D2018',
+            borderColor: 'rgba(16, 185, 129, 0.35)',
+            shadowColor: '#000',
+          }
+        ]}>
           <View style={styles.statCardHeader}>
             <Text style={styles.cardDarkLabel}>
               {isVi ? 'ĐANG / SẮP TỚI' : 'ACTIVE / UPCOMING'}
             </Text>
-            <View style={styles.cardDarkBadge}>
-              <Text style={styles.cardDarkBadgeText}>{totalEvents}</Text>
+            <View style={[styles.cardDarkBadge, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.2)' }]}>
+              <Text style={[styles.cardDarkBadgeText, isDark && { color: '#34D399' }]}>{totalEvents}</Text>
             </View>
           </View>
           <Text style={styles.cardDarkAmount}>
             {totalEvents} <Text style={{ fontSize: 20, fontWeight: '700' }}>{isVi ? 'sự kiện' : 'events'}</Text>
           </Text>
-          <View style={styles.cardDarkDivider} />
+          <View style={[styles.cardDarkDivider, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.15)' }]} />
           <Text style={styles.cardDarkSub}>
             {isVi
               ? `${ongoingCount} đang diễn ra • ${upcomingCount} sắp tới • ${completedCount} đã xong`
@@ -586,32 +595,48 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
           </Text>
         </View>
 
-        {/* Card 2: Đang diễn ra (#BEE3C2 - Thẻ xanh mint dài ra full width) */}
-        <View style={[styles.statCard, styles.cardMint, !isDesktop && styles.statCardMobile]}>
+        {/* Card 2: Đang diễn ra */}
+        <View style={[
+          styles.statCard,
+          styles.cardMint,
+          !isDesktop && styles.statCardMobile,
+          isDark && {
+            backgroundColor: '#0F261D',
+            borderColor: 'rgba(16, 185, 129, 0.3)',
+          }
+        ]}>
           <View style={styles.cardHeaderLeftWrap}>
-            <Ionicons name="sparkles" size={17} color="#047857" style={{ marginRight: 6 }} />
-            <Text style={styles.cardMintLabel}>
+            <Ionicons name="sparkles" size={17} color={isDark ? '#34D399' : '#047857'} style={{ marginRight: 6 }} />
+            <Text style={[styles.cardMintLabel, isDark && { color: '#34D399' }]}>
               {isVi ? 'Đang diễn ra' : 'Ongoing now'}
             </Text>
           </View>
-          <Text style={styles.cardMintAmount}>{ongoingCount}</Text>
-          <Text style={styles.cardMintSub}>
+          <Text style={[styles.cardMintAmount, isDark && { color: '#F8FAFC' }]}>{ongoingCount}</Text>
+          <Text style={[styles.cardMintSub, isDark && { color: '#6EE7B7' }]}>
             {isVi ? 'sự kiện active' : 'active events'}
           </Text>
         </View>
 
-        {/* Card 3: Ngân sách (#FEF3C7 - Thẻ vàng nhạt nhạt thanh lịch) */}
-        <View style={[styles.statCard, styles.cardSky, !isDesktop && styles.statCardMobile]}>
+        {/* Card 3: Ngân sách */}
+        <View style={[
+          styles.statCard,
+          styles.cardSky,
+          !isDesktop && styles.statCardMobile,
+          isDark && {
+            backgroundColor: '#241B0E',
+            borderColor: 'rgba(245, 158, 11, 0.3)',
+          }
+        ]}>
           <View style={styles.cardHeaderLeftWrap}>
-            <Ionicons name="time-outline" size={18} color="#B45309" style={{ marginRight: 6 }} />
-            <Text style={styles.cardSkyLabel}>
+            <Ionicons name="time-outline" size={18} color={isDark ? '#FBBF24' : '#B45309'} style={{ marginRight: 6 }} />
+            <Text style={[styles.cardSkyLabel, isDark && { color: '#FBBF24' }]}>
               {isVi ? 'Ngân sách' : 'Budget'}
             </Text>
           </View>
-          <Text style={styles.cardSkyAmount}>
-            {totalBudget.toLocaleString('vi-VN')} <Text style={{ fontSize: 18, fontWeight: '700' }}>đ</Text>
+          <Text style={[styles.cardSkyAmount, isDark && { color: '#F8FAFC' }]}>
+            {totalBudget.toLocaleString('vi-VN')} <Text style={{ fontSize: 18, fontWeight: '700', color: isDark ? '#FBBF24' : '#92400E' }}>đ</Text>
           </Text>
-          <Text style={styles.cardSkySub}>
+          <Text style={[styles.cardSkySub, isDark && { color: '#FDE68A' }]}>
             {isVi ? 'đang + sắp tới' : 'active + upcoming'}
           </Text>
         </View>
@@ -639,16 +664,17 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
         {/* Filter Tabs */}
         <View style={styles.filterPillsRow}>
           {[
-            { key: 'all', labelVi: 'Tất cả', labelEn: 'All', count: totalEvents, activeBg: '#221D18', activeColor: '#F6F1E9' },
-            { key: 'ongoing', labelVi: 'Đang diễn ra', labelEn: 'Ongoing', count: ongoingCount, activeBg: '#D2EADA', activeColor: '#064E3B' },
-            { key: 'upcoming', labelVi: 'Sắp tới', labelEn: 'Upcoming', count: upcomingCount, activeBg: '#FEF3C7', activeColor: '#B45309' },
+            { key: 'all', labelVi: 'Tất cả', labelEn: 'All', count: totalEvents, activeBg: isDark ? '#059669' : '#221D18', activeColor: '#FFFFFF', activeBorder: isDark ? '#059669' : '#221D18' },
+            { key: 'ongoing', labelVi: 'Đang diễn ra', labelEn: 'Ongoing', count: ongoingCount, activeBg: isDark ? 'rgba(16, 185, 129, 0.25)' : '#D2EADA', activeColor: isDark ? '#34D399' : '#064E3B', activeBorder: isDark ? '#059669' : '#BFDECA' },
+            { key: 'upcoming', labelVi: 'Sắp tới', labelEn: 'Upcoming', count: upcomingCount, activeBg: isDark ? 'rgba(245, 158, 11, 0.25)' : '#FEF3C7', activeColor: isDark ? '#FBBF24' : '#B45309', activeBorder: isDark ? '#D97706' : '#FDE68A' },
             {
               key: 'completed',
               labelVi: 'Hoàn thành',
               labelEn: 'Completed',
               count: completedCount,
-              activeBg: '#E3E1EB',
-              activeColor: '#4C1D95',
+              activeBg: isDark ? 'rgba(168, 85, 247, 0.25)' : '#E3E1EB',
+              activeColor: isDark ? '#C084FC' : '#4C1D95',
+              activeBorder: isDark ? '#7C3AED' : '#CEC8DC',
             },
           ].map((tab) => {
             const isActive = filterStatus === tab.key;
@@ -659,9 +685,9 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                   styles.filterPill,
                   isActive && styles.filterPillActive,
                   {
-                    backgroundColor: isActive ? tab.activeBg : (isDark ? '#1E293B' : '#FFFFFF'),
+                    backgroundColor: isActive ? tab.activeBg : (isDark ? '#0B0F17' : '#FFFFFF'),
                     borderWidth: 1,
-                    borderColor: isActive ? (tab.activeBg || '#221D18') : cardBorder,
+                    borderColor: isActive ? tab.activeBorder : (isDark ? 'rgba(255, 255, 255, 0.08)' : cardBorder),
                   },
                 ]}
                 onPress={() => setFilterStatus(tab.key as any)}
@@ -671,7 +697,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                   style={[
                     styles.filterPillText,
                     isActive && styles.filterPillTextActive,
-                    { color: isActive ? tab.activeColor : textSecondary },
+                    { color: isActive ? tab.activeColor : textSecondary, fontWeight: isActive ? '700' : '600' },
                   ]}
                 >
                   {isVi ? tab.labelVi : tab.labelEn} ({tab.count})
@@ -727,34 +753,34 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
               ongoing: {
                 labelVi: 'Đang diễn ra',
                 labelEn: 'Ongoing',
-                cardBg: isDark ? '#163322' : '#D2EADA',
-                cardBorder: isDark ? '#234C34' : '#BFDECA',
-                badgeBg: isDark ? 'rgba(255, 255, 255, 0.12)' : '#FFFFFF',
-                badgeColor: '#166534',
+                cardBg: isDark ? '#111B27' : '#D2EADA',
+                cardBorder: isDark ? 'rgba(16, 185, 129, 0.35)' : '#BFDECA',
+                badgeBg: isDark ? 'rgba(16, 185, 129, 0.2)' : '#FFFFFF',
+                badgeColor: isDark ? '#34D399' : '#166534',
               },
               upcoming: {
                 labelVi: 'Sắp tới',
                 labelEn: 'Upcoming',
-                cardBg: isDark ? '#332511' : '#FEF3C7',
-                cardBorder: isDark ? '#594119' : '#FDE68A',
-                badgeBg: isDark ? 'rgba(255, 255, 255, 0.12)' : '#FFFFFF',
-                badgeColor: '#B45309',
+                cardBg: isDark ? '#181A24' : '#FEF3C7',
+                cardBorder: isDark ? 'rgba(245, 158, 11, 0.35)' : '#FDE68A',
+                badgeBg: isDark ? 'rgba(245, 158, 11, 0.2)' : '#FFFFFF',
+                badgeColor: isDark ? '#FBBF24' : '#B45309',
               },
               completed: {
                 labelVi: 'Hoàn thành',
                 labelEn: 'Completed',
-                cardBg: isDark ? '#282333' : '#E3E1EB',
-                cardBorder: isDark ? '#3C354C' : '#CEC8DC',
-                badgeBg: isDark ? 'rgba(255, 255, 255, 0.12)' : '#FFFFFF',
-                badgeColor: '#6B21A8',
+                cardBg: isDark ? '#161522' : '#E3E1EB',
+                cardBorder: isDark ? 'rgba(168, 85, 247, 0.35)' : '#CEC8DC',
+                badgeBg: isDark ? 'rgba(168, 85, 247, 0.2)' : '#FFFFFF',
+                badgeColor: isDark ? '#C084FC' : '#6B21A8',
               },
             }[evt.status] || {
               labelVi: 'Đang diễn ra',
               labelEn: 'Ongoing',
-              cardBg: isDark ? '#163322' : '#D2EADA',
-              cardBorder: isDark ? '#234C34' : '#BFDECA',
-              badgeBg: isDark ? 'rgba(255, 255, 255, 0.12)' : '#FFFFFF',
-              badgeColor: '#166534',
+              cardBg: isDark ? '#111B27' : '#D2EADA',
+              cardBorder: isDark ? 'rgba(16, 185, 129, 0.35)' : '#BFDECA',
+              badgeBg: isDark ? 'rgba(16, 185, 129, 0.2)' : '#FFFFFF',
+              badgeColor: isDark ? '#34D399' : '#166534',
             };
 
             return (
@@ -774,8 +800,8 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                 {/* 1. Top Row: Icon Box (Xanh lá đậm #064E3B) + Title/Date + Status Badge */}
                 <View style={styles.cardTopRow}>
                   <View style={styles.cardHeaderLeft}>
-                    <View style={[styles.cardIconBox, { backgroundColor: '#064E3B' }]}>
-                      <Ionicons name="sparkles" size={17} color="#A7F3D0" />
+                    <View style={[styles.cardIconBox, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.25)' : '#064E3B' }]}>
+                      <Ionicons name="sparkles" size={17} color={isDark ? "#34D399" : "#A7F3D0"} />
                     </View>
 
                     <View style={styles.cardTitleWrap}>
@@ -831,7 +857,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                     accessibilityLabel={`Chi tiết sự kiện ${evt.title}`}
                     style={styles.detailLinkWrap}
                   >
-                    <Text style={[styles.detailLinkText, { color: isDark ? '#94A3B8' : '#64748B' }]}>
+                    <Text style={[styles.detailLinkText, { color: isDark ? '#34D399' : '#047857', fontWeight: '700' }]}>
                       {isVi ? 'Chi tiết →' : 'Details →'}
                     </Text>
                   </TouchableOpacity>

@@ -405,7 +405,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: isDark ? '#0F172A' : '#F5F0E8',
+    backgroundColor: isDark ? '#0B0F17' : '#F5F0E8',
   },
 
   // ==================== TOP NAVBAR DESKTOP ====================
@@ -494,7 +494,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: isDark ? '#1E293B' : '#EAE3D7',
+    backgroundColor: isDark ? '#162032' : '#EAE3D7',
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -511,7 +511,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 3,
     borderWidth: 1.5,
-    borderColor: isDark ? '#0F172A' : '#FFFFFF',
+    borderColor: isDark ? '#0E1524' : '#FFFFFF',
   },
   bellBadgeText: {
     color: '#FFFFFF',
@@ -560,7 +560,7 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   // ==================== MAIN CONTENT ====================
   mainArea: {
     flex: 1,
-    backgroundColor: isDark ? '#0F172A' : '#F5F0E8',
+    backgroundColor: isDark ? '#0B0F17' : '#F5F0E8',
   },
   contentWrapper: {
     flex: 1,

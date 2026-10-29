@@ -377,19 +377,19 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
         </View>
 
         <TouchableOpacity
-          style={styles.mainAddBtn}
+          style={[styles.mainAddBtn, isDark && { backgroundColor: '#059669', shadowColor: '#059669' }]}
           onPress={handleOpenCreateModal}
           activeOpacity={0.85}
         >
-          <Ionicons name="add" size={18} color="#064E3B" style={{ marginRight: 4 }} />
-          <Text style={styles.mainAddBtnText}>{isVi ? 'Thêm' : 'New'}</Text>
+          <Ionicons name="add" size={18} color={isDark ? '#FFFFFF' : '#064E3B'} style={{ marginRight: 4 }} />
+          <Text style={[styles.mainAddBtnText, isDark && { color: '#FFFFFF' }]}>{isVi ? 'Thêm' : 'New'}</Text>
         </TouchableOpacity>
       </View>
 
       {/* ================= 3. OVERVIEW STATS CARDS (ĐỒNG BỘ MÀU 100% VỚI SỰ KIỆN: 221D18, BEE3C2, B7D9F2) ================= */}
       <View style={[styles.statsRow, !isDesktop && styles.statsRowMobile]}>
-        {/* Card 1: Tổng đã tích (#221D18) */}
-        <View style={[styles.statCard, styles.cardDark, !isDesktop && styles.statCardMobile]}>
+        {/* Card 1: Tổng đã tích */}
+        <View style={[styles.statCard, styles.cardDark, !isDesktop && styles.statCardMobile, isDark && { backgroundColor: '#0D2018', borderColor: 'rgba(16, 185, 129, 0.35)', shadowColor: '#000' }]}>
           <View style={styles.cardHeaderRow}>
             <Text style={styles.cardDarkLabel}>
               {isVi ? 'TỔNG ĐÃ TÍCH' : 'TOTAL SAVED'}
@@ -410,30 +410,30 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
           </Text>
         </View>
 
-        {/* Card 2: Mục tiêu (#BEE3C2) */}
-        <View style={[styles.statCard, styles.cardMint, !isDesktop && styles.statCardMobile]}>
+        {/* Card 2: Mục tiêu */}
+        <View style={[styles.statCard, styles.cardMint, !isDesktop && styles.statCardMobile, isDark && { backgroundColor: '#0F261D', borderColor: 'rgba(16, 185, 129, 0.3)' }]}>
           <View style={styles.cardHeaderRowLeft}>
-            <Ionicons name="flag-outline" size={17} color="#047857" style={{ marginRight: 6 }} />
-            <Text style={styles.cardMintLabel}>{isVi ? 'Mục tiêu' : 'Target'}</Text>
+            <Ionicons name="flag-outline" size={17} color={isDark ? '#34D399' : '#047857'} style={{ marginRight: 6 }} />
+            <Text style={[styles.cardMintLabel, isDark && { color: '#34D399' }]}>{isVi ? 'Mục tiêu' : 'Target'}</Text>
           </View>
 
-          <Text style={styles.cardMintAmount}>{formatVND(totalTarget)}</Text>
+          <Text style={[styles.cardMintAmount, isDark && { color: '#F8FAFC' }]}>{formatVND(totalTarget)}</Text>
 
-          <Text style={styles.cardMintSub}>
+          <Text style={[styles.cardMintSub, isDark && { color: '#6EE7B7' }]}>
             {isVi ? `${goals.length} kế hoạch` : `${goals.length} plans`}
           </Text>
         </View>
 
-        {/* Card 3: Còn cần (#FEF3C7 - Vàng nhạt thanh lịch) */}
-        <View style={[styles.statCard, styles.cardSky, !isDesktop && styles.statCardMobile]}>
+        {/* Card 3: Còn cần */}
+        <View style={[styles.statCard, styles.cardSky, !isDesktop && styles.statCardMobile, isDark && { backgroundColor: '#241B0E', borderColor: 'rgba(245, 158, 11, 0.3)' }]}>
           <View style={styles.cardHeaderRowLeft}>
-            <Ionicons name="cash-outline" size={18} color="#B45309" style={{ marginRight: 6 }} />
-            <Text style={styles.cardSkyLabel}>{isVi ? 'Còn cần' : 'Remaining'}</Text>
+            <Ionicons name="cash-outline" size={18} color={isDark ? '#FBBF24' : '#B45309'} style={{ marginRight: 6 }} />
+            <Text style={[styles.cardSkyLabel, isDark && { color: '#FBBF24' }]}>{isVi ? 'Còn cần' : 'Remaining'}</Text>
           </View>
 
-          <Text style={styles.cardSkyAmount}>{formatVND(totalRemaining)}</Text>
+          <Text style={[styles.cardSkyAmount, isDark && { color: '#F8FAFC' }]}>{formatVND(totalRemaining)}</Text>
 
-          <Text style={styles.cardSkySub}>
+          <Text style={[styles.cardSkySub, isDark && { color: '#FDE68A' }]}>
             {isVi ? 'để chạm mục tiêu' : 'to reach goal'}
           </Text>
         </View>

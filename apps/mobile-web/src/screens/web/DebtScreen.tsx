@@ -555,24 +555,28 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
             </Text>
           </View>
 
-          {/* Card 2: Đã thu hồi / Đã trả bớt (#BEE3C2 Pastel Mint or #FFC5C5 Pastel Pink) */}
+          {/* Card 2: Đã thu hồi / Đã trả bớt */}
           <View
             style={[
               styles.statCard,
               activeTab === 'lent' ? styles.statCardMint : styles.statCardPink,
               !isDesktop && styles.statCardMobile,
+              isDark && {
+                backgroundColor: activeTab === 'lent' ? '#0F261D' : '#2A1215',
+                borderColor: activeTab === 'lent' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+              },
             ]}
           >
             <View style={styles.statCardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <SvgCheckCircle
                   size={15}
-                  color={activeTab === 'lent' ? '#065F46' : '#7F1D1D'}
+                  color={isDark ? (activeTab === 'lent' ? '#34D399' : '#F87171') : (activeTab === 'lent' ? '#065F46' : '#7F1D1D')}
                 />
                 <Text
                   style={[
                     styles.statCardLabelPastel,
-                    { color: activeTab === 'lent' ? '#065F46' : '#7F1D1D' },
+                    { color: isDark ? (activeTab === 'lent' ? '#34D399' : '#F87171') : (activeTab === 'lent' ? '#065F46' : '#7F1D1D') },
                   ]}
                 >
                   {activeTab === 'lent'
@@ -589,7 +593,7 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
             <Text
               style={[
                 styles.statCardValuePastel,
-                { color: activeTab === 'lent' ? '#047857' : '#991B1B' },
+                { color: isDark ? '#F8FAFC' : (activeTab === 'lent' ? '#047857' : '#991B1B') },
               ]}
               numberOfLines={1}
             >
@@ -607,7 +611,7 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
             <Text
               style={[
                 styles.statCardSubPastel,
-                { color: activeTab === 'lent' ? '#065F46' : '#7F1D1D' },
+                { color: isDark ? (activeTab === 'lent' ? '#6EE7B7' : '#FCA5A5') : (activeTab === 'lent' ? '#065F46' : '#7F1D1D') },
               ]}
             >
               {stats.completionPercent}%{' '}
@@ -621,28 +625,29 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
             </Text>
           </View>
 
-          {/* Card 3: Số khoản nợ (#FEF3C7 Vàng nhạt thanh lịch) */}
+          {/* Card 3: Số khoản nợ */}
           <View
             style={[
               styles.statCard,
               styles.statCardBlue,
               !isDesktop && styles.statCardMobile,
+              isDark && { backgroundColor: '#241B0E', borderColor: 'rgba(245, 158, 11, 0.3)' },
             ]}
           >
             <View style={styles.statCardHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <SvgBook size={15} color="#B45309" />
-                <Text style={styles.statCardLabelBlue}>
+                <SvgBook size={15} color={isDark ? '#FBBF24' : '#B45309'} />
+                <Text style={[styles.statCardLabelBlue, isDark && { color: '#FBBF24' }]}>
                   {isVi ? 'Số khoản' : 'Debts count'}
                 </Text>
               </View>
             </View>
 
-            <Text style={styles.statCardValueBlue} numberOfLines={1}>
+            <Text style={[styles.statCardValueBlue, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
               {currentTabDebts.length}
             </Text>
 
-            <Text style={styles.statCardSubBlue}>
+            <Text style={[styles.statCardSubBlue, isDark && { color: '#FDE68A' }]}>
               {stats.unsettledCount}{' '}
               {activeTab === 'lent'
                 ? isVi

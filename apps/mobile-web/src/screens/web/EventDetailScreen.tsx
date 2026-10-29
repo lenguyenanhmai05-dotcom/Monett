@@ -341,9 +341,9 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
   };
 
   // Color tokens
-  const pageBg = isDark ? '#0B1120' : '#F5F0E8';
-  const cardBg = isDark ? '#1E293B' : '#FFFFFF';
-  const eventHeaderCardBg = isDark ? '#1E293B' : '#ECE5D8';
+  const pageBg = isDark ? '#0B0F17' : '#F5F0E8';
+  const cardBg = isDark ? '#121A27' : '#FFFFFF';
+  const eventHeaderCardBg = isDark ? '#162032' : '#ECE5D8';
   const eventHeaderCardBorder = isDark ? '#334155' : '#DDD6C9';
   const dividerColor = isDark ? '#334155' : '#E8E2D9';
   const textPrimary = isDark ? '#F8FAFC' : '#111827';
@@ -355,30 +355,30 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
     ongoing: {
       labelVi: 'Đang diễn ra',
       labelEn: 'Ongoing',
-      badgeBg: isDark ? 'rgba(34, 197, 94, 0.15)' : '#DCFCE7',
-      badgeColor: '#166534',
-      badgeBorder: isDark ? '#234C34' : '#BFDECA',
+      badgeBg: isDark ? 'rgba(34, 197, 94, 0.2)' : '#DCFCE7',
+      badgeColor: isDark ? '#34D399' : '#166534',
+      badgeBorder: isDark ? 'rgba(52, 211, 153, 0.35)' : '#BFDECA',
     },
     upcoming: {
       labelVi: 'Sắp tới',
       labelEn: 'Upcoming',
-      badgeBg: isDark ? 'rgba(245, 158, 11, 0.15)' : '#FEF3C7',
-      badgeColor: '#B45309',
-      badgeBorder: isDark ? '#78350F' : '#FDE68A',
+      badgeBg: isDark ? 'rgba(245, 158, 11, 0.2)' : '#FEF3C7',
+      badgeColor: isDark ? '#FBBF24' : '#B45309',
+      badgeBorder: isDark ? 'rgba(245, 158, 11, 0.35)' : '#FDE68A',
     },
     completed: {
       labelVi: 'Hoàn thành',
       labelEn: 'Completed',
-      badgeBg: isDark ? 'rgba(168, 85, 247, 0.15)' : '#F3E8FF',
-      badgeColor: '#6B21A8',
-      badgeBorder: isDark ? '#3C354C' : '#DDD6FE',
+      badgeBg: isDark ? 'rgba(168, 85, 247, 0.2)' : '#F3E8FF',
+      badgeColor: isDark ? '#C084FC' : '#6B21A8',
+      badgeBorder: isDark ? 'rgba(168, 85, 247, 0.35)' : '#DDD6FE',
     },
   }[currentStatus] || {
     labelVi: 'Đang diễn ra',
     labelEn: 'Ongoing',
-    badgeBg: isDark ? 'rgba(34, 197, 94, 0.15)' : '#DCFCE7',
-    badgeColor: '#166534',
-    badgeBorder: isDark ? '#234C34' : '#BFDECA',
+    badgeBg: isDark ? 'rgba(34, 197, 94, 0.2)' : '#DCFCE7',
+    badgeColor: isDark ? '#34D399' : '#166534',
+    badgeBorder: isDark ? 'rgba(52, 211, 153, 0.35)' : '#BFDECA',
   };
 
   return (
@@ -538,17 +538,17 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
         <View style={styles.eventHeaderActions}>
           {/* Sửa sự kiện (Pencil) */}
           <TouchableOpacity
-            style={[styles.circleActionBtn, { backgroundColor: '#FFFFFF', borderColor: isDark ? '#334155' : '#DDD6C9' }]}
+            style={[styles.circleActionBtn, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#DDD6C9' }]}
             onPress={() => setIsEditEventModalOpen(true)}
             activeOpacity={0.75}
             accessibilityLabel="Chỉnh sửa sự kiện"
           >
-            <Ionicons name="create-outline" size={18} color="#475569" />
+            <Ionicons name="create-outline" size={18} color={isDark ? "#CBD5E1" : "#475569"} />
           </TouchableOpacity>
 
           {/* Xóa sự kiện (Trash) */}
           <TouchableOpacity
-            style={[styles.circleActionBtn, { backgroundColor: '#FFFFFF', borderColor: isDark ? '#334155' : '#DDD6C9' }]}
+            style={[styles.circleActionBtn, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF', borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : '#DDD6C9' }]}
             onPress={handleDeleteEventClick}
             activeOpacity={0.75}
             accessibilityLabel="Xóa sự kiện"
