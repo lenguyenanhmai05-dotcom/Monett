@@ -456,15 +456,6 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
           <Text style={[styles.screenHeading, isDark && { color: '#F8FAFC' }]}>
             {isVi ? 'Sổ ghi nợ' : 'Debt Book'}
           </Text>
-
-          <TouchableOpacity
-            style={styles.closeBtn}
-            onPress={handleBack}
-            activeOpacity={0.7}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="close" size={20} color={isDark ? '#F8FAFC' : '#221D18'} />
-          </TouchableOpacity>
         </View>
 
         {/* ========================================================================= */}

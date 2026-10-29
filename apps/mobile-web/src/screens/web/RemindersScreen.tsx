@@ -464,27 +464,18 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
           </Text>
         </View>
 
+        {/* Nút Thêm ở bên phải header */}
         <TouchableOpacity
-          style={styles.closeBtn}
-          onPress={handleBack}
-          activeOpacity={0.7}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={[styles.mainAddBtn, isDark && { backgroundColor: '#059669', shadowColor: '#059669' }]}
+          onPress={activeSubTab === 'reminders' ? handleOpenCreateReminder : handleOpenCreateNote}
+          activeOpacity={0.85}
         >
-          <Ionicons name="close" size={20} color={isDark ? '#F8FAFC' : '#221D18'} />
+          <Ionicons name="add" size={16} color={isDark ? '#FFFFFF' : '#064E3B'} style={{ marginRight: 6 }} />
+          <Text style={[styles.mainAddBtnText, isDark && { color: '#FFFFFF' }]}>
+            {isVi ? 'Thêm' : 'Add'}
+          </Text>
         </TouchableOpacity>
       </View>
-
-      {/* ===================== NÚT THÊM (GIỐNG TÍCH LŨY & CÁC TRANG KIA) ===================== */}
-      <TouchableOpacity
-        style={[styles.mainAddBtn, isDark && { backgroundColor: '#059669', shadowColor: '#059669' }]}
-        onPress={activeSubTab === 'reminders' ? handleOpenCreateReminder : handleOpenCreateNote}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="add" size={16} color={isDark ? '#FFFFFF' : '#064E3B'} style={{ marginRight: 6 }} />
-        <Text style={[styles.mainAddBtnText, isDark && { color: '#FFFFFF' }]}>
-          {isVi ? 'Thêm' : 'Add'}
-        </Text>
-      </TouchableOpacity>
 
       {/* ===================== SUB-TAB SWITCHER ===================== */}
       <View style={styles.subTabSwitcherWrap}>
@@ -1678,8 +1669,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#98E4B0',
-    paddingVertical: 12,
-    paddingHorizontal: 22,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#82D99E',
@@ -1688,8 +1679,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
-    alignSelf: 'flex-start',
-    marginBottom: 18,
   },
   mainAddBtnText: {
     fontSize: 15,

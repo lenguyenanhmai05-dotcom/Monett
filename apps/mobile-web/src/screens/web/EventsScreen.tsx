@@ -514,30 +514,21 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
           )}
         </View>
 
+        {/* Action Button: Nút Tạo Sự Kiện Mới / + Thêm ở bên phải header */}
         <TouchableOpacity
-          style={styles.closeBtn}
-          onPress={handleBack}
-          activeOpacity={0.7}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={[styles.createEventBtn, isDark && { backgroundColor: '#059669', borderColor: '#059669' }]}
+          onPress={() => {
+            setEditingEvent(null);
+            setIsCreateModalOpen(true);
+          }}
+          activeOpacity={0.85}
         >
-          <Ionicons name="close" size={20} color={isDark ? '#F8FAFC' : '#221D18'} />
+          <Ionicons name="add" size={16} color={isDark ? '#FFFFFF' : '#064E3B'} style={{ marginRight: 6 }} />
+          <Text style={[styles.createEventBtnText, isDark && { color: '#FFFFFF' }]}>
+            {isVi ? 'Thêm' : 'New'}
+          </Text>
         </TouchableOpacity>
       </View>
-
-      {/* Action Button: Nút Tạo Sự Kiện Mới / + Thêm ở dưới tiêu đề (giống trang Tích lũy) */}
-      <TouchableOpacity
-        style={styles.createEventBtn}
-        onPress={() => {
-          setEditingEvent(null);
-          setIsCreateModalOpen(true);
-        }}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="add" size={16} color="#064E3B" style={{ marginRight: 6 }} />
-        <Text style={styles.createEventBtnText}>
-          {isVi ? 'Thêm' : 'New'}
-        </Text>
-      </TouchableOpacity>
 
       {/* ================= PENDING EVENT INVITATIONS BANNER ================= */}
       {pendingInvitations.length > 0 && (
@@ -1273,8 +1264,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#98E4B0',
-    paddingVertical: 12,
-    paddingHorizontal: 22,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#82D99E',
@@ -1283,8 +1274,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
-    alignSelf: 'flex-start',
-    marginBottom: 20,
   },
   createEventBtnText: {
     fontSize: 15,

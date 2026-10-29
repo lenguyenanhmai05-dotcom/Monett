@@ -373,25 +373,16 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
           <Text style={styles.headerTitle}>{isVi ? 'Tích lũy' : 'Savings'}</Text>
         </View>
 
+        {/* Nút Thêm ở bên phải header */}
         <TouchableOpacity
-          style={styles.closeBtn}
-          onPress={handleBack}
-          activeOpacity={0.7}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={[styles.mainAddBtn, isDark && { backgroundColor: '#059669', shadowColor: '#059669' }]}
+          onPress={handleOpenCreateModal}
+          activeOpacity={0.85}
         >
-          <Ionicons name="close" size={20} color={isDark ? '#F8FAFC' : '#221D18'} />
+          <Ionicons name="add" size={16} color={isDark ? '#FFFFFF' : '#064E3B'} style={{ marginRight: 6 }} />
+          <Text style={[styles.mainAddBtnText, isDark && { color: '#FFFFFF' }]}>{isVi ? 'Thêm' : 'Add'}</Text>
         </TouchableOpacity>
       </View>
-
-      {/* ================= 2. NÚT THÊM (GIỐNG ĐỊNH KỲ) ================= */}
-      <TouchableOpacity
-        style={[styles.mainAddBtn, isDark && { backgroundColor: '#059669', shadowColor: '#059669' }]}
-        onPress={handleOpenCreateModal}
-        activeOpacity={0.85}
-      >
-        <Ionicons name="add" size={16} color={isDark ? '#FFFFFF' : '#064E3B'} style={{ marginRight: 6 }} />
-        <Text style={[styles.mainAddBtnText, isDark && { color: '#FFFFFF' }]}>{isVi ? 'Thêm' : 'Add'}</Text>
-      </TouchableOpacity>
 
       {/* ================= 3. OVERVIEW STATS CARDS ================= */}
       {isDesktop ? (
@@ -1137,8 +1128,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#98E4B0',
-    paddingVertical: 12,
-    paddingHorizontal: 22,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#82D99E',
@@ -1147,8 +1138,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
-    alignSelf: 'flex-start',
-    marginBottom: 20,
   },
   mainAddBtnText: {
     fontSize: 15,
