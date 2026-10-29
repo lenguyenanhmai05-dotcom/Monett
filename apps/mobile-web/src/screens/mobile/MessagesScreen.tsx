@@ -17,7 +17,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import QRCode from 'react-qr-code';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useSocket } from '../../contexts/SocketContext';
@@ -1888,29 +1887,19 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
                     </View>
                   </View>
 
-                  {/* Card QR Code cá nhân */}
+                  {/* Card ID cá nhân */}
                   <View style={styles.friendSectionCard}>
                     <View style={styles.friendSectionHeader}>
-                      <Ionicons name="qr-code" size={18} color="#047857" />
-                      <Text style={styles.friendSectionTitle}>{isVi ? 'Mã QR cá nhân của bạn' : 'Your Personal QR Code'}</Text>
+                      <Ionicons name="person-add" size={18} color="#047857" />
+                      <Text style={styles.friendSectionTitle}>{isVi ? 'ID kết bạn của bạn' : 'Your Friend ID'}</Text>
                     </View>
                     <Text style={styles.friendSectionDesc}>
-                      {isVi ? 'Chia sẻ mã QR này để bạn bè quét hoặc gửi ID để họ kết bạn với bạn' : 'Share this QR code for friends to scan or send your ID to connect'}
+                      {isVi ? 'Chia sẻ mã ID 6 ký tự này để bạn bè kết bạn và trò chuyện cùng bạn' : 'Share this 6-character ID for friends to connect and chat with you'}
                     </Text>
-
-                    <View style={styles.qrCodeWrapper}>
-                      <View style={styles.qrCodeBox}>
-                        <QRCode
-                          value={user?.shortId || user?.id || (user as any)?._id || 'monett-user'}
-                          size={156}
-                          fgColor="#047857"
-                        />
-                      </View>
-                    </View>
 
                     <View style={styles.userIdDisplayBox}>
                       <Text style={styles.userIdLabel}>{isVi ? 'ID Monett của bạn:' : 'Your Monett ID:'}</Text>
-                      <Text style={styles.userIdText} numberOfLines={1} selectable>
+                      <Text style={[styles.userIdText, { fontSize: 24, letterSpacing: 3, fontWeight: '900', color: '#047857' }]} numberOfLines={1} selectable>
                         {user?.shortId || (user?.id ? user.id.slice(0, 6).toUpperCase() : '...')}
                       </Text>
                       <TouchableOpacity

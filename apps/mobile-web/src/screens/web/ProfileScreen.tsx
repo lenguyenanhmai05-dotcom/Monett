@@ -7,7 +7,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { FROGS } from '../../../assets/frogIndex';
-import QRCode from 'react-qr-code';
 import { updateProfileApi, changePasswordApi, uploadAvatarApi, sendFriendRequestApi, getFriendRequestsApi, getFriendsApi, respondFriendRequestApi, removeFriendApi, exportDataApi, submitFeedbackApi, submitRatingApi, getStreakApi, normalizeAvatarUrl } from '../../services/api';
 import { useTransactions } from '../../contexts/TransactionContext';
 import * as ImagePicker from 'expo-image-picker';
@@ -474,22 +473,35 @@ export const ProfileScreen: React.FC = () => {
                 <Text style={styles.cardTitle}>{language === 'vi' ? 'Kết nối bạn bè' : 'Connect Friends'}</Text>
               </View>
             </View>
-            <View style={styles.qrContainer}>
-              <View style={styles.qrFrame}>
-                <QRCode value={user?.shortId || user?.id || 'monett-user'} size={150} fgColor="#047857" />
-              </View>
-              <Text style={styles.userIdDisplay}>ID của bạn:</Text>
-              <Text style={[styles.userIdBold, { fontSize: 24, letterSpacing: 4, fontWeight: '800', color: '#047857', marginBottom: 14, textAlign: 'center' }]}>
-                {user?.shortId || (user?.id ? user.id.slice(0, 6).toUpperCase() : '...')}
-              </Text>
-              <TouchableOpacity
-                style={[styles.actionBtnSoft, copiedId && { backgroundColor: isDark ? '#064E3B' : '#ECFDF5', borderColor: '#10B981' }]}
-                onPress={handleCopyId}
-              >
-                <Text style={[styles.actionBtnSoftText, copiedId && { color: '#059669', fontWeight: '800' }]}>
-                  {copiedId ? (language === 'vi' ? '✅ Đã sao chép ID!' : '✅ Copied ID!') : ('📋 ' + (language === 'vi' ? 'Sao chép ID' : 'Copy ID'))}
+            <View style={[styles.qrContainer, { paddingTop: 6 }]}>
+              {/* Box hiển thị ID kết bạn */}
+              <View style={{
+                alignItems: 'center',
+                backgroundColor: isDark ? 'rgba(4, 120, 87, 0.12)' : '#F0FDF4',
+                paddingVertical: 18,
+                paddingHorizontal: 20,
+                borderRadius: 16,
+                borderWidth: 1.5,
+                borderColor: isDark ? 'rgba(4, 120, 87, 0.35)' : '#BBF7D0',
+                width: '100%',
+                marginBottom: 10,
+              }}>
+                <Text style={[styles.userIdDisplay, { fontSize: 13, marginBottom: 6 }]}>
+                  {language === 'vi' ? 'ID kết bạn của bạn:' : 'Your Friend ID:'}
                 </Text>
-              </TouchableOpacity>
+                <Text style={[styles.userIdBold, { fontSize: 28, letterSpacing: 4, fontWeight: '900', color: isDark ? '#34D399' : '#047857', marginBottom: 14, textAlign: 'center' }]}>
+                  {user?.shortId || (user?.id ? user.id.slice(0, 6).toUpperCase() : '...')}
+                </Text>
+                <TouchableOpacity
+                  style={[styles.actionBtnSoft, { minWidth: 180 }, copiedId && { backgroundColor: isDark ? '#064E3B' : '#ECFDF5', borderColor: '#10B981' }]}
+                  onPress={handleCopyId}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.actionBtnSoftText, copiedId && { color: '#059669', fontWeight: '800' }]}>
+                    {copiedId ? (language === 'vi' ? '✅ Đã sao chép ID!' : '✅ Copied ID!') : ('📋 ' + (language === 'vi' ? 'Sao chép ID' : 'Copy ID'))}
+                  </Text>
+                </TouchableOpacity>
+              </View>
               
               {/* Add Friend Input */}
               <View style={{ marginTop: 24, width: '100%' }}>

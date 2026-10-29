@@ -25,7 +25,6 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useNotifications } from '../../contexts/NotificationContext';
 import * as ImagePicker from 'expo-image-picker';
-import QRCode from 'react-qr-code';
 import {
   getMomentsFeedApi,
   reactMomentApi,
@@ -2332,21 +2331,10 @@ const InviteModal = ({
             </View>
           </View>
 
-          {/* DIVIDER */}
-          <View style={inviteStyles.divider}>
-            <View style={inviteStyles.dividerLine} />
-            <Text style={inviteStyles.dividerText}>{isVi ? 'HOẶC QUÉT MÃ QR' : 'OR SCAN QR CODE'}</Text>
-            <View style={inviteStyles.dividerLine} />
-          </View>
-
-          {/* SECTION 2: MÃ QR & ID CỦA BẠN */}
-          <View style={{ alignItems: 'center', width: '100%' }}>
-            <View style={inviteStyles.qrBox}>
-              <QRCode value={userId || link} size={150} fgColor="#047857" />
-            </View>
-
-            <Text style={inviteStyles.idLabel}>{isVi ? 'ID của bạn:' : 'Your ID:'}</Text>
-            <Text style={inviteStyles.idValue} numberOfLines={1}>{userId || 'loading...'}</Text>
+          {/* SECTION 2: ID KẾT BẠN CỦA BẠN */}
+          <View style={{ alignItems: 'center', width: '100%', marginTop: 12 }}>
+            <Text style={inviteStyles.idLabel}>{isVi ? 'ID kết bạn của bạn:' : 'Your Friend ID:'}</Text>
+            <Text style={[inviteStyles.idValue, { fontSize: 24, letterSpacing: 3, fontWeight: '900' }]} numberOfLines={1}>{userId || 'loading...'}</Text>
 
             <TouchableOpacity style={inviteStyles.copyBtn} onPress={handleCopyMyId}>
               <Ionicons name="copy-outline" size={16} color="#059669" />
