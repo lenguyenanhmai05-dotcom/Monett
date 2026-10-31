@@ -365,10 +365,13 @@ export const GoalDetailModal: React.FC<GoalDetailModalProps> = ({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.modalBackdrop}>
-          <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-            <View style={styles.modalDialogCard}>
+      <View style={styles.modalBackdrop}>
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        <View style={styles.modalDialogCard}>
               {/* ================= HEADER ================= */}
               <View style={styles.modalHeaderRow}>
                 <View style={styles.headerLeftGroup}>
@@ -812,9 +815,7 @@ export const GoalDetailModal: React.FC<GoalDetailModalProps> = ({
                 </View>
               </View>
             </View>
-          </TouchableWithoutFeedback>
         </View>
-      </TouchableWithoutFeedback>
     </Modal>
   );
 };

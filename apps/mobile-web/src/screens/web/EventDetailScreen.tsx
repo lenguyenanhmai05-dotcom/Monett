@@ -12,6 +12,7 @@ import {
   Platform,
   Image,
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -21,8 +22,9 @@ import {
   EventExpenseItem,
   EventMember,
   sendEventInvitation,
+  notifyEventsUpdated,
 } from '../../services/eventsStorage';
-import { inviteFriendToEventApi, updateEventApi } from '../../services/api';
+import { inviteFriendToEventApi, updateEventApi, createEventApi } from '../../services/api';
 import { CreateEventModal } from '../../components/CreateEventModal';
 import { TransactionEditModal } from '../../components/TransactionEditModal';
 import { CategorySvgIcon } from '../../components/CategorySvgIcon';
@@ -35,6 +37,52 @@ interface EventDetailScreenProps {
   onDeleteEvent: (eventId: string, eventTitle: string) => void;
   onOpenCreateNewEvent?: () => void;
 }
+
+// SVG Icon chuyên dụng cho Chi tiêu (Expense)
+export const ExpenseSvgIcon: React.FC<{ size?: number; color?: string }> = ({
+  size = 14,
+  color = '#DC2626',
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M23 18L13.5 8.5L8.5 13.5L1 6"
+      stroke={color}
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M17 18H23V12"
+      stroke={color}
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+// SVG Icon chuyên dụng cho Khoản thu (Income)
+export const IncomeSvgIcon: React.FC<{ size?: number; color?: string }> = ({
+  size = 14,
+  color = '#059669',
+}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M23 6L13.5 15.5L8.5 10.5L1 18"
+      stroke={color}
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M17 6H23V12"
+      stroke={color}
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
 
 export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
   event,
@@ -185,13 +233,14 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
       );
 
       addNotification({
-        type: 'expense',
+        type: 'event',
         title: isVi ? 'Cập nhật giao dịch ✏️' : 'Transaction Updated ✏️',
         message: isVi
           ? `Đã cập nhật khoản "${cleanTitle}" trong sự kiện "${event.title}"`
           : `Updated "${cleanTitle}" in event "${event.title}"`,
         iconBg: '#EDE9FE',
         iconColor: '#7C3AED',
+        metadata: { targetTab: 'events', eventId: event.id },
       });
     } else {
       // CREATE
@@ -210,13 +259,14 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
       updatedExpenses = [newTx, ...event.expenses];
 
       addNotification({
-        type: 'expense',
+        type: 'event',
         title: txType === 'income' ? 'Ghi nhận khoản thu 💰' : 'Ghi nhận chi tiêu 💸',
         message: isVi
           ? `Đã thêm ${amount.toLocaleString('vi-VN')} đ ("${cleanTitle}") vào sự kiện "${event.title}"`
           : `Added ${amount.toLocaleString('vi-VN')} đ ("${cleanTitle}") to event "${event.title}"`,
         iconBg: txType === 'income' ? '#DCFCE7' : '#FEF3C7',
         iconColor: txType === 'income' ? '#059669' : '#D97706',
+        metadata: { targetTab: 'events', eventId: event.id },
       });
     }
 
@@ -267,11 +317,12 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
     });
 
     addNotification({
-      type: 'expense',
+      type: 'event',
       title: isVi ? 'Đã xóa giao dịch 🗑️' : 'Transaction Deleted 🗑️',
       message: isVi ? `Đã xóa giao dịch "${txTitle}".` : `Transaction "${txTitle}" deleted.`,
       iconBg: '#FEE2E2',
       iconColor: '#DC2626',
+      metadata: { targetTab: 'events', eventId: event.id },
     });
   };
 
@@ -305,13 +356,40 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
     };
     onUpdateEvent(updatedEvent);
 
-    // Gửi lời mời tới Backend API và hệ thống thông báo
-    inviteFriendToEventApi(event.id, {
-      id: friend.id,
-      name: friend.name,
-      email: friend.email,
-      avatarUrl: friend.avatarUrl,
-    }).catch((err) => console.warn('Lỗi gọi inviteFriendToEventApi:', err));
+    // Gửi lời mời tới Backend API và hệ thống thông báo an toàn
+    const syncInviteToBackend = async () => {
+      try {
+        let targetEventId = event.id;
+        if (targetEventId.startsWith('evt-')) {
+          try {
+            const created: any = await createEventApi({
+              title: event.title,
+              startDate: event.startDate,
+              endDate: event.endDate,
+              location: event.location,
+              estimatedBudget: event.estimatedBudget,
+              description: event.description,
+              status: event.status,
+            });
+            if (created && (created._id || created.id)) {
+              targetEventId = String(created._id || created.id);
+              onUpdateEvent({ ...updatedEvent, id: targetEventId });
+            }
+          } catch (createErr) {
+            console.warn('Lỗi createEventApi trong syncInviteToBackend:', createErr);
+          }
+        }
+        await inviteFriendToEventApi(targetEventId, {
+          id: friend.id,
+          name: friend.name,
+          email: friend.email,
+          avatarUrl: friend.avatarUrl,
+        });
+      } catch (err) {
+        console.warn('Lỗi gọi inviteFriendToEventApi:', err);
+      }
+    };
+    syncInviteToBackend();
 
     sendEventInvitation({
       eventId: event.id,
@@ -326,10 +404,13 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
       eventData: updatedEvent,
     });
 
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('monett:event_invitations_updated'));
-      window.dispatchEvent(new CustomEvent('monett:events_updated'));
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
+      try {
+        window.dispatchEvent(new CustomEvent('monett:event_invitations_updated'));
+        window.dispatchEvent(new CustomEvent('monett:events_updated'));
+      } catch (_) {}
     }
+    notifyEventsUpdated();
 
     addNotification({
       type: 'event',
@@ -339,6 +420,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
         : `Sent invitation for "${event.title}" to ${friend.name}. Waiting for acceptance!`,
       iconBg: '#FEF3C7',
       iconColor: '#D97706',
+      metadata: { targetTab: 'events', eventId: event.id },
     });
   };
 
@@ -408,33 +490,18 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
           {isVi ? 'Sự kiện' : 'Events'}
         </Text>
 
-        <View style={styles.topHeaderRight}>
-          {/* Nút "+ Thêm" (Tạo sự kiện mới) */}
-          <TouchableOpacity
-            style={styles.topAddEventBtn}
-            onPress={onOpenCreateNewEvent}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="add" size={18} color="#064E3B" />
-            <Text style={styles.topAddEventBtnText}>
-              {isVi ? 'Thêm' : 'Add'}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Nút chuông thông báo (Khớp ảnh 2) */}
-          <TouchableOpacity
-            style={[styles.topBellBtn, { backgroundColor: cardBg, borderColor: isDark ? '#334155' : '#E8E2D9' }]}
-            onPress={openNotifications}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="notifications-outline" size={18} color={textPrimary} />
-            {unreadCount > 0 && (
-              <View style={styles.topBellBadge}>
-                <Text style={styles.topBellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
+        {/* Nút X đóng màn hình (thay thế nút Thêm và Chuông thông báo) */}
+        <TouchableOpacity
+          style={[
+            styles.closeBtn,
+            { backgroundColor: cardBg, borderColor: isDark ? '#334155' : '#E8E0D5' },
+          ]}
+          onPress={onBack}
+          activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="close" size={20} color={isDark ? '#F8FAFC' : '#221D18'} />
+        </TouchableOpacity>
       </View>
 
       {/* ================= THANG CẮT NGANG GIỮA "SỰ KIỆN" VÀ NÚT LÙI SỰ KIỆN (KHỚP ẢNH 2) ================= */}
@@ -616,28 +683,38 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
             <TouchableOpacity
               style={[
                 styles.txFilterChip,
+                styles.txFilterChipWithIcon,
                 filterTxType === 'expense' && styles.txFilterChipActive,
                 { backgroundColor: filterTxType === 'expense' ? '#DC2626' : (isDark ? '#1E293B' : '#F1F5F9') }
               ]}
               onPress={() => setFilterTxType('expense')}
               activeOpacity={0.8}
             >
+              <ExpenseSvgIcon
+                size={14}
+                color={filterTxType === 'expense' ? '#FFFFFF' : '#DC2626'}
+              />
               <Text style={[styles.txFilterChipText, { color: filterTxType === 'expense' ? '#FFFFFF' : textSecondary, fontWeight: filterTxType === 'expense' ? '800' : '600' }]}>
-                💸 {isVi ? `Chi tiêu (${totalExpense.toLocaleString('vi-VN')} đ)` : `Expenses`}
+                {isVi ? `Chi tiêu (${totalExpense.toLocaleString('vi-VN')} đ)` : `Expenses (${totalExpense.toLocaleString('vi-VN')} đ)`}
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[
                 styles.txFilterChip,
+                styles.txFilterChipWithIcon,
                 filterTxType === 'income' && styles.txFilterChipActive,
                 { backgroundColor: filterTxType === 'income' ? '#059669' : (isDark ? '#1E293B' : '#F1F5F9') }
               ]}
               onPress={() => setFilterTxType('income')}
               activeOpacity={0.8}
             >
+              <IncomeSvgIcon
+                size={14}
+                color={filterTxType === 'income' ? '#FFFFFF' : '#059669'}
+              />
               <Text style={[styles.txFilterChipText, { color: filterTxType === 'income' ? '#FFFFFF' : textSecondary, fontWeight: filterTxType === 'income' ? '800' : '600' }]}>
-                💰 {isVi ? `Khoản thu (${totalIncome.toLocaleString('vi-VN')} đ)` : `Income`}
+                {isVi ? `Khoản thu (${totalIncome.toLocaleString('vi-VN')} đ)` : `Income (${totalIncome.toLocaleString('vi-VN')} đ)`}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1052,13 +1129,14 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
             );
 
             addNotification({
-              type: 'expense',
+              type: 'event',
               title: isVi ? 'Cập nhật giao dịch ✏️' : 'Transaction Updated ✏️',
               message: isVi
                 ? `Đã cập nhật khoản "${txData.title}" trong sự kiện "${event.title}"`
                 : `Updated "${txData.title}" in event "${event.title}"`,
               iconBg: '#EDE9FE',
               iconColor: '#7C3AED',
+              metadata: { targetTab: 'events', eventId: event.id },
             });
           } else {
             // CREATE
@@ -1078,13 +1156,14 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
             updatedExpenses = [newTx, ...event.expenses];
 
             addNotification({
-              type: 'expense',
+              type: 'event',
               title: txData.type === 'income' ? 'Ghi nhận khoản thu 💰' : 'Ghi nhận chi tiêu 💸',
               message: isVi
                 ? `Đã thêm ${txData.amount.toLocaleString('vi-VN')} đ ("${txData.title}") vào sự kiện "${event.title}"`
                 : `Added ${txData.amount.toLocaleString('vi-VN')} đ ("${txData.title}") to event "${event.title}"`,
               iconBg: txData.type === 'income' ? '#DCFCE7' : '#FEF3C7',
               iconColor: txData.type === 'income' ? '#059669' : '#D97706',
+              metadata: { targetTab: 'events', eventId: event.id },
             });
           }
 
@@ -1158,7 +1237,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
                 <View style={styles.detailModalHeader}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, paddingRight: 8 }}>
                     <View style={[styles.detailModalBadge, { backgroundColor: viewingTx?.type === 'income' ? (isDark ? 'rgba(5, 150, 105, 0.2)' : '#DCFCE7') : (isDark ? 'rgba(220, 38, 38, 0.2)' : '#FEF2F2') }]}>
-                      <Text style={{ fontSize: 18 }}>{viewingTx?.type === 'income' ? '💰' : '💸'}</Text>
+                      {viewingTx?.type === 'income' ? <IncomeSvgIcon size={18} color="#059669" /> : <ExpenseSvgIcon size={18} color="#DC2626" />}
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.detailModalTypeLabel, { color: viewingTx?.type === 'income' ? '#059669' : '#DC2626' }]}>
@@ -1297,6 +1376,26 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 14,
+  },
+  closeBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E8E0D5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#221D18',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  txFilterChipWithIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   pageTitle: {
     fontSize: 22,

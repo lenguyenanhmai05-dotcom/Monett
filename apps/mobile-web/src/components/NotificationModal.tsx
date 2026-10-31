@@ -24,7 +24,7 @@ import {
   sendBrowserNotification,
 } from '../utils/browserNotification';
 import { useAuth } from '../contexts/AuthContext';
-import { acceptEventInvitation, declineEventInvitation } from '../services/eventsStorage';
+import { acceptEventInvitation, declineEventInvitation, notifyEventsUpdated } from '../services/eventsStorage';
 import { acceptEventInvitationApi, declineEventInvitationApi, normalizeAvatarUrl } from '../services/api';
 
 const SafeNotificationAvatar: React.FC<{
@@ -59,6 +59,139 @@ const SafeNotificationAvatar: React.FC<{
 interface NotificationModalProps {
   onNavigateToTab?: (tab: any) => void;
 }
+
+export const resolveNotificationTargetTab = (notif: AppNotification): string | null => {
+  if (!notif) return null;
+
+  const title = (notif.title || '').toLowerCase();
+  const message = (notif.message || '').toLowerCase();
+  const type = notif.type;
+  const metaTab = notif.metadata?.targetTab;
+
+  // 1. Reminders / Lời nhắc
+  if (
+    type === 'reminder' ||
+    metaTab === 'reminders' ||
+    title.includes('nhắc nhở') ||
+    title.includes('lời nhắc') ||
+    message.includes('nhắc nhở') ||
+    message.includes('lời nhắc') ||
+    message.includes('đã đến giờ nhắc')
+  ) {
+    return 'reminders';
+  }
+
+  // 2. Events / Sự kiện / Lời mời sự kiện
+  if (
+    type === 'event' ||
+    metaTab === 'events' ||
+    title.includes('sự kiện') ||
+    title.includes('lời mời') ||
+    title.includes('tham gia sự kiện') ||
+    message.includes('sự kiện') ||
+    message.includes('lời mời tham gia')
+  ) {
+    return 'events';
+  }
+
+  // 3. Debt / Sổ ghi nợ / Cho mượn / Đang vay
+  if (
+    metaTab === 'debt' ||
+    metaTab === 'debts' ||
+    title.includes('sổ nợ') ||
+    title.includes('ghi nợ') ||
+    title.includes('khoản nợ') ||
+    title.includes('cho mượn') ||
+    title.includes('đang vay') ||
+    title.includes('thu nợ') ||
+    title.includes('trả nợ') ||
+    message.includes('sổ nợ') ||
+    message.includes('khoản nợ') ||
+    message.includes('cho mượn') ||
+    message.includes('đang vay')
+  ) {
+    return 'debt';
+  }
+
+  // 4. Recurring / Định kỳ
+  if (
+    metaTab === 'recurring' ||
+    title.includes('định kỳ') ||
+    title.includes('định kì') ||
+    message.includes('định kỳ') ||
+    message.includes('định kì')
+  ) {
+    return 'recurring';
+  }
+
+  // 5. Savings / Tích lũy
+  if (
+    metaTab === 'savings' ||
+    title.includes('tích lũy') ||
+    title.includes('tiết kiệm') ||
+    message.includes('tích lũy') ||
+    message.includes('mục tiêu tích lũy')
+  ) {
+    return 'savings';
+  }
+
+  // 6. Budget / Ngân sách / Thu nhập
+  if (
+    type === 'budget' ||
+    metaTab === 'budget' ||
+    metaTab === 'income' ||
+    title.includes('ngân sách') ||
+    message.includes('ngân sách') ||
+    title.includes('thu nhập')
+  ) {
+    return 'budget';
+  }
+
+  // 7. Friends / Bạn bè / Kết bạn
+  if (
+    type === 'friend' ||
+    metaTab === 'friends' ||
+    title.includes('kết bạn') ||
+    title.includes('bạn bè') ||
+    message.includes('kết bạn')
+  ) {
+    return 'friends';
+  }
+
+  // 8. Feed / Khoảnh khắc / Bài viết
+  if (
+    type === 'moment' ||
+    metaTab === 'feed' ||
+    title.includes('cảm xúc') ||
+    title.includes('bình luận') ||
+    title.includes('bài viết') ||
+    message.includes('bình luận') ||
+    message.includes('bài viết')
+  ) {
+    return 'feed';
+  }
+
+  // 9. Photo Journal / Chi tiêu
+  if (
+    type === 'expense' ||
+    metaTab === 'photo_journal' ||
+    metaTab === 'journal' ||
+    title.includes('chi tiêu') ||
+    title.includes('khoản chi') ||
+    message.includes('chi tiêu') ||
+    message.includes('khoản chi') ||
+    message.includes('sổ chi tiêu')
+  ) {
+    return 'photo_journal';
+  }
+
+  // 10. Fallback: If metadata has a specific targetTab (and not 'home')
+  if (metaTab && metaTab !== 'home') {
+    return metaTab;
+  }
+
+  return null;
+};
 
 export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigateToTab }) => {
   const { openChat } = useChat();
@@ -133,7 +266,10 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
   const filteredNotifications = useMemo(() => {
     if (filterType === 'all') return notifications;
     if (filterType === 'reminder') {
-      return notifications.filter((n) => n.type === 'reminder');
+      return notifications.filter((n) => n.type === 'reminder' || (n.title && n.title.toLowerCase().includes('nhắc nhở')));
+    }
+    if (filterType === 'friend') {
+      return notifications.filter((n) => n.type === 'friend' || n.type === 'event');
     }
     if (filterType === 'moment') {
       return notifications.filter((n) => n.type === 'moment' || n.type === 'expense' || n.type === 'budget');
@@ -206,21 +342,30 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
       return;
     }
 
-    // Nếu là thông báo chi tiêu -> Bấm là nhảy ra ngay Nhật Ký Ảnh Chi Tiêu!
-    const isExpenseNotif =
-      notif.type === 'expense' ||
-      notif.metadata?.targetTab === 'photo_journal' ||
-      notif.metadata?.targetTab === 'journal' ||
-      (notif.title && notif.title.toLowerCase().includes('chi tiêu')) ||
-      (notif.message && notif.message.toLowerCase().includes('khoản chi'));
+    const targetTab = resolveNotificationTargetTab(notif);
 
-    if (isExpenseNotif) {
+    if (targetTab === 'photo_journal' || targetTab === 'journal') {
       if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
         window.dispatchEvent(new CustomEvent('monett:open_photo_journal'));
       }
       if (onNavigateToTab) {
         onNavigateToTab('photo_journal');
       }
+      return;
+    }
+
+    if (targetTab === 'events') {
+      if (notif.metadata?.eventId && Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('monett:open_event', { detail: { eventId: notif.metadata.eventId } }));
+      }
+      if (onNavigateToTab) {
+        onNavigateToTab('events');
+      }
+      return;
+    }
+
+    if (targetTab && onNavigateToTab) {
+      onNavigateToTab(targetTab);
       return;
     }
 
@@ -240,6 +385,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
     }
     acceptEventInvitation(invId, user ? { id: (user as any)._id || user.id, email: user.email, fullName: user.fullName } : undefined);
     markAsRead(notif.id);
+    notifyEventsUpdated();
     if (notif.metadata) {
       notif.metadata.inviteStatus = 'accepted';
     }
@@ -264,6 +410,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
     }
     declineEventInvitation(invId);
     markAsRead(notif.id);
+    notifyEventsUpdated();
     if (notif.metadata) {
       notif.metadata.inviteStatus = 'declined';
     }
@@ -761,7 +908,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ onNavigate
                               {formatRelativeTime(notif.createdAt)}
                             </Text>
 
-                            {(notif.metadata?.targetTab || notif.type === 'expense' || notif.title?.includes('chi tiêu')) && (
+                            {Boolean(resolveNotificationTargetTab(notif) || (notif.metadata?.openChat && notif.metadata?.friendId)) && (
                               <TouchableOpacity
                                 onPress={(e) => {
                                   e.stopPropagation();

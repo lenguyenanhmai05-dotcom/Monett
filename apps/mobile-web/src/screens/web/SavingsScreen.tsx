@@ -137,7 +137,7 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
     setFormDeadline(getFutureDateFormatted(30));
     setFormNote('');
     setIsDatePickerOpen(false);
-    setFocusedField('formTitle');
+    setFocusedField(null);
     setIsCreateModalOpen(true);
   };
 
@@ -149,7 +149,7 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
     setFormDeadline(goal.deadline || '');
     setFormNote(goal.note || '');
     setIsDatePickerOpen(false);
-    setFocusedField('formTitle');
+    setFocusedField(null);
     setIsCreateModalOpen(true);
   };
 
@@ -200,6 +200,7 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
           : `Goal "${cleanTitle}" has been updated.`,
         iconBg: '#DCFCE7',
         iconColor: '#059669',
+        metadata: { targetTab: 'savings' },
       });
     } else {
       const newGoal: ISavingsGoal = {
@@ -223,6 +224,7 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
           : `Created savings goal "${cleanTitle}" for ${formatVND(targetAmt)} VND.`,
         iconBg: '#DCFCE7',
         iconColor: '#059669',
+        metadata: { targetTab: 'savings' },
       });
     }
 
@@ -283,6 +285,7 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
         : `Deposited ${formatVND(addAmt)} VND into "${depositingGoal.title}".`,
       iconBg: '#DCFCE7',
       iconColor: '#059669',
+      metadata: { targetTab: 'savings' },
     });
 
     setDepositingGoal(null);
@@ -362,11 +365,12 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={styles.rootContainer}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
       {/* ================= 1. HEADER ROW ================= */}
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
@@ -630,6 +634,8 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
         </View>
       )}
 
+      </ScrollView>
+
       {/* ================= 6. MODAL NẠP TIỀN TÍCH LŨY (SCREENSHOT 2) ================= */}
       <Modal
         visible={!!depositingGoal}
@@ -637,115 +643,123 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
         animationType="fade"
         onRequestClose={() => setDepositingGoal(null)}
       >
-        <TouchableWithoutFeedback onPress={() => setDepositingGoal(null)}>
-          <View style={styles.modalBackdrop}>
-            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-              <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                style={styles.keyboardAvoid}
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setDepositingGoal(null)}
+          />
+
+          <View style={styles.modalDialogCard}>
+            {/* Header */}
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalDialogTitle}>
+                  {isVi ? 'Nạp tiền tích lũy' : 'Deposit to Goal'}
+                </Text>
+                <Text style={styles.modalDialogSubtitle}>
+                  {depositingGoal?.title}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setDepositingGoal(null)}
+                style={styles.modalCloseCircle}
+                activeOpacity={0.7}
               >
-                <View style={styles.modalDialogCard}>
-                  {/* Header */}
-                  <View style={styles.modalHeaderRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.modalDialogTitle}>
-                        {isVi ? 'Nạp tiền tích lũy' : 'Deposit to Goal'}
-                      </Text>
-                      <Text style={styles.modalDialogSubtitle}>
-                        {depositingGoal?.title}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => setDepositingGoal(null)}
-                      style={styles.modalCloseCircle}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="close" size={20} color="#221D18" />
-                    </TouchableOpacity>
-                  </View>
+                <Ionicons name="close" size={20} color="#221D18" />
+              </TouchableOpacity>
+            </View>
 
-                  {/* Dark Charcoal Separator */}
-                  <View style={styles.modalDarkDivider} />
+            {/* Dark Charcoal Separator */}
+            <View style={styles.modalDarkDivider} />
 
-                  {/* Form Field: Số tiền * */}
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>
-                      {isVi ? 'Số tiền' : 'Amount'} <Text style={styles.asterisk}>*</Text>
-                    </Text>
-                    <View
-                      style={[
-                        styles.boxInputContainer,
-                        focusedField === 'depositAmount' && styles.boxInputContainerFocused,
-                      ]}
-                    >
-                      <TextInput
-                        value={depositAmountStr}
-                        onChangeText={(txt) => handleAmountInputChange(txt, setDepositAmountStr)}
-                        placeholder="0"
-                        placeholderTextColor="#A8A29E"
-                        keyboardType="numeric"
-                        style={styles.boxTextInput}
-                        onFocus={() => setFocusedField('depositAmount')}
-                        onBlur={() => setFocusedField(null)}
-                        autoFocus
-                      />
-                      <Text style={styles.currencyBadge}>đ</Text>
-                    </View>
-                  </View>
-
-                  {/* Form Field: Ghi chú */}
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>{isVi ? 'Ghi chú' : 'Note'}</Text>
-                    <View
-                      style={[
-                        styles.textareaContainer,
-                        focusedField === 'depositNote' && styles.textareaContainerFocused,
-                      ]}
-                    >
-                      <TextInput
-                        value={depositNote}
-                        onChangeText={setDepositNote}
-                        placeholder={
-                          isVi
-                            ? 'VD: Thưởng dự án, tiết kiệm tiền ăn trưa...'
-                            : 'e.g. Project bonus, lunch savings...'
-                        }
-                        placeholderTextColor="#A8A29E"
-                        multiline
-                        numberOfLines={3}
-                        style={styles.textareaInput}
-                        onFocus={() => setFocusedField('depositNote')}
-                        onBlur={() => setFocusedField(null)}
-                      />
-                    </View>
-                  </View>
-
-                  {/* Dark Charcoal Separator */}
-                  <View style={styles.modalDarkDivider} />
-
-                  {/* Footer Actions */}
-                  <View style={styles.modalFooterRow}>
-                    <TouchableOpacity
-                      onPress={() => setDepositingGoal(null)}
-                      style={styles.modalCancelBtn}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.modalCancelBtnText}>{isVi ? 'Huỷ' : 'Cancel'}</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={handleConfirmDeposit}
-                      style={styles.modalSubmitBtn}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.modalSubmitBtnText}>{isVi ? 'Nạp' : 'Deposit'}</Text>
-                    </TouchableOpacity>
-                  </View>
+            <ScrollView
+              style={styles.modalScrollBody}
+              contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* Form Field: Số tiền * */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>
+                  {isVi ? 'Số tiền' : 'Amount'} <Text style={styles.asterisk}>*</Text>
+                </Text>
+                <View
+                  style={[
+                    styles.boxInputContainer,
+                    focusedField === 'depositAmount' && styles.boxInputContainerFocused,
+                  ]}
+                >
+                  <TextInput
+                    value={depositAmountStr}
+                    onChangeText={(txt) => handleAmountInputChange(txt, setDepositAmountStr)}
+                    placeholder="0"
+                    placeholderTextColor="#A8A29E"
+                    keyboardType="numeric"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    autoCorrect={false}
+                    textContentType="none"
+                    style={styles.boxTextInput}
+                    onFocus={() => setFocusedField('depositAmount')}
+                  />
+                  <Text style={styles.currencyBadge}>đ</Text>
                 </View>
-              </KeyboardAvoidingView>
-            </TouchableWithoutFeedback>
+              </View>
+
+              {/* Form Field: Ghi chú */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>{isVi ? 'Ghi chú' : 'Note'}</Text>
+                <View
+                  style={[
+                    styles.textareaContainer,
+                    focusedField === 'depositNote' && styles.textareaContainerFocused,
+                  ]}
+                >
+                  <TextInput
+                    value={depositNote}
+                    onChangeText={setDepositNote}
+                    placeholder={
+                      isVi
+                        ? 'VD: Thưởng dự án, tiết kiệm tiền ăn trưa...'
+                        : 'e.g. Project bonus, lunch savings...'
+                    }
+                    placeholderTextColor="#A8A29E"
+                    multiline
+                    numberOfLines={3}
+                    autoComplete="off"
+                    autoCorrect={false}
+                    textContentType="none"
+                    style={styles.textareaInput}
+                    onFocus={() => setFocusedField('depositNote')}
+                  />
+                </View>
+              </View>
+            </ScrollView>
+
+            {/* Dark Charcoal Separator */}
+            <View style={styles.modalDarkDivider} />
+
+            {/* Footer Actions */}
+            <View style={styles.modalFooterRow}>
+              <TouchableOpacity
+                onPress={() => setDepositingGoal(null)}
+                style={styles.modalCancelBtn}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.modalCancelBtnText}>{isVi ? 'Huỷ' : 'Cancel'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleConfirmDeposit}
+                style={styles.modalSubmitBtn}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalSubmitBtnText}>{isVi ? 'Nạp' : 'Deposit'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </TouchableWithoutFeedback>
+        </View>
       </Modal>
 
       {/* ================= 7. MODAL TẠO TÍCH LŨY MỚI / SỬA ================= */}
@@ -755,233 +769,245 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
         animationType="fade"
         onRequestClose={() => setIsCreateModalOpen(false)}
       >
-        <TouchableWithoutFeedback onPress={() => setIsCreateModalOpen(false)}>
-          <View style={styles.modalBackdrop}>
-            <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-              <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                style={styles.keyboardAvoid}
+        <View style={styles.modalBackdrop}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setIsCreateModalOpen(false)}
+          />
+
+          <View style={styles.modalDialogCard}>
+            {/* Header */}
+            <View style={styles.modalHeaderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.modalDialogTitle}>
+                  {editingGoalId
+                    ? isVi
+                      ? 'Chỉnh sửa tích lũy'
+                      : 'Edit Goal'
+                    : isVi
+                    ? 'Tạo tích lũy mới'
+                    : 'Create Savings Goal'}
+                </Text>
+                <Text style={styles.modalDialogSubtitle}>
+                  {isVi
+                    ? 'Thiết lập mục tiêu và kế hoạch tích lũy'
+                    : 'Set your savings targets and deadlines'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setIsCreateModalOpen(false)}
+                style={styles.modalCloseCircle}
+                activeOpacity={0.7}
               >
-                <View style={styles.modalDialogCard}>
-                  {/* Header */}
-                  <View style={styles.modalHeaderRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.modalDialogTitle}>
-                        {editingGoalId
-                          ? isVi
-                            ? 'Chỉnh sửa tích lũy'
-                            : 'Edit Goal'
-                          : isVi
-                          ? 'Tạo tích lũy mới'
-                          : 'Create Savings Goal'}
-                      </Text>
-                      <Text style={styles.modalDialogSubtitle}>
-                        {isVi
-                          ? 'Thiết lập mục tiêu và kế hoạch tích lũy'
-                          : 'Set your savings targets and deadlines'}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => setIsCreateModalOpen(false)}
-                      style={styles.modalCloseCircle}
-                      activeOpacity={0.7}
-                    >
-                      <Ionicons name="close" size={20} color="#221D18" />
+                <Ionicons name="close" size={20} color="#221D18" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Dark Charcoal Separator */}
+            <View style={styles.modalDarkDivider} />
+
+            <ScrollView
+              style={styles.modalScrollBody}
+              contentContainerStyle={styles.modalScrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {/* 1. Tên mục tiêu tích lũy * */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>
+                  {isVi ? 'Tên' : 'Title'} <Text style={styles.asterisk}>*</Text>
+                </Text>
+                <View
+                  style={[
+                    styles.boxInputContainer,
+                    focusedField === 'formTitle' && styles.boxInputContainerFocused,
+                  ]}
+                >
+                  <TextInput
+                    value={formTitle}
+                    onChangeText={setFormTitle}
+                    placeholder={
+                      isVi
+                        ? 'VD: Du văn lịch, Mua xe mới, Đổi laptop...'
+                        : 'e.g. Vacation trip, New motorbike, Laptop...'
+                    }
+                    placeholderTextColor="#A8A29E"
+                    autoComplete="off"
+                    autoCorrect={false}
+                    textContentType="none"
+                    style={styles.boxTextInput}
+                    onFocus={() => setFocusedField('formTitle')}
+                  />
+                </View>
+              </View>
+
+              {/* 2. Số tiền mục tiêu * */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>
+                  {isVi ? 'Số tiền' : 'Amount'} <Text style={styles.asterisk}>*</Text>
+                </Text>
+                <View
+                  style={[
+                    styles.boxInputContainer,
+                    focusedField === 'formTarget' && styles.boxInputContainerFocused,
+                  ]}
+                >
+                  <TextInput
+                    value={formTargetStr}
+                    onChangeText={(txt) => handleAmountInputChange(txt, setFormTargetStr)}
+                    placeholder="2.000.000"
+                    placeholderTextColor="#A8A29E"
+                    keyboardType="numeric"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    autoCorrect={false}
+                    textContentType="none"
+                    style={styles.boxTextInput}
+                    onFocus={() => setFocusedField('formTarget')}
+                  />
+                  <Text style={styles.currencyBadge}>đ</Text>
+                </View>
+              </View>
+
+              {/* 3. Ngày hoàn thành * */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>
+                  {isVi ? 'Ngày hoàn thành' : 'Completion Date'}{' '}
+                  <Text style={styles.asterisk}>*</Text>
+                </Text>
+                <View
+                  style={[
+                    styles.boxInputContainer,
+                    focusedField === 'formDeadline' && styles.boxInputContainerFocused,
+                  ]}
+                >
+                  <TextInput
+                    value={formDeadline}
+                    onChangeText={setFormDeadline}
+                    placeholder="dd/mm/yyyy"
+                    placeholderTextColor="#A8A29E"
+                    autoComplete="off"
+                    autoCorrect={false}
+                    textContentType="none"
+                    style={styles.boxTextInput}
+                    onFocus={() => setFocusedField('formDeadline')}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setIsDatePickerOpen((prev) => !prev)}
+                    style={styles.calendarIconBtn}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="calendar-outline" size={18} color="#221D18" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Dropdown Mini Calendar */}
+              {isDatePickerOpen && (
+                <View style={styles.miniCalendarBox}>
+                  <View style={styles.miniCalendarHeader}>
+                    <TouchableOpacity onPress={handlePrevPickerMonth} style={styles.miniCalNavBtn}>
+                      <Text style={styles.miniCalNavText}>‹</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.miniCalendarTitle}>
+                      {isVi
+                        ? `Tháng ${pickerMonth + 1}, ${pickerYear}`
+                        : `${new Date(pickerYear, pickerMonth).toLocaleString('en-US', {
+                            month: 'short',
+                          })} ${pickerYear}`}
+                    </Text>
+                    <TouchableOpacity onPress={handleNextPickerMonth} style={styles.miniCalNavBtn}>
+                      <Text style={styles.miniCalNavText}>›</Text>
                     </TouchableOpacity>
                   </View>
 
-                  {/* Dark Charcoal Separator */}
-                  <View style={styles.modalDarkDivider} />
-
-                  {/* 1. Tên mục tiêu tích lũy * */}
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>
-                      {isVi ? 'Tên' : 'Title'} <Text style={styles.asterisk}>*</Text>
-                    </Text>
-                    <View
-                      style={[
-                        styles.boxInputContainer,
-                        focusedField === 'formTitle' && styles.boxInputContainerFocused,
-                      ]}
-                    >
-                      <TextInput
-                        value={formTitle}
-                        onChangeText={setFormTitle}
-                        placeholder={
-                          isVi
-                            ? 'VD: Du văn lịch, Mua xe mới, Đổi laptop...'
-                            : 'e.g. Vacation trip, New motorbike, Laptop...'
-                        }
-                        placeholderTextColor="#A8A29E"
-                        style={styles.boxTextInput}
-                        onFocus={() => setFocusedField('formTitle')}
-                        onBlur={() => setFocusedField(null)}
-                        autoFocus
-                      />
-                    </View>
+                  <View style={styles.dowRow}>
+                    {(isVi
+                      ? ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
+                      : ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
+                    ).map((dow, idx) => (
+                      <View key={dow + idx} style={styles.dowCell}>
+                        <Text style={styles.dowText}>{dow}</Text>
+                      </View>
+                    ))}
                   </View>
 
-                  {/* 2. Số tiền mục tiêu * */}
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>
-                      {isVi ? 'Số tiền' : 'Amount'} <Text style={styles.asterisk}>*</Text>
-                    </Text>
-                    <View
-                      style={[
-                        styles.boxInputContainer,
-                        focusedField === 'formTarget' && styles.boxInputContainerFocused,
-                      ]}
-                    >
-                      <TextInput
-                        value={formTargetStr}
-                        onChangeText={(txt) => handleAmountInputChange(txt, setFormTargetStr)}
-                        placeholder="2.000.000"
-                        placeholderTextColor="#A8A29E"
-                        keyboardType="numeric"
-                        style={styles.boxTextInput}
-                        onFocus={() => setFocusedField('formTarget')}
-                        onBlur={() => setFocusedField(null)}
-                      />
-                      <Text style={styles.currencyBadge}>đ</Text>
-                    </View>
-                  </View>
-
-                  {/* 3. Ngày hoàn thành * */}
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>
-                      {isVi ? 'Ngày hoàn thành' : 'Completion Date'}{' '}
-                      <Text style={styles.asterisk}>*</Text>
-                    </Text>
-                    <View
-                      style={[
-                        styles.boxInputContainer,
-                        focusedField === 'formDeadline' && styles.boxInputContainerFocused,
-                      ]}
-                    >
-                      <TextInput
-                        value={formDeadline}
-                        onChangeText={setFormDeadline}
-                        placeholder="dd/mm/yyyy"
-                        placeholderTextColor="#A8A29E"
-                        style={styles.boxTextInput}
-                        onFocus={() => setFocusedField('formDeadline')}
-                        onBlur={() => setFocusedField(null)}
-                      />
-                      <TouchableOpacity
-                        onPress={() => setIsDatePickerOpen((prev) => !prev)}
-                        style={styles.calendarIconBtn}
-                        activeOpacity={0.7}
-                      >
-                        <Ionicons name="calendar-outline" size={18} color="#221D18" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  {/* Dropdown Mini Calendar */}
-                  {isDatePickerOpen && (
-                    <View style={styles.miniCalendarBox}>
-                      <View style={styles.miniCalendarHeader}>
-                        <TouchableOpacity onPress={handlePrevPickerMonth} style={styles.miniCalNavBtn}>
-                          <Text style={styles.miniCalNavText}>‹</Text>
+                  <View style={styles.daysGrid}>
+                    {calendarCells.map((day, idx) => {
+                      if (day === null) {
+                        return <View key={`empty-${idx}`} style={styles.dayCell} />;
+                      }
+                      return (
+                        <TouchableOpacity
+                          key={`d-${day}`}
+                          style={styles.dayCell}
+                          onPress={() => handleSelectCalendarDay(day)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.dayCellText}>{day}</Text>
                         </TouchableOpacity>
-                        <Text style={styles.miniCalendarTitle}>
-                          {isVi
-                            ? `Tháng ${pickerMonth + 1}, ${pickerYear}`
-                            : `${new Date(pickerYear, pickerMonth).toLocaleString('en-US', {
-                                month: 'short',
-                              })} ${pickerYear}`}
-                        </Text>
-                        <TouchableOpacity onPress={handleNextPickerMonth} style={styles.miniCalNavBtn}>
-                          <Text style={styles.miniCalNavText}>›</Text>
-                        </TouchableOpacity>
-                      </View>
-
-                      <View style={styles.dowRow}>
-                        {(isVi
-                          ? ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
-                          : ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
-                        ).map((dow, idx) => (
-                          <View key={dow + idx} style={styles.dowCell}>
-                            <Text style={styles.dowText}>{dow}</Text>
-                          </View>
-                        ))}
-                      </View>
-
-                      <View style={styles.daysGrid}>
-                        {calendarCells.map((day, idx) => {
-                          if (day === null) {
-                            return <View key={`empty-${idx}`} style={styles.dayCell} />;
-                          }
-                          return (
-                            <TouchableOpacity
-                              key={`d-${day}`}
-                              style={styles.dayCell}
-                              onPress={() => handleSelectCalendarDay(day)}
-                              activeOpacity={0.7}
-                            >
-                              <Text style={styles.dayCellText}>{day}</Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    </View>
-                  )}
-
-                  {/* 4. Ghi chú */}
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>{isVi ? 'Ghi chú' : 'Note'}</Text>
-                    <View
-                      style={[
-                        styles.textareaContainer,
-                        focusedField === 'formNote' && styles.textareaContainerFocused,
-                      ]}
-                    >
-                      <TextInput
-                        value={formNote}
-                        onChangeText={setFormNote}
-                        placeholder={
-                          isVi
-                            ? 'Mô tả chi tiết hoặc lý do bạn muốn đạt mục tiêu này...'
-                            : 'Notes or reasons for this goal...'
-                        }
-                        placeholderTextColor="#A8A29E"
-                        multiline
-                        numberOfLines={3}
-                        style={styles.textareaInput}
-                        onFocus={() => setFocusedField('formNote')}
-                        onBlur={() => setFocusedField(null)}
-                      />
-                    </View>
-                  </View>
-
-                  {/* Dark Charcoal Separator */}
-                  <View style={styles.modalDarkDivider} />
-
-                  {/* Footer Actions */}
-                  <View style={styles.modalFooterRow}>
-                    <TouchableOpacity
-                      onPress={() => setIsCreateModalOpen(false)}
-                      style={styles.modalCancelBtn}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.modalCancelBtnText}>{isVi ? 'Huỷ' : 'Cancel'}</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={handleSaveGoal}
-                      style={styles.modalSubmitBtn}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={styles.modalSubmitBtnText}>
-                        {editingGoalId ? (isVi ? 'Lưu' : 'Save') : isVi ? 'Tạo' : 'Create'}
-                      </Text>
-                    </TouchableOpacity>
+                      );
+                    })}
                   </View>
                 </View>
-              </KeyboardAvoidingView>
-            </TouchableWithoutFeedback>
+              )}
+
+              {/* 4. Ghi chú */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>{isVi ? 'Ghi chú' : 'Note'}</Text>
+                <View
+                  style={[
+                    styles.textareaContainer,
+                    focusedField === 'formNote' && styles.textareaContainerFocused,
+                  ]}
+                >
+                  <TextInput
+                    value={formNote}
+                    onChangeText={setFormNote}
+                    placeholder={
+                      isVi
+                        ? 'Mô tả chi tiết hoặc lý do bạn muốn đạt mục tiêu này...'
+                        : 'Notes or reasons for this goal...'
+                    }
+                    placeholderTextColor="#A8A29E"
+                    multiline
+                    numberOfLines={3}
+                    autoComplete="off"
+                    autoCorrect={false}
+                    textContentType="none"
+                    style={styles.textareaInput}
+                    onFocus={() => setFocusedField('formNote')}
+                  />
+                </View>
+              </View>
+            </ScrollView>
+
+            {/* Dark Charcoal Separator */}
+            <View style={styles.modalDarkDivider} />
+
+            {/* Footer Actions */}
+            <View style={styles.modalFooterRow}>
+              <TouchableOpacity
+                onPress={() => setIsCreateModalOpen(false)}
+                style={styles.modalCancelBtn}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.modalCancelBtnText}>{isVi ? 'Huỷ' : 'Cancel'}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleSaveGoal}
+                style={styles.modalSubmitBtn}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalSubmitBtnText}>
+                  {editingGoalId ? (isVi ? 'Lưu' : 'Save') : isVi ? 'Tạo' : 'Create'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </TouchableWithoutFeedback>
+        </View>
       </Modal>
 
       {/* ================= 8. MODAL CHI TIẾT MỤC TIÊU & LỊCH SỬ NẠP TIỀN ================= */}
@@ -995,7 +1021,7 @@ export const SavingsScreen: React.FC<SavingsScreenProps> = ({
         onDeleteDeposit={handleDeleteDeposit}
         onEditDeposit={handleEditDeposit}
       />
-    </ScrollView>
+    </View>
   );
 };
 
@@ -1452,12 +1478,16 @@ const styles = StyleSheet.create({
   },
 
   // Modal Styles (Matches Screenshot 2)
+  rootContainer: {
+    flex: 1,
+    backgroundColor: '#F5F0E8',
+  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 18,
+    padding: 16,
   },
   keyboardAvoid: {
     width: '100%',
@@ -1466,12 +1496,23 @@ const styles = StyleSheet.create({
   modalDialogCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    padding: 24,
+    width: '100%',
+    maxWidth: 460,
+    maxHeight: '88%',
+    padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.15,
     shadowRadius: 18,
     elevation: 8,
+    zIndex: 10,
+  },
+  modalScrollBody: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  modalScrollContent: {
+    paddingVertical: 4,
   },
   modalHeaderRow: {
     flexDirection: 'row',

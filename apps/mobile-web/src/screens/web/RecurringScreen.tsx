@@ -16,12 +16,15 @@ import Svg, { Path, Rect, Circle, Line } from 'react-native-svg';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 import {
   RecurringItem,
   RecurringFrequency,
   RecurringType,
   loadRecurringItems,
   saveRecurringItems,
+  preloadRecurringFromAsyncStorage,
+  subscribeRecurringUpdates,
   getFrequencyLabel,
   getFrequencyPeriodSuffix,
   calculateMonthlyEquivalent,
@@ -149,6 +152,7 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
   const { user } = useAuth();
   const { isDark } = useTheme();
   const { language } = useLanguage();
+  const { addNotification } = useNotifications();
   const isVi = language === 'vi';
 
   const handleBack = () => {
@@ -168,15 +172,21 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
   // Recurring Items State
   const [items, setItems] = useState<RecurringItem[]>(() => loadRecurringItems(userId, userEmail));
 
-  // Khi đổi tài khoản, load lại dữ liệu riêng của tài khoản đó
+  // Khi đổi tài khoản, load lại dữ liệu riêng của tài khoản đó (đồng bộ & bất đồng bộ)
   useEffect(() => {
     setItems(loadRecurringItems(userId, userEmail));
+    preloadRecurringFromAsyncStorage(userId, userEmail).then((res) => {
+      if (res && res.length > 0) setItems(res);
+    });
   }, [userId, userEmail]);
 
-  // Sync to localStorage
+  // Lắng nghe sự kiện cập nhật từ storage/widget khác
   useEffect(() => {
-    saveRecurringItems(items, userId, userEmail);
-  }, [items, userId, userEmail]);
+    const unsubscribe = subscribeRecurringUpdates(() => {
+      setItems(loadRecurringItems(userId, userEmail));
+    });
+    return unsubscribe;
+  }, [userId, userEmail]);
 
   // Modal State for Create / Edit
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -217,9 +227,9 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
 
   // Toggle active status
   const handleToggleActive = (id: string) => {
-    setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, isActive: !i.isActive } : i))
-    );
+    const next = items.map((i) => (i.id === id ? { ...i, isActive: !i.isActive } : i));
+    setItems(next);
+    saveRecurringItems(next, userId, userEmail);
   };
 
   // Open Create Modal
@@ -253,26 +263,49 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
       alert(isVi ? 'Vui lòng nhập tên khoản định kỳ.' : 'Please enter a title.');
       return;
     }
-    const numAmt = parseInt(formAmountStr.replace(/\D/g, ''), 10) || 0;
+
+    // Hỗ trợ nhập số thường lẫn shortcut k (nghìn), m/tr (triệu)
+    let numAmt = 0;
+    const cleanAmtStr = formAmountStr.toLowerCase().trim();
+    if (cleanAmtStr.includes('tr') || cleanAmtStr.includes('m')) {
+      const base = parseFloat(cleanAmtStr.replace(/[^\d.]/g, '')) || 0;
+      numAmt = Math.round(base * 1000000);
+    } else if (cleanAmtStr.includes('k')) {
+      const base = parseFloat(cleanAmtStr.replace(/[^\d.]/g, '')) || 0;
+      numAmt = Math.round(base * 1000);
+    } else {
+      numAmt = parseInt(cleanAmtStr.replace(/\D/g, ''), 10) || 0;
+    }
+
     if (numAmt <= 0) {
       alert(isVi ? 'Vui lòng nhập số tiền hợp lệ (> 0).' : 'Please enter a valid amount.');
       return;
     }
 
     if (editingItem) {
-      setItems((prev) =>
-        prev.map((i) =>
-          i.id === editingItem.id
-            ? {
-              ...i,
-              title: cleanTitle,
-              amount: numAmt,
-              frequency: formFrequency,
-              dayOfPayment: formDayOfPayment.trim() || '1',
-            }
-            : i
-        )
+      const next = items.map((i) =>
+        i.id === editingItem.id
+          ? {
+            ...i,
+            title: cleanTitle,
+            amount: numAmt,
+            frequency: formFrequency,
+            dayOfPayment: formDayOfPayment.trim() || '1',
+          }
+          : i
       );
+      setItems(next);
+      saveRecurringItems(next, userId, userEmail);
+      addNotification({
+        type: 'moment',
+        title: isVi ? 'Cập nhật định kỳ 🔄' : 'Recurring Updated 🔄',
+        message: isVi
+          ? `Đã cập nhật khoản định kỳ "${cleanTitle}" (${numAmt.toLocaleString('vi-VN')} đ)`
+          : `Updated recurring item "${cleanTitle}" (${numAmt.toLocaleString('vi-VN')} VND)`,
+        iconBg: '#EDE9FE',
+        iconColor: '#7C3AED',
+        metadata: { targetTab: 'recurring' },
+      });
     } else {
       const newItem: RecurringItem = {
         id: `rec-${Date.now()}`,
@@ -284,7 +317,21 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
         isActive: true,
         createdAt: new Date().toISOString(),
       };
-      setItems((prev) => [newItem, ...prev]);
+      const next = [newItem, ...items.filter((x) => x.id !== newItem.id)];
+      setItems(next);
+      saveRecurringItems(next, userId, userEmail);
+      addNotification({
+        type: 'moment',
+        title: isVi
+          ? (activeTab === 'expense' ? 'Khoản chi định kỳ mới 🔄' : 'Khoản thu định kỳ mới 💰')
+          : 'New Recurring Item 🔄',
+        message: isVi
+          ? `Đã thêm khoản ${activeTab === 'expense' ? 'chi' : 'thu'} định kỳ "${cleanTitle}" (${numAmt.toLocaleString('vi-VN')} đ)`
+          : `Added recurring ${activeTab} "${cleanTitle}" (${numAmt.toLocaleString('vi-VN')} VND)`,
+        iconBg: activeTab === 'expense' ? '#FEF3C7' : '#DCFCE7',
+        iconColor: activeTab === 'expense' ? '#D97706' : '#059669',
+        metadata: { targetTab: 'recurring' },
+      });
     }
 
     setIsModalOpen(false);
@@ -298,7 +345,9 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
     if (typeof window !== 'undefined' && window.confirm) {
       if (!window.confirm(msg)) return;
     }
-    setItems((prev) => prev.filter((i) => i.id !== id));
+    const next = items.filter((i) => i.id !== id);
+    setItems(next);
+    saveRecurringItems(next, userId, userEmail);
   };
 
   const frequencyOptions: { key: RecurringFrequency; label: string }[] = [

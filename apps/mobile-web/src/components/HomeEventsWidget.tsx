@@ -1,26 +1,51 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { MonettEvent, loadEventsFromStorage } from '../services/eventsStorage';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  MonettEvent,
+  loadEventsFromStorage,
+  preloadEventsFromAsyncStorage,
+  subscribeEventsUpdates,
+} from '../services/eventsStorage';
 
 interface HomeEventsWidgetProps {
   onViewAll?: () => void;
   language?: 'vi' | 'en';
+  refreshTrigger?: number;
 }
 
 export const HomeEventsWidget: React.FC<HomeEventsWidgetProps> = ({
   onViewAll,
   language = 'vi',
+  refreshTrigger,
 }) => {
   const isVi = language === 'vi';
+  const { user } = useAuth();
+  const userEmail = (user as any)?.email || '';
+  const userId = user?.id || (user as any)?._id || '';
 
   const [events, setEvents] = useState<MonettEvent[]>(() => {
-    return loadEventsFromStorage() || [];
+    return loadEventsFromStorage(userEmail, userId) || [];
   });
 
+  const reloadEvents = useCallback(() => {
+    setEvents(loadEventsFromStorage(userEmail, userId) || []);
+  }, [userEmail, userId]);
+
   useEffect(() => {
-    setEvents(loadEventsFromStorage() || []);
-  }, []);
+    reloadEvents();
+    preloadEventsFromAsyncStorage(userEmail, userId).then((res) => {
+      if (res && res.length > 0) setEvents(res);
+    });
+  }, [reloadEvents, refreshTrigger, userEmail, userId]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeEventsUpdates(() => {
+      reloadEvents();
+    });
+    return unsubscribe;
+  }, [reloadEvents]);
 
   const activeEvents = events.filter((e) => e.status !== 'completed');
   const displayEvents = (activeEvents.length > 0 ? activeEvents : events).slice(0, 2);
@@ -72,65 +97,66 @@ export const HomeEventsWidget: React.FC<HomeEventsWidgetProps> = ({
           </View>
         ) : (
           displayEvents.map((evt, idx) => {
-          const spent = evt.spentAmount || 0;
-          const budget = evt.estimatedBudget || 1;
-          const pct = Math.min(100, Math.max(0, Math.round((spent / budget) * 100)));
+            const spent = evt.spentAmount || 0;
+            const budget = evt.estimatedBudget || 1;
+            const pct = Math.min(100, Math.max(0, Math.round((spent / budget) * 100)));
 
-          const statusText =
-            evt.status === 'upcoming'
-              ? isVi ? 'Sắp tới' : 'Upcoming'
-              : isVi ? 'Đang diễn ra' : 'Ongoing';
+            const statusText =
+              evt.status === 'upcoming'
+                ? isVi ? 'Sắp tới' : 'Upcoming'
+                : isVi ? 'Đang diễn ra' : 'Ongoing';
 
-          return (
-            <TouchableOpacity
-              key={evt.id}
-              style={[
-                styles.eventItem,
-                idx < displayEvents.length - 1 && styles.eventItemBorder,
-              ]}
-              onPress={onViewAll}
-              activeOpacity={0.75}
-            >
-              {/* Top Row: Icon + Title/Location + Status Badge */}
-              <View style={styles.cardTopRow}>
-                {/* Soft Mint Square Icon Box */}
-                <View style={styles.iconBox}>
-                  <Ionicons name="calendar-outline" size={20} color="#059669" />
+            return (
+              <TouchableOpacity
+                key={evt.id}
+                style={[
+                  styles.eventItem,
+                  idx < displayEvents.length - 1 && styles.eventItemBorder,
+                ]}
+                onPress={onViewAll}
+                activeOpacity={0.75}
+              >
+                {/* Top Row: Icon + Title/Location + Status Badge */}
+                <View style={styles.cardTopRow}>
+                  {/* Soft Mint Square Icon Box */}
+                  <View style={styles.iconBox}>
+                    <Ionicons name="calendar-outline" size={20} color="#059669" />
+                  </View>
+
+                  {/* Title & Date / Location */}
+                  <View style={styles.infoCol}>
+                    <Text style={styles.eventTitle} numberOfLines={1}>
+                      {evt.title}
+                    </Text>
+                    <Text style={styles.eventSubtitle} numberOfLines={1}>
+                      {evt.startDate} • ◎ {evt.location || '111'}
+                    </Text>
+                  </View>
+
+                  {/* Status Badge "Đang diễn ra" */}
+                  <View style={styles.statusBadge}>
+                    <Text style={styles.statusBadgeText}>{statusText}</Text>
+                  </View>
                 </View>
 
-                {/* Title & Date / Location */}
-                <View style={styles.infoCol}>
-                  <Text style={styles.eventTitle} numberOfLines={1}>
-                    {evt.title}
+                {/* Progress Bar */}
+                <View style={styles.progressBarBg}>
+                  <View style={[styles.progressBarFill, { width: `${pct}%` }]} />
+                </View>
+
+                {/* Bottom Row: 0 đ / 1.000.000 đ */}
+                <View style={styles.cardBottomRow}>
+                  <Text style={styles.spentText}>
+                    {spent.toLocaleString('vi-VN')} đ
                   </Text>
-                  <Text style={styles.eventSubtitle} numberOfLines={1}>
-                    {evt.startDate} • ◎ {evt.location || '111'}
+                  <Text style={styles.budgetText}>
+                    / {budget.toLocaleString('vi-VN')} đ
                   </Text>
                 </View>
-
-                {/* Status Badge "Đang diễn ra" */}
-                <View style={styles.statusBadge}>
-                  <Text style={styles.statusBadgeText}>{statusText}</Text>
-                </View>
-              </View>
-
-              {/* Progress Bar */}
-              <View style={styles.progressBarBg}>
-                <View style={[styles.progressBarFill, { width: `${pct}%` }]} />
-              </View>
-
-              {/* Bottom Row: 0 đ / 1.000.000 đ */}
-              <View style={styles.cardBottomRow}>
-                <Text style={styles.spentText}>
-                  {spent.toLocaleString('vi-VN')} đ
-                </Text>
-                <Text style={styles.budgetText}>
-                  / {budget.toLocaleString('vi-VN')} đ
-                </Text>
-              </View>
-            </TouchableOpacity>
-          );
-        }))}
+              </TouchableOpacity>
+            );
+          })
+        )}
       </View>
     </View>
   );
@@ -281,6 +307,7 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#10B981',
     borderRadius: 3,
+    marginVertical: 0,
   },
   cardBottomRow: {
     flexDirection: 'row',
@@ -309,4 +336,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-

@@ -386,7 +386,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
           <View style={styles.swipeUpPill}>
             <Ionicons name="people" size={13} color="#34D399" style={{ marginRight: 6 }} />
             <Text style={styles.swipeUpText}>
-              {isVi ? 'Lướt lên xem Bảng tin bạn bè' : 'Swipe up for Friends Feed'}
+              {isVi ? 'Lướt lên xem Bảng tin' : 'Swipe up for Feed'}
             </Text>
           </View>
         </TouchableOpacity>

@@ -127,20 +127,8 @@ const MessageAvatar: React.FC<{
   );
 };
 
-// ─── Khởi tạo Cuộc trò chuyện (Chỉ giữ Trợ lý AI mặc định) ────────────────
-const INITIAL_CONVERSATIONS: ConversationItem[] = [
-  {
-    id: 'ai-monett-assistant',
-    isAi: true,
-    name: 'Trợ lý Ếch Monett AI 🌟',
-    avatarUrl: 'https://images.unsplash.com/photo-1535268647677-300dbf3d78d1?w=200&auto=format&fit=crop&q=80',
-    isOnline: true,
-    lastMessage: 'Hôm nay bạn đã chi tiêu hợp lý chưa nè? Cần mình giúp chia bill hay mẹo tiết kiệm không?',
-    lastMessageTime: 'Vừa xong',
-    unreadCount: 1,
-    badge: 'AI Tài chính',
-  },
-];
+// ─── Khởi tạo Cuộc trò chuyện (Danh sách trống, chỉ tải bạn bè thật từ Backend) ──
+const INITIAL_CONVERSATIONS: ConversationItem[] = [];
 
 // Tin nhắn mặc định của AI Bot
 const AI_INITIAL_MESSAGES: ChatMessage[] = [
@@ -251,30 +239,16 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
   const [conversations, setConversations] = useState<ConversationItem[]>(() => {
     const saved = loadFromStorage<ConversationItem[]>(getConversationsStorageKey(currentUserId));
     if (Array.isArray(saved) && saved.length > 0) {
-      return saved.map((c) => (c.isAi ? { ...c, avatarUrl: FROG_AI_AVATAR } : c));
-    }
-    // Nếu có lịch sử chat AI đã lưu, khôi phục dòng lastMessage tương ứng
-    const savedAi = loadFromStorage<ChatMessage[]>(getAiStorageKey(currentUserId));
-    if (Array.isArray(savedAi) && savedAi.length > 0) {
-      const last = savedAi[savedAi.length - 1];
-      const preview = last.sender === 'me' ? `Bạn: ${last.text}` : last.text;
-      return [
-        {
-          ...INITIAL_CONVERSATIONS[0],
-          avatarUrl: FROG_AI_AVATAR,
-          lastMessage: preview.length > 60 ? preview.slice(0, 57) + '...' : preview,
-          lastMessageTime: 'Vừa xong',
-          unreadCount: 0,
-        },
-      ];
+      return saved.filter((c): c is ConversationItem => Boolean(c && typeof c === 'object' && !c.isAi && c.id && c.id !== 'ai-monett-assistant'));
     }
     return INITIAL_CONVERSATIONS;
   });
 
   // Tự động lưu danh sách hội thoại mỗi khi thay đổi
   useEffect(() => {
-    if (conversations.length > 0) {
-      saveToStorage(getConversationsStorageKey(currentUserId), conversations);
+    const clean = conversations.filter((c): c is ConversationItem => Boolean(c && typeof c === 'object' && c.id));
+    if (clean.length > 0) {
+      saveToStorage(getConversationsStorageKey(currentUserId), clean);
     }
   }, [conversations, currentUserId]);
 
@@ -419,7 +393,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
         lastMessageTime: isVi ? 'Vừa xong' : 'Just now',
         unreadCount: 0,
       };
-      setConversations((prev) => [prev[0], newConv, ...prev.slice(1)]);
+      setConversations((prev) => [newConv, ...prev.filter((c) => Boolean(c && c.id !== newConv.id))]);
       setActiveChat(newConv);
     }
   };
@@ -432,19 +406,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
         const realFriends = await getFriendsApi();
         if (isMounted) {
           setConversations((prev) => {
-            const aiExisting = prev.find((c) => c.isAi);
-            const savedAi = loadFromStorage<ChatMessage[]>(getAiStorageKey(currentUserId));
-            const lastAiMsg = savedAi && savedAi.length > 0 ? savedAi[savedAi.length - 1] : null;
-            const aiLastText = lastAiMsg
-              ? (lastAiMsg.sender === 'me' ? `Bạn: ${lastAiMsg.text}` : lastAiMsg.text)
-              : (aiExisting?.lastMessage || INITIAL_CONVERSATIONS[0].lastMessage);
-
-            const aiItem: ConversationItem = {
-              ...(aiExisting || INITIAL_CONVERSATIONS[0]),
-              avatarUrl: FROG_AI_AVATAR,
-              lastMessage: aiLastText.length > 60 ? aiLastText.slice(0, 57) + '...' : aiLastText,
-              isAi: true,
-            };
             const realConvItems: ConversationItem[] = (Array.isArray(realFriends) ? realFriends : []).map((f: any) => {
               const fId = String(
                 f?._id ||
@@ -455,7 +416,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
                   : (f?.requester?._id || f?.requester?.id))) ||
                 ''
               );
-              const prevItem = prev.find((c) => c.friendId === fId || c.id === `real-${fId}`);
+              const prevItem = prev.find((c) => Boolean(c && (c.friendId === fId || c.id === `real-${fId}`)));
               return {
                 id: `real-${fId}`,
                 friendId: fId,
@@ -469,8 +430,8 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
               };
             });
 
-            // Chỉ hiển thị Trợ lý AI và bạn bè thật từ Database
-            const result = [aiItem, ...realConvItems];
+            // Chỉ hiển thị bạn bè thật từ Database
+            const result = realConvItems;
             saveToStorage(getConversationsStorageKey(currentUserId), result);
             return result;
           });
@@ -711,7 +672,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
           lastMessageTime: isVi ? 'Vừa xong' : 'Just now',
           unreadCount: 1,
         };
-        const nextList = [prev[0], newConv, ...prev.slice(1)];
+        const nextList = [newConv, ...prev.filter((c) => Boolean(c && c.id !== newConv.id))];
         saveToStorage(getConversationsStorageKey(currentUserId), nextList);
         return nextList;
       }
@@ -1011,21 +972,23 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
 
   // ── Lọc danh sách trò chuyện ──
   const filteredConversations = useMemo(() => {
-    return conversations.filter((c) => {
-      // Tìm kiếm theo từ khóa
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchName = c.name.toLowerCase().includes(q);
-        const matchMsg = c.lastMessage.toLowerCase().includes(q);
-        if (!matchName && !matchMsg) return false;
-      }
+    return conversations
+      .filter((c): c is ConversationItem => Boolean(c && typeof c === 'object' && c.id))
+      .filter((c) => {
+        // Tìm kiếm theo từ khóa
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase();
+          const matchName = (c.name || '').toLowerCase().includes(q);
+          const matchMsg = (c.lastMessage || '').toLowerCase().includes(q);
+          if (!matchName && !matchMsg) return false;
+        }
 
-      // Lọc theo tab
-      if (activeTab === 'friends') return !c.isAi;
-      if (activeTab === 'ai') return c.isAi;
-      if (activeTab === 'unread') return c.unreadCount > 0;
-      return true;
-    });
+        // Lọc theo tab
+        if (activeTab === 'friends') return !c.isAi;
+        if (activeTab === 'ai') return Boolean(c.isAi);
+        if (activeTab === 'unread') return (c.unreadCount || 0) > 0;
+        return true;
+      });
   }, [conversations, searchQuery, activeTab]);
 
   // Format tiền tệ VNĐ
@@ -1141,7 +1104,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
                               c.isAi
                                 ? {
                                     ...c,
-                                    lastMessage: INITIAL_CONVERSATIONS[0].lastMessage,
+                                    lastMessage: 'Hôm nay bạn đã chi tiêu hợp lý chưa nè?',
                                     lastMessageTime: isVi ? 'Vừa xong' : 'Just now',
                                     unreadCount: 0,
                                   }
@@ -1620,29 +1583,11 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.activeStoriesScroll}
         >
-          {/* Mục 1: Trợ lý Ếch AI Luôn Sẵn sàng */}
-          <TouchableOpacity
-            style={styles.storyItem}
-            onPress={() => {
-              const aiItem = conversations.find((c) => c.isAi) || INITIAL_CONVERSATIONS[0];
-              setActiveChat(aiItem);
-            }}
-            activeOpacity={0.75}
-          >
-            <View style={styles.storyAiRing}>
-              <Image source={{ uri: FROG_AI_AVATAR }} style={styles.storyAvatar} />
-              <View style={styles.storyAiBadge}>
-                <Ionicons name="sparkles" size={10} color="#FFFFFF" />
-              </View>
-            </View>
-            <Text style={styles.storyNameText} numberOfLines={1}>
-              {isVi ? 'Ếch AI 🌟' : 'AI Frog 🌟'}
-            </Text>
-          </TouchableOpacity>
+
 
           {/* Các bạn bè đang online */}
           {conversations
-            .filter((c) => !c.isAi)
+            .filter((c): c is ConversationItem => Boolean(c && typeof c === 'object' && !c.isAi && c.id))
             .map((item) => {
               const isOnline = item.friendId ? isUserOnline(item.friendId) : !!item.isOnline;
               return (
@@ -1706,19 +1651,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.filterTabPill, activeTab === 'ai' && styles.filterTabPillActive]}
-          onPress={() => setActiveTab('ai')}
-        >
-          <Text
-            style={[
-              styles.filterTabPillText,
-              activeTab === 'ai' && styles.filterTabPillTextActive,
-            ]}
-          >
-            {isVi ? 'Trợ lý AI' : 'AI Bot'}
-          </Text>
-        </TouchableOpacity>
+
 
         <TouchableOpacity
           style={[styles.filterTabPill, activeTab === 'unread' && styles.filterTabPillActive]}
@@ -1746,7 +1679,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
             <Ionicons name="chatbubble-ellipses-outline" size={48} color="#CBD5E1" />
             <Text style={styles.emptyInboxTitle}>{isVi ? 'Không tìm thấy cuộc trò chuyện nào' : 'No conversations found'}</Text>
             <Text style={styles.emptyInboxSubtitle}>
-              {isVi ? 'Thử tìm kiếm với tên khác hoặc bắt đầu trò chuyện cùng Ếch Monett nhé!' : 'Try searching for another name or start chatting with Monett Frog!'}
+              {isVi ? 'Thử tìm kiếm với tên khác hoặc thêm bạn mới để cùng trò chuyện nhé!' : 'Try searching for another name or add new friends to start chatting!'}
             </Text>
           </View>
         ) : (
@@ -2081,25 +2014,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onNavigateToFeed
               {/* TAB 3: DANH SÁCH BẠN BÈ */}
               {friendsModalTab === 'list' && (
                 <View style={styles.friendsTabContent}>
-                  {/* Mục chat cùng Trợ lý Ếch Monett AI */}
-                  <TouchableOpacity
-                    style={styles.aiQuickChatCard}
-                    onPress={() => {
-                      setIsFriendsModalVisible(false);
-                      const ai = conversations.find((c) => c.isAi) || INITIAL_CONVERSATIONS[0];
-                      setActiveChat(ai);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Image source={{ uri: FROG_AI_AVATAR }} style={styles.friendListAvatar} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.friendListName}>{isVi ? 'Trợ lý Ếch Monett AI 🌟' : 'Monett Frog AI Assistant 🌟'}</Text>
-                      <Text style={styles.friendListEmail}>{isVi ? 'Hỏi đáp ngân sách, mẹo tiết kiệm 24/7' : 'Budget Q&A, saving tips 24/7'}</Text>
-                    </View>
-                    <View style={styles.aiBadgePill}>
-                      <Text style={styles.aiBadgePillText}>AI Bot</Text>
-                    </View>
-                  </TouchableOpacity>
+
 
                   {isLoadingFriendsList ? (
                     <View style={{ paddingVertical: 32, alignItems: 'center' }}>

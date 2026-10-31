@@ -30,6 +30,7 @@ import { DebtScreen } from '../web/DebtScreen';
 import { RecurringScreen } from '../web/RecurringScreen';
 import { RemindersScreen } from '../web/RemindersScreen';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { createTransactionApi, getBudgetApi } from '../../services/api';
 import {
   getInitialDayRecordsFromLocalStorage,
@@ -42,6 +43,7 @@ import {
   applyBudgetDelta,
 } from '../../services/calendarStorage';
 import { NotificationModal } from '../../components/NotificationModal';
+import { FloatingFrogAIChat } from '../../components/FloatingFrogAIChat';
 
 export type MobileTab = 'home' | 'calendar' | 'messages' | 'analytics' | 'budget' | 'feed' | 'friends' | 'wallets' | 'categories' | 'profile' | 'events' | 'savings' | 'debt' | 'recurring' | 'income' | 'reminders';
 export type ActiveModal = 'none' | 'camera' | 'add_expense' | 'quick_save' | 'detail' | 'day_expenses' | 'photo_journal';
@@ -52,6 +54,8 @@ interface MobileNavigatorProps {
 
 export const MobileNavigator: React.FC<MobileNavigatorProps> = ({ onOpenAdminDashboard }) => {
   const { language } = useLanguage();
+  const { isDark } = useTheme();
+  const subScreenBg = isDark ? '#0B0F17' : '#F5F0E8';
   const isVi = language === 'vi';
   const [currentTab, setCurrentTab] = useState<MobileTab>('home');
   const [hoveredTab, setHoveredTab] = useState<string | null>(null);
@@ -112,7 +116,7 @@ export const MobileNavigator: React.FC<MobileNavigatorProps> = ({ onOpenAdminDas
               setActiveModal('detail');
             }}
             onNavigateToAnalytics={() => setCurrentTab('analytics')}
-            onNavigateToCalendar={() => setCurrentTab('calendar')}
+            onNavigateToCalendar={() => setCurrentTab('analytics')}
             onNavigateToProfile={() => setCurrentTab('profile')}
             onNavigateToTab={(tab) => {
               if (tab === 'photo_journal' || tab === 'journal') {
@@ -173,38 +177,66 @@ export const MobileNavigator: React.FC<MobileNavigatorProps> = ({ onOpenAdminDas
         return <CategoriesScreen onBack={() => setCurrentTab('home')} />;
       case 'events':
         return (
-          <EventsScreen
-            onNavigateToTab={(tab) => setCurrentTab(tab as any)}
-            onBack={() => setCurrentTab('home')}
-          />
+          <SafeAreaView style={[styles.subScreenContainer, { backgroundColor: subScreenBg }]} edges={['top', 'left', 'right']}>
+            <EventsScreen
+              onNavigateToTab={(tab) => {
+                triggerRefresh();
+                setCurrentTab(tab as any);
+              }}
+              onBack={() => {
+                triggerRefresh();
+                setCurrentTab('home');
+              }}
+            />
+          </SafeAreaView>
         );
       case 'savings':
         return (
-          <SavingsScreen
-            onNavigateToTab={(tab) => setCurrentTab(tab as any)}
-            onBack={() => setCurrentTab('home')}
-          />
+          <SafeAreaView style={[styles.subScreenContainer, { backgroundColor: subScreenBg }]} edges={['top', 'left', 'right']}>
+            <SavingsScreen
+              onNavigateToTab={(tab) => setCurrentTab(tab as any)}
+              onBack={() => setCurrentTab('home')}
+            />
+          </SafeAreaView>
         );
       case 'debt':
         return (
-          <DebtScreen
-            onNavigateToTab={(tab) => setCurrentTab(tab as any)}
-            onBack={() => setCurrentTab('home')}
-          />
+          <SafeAreaView style={[styles.subScreenContainer, { backgroundColor: subScreenBg }]} edges={['top', 'left', 'right']}>
+            <DebtScreen
+              onNavigateToTab={(tab) => {
+                triggerRefresh();
+                setCurrentTab(tab as any);
+              }}
+              onBack={() => {
+                triggerRefresh();
+                setCurrentTab('home');
+              }}
+            />
+          </SafeAreaView>
         );
       case 'recurring':
         return (
-          <RecurringScreen
-            onNavigateToTab={(tab) => setCurrentTab(tab as any)}
-            onBack={() => setCurrentTab('home')}
-          />
+          <SafeAreaView style={[styles.subScreenContainer, { backgroundColor: subScreenBg }]} edges={['top', 'left', 'right']}>
+            <RecurringScreen
+              onNavigateToTab={(tab) => {
+                triggerRefresh();
+                setCurrentTab(tab as any);
+              }}
+              onBack={() => {
+                triggerRefresh();
+                setCurrentTab('home');
+              }}
+            />
+          </SafeAreaView>
         );
       case 'reminders':
         return (
-          <RemindersScreen
-            onNavigateToTab={(tab) => setCurrentTab(tab as any)}
-            onBack={() => setCurrentTab('home')}
-          />
+          <SafeAreaView style={[styles.subScreenContainer, { backgroundColor: isDark ? '#0F172A' : '#F5F0E8' }]} edges={['top', 'left', 'right']}>
+            <RemindersScreen
+              onNavigateToTab={(tab) => setCurrentTab(tab as any)}
+              onBack={() => setCurrentTab('home')}
+            />
+          </SafeAreaView>
         );
       case 'income':
       case 'budget':
@@ -236,6 +268,20 @@ export const MobileNavigator: React.FC<MobileNavigatorProps> = ({ onOpenAdminDas
     <View style={styles.rootContainer}>
       {/* 1. Màn hình Tab chính */}
       <View style={styles.mainContent}>{renderCurrentTabScreen()}</View>
+
+      {/* Mascot Ếch Monett AI Lơ Lửng Ở Phần Tổng Quan (Home) */}
+      {currentTab === 'home' && (
+        <FloatingFrogAIChat
+          onNavigateToTab={(tab) => {
+            if (tab === 'photo_journal' || tab === 'journal') {
+              setActiveModal('photo_journal');
+              return;
+            }
+            setCurrentTab(tab as any);
+          }}
+          activeTab={currentTab}
+        />
+      )}
 
       {/* 2. Thanh Bottom Navigation (Nền trắng, hover & active xanh pastel nhẹ nhàng) */}
       <SafeAreaView edges={['bottom']} style={styles.bottomNavWrapper}>
@@ -578,8 +624,13 @@ export const MobileNavigator: React.FC<MobileNavigatorProps> = ({ onOpenAdminDas
       {/* Modal Thông báo hoạt động ứng dụng */}
       <NotificationModal
         onNavigateToTab={(tab) => {
+          setActiveModal('none');
           if (tab === 'photo_journal' || tab === 'journal') {
             setActiveModal('photo_journal');
+            return;
+          }
+          if (tab === 'debts') {
+            setCurrentTab('debt');
             return;
           }
           setCurrentTab(tab as any);
@@ -593,6 +644,10 @@ const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
     backgroundColor: '#F5F0E8',
+  },
+  subScreenContainer: {
+    flex: 1,
+    paddingTop: Platform.OS === 'web' ? 24 : 8,
   },
   mainContent: {
     flex: 1,

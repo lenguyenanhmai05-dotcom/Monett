@@ -610,13 +610,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         {/* 4.6. GIAO DỊCH GẦN ĐÂY (Khớp 100% hình 2) */}
         <HomeRecentTransactionsWidget
           transactions={monthTransactions}
-          onViewAll={onNavigateToCalendar}
+          onViewAll={onNavigateToAnalytics || onNavigateToCalendar}
           onSelectTransaction={onNavigateToDetail}
           language={language}
         />
 
         {/* 4.7. CHI ĐỊNH KỲ (Khớp 100% hình 2) */}
         <HomeRecurringWidget
+          refreshTrigger={refreshTrigger}
           onViewAll={() => {
             if (onNavigateToTab) onNavigateToTab('recurring');
           }}
@@ -625,6 +626,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
         {/* 4.8. SỰ KIỆN (Khớp 100% hình 2) */}
         <HomeEventsWidget
+          refreshTrigger={refreshTrigger}
           onViewAll={() => {
             if (onNavigateToTab) onNavigateToTab('events');
           }}

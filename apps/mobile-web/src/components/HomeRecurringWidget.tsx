@@ -1,20 +1,25 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import {
   RecurringItem,
   loadRecurringItems,
+  preloadRecurringFromAsyncStorage,
+  subscribeRecurringUpdates,
+  getFrequencyLabel,
 } from '../services/recurringStorage';
 
 interface HomeRecurringWidgetProps {
   onViewAll?: () => void;
   language?: 'vi' | 'en';
+  refreshTrigger?: number;
 }
 
 export const HomeRecurringWidget: React.FC<HomeRecurringWidgetProps> = ({
   onViewAll,
   language = 'vi',
+  refreshTrigger,
 }) => {
   const isVi = language === 'vi';
   const { user } = useAuth();
@@ -25,9 +30,25 @@ export const HomeRecurringWidget: React.FC<HomeRecurringWidgetProps> = ({
     return loadRecurringItems(userId, userEmail);
   });
 
-  useEffect(() => {
+  const reloadItems = useCallback(() => {
     setItems(loadRecurringItems(userId, userEmail));
   }, [userId, userEmail]);
+
+  // Load lại khi user hoặc refreshTrigger thay đổi
+  useEffect(() => {
+    reloadItems();
+    preloadRecurringFromAsyncStorage(userId, userEmail).then((res) => {
+      if (res && res.length > 0) setItems(res);
+    });
+  }, [reloadItems, refreshTrigger, userId, userEmail]);
+
+  // Lắng nghe sự kiện cập nhật định kỳ từ các màn hình khác
+  useEffect(() => {
+    const unsubscribe = subscribeRecurringUpdates(() => {
+      reloadItems();
+    });
+    return unsubscribe;
+  }, [reloadItems]);
 
   const expenseItems = useMemo(() => {
     return items.filter((it) => it.type === 'expense');
@@ -50,7 +71,7 @@ export const HomeRecurringWidget: React.FC<HomeRecurringWidgetProps> = ({
     const currentDay = today.getDate();
     const targetDay = Number(dayOfPayment) || 1;
     if (targetDay >= currentDay) {
-      return targetDay - currentDay || 1;
+      return targetDay - currentDay;
     }
     const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
     return daysInMonth - currentDay + targetDay;
@@ -60,7 +81,7 @@ export const HomeRecurringWidget: React.FC<HomeRecurringWidgetProps> = ({
 
   return (
     <View style={styles.cardContainer}>
-      {/* 1. Header Bar Màu Tím Pastel Khớp 100% Hình 1 */}
+      {/* 1. Header Bar Màu Tím Pastel Khớp 100% Hình */}
       <View style={styles.headerBar}>
         <View style={styles.headerLeft}>
           {/* White square icon badge with sync/repeat icon */}
@@ -105,46 +126,50 @@ export const HomeRecurringWidget: React.FC<HomeRecurringWidgetProps> = ({
           </View>
         ) : (
           displayList.map((item, idx) => {
-          const daysLeft = calculateDaysRemaining(item.dayOfPayment);
-          const initialLetter = (item.title || 'T').charAt(0).toUpperCase();
+            const daysLeft = calculateDaysRemaining(item.dayOfPayment);
+            const initialLetter = (item.title || 'T').charAt(0).toUpperCase();
+            const freqLabel = getFrequencyLabel(item.frequency, isVi).toLowerCase();
 
-          return (
-            <TouchableOpacity
-              key={item.id || idx}
-              style={[
-                styles.itemRow,
-                idx < displayList.length - 1 && styles.itemRowBorder,
-              ]}
-              onPress={onViewAll}
-              activeOpacity={0.75}
-            >
-              {/* Circular Avatar Màu Xanh Mint (#DCFCE7) */}
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>{initialLetter}</Text>
-              </View>
+            return (
+              <TouchableOpacity
+                key={item.id || idx}
+                style={[
+                  styles.itemRow,
+                  idx < displayList.length - 1 && styles.itemRowBorder,
+                ]}
+                onPress={onViewAll}
+                activeOpacity={0.75}
+              >
+                {/* Circular Avatar Màu Tím Pastel Đồng Bộ */}
+                <View style={styles.avatarCircle}>
+                  <Text style={styles.avatarText}>{initialLetter}</Text>
+                </View>
 
-              {/* Title & Frequency */}
-              <View style={styles.infoCol}>
-                <Text style={styles.itemTitle} numberOfLines={1}>
-                  {item.title}
-                </Text>
-                <Text style={styles.itemSubtitle} numberOfLines={1}>
-                  {isVi ? 'hàng tháng' : 'monthly'}
-                </Text>
-              </View>
-
-              {/* Amount & Pill "Còn 12 ngày" */}
-              <View style={styles.rightCol}>
-                <Text style={styles.amountText}>{formatShortK(item.amount)}</Text>
-                <View style={styles.daysBadge}>
-                  <Text style={styles.daysBadgeText}>
-                    {isVi ? `Còn ${daysLeft} ngày` : `${daysLeft} days left`}
+                {/* Title & Frequency */}
+                <View style={styles.infoCol}>
+                  <Text style={styles.itemTitle} numberOfLines={1}>
+                    {item.title}
+                  </Text>
+                  <Text style={styles.itemSubtitle} numberOfLines={1}>
+                    {freqLabel}
                   </Text>
                 </View>
-              </View>
-            </TouchableOpacity>
-          );
-        }))}
+
+                {/* Amount & Pill "Còn X ngày" */}
+                <View style={styles.rightCol}>
+                  <Text style={styles.amountText}>{formatShortK(item.amount)}</Text>
+                  <View style={styles.daysBadge}>
+                    <Text style={styles.daysBadgeText}>
+                      {daysLeft === 0
+                        ? (isVi ? 'Hôm nay' : 'Today')
+                        : (isVi ? `Còn ${daysLeft} ngày` : `${daysLeft} days left`)}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        )}
       </View>
     </View>
   );
@@ -166,7 +191,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   headerBar: {
-    backgroundColor: '#F3E8FF', // Màu tím pastel khớp 100% ảnh 1
+    backgroundColor: '#F3E8FF', // Màu tím pastel khớp 100%
     paddingHorizontal: 16,
     paddingVertical: 12,
     flexDirection: 'row',
@@ -194,7 +219,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#581C87', // Chữ tím đậm khớp ảnh 1
+    color: '#581C87', // Chữ tím đậm khớp
     letterSpacing: -0.2,
   },
   countBadge: {

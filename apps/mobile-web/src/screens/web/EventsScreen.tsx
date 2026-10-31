@@ -21,6 +21,8 @@ import {
   EventExpenseItem,
   loadEventsFromStorage,
   saveEventsToStorage,
+  preloadEventsFromAsyncStorage,
+  subscribeEventsUpdates,
   resetToRealEvents,
   REAL_EVENTS_FOR_USER,
   EventInvitation,
@@ -95,15 +97,15 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
 
   useEffect(() => {
     fetchAllEvents();
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-      window.addEventListener('monett:events_updated', fetchAllEvents);
-      return () => {
-        if (typeof window.removeEventListener === 'function') {
-          window.removeEventListener('monett:events_updated', fetchAllEvents);
-        }
-      };
-    }
-  }, [fetchAllEvents]);
+    preloadEventsFromAsyncStorage(userEmail, userId).then((res) => {
+      if (res && res.length > 0) setEvents(res);
+    });
+    const unsubscribe = subscribeEventsUpdates(() => {
+      fetchAllEvents();
+      refreshInvites();
+    });
+    return unsubscribe;
+  }, [fetchAllEvents, userEmail, userId]);
 
   const [filterStatus, setFilterStatus] = useState<'all' | 'ongoing' | 'upcoming' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -138,12 +140,21 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
     refreshInvites();
     const interval = setInterval(refreshInvites, 3500);
 
+    const handleOpenEvent = (e: any) => {
+      const evtId = e.detail?.eventId || e.detail?.id;
+      if (evtId) {
+        setSelectedEventId(evtId);
+      }
+    };
+
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('monett:event_invitations_updated', refreshInvites);
+      window.addEventListener('monett:open_event', handleOpenEvent);
       return () => {
         clearInterval(interval);
         if (typeof window.removeEventListener === 'function') {
           window.removeEventListener('monett:event_invitations_updated', refreshInvites);
+          window.removeEventListener('monett:open_event', handleOpenEvent);
         }
       };
     }
@@ -180,6 +191,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
           : `You joined "${invite.eventTitle || joinedEvent?.title}" invited by ${invite.inviterName}!`,
         iconBg: '#DCFCE7',
         iconColor: '#059669',
+        metadata: { targetTab: 'events', eventId: targetId },
       });
     }
 
@@ -210,6 +222,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
         : `Declined invite for "${invite.eventTitle}".`,
       iconBg: '#F3F4F6',
       iconColor: '#6B7280',
+      metadata: { targetTab: 'events' },
     });
 
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
@@ -296,26 +309,27 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
   }) => {
     if (editingEvent) {
       // Update existing
-      setEvents((prev) =>
-        prev.map((item) =>
-          item.id === editingEvent.id
-            ? {
-                ...item,
-                ...eventData,
-                status: eventData.status || item.status,
-              }
-            : item
-        )
+      const nextEvents = events.map((item) =>
+        item.id === editingEvent.id
+          ? {
+              ...item,
+              ...eventData,
+              status: eventData.status || item.status,
+            }
+          : item
       );
+      setEvents(nextEvents);
+      saveEventsToStorage(nextEvents, userEmail, userId);
 
       addNotification({
-        type: 'moment',
+        type: 'event',
         title: isVi ? 'Cập nhật sự kiện ✏️' : 'Event Updated ✏️',
         message: isVi
           ? `Đã cập nhật thông tin sự kiện "${eventData.title}"`
           : `Event "${eventData.title}" has been updated.`,
         iconBg: '#EDE9FE',
         iconColor: '#7C3AED',
+        metadata: { targetTab: 'events', eventId: editingEvent.id },
       });
       setEditingEvent(null);
     } else {
@@ -329,60 +343,82 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
         createdAt: new Date().toISOString(),
       };
 
-      setEvents((prev) => [newEvent, ...prev]);
+      const nextEvents = [newEvent, ...events.filter((x) => x.id !== newEvent.id)];
+      setEvents(nextEvents);
+      saveEventsToStorage(nextEvents, userEmail, userId);
+
+      // Tự động đồng bộ sự kiện mới lên Backend MongoDB để có ID hợp lệ khi mời bạn bè
+      createEventApi({
+        title: newEvent.title,
+        startDate: newEvent.startDate,
+        endDate: newEvent.endDate,
+        location: newEvent.location,
+        estimatedBudget: newEvent.estimatedBudget,
+        description: newEvent.description,
+        status: newEvent.status,
+      }).then((res: any) => {
+        if (res && (res._id || res.id)) {
+          const backendId = String(res._id || res.id);
+          setEvents((prev) => {
+            const synced = prev.map((e) => (e.id === newEvent.id ? { ...e, id: backendId, _id: backendId } : e));
+            saveEventsToStorage(synced, userEmail, userId);
+            return synced;
+          });
+        }
+      }).catch(() => {});
 
       addNotification({
-        type: 'moment',
+        type: 'event',
         title: isVi ? 'Sự kiện mới 🗓️' : 'New Event 🗓️',
         message: isVi
           ? `Đã tạo thành công sự kiện "${eventData.title}" với ngân sách ${eventData.estimatedBudget.toLocaleString('vi-VN')} đ`
           : `Successfully created event "${eventData.title}" with budget ${eventData.estimatedBudget.toLocaleString('vi-VN')} đ`,
         iconBg: '#DCFCE7',
         iconColor: '#059669',
+        metadata: { targetTab: 'events', eventId: newEvent.id },
       });
     }
   };
 
-  // Handle Delete Event
   const handleDeleteEvent = (id: string, title: string) => {
     const confirmMsg = isVi
       ? `Bạn có chắc chắn muốn xóa sự kiện "${title}" không?`
       : `Are you sure you want to delete event "${title}"?`;
 
-    // Web compatible confirm
     if (typeof window !== 'undefined' && window.confirm) {
       if (!window.confirm(confirmMsg)) return;
     }
 
-    setEvents((prev) => prev.filter((e) => e.id !== id));
+    const nextEvents = events.filter((e) => e.id !== id);
+    setEvents(nextEvents);
+    saveEventsToStorage(nextEvents, userEmail, userId);
     if (selectedDetailEvent?.id === id) setSelectedDetailEvent(null);
 
     addNotification({
-      type: 'moment',
+      type: 'event',
       title: isVi ? 'Đã xóa sự kiện 🗑️' : 'Event Deleted 🗑️',
-      message: isVi ? `Đã xóa sự kiện "${title}".` : `Event "${title}" has been deleted.`,
+      message: isVi ? `Đã xóa sự kiện "${title}" khỏi danh sách` : `Event "${title}" has been deleted.`,
       iconBg: '#FEE2E2',
       iconColor: '#DC2626',
+      metadata: { targetTab: 'events' },
     });
   };
 
-  // Handle status toggle (upcoming -> ongoing -> completed -> upcoming)
   const handleToggleStatus = (id: string) => {
-    setEvents((prev) =>
-      prev.map((e) => {
-        if (e.id !== id) return e;
-        const nextStatus: Record<'upcoming' | 'ongoing' | 'completed', 'upcoming' | 'ongoing' | 'completed'> = {
-          upcoming: 'ongoing',
-          ongoing: 'completed',
-          completed: 'upcoming',
-        };
-        const status = nextStatus[e.status];
-        return { ...e, status };
-      })
-    );
+    const nextEvents = events.map((e) => {
+      if (e.id !== id) return e;
+      const nextStatus: Record<'upcoming' | 'ongoing' | 'completed', 'upcoming' | 'ongoing' | 'completed'> = {
+        upcoming: 'ongoing',
+        ongoing: 'completed',
+        completed: 'upcoming',
+      };
+      const status = nextStatus[e.status];
+      return { ...e, status };
+    });
+    setEvents(nextEvents);
+    saveEventsToStorage(nextEvents, userEmail, userId);
   };
 
-  // Handle Quick Add Expense into an event
   const handleAddExpenseToEvent = () => {
     if (!expenseModalEvent) return;
     const cleanTitle = expenseTitle.trim();
@@ -411,27 +447,29 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
       createdAt: new Date().toISOString(),
     };
 
-    setEvents((prev) =>
-      prev.map((ev) => {
-        if (ev.id !== expenseModalEvent.id) return ev;
-        const updatedExpenses = [newExpense, ...ev.expenses];
-        const updatedSpent = updatedExpenses.reduce((sum, item) => sum + item.amount, 0);
-        return {
-          ...ev,
-          expenses: updatedExpenses,
-          spentAmount: updatedSpent,
-        };
-      })
-    );
+    const nextEvents = events.map((ev) => {
+      if (ev.id !== expenseModalEvent.id) return ev;
+      const updatedExpenses = [newExpense, ...ev.expenses];
+      const updatedSpent = updatedExpenses.reduce((sum, item) => sum + item.amount, 0);
+      return {
+        ...ev,
+        expenses: updatedExpenses,
+        spentAmount: updatedSpent,
+      };
+    });
+
+    setEvents(nextEvents);
+    saveEventsToStorage(nextEvents, userEmail, userId);
 
     addNotification({
-      type: 'expense',
+      type: 'event',
       title: isVi ? 'Ghi nhận chi tiêu sự kiện 💸' : 'Event Expense Logged 💸',
       message: isVi
         ? `Đã thêm ${amount.toLocaleString('vi-VN')} đ ("${cleanTitle}") vào sự kiện "${expenseModalEvent.title}"`
         : `Added ${amount.toLocaleString('vi-VN')} đ ("${cleanTitle}") to event "${expenseModalEvent.title}"`,
       iconBg: '#FEF3C7',
       iconColor: '#D97706',
+      metadata: { targetTab: 'events', eventId: expenseModalEvent.id },
     });
 
     setExpenseModalEvent(null);
@@ -530,45 +568,85 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
         </Text>
       </TouchableOpacity>
 
-      {/* ================= PENDING EVENT INVITATIONS BANNER ================= */}
+      {/* ================= PENDING EVENT INVITATIONS BANNER (CÁCH 2) ================= */}
       {pendingInvitations.length > 0 && (
         <View style={styles.inviteBannerContainer}>
           {pendingInvitations.map((inv) => (
             <View
-              key={inv.id}
+              key={inv.id || (inv as any)._id}
               style={[
                 styles.inviteBannerCard,
                 {
-                  backgroundColor: isDark ? '#1E293B' : '#FEF9C3',
-                  borderColor: isDark ? '#F59E0B' : '#FDE047',
+                  backgroundColor: isDark ? 'rgba(5, 150, 105, 0.15)' : '#ECFDF5',
+                  borderColor: isDark ? '#059669' : '#A7F3D0',
                 },
               ]}
             >
-              <View style={styles.inviteBannerLeft}>
-                <View style={styles.inviteBannerIconWrap}>
-                  <Ionicons name="mail-unread" size={20} color="#D97706" />
-                </View>
-                <View style={styles.inviteBannerTextWrap}>
-                  <Text style={[styles.inviteBannerTitle, { color: textPrimary }]}>
-                    {isVi ? 'Lời mời tham gia sự kiện mới 📩' : 'New Event Invitation 📩'}
-                  </Text>
-                  <Text style={[styles.inviteBannerDesc, { color: textSecondary }]}>
-                    <Text style={{ fontWeight: '700', color: textPrimary }}>{inv.inviterName}</Text>{' '}
-                    {isVi ? 'đã mời bạn tham gia sự kiện' : 'invited you to join'}{' '}
-                    <Text style={{ fontWeight: '700', color: textPrimary }}>"{inv.eventTitle}"</Text>
-                    {inv.eventLocation ? ` • 📍 ${inv.eventLocation}` : ''}
-                    {inv.eventStartDate ? ` (${inv.eventStartDate})` : ''}
-                  </Text>
+              <View style={styles.inviteBannerTopRow}>
+                <View style={styles.inviteBannerHeaderLeft}>
+                  <View style={[styles.inviteBannerIconWrap, { backgroundColor: isDark ? 'rgba(5, 150, 105, 0.3)' : '#DCFCE7' }]}>
+                    <Ionicons name="calendar" size={20} color="#059669" />
+                  </View>
+                  <View style={styles.inviteBannerTextWrap}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <Text style={[styles.inviteBannerTitle, { color: textPrimary }]}>
+                        {isVi ? 'Lời mời tham gia sự kiện 🏕️' : 'Event Invitation 🏕️'}
+                      </Text>
+                      <View style={[styles.inviteBadgeNew, { backgroundColor: isDark ? 'rgba(16, 185, 129, 0.25)' : '#D1FAE5' }]}>
+                        <Text style={[styles.inviteBadgeNewText, { color: '#059669' }]}>
+                          {isVi ? 'Mới' : 'New'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.inviteBannerDesc, { color: textSecondary }]}>
+                      <Text style={{ fontWeight: '700', color: textPrimary }}>{inv.inviterName}</Text>{' '}
+                      {isVi ? 'đã mời bạn tham gia sự kiện' : 'invited you to join'}{' '}
+                      <Text style={{ fontWeight: '700', color: isDark ? '#34D399' : '#059669' }}>
+                        "{inv.eventTitle}"
+                      </Text>
+                    </Text>
+                  </View>
                 </View>
               </View>
 
+              {/* Chi tiết phụ: Địa điểm, ngày bắt đầu, ngân sách */}
+              {(inv.eventLocation || inv.eventStartDate || inv.eventData?.estimatedBudget) && (
+                <View style={styles.inviteMetaTagsRow}>
+                  {inv.eventLocation ? (
+                    <View style={[styles.inviteMetaTag, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#FFFFFF' }]}>
+                      <Ionicons name="location-outline" size={13} color={isDark ? '#94A3B8' : '#64748B'} />
+                      <Text style={[styles.inviteMetaTagText, { color: textSecondary }]}>
+                        {inv.eventLocation}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {inv.eventStartDate ? (
+                    <View style={[styles.inviteMetaTag, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : '#FFFFFF' }]}>
+                      <Ionicons name="calendar-outline" size={13} color={isDark ? '#94A3B8' : '#64748B'} />
+                      <Text style={[styles.inviteMetaTagText, { color: textSecondary }]}>
+                        {inv.eventStartDate}
+                      </Text>
+                    </View>
+                  ) : null}
+                  {inv.eventData?.estimatedBudget ? (
+                    <View style={[styles.inviteMetaTag, { backgroundColor: isDark ? 'rgba(5, 150, 105, 0.2)' : '#E6F4EA' }]}>
+                      <Ionicons name="wallet-outline" size={13} color="#059669" />
+                      <Text style={[styles.inviteMetaTagText, { color: '#059669', fontWeight: '600' }]}>
+                        {Number(inv.eventData.estimatedBudget).toLocaleString('vi-VN')} đ
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              )}
+
+              {/* 2 Nút hành động Chấp nhận / Từ chối */}
               <View style={styles.inviteBannerActions}>
                 <TouchableOpacity
                   style={styles.inviteAcceptBtn}
                   onPress={() => handleAcceptInvite(inv)}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                  <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
                   <Text style={styles.inviteAcceptBtnText}>
                     {isVi ? 'Chấp nhận & Vào sự kiện' : 'Accept & Join'}
                   </Text>
@@ -579,6 +657,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                   onPress={() => handleDeclineInvite(inv)}
                   activeOpacity={0.7}
                 >
+                  <Ionicons name="close-circle-outline" size={15} color={textSecondary} />
                   <Text style={[styles.inviteDeclineBtnText, { color: textSecondary }]}>
                     {isVi ? 'Từ chối' : 'Decline'}
                   </Text>
@@ -1687,33 +1766,37 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   inviteBannerContainer: {
-    marginBottom: 20,
+    marginBottom: 16,
     gap: 12,
   },
   inviteBannerCard: {
     borderWidth: 1.5,
     borderRadius: 18,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: 14,
+    padding: 14,
+    gap: 10,
+    shadowColor: '#059669',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  inviteBannerLeft: {
+  inviteBannerTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  inviteBannerHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
     flex: 1,
-    minWidth: 260,
   },
   inviteBannerIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FEF3C7',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 2,
   },
   inviteBannerTextWrap: {
     flex: 1,
@@ -1721,39 +1804,75 @@ const styles = StyleSheet.create({
   inviteBannerTitle: {
     fontSize: 14.5,
     fontWeight: '700',
-    marginBottom: 3,
+    marginBottom: 2,
+  },
+  inviteBadgeNew: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  inviteBadgeNewText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   inviteBannerDesc: {
     fontSize: 13,
     lineHeight: 19,
+    marginTop: 1,
+  },
+  inviteMetaTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginLeft: 52,
+    marginTop: 2,
+  },
+  inviteMetaTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  inviteMetaTagText: {
+    fontSize: 12,
   },
   inviteBannerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
+    marginTop: 4,
+    marginLeft: 52,
   },
   inviteAcceptBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
     backgroundColor: '#059669',
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
   },
   inviteAcceptBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '700',
   },
   inviteDeclineBtn: {
-    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
   },
   inviteDeclineBtnText: {
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '600',
   },
 });

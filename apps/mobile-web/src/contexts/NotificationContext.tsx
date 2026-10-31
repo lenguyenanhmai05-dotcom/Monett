@@ -4,7 +4,7 @@ import { sendBrowserNotification } from '../utils/browserNotification';
 import { useAuth } from './AuthContext';
 import { useSocket } from './SocketContext';
 import { getStreakApi, getFriendRequestsApi, getPendingEventInvitationsApi, getStoredUserId } from '../services/api';
-import { getStoredEventInvitations } from '../services/eventsStorage';
+import { getStoredEventInvitations, subscribeEventsUpdates, notifyEventsUpdated } from '../services/eventsStorage';
 import { getRemindersApi } from '../services/api';
 import { HeadsUpNotificationBanner, HeadsUpToastData } from '../components/HeadsUpNotificationBanner';
 import { isReminderAlerted, markReminderAsAlerted } from '../utils/reminderAlerts';
@@ -276,6 +276,32 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         notifications: userNotifs,
       });
     }
+
+    let isMounted = true;
+    try {
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      if (AsyncStorage) {
+        const userKey = getNotificationStorageKey(currentUserId);
+        AsyncStorage.getItem(userKey).then((raw: any) => {
+          if (isMounted && raw) {
+            try {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                const sanitized = sanitizeNotifications(parsed, currentStreak);
+                setUserScopedState((prev) => {
+                  if (prev.userId !== currentUserId) return prev;
+                  return { ...prev, notifications: sanitized };
+                });
+              }
+            } catch {}
+          }
+        }).catch(() => {});
+      }
+    } catch {}
+
+    return () => {
+      isMounted = false;
+    };
   }, [currentUserId, currentStreak, userScopedState.userId]);
 
   // Tự động đồng bộ số ngày chuỗi (streak) hiện tại từ thông tin tài khoản người dùng và backend API
@@ -325,7 +351,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // Hàm đồng bộ toàn diện: Lời mời kết bạn + Lời mời tham gia sự kiện (từ Backend API & Local)
     const syncAllPending = () => {
-      if (!currentUserId || currentUserId === 'guest') return;
+      if ((!currentUserId || currentUserId === 'guest') && !user?.email) return;
 
       // 1. Đồng bộ lời mời kết bạn từ Backend
       getFriendRequestsApi()
@@ -377,7 +403,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
               const invId = (inv._id || inv.id || '').toString();
               const notifId = `notif-invite-${invId}`;
               const exists = next.some(
-                (n) => n.id === notifId || n.metadata?.inviteId === invId || (n.metadata?.eventId === inv.eventId && n.type === 'event' && !n.read)
+                (n) => n.id === notifId || n.metadata?.inviteId === invId || (n.metadata?.eventId === inv.eventId && n.type === 'event' && n.metadata?.type === 'event_invite' && !n.read)
               );
               if (!exists && inv.status === 'pending') {
                 const inviterName = inv.inviterName || 'Bạn bè';
@@ -479,6 +505,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         syncAllPending();
       }
     };
+    const unsubEvents = subscribeEventsUpdates(() => {
+      syncAllPending();
+    });
+
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('monett:notification_added', handleCustomNotifAdded);
       window.addEventListener('monett:event_invitations_updated', syncAllPending);
@@ -487,6 +517,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return () => {
       mounted = false;
       clearInterval(pollInterval);
+      try {
+        unsubEvents();
+      } catch {}
       if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
         window.removeEventListener('monett:notification_added', handleCustomNotifAdded);
         window.removeEventListener('monett:event_invitations_updated', syncAllPending);
@@ -497,14 +530,21 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Lưu vào localStorage riêng biệt của từng tài khoản mỗi khi danh sách notifications thay đổi
   useEffect(() => {
     if (userScopedState.userId) {
+      const userKey = getNotificationStorageKey(userScopedState.userId);
+      const jsonStr = JSON.stringify(userScopedState.notifications);
       try {
         if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
-          const userKey = getNotificationStorageKey(userScopedState.userId);
-          window.localStorage.setItem(userKey, JSON.stringify(userScopedState.notifications));
+          window.localStorage.setItem(userKey, jsonStr);
         }
       } catch (e) {
         console.warn('Lỗi lưu notifications vào localStorage:', e);
       }
+      try {
+        const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+        if (AsyncStorage) {
+          AsyncStorage.setItem(userKey, jsonStr).catch(() => {});
+        }
+      } catch {}
     }
   }, [userScopedState]);
 
@@ -649,7 +689,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
               iconBg: '#EDE9FE',
               iconColor: '#7C3AED',
               metadata: {
-                targetTab: 'home',
+                targetTab: 'reminders',
               },
             });
           }
@@ -770,10 +810,22 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       });
     };
 
+    const handleEventNotification = (data: any) => {
+      if (data) {
+        addNotification(data);
+        notifyEventsUpdated();
+      }
+    };
+    const handleEventInvitation = () => {
+      notifyEventsUpdated();
+    };
+
     if (socket) {
       socket.on('receive_message', handleReceiveMessage);
       socket.on('moment_notification', handleMomentNotification);
       socket.on('group_notification', handleMomentNotification);
+      socket.on('event_notification', handleEventNotification);
+      socket.on('event_invitation', handleEventInvitation);
     }
 
     // 3. Lắng nghe thông báo chéo giữa các tab trên cùng trình duyệt
@@ -834,6 +886,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       if (socket) {
         socket.off('receive_message', handleReceiveMessage);
         socket.off('moment_notification', handleMomentNotification);
+        socket.off('group_notification', handleMomentNotification);
+        socket.off('event_notification', handleEventNotification);
+        socket.off('event_invitation', handleEventInvitation);
       }
       if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
         window.removeEventListener('storage', handleStorage);

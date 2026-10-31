@@ -145,7 +145,7 @@ function MainApp() {
   }
 
   const renderContent = () => {
-    switch (activeTab) {
+    switch (activeTab as string) {
       case 'home':
         return <HomeScreen onNavigateToTab={setActiveTab} />;
       case 'messages':
@@ -163,6 +163,7 @@ function MainApp() {
         return <SavingsScreen onNavigateToTab={setActiveTab} />;
       case 'recurring':
         return <RecurringScreen onNavigateToTab={setActiveTab} />;
+      case 'debt':
       case 'debts':
         return <DebtScreen onNavigateToTab={setActiveTab} />;
       case 'reminders':

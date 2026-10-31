@@ -299,7 +299,7 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
       iconBg: '#EDE9FE',
       iconColor: '#7C3AED',
       metadata: {
-        targetTab: 'home',
+        targetTab: 'reminders',
       },
     });
     setPushedReminderId(item.id);
@@ -459,7 +459,7 @@ export const RemindersWidget: React.FC<RemindersWidgetProps> = ({ currentDateStr
             iconBg: '#EDE9FE',
             iconColor: '#7C3AED',
             metadata: {
-              targetTab: 'home',
+              targetTab: 'reminders',
             },
           });
         }

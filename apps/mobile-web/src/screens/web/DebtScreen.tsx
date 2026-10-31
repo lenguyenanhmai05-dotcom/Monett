@@ -16,11 +16,14 @@ import Svg, { Path, Rect, Circle, Line } from 'react-native-svg';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useNotifications } from '../../contexts/NotificationContext';
 import {
   DebtItem,
   DebtType,
   loadDebtItems,
   saveDebtItems,
+  preloadDebtFromAsyncStorage,
+  subscribeDebtUpdates,
   calculateDebtDaysRemaining,
 } from '../../services/debtStorage';
 
@@ -179,6 +182,7 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
   const { user } = useAuth();
   const { isDark } = useTheme();
   const { language } = useLanguage();
+  const { addNotification } = useNotifications();
   const isVi = language === 'vi';
 
   const handleBack = () => {
@@ -200,15 +204,26 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
   // Debt items state
   const [debts, setDebts] = useState<DebtItem[]>(() => loadDebtItems(userId, userEmail));
 
-  // Khi đổi tài khoản, load lại dữ liệu riêng của tài khoản đó
+  // Khi đổi tài khoản hoặc màn hình mở lên, nạp đồng bộ & nạp bất đồng bộ từ AsyncStorage
   useEffect(() => {
-    setDebts(loadDebtItems(userId, userEmail));
+    const loaded = loadDebtItems(userId, userEmail);
+    if (loaded && loaded.length > 0) {
+      setDebts(loaded);
+    }
+    preloadDebtFromAsyncStorage(userId, userEmail).then((res) => {
+      if (res && res.length > 0) {
+        setDebts(res);
+      }
+    });
   }, [userId, userEmail]);
 
-  // Sync to storage
+  // Lắng nghe sự kiện cập nhật tức thì từ storage
   useEffect(() => {
-    saveDebtItems(debts, userId, userEmail);
-  }, [debts, userId, userEmail]);
+    const unsubscribe = subscribeDebtUpdates(() => {
+      setDebts(loadDebtItems(userId, userEmail));
+    });
+    return unsubscribe;
+  }, [userId, userEmail]);
 
   // Modals
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -230,6 +245,79 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
   const [payAmountStr, setPayAmountStr] = useState('');
   const [payNoteStr, setPayNoteStr] = useState('');
   const [payFocusedField, setPayFocusedField] = useState<string | null>('payAmount');
+
+  // Mini Calendar Date Picker State
+  const [pickerDate, setPickerDate] = useState<Date>(new Date());
+  const [activeDatePickerField, setActiveDatePickerField] = useState<'startDate' | 'dueDate' | null>(null);
+
+  const pickerYear = pickerDate.getFullYear();
+  const pickerMonth = pickerDate.getMonth();
+  const daysInMonth = new Date(pickerYear, pickerMonth + 1, 0).getDate();
+  const firstDow = (new Date(pickerYear, pickerMonth, 1).getDay() + 6) % 7; // Monday = 0
+  const calendarCells: (number | null)[] = useMemo(() => {
+    const cells: (number | null)[] = [];
+    for (let i = 0; i < firstDow; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    return cells;
+  }, [firstDow, daysInMonth]);
+
+  const parseDateStr = (dateStr: string): Date | null => {
+    if (!dateStr) return null;
+    const parts = dateStr.trim().split('/');
+    if (parts.length === 3) {
+      const d = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const y = parseInt(parts[2], 10);
+      if (!isNaN(d) && !isNaN(m) && !isNaN(y) && y > 1900 && y < 2100) {
+        const dt = new Date(y, m, d);
+        if (!isNaN(dt.getTime())) return dt;
+      }
+    }
+    return null;
+  };
+
+  const toggleDatePicker = (field: 'startDate' | 'dueDate') => {
+    if (activeDatePickerField === field) {
+      setActiveDatePickerField(null);
+    } else {
+      const val = field === 'startDate' ? formStartDate : formDueDate;
+      const parsed = parseDateStr(val);
+      setPickerDate(parsed || new Date());
+      setActiveDatePickerField(field);
+    }
+  };
+
+  const handleSelectCalendarDay = (day: number) => {
+    const mm = String(pickerDate.getMonth() + 1).padStart(2, '0');
+    const yyyy = pickerDate.getFullYear();
+    const dd = String(day).padStart(2, '0');
+    const formatted = `${dd}/${mm}/${yyyy}`;
+
+    if (activeDatePickerField === 'dueDate') {
+      setFormDueDate(formatted);
+    } else if (activeDatePickerField === 'startDate') {
+      setFormStartDate(formatted);
+    }
+    setActiveDatePickerField(null);
+  };
+
+  const handlePrevPickerMonth = () => {
+    setPickerDate(new Date(pickerDate.getFullYear(), pickerDate.getMonth() - 1, 1));
+  };
+
+  const handleNextPickerMonth = () => {
+    setPickerDate(new Date(pickerDate.getFullYear(), pickerDate.getMonth() + 1, 1));
+  };
+
+  const handleAmountInputChange = (text: string, setter: (val: string) => void) => {
+    const raw = text.replace(/\D/g, '');
+    if (!raw) {
+      setter('');
+      return;
+    }
+    const num = parseInt(raw, 10);
+    setter(num.toLocaleString('vi-VN'));
+  };
 
   const formatVND = (num: number) => {
     if (!num || isNaN(num)) return '0';
@@ -285,6 +373,7 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
     setFormStartDate(getTodayStr());
     setFormDueDate('');
     setFormNote('');
+    setActiveDatePickerField(null);
     setFocusedField('personName');
     setIsFormModalOpen(true);
   };
@@ -294,11 +383,12 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
     setEditingDebt(debt);
     setFormType(debt.type);
     setFormPersonName(debt.personName);
-    setFormAmountStr(debt.amount ? String(debt.amount) : '');
-    setFormPaidStr(debt.paidAmount ? String(debt.paidAmount) : '');
+    setFormAmountStr(debt.amount ? Number(debt.amount).toLocaleString('vi-VN') : '');
+    setFormPaidStr(debt.paidAmount ? Number(debt.paidAmount).toLocaleString('vi-VN') : '');
     setFormStartDate(debt.startDate || getTodayStr());
     setFormDueDate(debt.dueDate || '');
     setFormNote(debt.note || '');
+    setActiveDatePickerField(null);
     setFocusedField('personName');
     setIsFormModalOpen(true);
   };
@@ -324,23 +414,33 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
 
     if (editingDebt) {
       // Update existing
-      setDebts((prev) =>
-        prev.map((item) =>
-          item.id === editingDebt.id
-            ? {
-                ...item,
-                personName: name,
-                amount: amountNum,
-                paidAmount: paidNum,
-                type: formType,
-                startDate: formStartDate || getTodayStr(),
-                dueDate: formDueDate ? formDueDate.trim() : undefined,
-                note: formNote.trim(),
-                isSettled,
-              }
-            : item
-        )
+      const next = debts.map((item) =>
+        item.id === editingDebt.id
+          ? {
+              ...item,
+              personName: name,
+              amount: amountNum,
+              paidAmount: paidNum,
+              type: formType,
+              startDate: formStartDate || getTodayStr(),
+              dueDate: formDueDate ? formDueDate.trim() : undefined,
+              note: formNote.trim(),
+              isSettled,
+            }
+          : item
       );
+      setDebts(next);
+      saveDebtItems(next, userId, userEmail);
+      addNotification({
+        type: 'moment',
+        title: isVi ? 'Cập nhật sổ ghi nợ 📝' : 'Debt Updated 📝',
+        message: isVi
+          ? `Đã cập nhật khoản nợ của "${name}" (${amountNum.toLocaleString('vi-VN')} đ)`
+          : `Updated debt record for "${name}" (${amountNum.toLocaleString('vi-VN')} VND)`,
+        iconBg: '#EDE9FE',
+        iconColor: '#7C3AED',
+        metadata: { targetTab: 'debt' },
+      });
     } else {
       // Create new
       const newDebt: DebtItem = {
@@ -356,7 +456,21 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
         createdAt: new Date().toISOString(),
         payments: paidNum > 0 ? [{ id: `pay_${Date.now()}`, amount: paidNum, date: getTodayStr(), note: 'Khoản đã trả ban đầu' }] : [],
       };
-      setDebts((prev) => [newDebt, ...prev]);
+      const next = [newDebt, ...debts.filter((d) => d.id !== newDebt.id)];
+      setDebts(next);
+      saveDebtItems(next, userId, userEmail);
+      addNotification({
+        type: 'moment',
+        title: isVi
+          ? (formType === 'lent' ? 'Ghi khoản cho mượn mới 🤝' : 'Ghi khoản vay mới 📝')
+          : (formType === 'lent' ? 'New Loan Added 🤝' : 'New Debt Added 📝'),
+        message: isVi
+          ? `${formType === 'lent' ? 'Cho' : 'Vay từ'} ${name} số tiền ${amountNum.toLocaleString('vi-VN')} đ`
+          : `${formType === 'lent' ? 'Lent to' : 'Borrowed from'} ${name} ${amountNum.toLocaleString('vi-VN')} VND`,
+        iconBg: formType === 'lent' ? '#DCFCE7' : '#FEF3C7',
+        iconColor: formType === 'lent' ? '#059669' : '#D97706',
+        metadata: { targetTab: 'debt' },
+      });
     }
 
     setIsFormModalOpen(false);
@@ -364,30 +478,35 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
 
   // Toggle settled status directly
   const handleToggleSettled = (debt: DebtItem) => {
-    setDebts((prev) =>
-      prev.map((item) => {
-        if (item.id === debt.id) {
-          const nextSettled = !item.isSettled;
-          return {
-            ...item,
-            isSettled: nextSettled,
-            paidAmount: nextSettled ? item.amount : 0,
-          };
-        }
-        return item;
-      })
-    );
+    const next = debts.map((item) => {
+      if (item.id === debt.id) {
+        const nextSettled = !item.isSettled;
+        return {
+          ...item,
+          isSettled: nextSettled,
+          paidAmount: nextSettled ? item.amount : 0,
+        };
+      }
+      return item;
+    });
+    setDebts(next);
+    saveDebtItems(next, userId, userEmail);
   };
 
   // Delete debt
   const handleDeleteDebt = (id: string) => {
     const confirmMsg = isVi ? 'Bạn có chắc chắn muốn xóa khoản nợ này?' : 'Delete this debt item?';
+    const doDelete = () => {
+      const next = debts.filter((d) => d.id !== id);
+      setDebts(next);
+      saveDebtItems(next, userId, userEmail);
+    };
     if (Platform.OS === 'web') {
       if (window.confirm(confirmMsg)) {
-        setDebts((prev) => prev.filter((d) => d.id !== id));
+        doDelete();
       }
     } else {
-      setDebts((prev) => prev.filter((d) => d.id !== id));
+      doDelete();
     }
   };
 
@@ -395,7 +514,7 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
   const handleOpenPayModal = (debt: DebtItem) => {
     setPayingDebt(debt);
     const remaining = Math.max(0, debt.amount - debt.paidAmount);
-    setPayAmountStr(remaining > 0 ? String(remaining) : '');
+    setPayAmountStr(remaining > 0 ? Number(remaining).toLocaleString('vi-VN') : '');
     setPayNoteStr(debt.type === 'lent' ? 'Thu nợ tiền mặt' : 'Chuyển khoản thanh toán');
     setPayFocusedField('payAmount');
     setIsPayModalOpen(true);
@@ -411,27 +530,40 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
       return;
     }
 
-    setDebts((prev) =>
-      prev.map((item) => {
-        if (item.id === payingDebt.id) {
-          const newPaid = item.paidAmount + amountNum;
-          const isSettled = newPaid >= item.amount;
-          const newPayment = {
-            id: `pay_${Date.now()}`,
-            amount: amountNum,
-            date: getTodayStr(),
-            note: payNoteStr.trim(),
-          };
-          return {
-            ...item,
-            paidAmount: newPaid,
-            isSettled,
-            payments: [...(item.payments || []), newPayment],
-          };
-        }
-        return item;
-      })
-    );
+    const next = debts.map((item) => {
+      if (item.id === payingDebt.id) {
+        const newPaid = item.paidAmount + amountNum;
+        const isSettled = newPaid >= item.amount;
+        const newPayment = {
+          id: `pay_${Date.now()}`,
+          amount: amountNum,
+          date: getTodayStr(),
+          note: payNoteStr.trim(),
+        };
+        return {
+          ...item,
+          paidAmount: newPaid,
+          isSettled,
+          payments: [...(item.payments || []), newPayment],
+        };
+      }
+      return item;
+    });
+    setDebts(next);
+    saveDebtItems(next, userId, userEmail);
+
+    addNotification({
+      type: 'moment',
+      title: isVi
+        ? (payingDebt.type === 'lent' ? 'Thu hồi nợ thành công 💵' : 'Đã trả bớt nợ 💳')
+        : 'Debt Payment Recorded 💳',
+      message: isVi
+        ? `Đã ghi nhận ${amountNum.toLocaleString('vi-VN')} đ từ "${payingDebt.personName}"`
+        : `Recorded ${amountNum.toLocaleString('vi-VN')} VND for "${payingDebt.personName}"`,
+      iconBg: '#DCFCE7',
+      iconColor: '#059669',
+      metadata: { targetTab: 'debt' },
+    });
 
     setIsPayModalOpen(false);
   };
@@ -516,7 +648,7 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
             <Text style={styles.createDebtBtnText}>
               {activeTab === 'lent'
                 ? isVi
-                  ? 'Ghi cho mượn'
+                  ? 'Ghi khoản mượn'
                   : 'Add Lent'
                 : isVi
                   ? 'Ghi khoản vay'
@@ -984,15 +1116,28 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
         visible={isFormModalOpen}
         transparent
         animationType="fade"
-        onRequestClose={() => setIsFormModalOpen(false)}
+        onRequestClose={() => {
+          setActiveDatePickerField(null);
+          setIsFormModalOpen(false);
+        }}
       >
-        <TouchableWithoutFeedback onPress={() => setIsFormModalOpen(false)}>
+        <TouchableWithoutFeedback
+          onPress={() => {
+            setActiveDatePickerField(null);
+            setIsFormModalOpen(false);
+          }}
+        >
           <View style={styles.modalBackdrop}>
             <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
-              <View style={styles.modalDialogCard}>
+              <View
+                style={[
+                  styles.modalDialogCard,
+                  isDark && { backgroundColor: '#1E293B', borderColor: '#334155' },
+                ]}
+              >
                 {/* Modal Header */}
                 <View style={styles.modalHeaderRow}>
-                  <Text style={styles.modalHeading}>
+                  <Text style={[styles.modalHeading, isDark && { color: '#F8FAFC' }]}>
                     {editingDebt
                       ? isVi
                         ? 'Chỉnh sửa khoản nợ'
@@ -1006,27 +1151,33 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
                           : 'Record New Borrowed Item'}
                   </Text>
                   <TouchableOpacity
-                    style={styles.modalCloseBtn}
-                    onPress={() => setIsFormModalOpen(false)}
+                    style={[styles.modalCloseBtn, isDark && { backgroundColor: '#334155' }]}
+                    onPress={() => {
+                      setActiveDatePickerField(null);
+                      setIsFormModalOpen(false);
+                    }}
                     activeOpacity={0.7}
                   >
-                    <SvgClose size={16} color="#78716C" />
+                    <SvgClose size={16} color={isDark ? '#CBD5E1' : '#78716C'} />
                   </TouchableOpacity>
                 </View>
 
                 {/* Type Switcher inside Modal */}
-                <View style={styles.modalTypeSwitchRow}>
+                <View style={[styles.modalTypeSwitchRow, isDark && { backgroundColor: '#0F172A' }]}>
                   <TouchableOpacity
                     style={[
                       styles.modalTypePill,
                       formType === 'lent' && styles.modalTypePillActive,
+                      formType === 'lent' && isDark && { backgroundColor: '#1E293B' },
                     ]}
                     onPress={() => setFormType('lent')}
                   >
                     <Text
                       style={[
                         styles.modalTypePillText,
+                        isDark && { color: '#94A3B8' },
                         formType === 'lent' && styles.modalTypePillTextActive,
+                        formType === 'lent' && isDark && { color: '#F8FAFC' },
                       ]}
                     >
                       {isVi ? 'Cho mượn (Người khác nợ)' : 'Lent (Receivable)'}
@@ -1036,13 +1187,16 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
                     style={[
                       styles.modalTypePill,
                       formType === 'borrowed' && styles.modalTypePillActive,
+                      formType === 'borrowed' && isDark && { backgroundColor: '#1E293B' },
                     ]}
                     onPress={() => setFormType('borrowed')}
                   >
                     <Text
                       style={[
                         styles.modalTypePillText,
+                        isDark && { color: '#94A3B8' },
                         formType === 'borrowed' && styles.modalTypePillTextActive,
+                        formType === 'borrowed' && isDark && { color: '#F8FAFC' },
                       ]}
                     >
                       {isVi ? 'Đang vay (Mình nợ)' : 'Borrowed (Payable)'}
@@ -1050,147 +1204,329 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
                   </TouchableOpacity>
                 </View>
 
-                {/* Form Inputs with Custom Focus styling (White bg + Green #059669 border) */}
-                <View style={styles.formGroup}>
-                  <Text style={styles.inputLabel}>
-                    {formType === 'lent'
-                      ? isVi
-                        ? 'Tên người mượn *'
-                        : 'Borrower Name *'
-                      : isVi
-                        ? 'Tên chủ nợ (Người cho vay) *'
-                        : 'Lender Name *'}
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.textInput,
-                      focusedField === 'personName' && styles.textInputFocused,
-                    ]}
-                    value={formPersonName}
-                    onChangeText={setFormPersonName}
-                    placeholder={
-                      formType === 'lent'
+                {/* Scrollable Form Body */}
+                <ScrollView
+                  style={{ maxHeight: 420 }}
+                  contentContainerStyle={{ paddingBottom: 6 }}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {/* Form Inputs with Custom Focus styling (White bg + Green #059669 border) */}
+                  <View style={styles.formGroup}>
+                    <Text style={[styles.inputLabel, isDark && { color: '#E2E8F0' }]}>
+                      {formType === 'lent'
                         ? isVi
-                          ? 'Ví dụ: Anh Tuấn, Bạn Mai...'
-                          : 'e.g. John Doe'
+                          ? 'Tên người mượn *'
+                          : 'Borrower Name *'
                         : isVi
-                          ? 'Ví dụ: Chị Lan, Ngân hàng...'
-                          : 'e.g. Jane Smith'
-                    }
-                    placeholderTextColor="#A8A29E"
-                    onFocus={() => setFocusedField('personName')}
-                  />
-                </View>
-
-                <View style={styles.formRow}>
-                  <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.inputLabel}>
-                      {isVi ? 'Số tiền nợ (VNĐ) *' : 'Amount (VND) *'}
+                          ? 'Tên chủ nợ (Người cho vay) *'
+                          : 'Lender Name *'}
                     </Text>
                     <TextInput
                       style={[
                         styles.textInput,
-                        focusedField === 'amount' && styles.textInputFocused,
+                        isDark && { backgroundColor: '#0F172A', borderColor: '#334155', color: '#F8FAFC' },
+                        focusedField === 'personName' && styles.textInputFocused,
+                        focusedField === 'personName' && isDark && { backgroundColor: '#1E293B', borderColor: '#059669' },
                       ]}
-                      value={formAmountStr}
-                      onChangeText={(text) => {
-                        const numeric = text.replace(/\D/g, '');
-                        setFormAmountStr(numeric);
+                      value={formPersonName}
+                      onChangeText={setFormPersonName}
+                      placeholder={
+                        formType === 'lent'
+                          ? isVi
+                            ? 'Ví dụ: Anh Tuấn, Bạn Mai...'
+                            : 'e.g. John Doe'
+                          : isVi
+                            ? 'Ví dụ: Chị Lan, Ngân hàng...'
+                            : 'e.g. Jane Smith'
+                      }
+                      placeholderTextColor="#A8A29E"
+                      onFocus={() => {
+                        setFocusedField('personName');
+                        setActiveDatePickerField(null);
                       }}
-                      keyboardType="numeric"
-                      placeholder="0"
-                      placeholderTextColor="#A8A29E"
-                      onFocus={() => setFocusedField('amount')}
                     />
                   </View>
 
-                  <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.inputLabel}>
-                      {isVi ? 'Đã trả trước' : 'Initial Paid'}
+                  <View style={styles.formRow}>
+                    <View style={[styles.formGroup, { flex: 1 }]}>
+                      <Text style={[styles.inputLabel, isDark && { color: '#E2E8F0' }]}>
+                        {isVi ? 'Số tiền nợ (VNĐ) *' : 'Amount (VND) *'}
+                      </Text>
+                      <TextInput
+                        style={[
+                          styles.textInput,
+                          isDark && { backgroundColor: '#0F172A', borderColor: '#334155', color: '#F8FAFC' },
+                          focusedField === 'amount' && styles.textInputFocused,
+                          focusedField === 'amount' && isDark && { backgroundColor: '#1E293B', borderColor: '#059669' },
+                        ]}
+                        value={formAmountStr}
+                        onChangeText={(text) => handleAmountInputChange(text, setFormAmountStr)}
+                        keyboardType="numeric"
+                        placeholder="0"
+                        placeholderTextColor="#A8A29E"
+                        onFocus={() => {
+                          setFocusedField('amount');
+                          setActiveDatePickerField(null);
+                        }}
+                      />
+                    </View>
+
+                    <View style={[styles.formGroup, { flex: 1 }]}>
+                      <Text style={[styles.inputLabel, isDark && { color: '#E2E8F0' }]}>
+                        {isVi ? 'Đã trả trước' : 'Initial Paid'}
+                      </Text>
+                      <TextInput
+                        style={[
+                          styles.textInput,
+                          isDark && { backgroundColor: '#0F172A', borderColor: '#334155', color: '#F8FAFC' },
+                          focusedField === 'paid' && styles.textInputFocused,
+                          focusedField === 'paid' && isDark && { backgroundColor: '#1E293B', borderColor: '#059669' },
+                        ]}
+                        value={formPaidStr}
+                        onChangeText={(text) => handleAmountInputChange(text, setFormPaidStr)}
+                        keyboardType="numeric"
+                        placeholder="0"
+                        placeholderTextColor="#A8A29E"
+                        onFocus={() => {
+                          setFocusedField('paid');
+                          setActiveDatePickerField(null);
+                        }}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.formRow}>
+                    <View style={[styles.formGroup, { flex: 1 }]}>
+                      <Text style={[styles.inputLabel, isDark && { color: '#E2E8F0' }]}>
+                        {isVi ? 'Ngày vay / mượn' : 'Start Date'}
+                      </Text>
+                      <View
+                        style={[
+                          styles.datePickerInputWrap,
+                          isDark && { backgroundColor: '#0F172A', borderColor: '#334155' },
+                          (focusedField === 'startDate' || activeDatePickerField === 'startDate') && styles.textInputFocused,
+                          (focusedField === 'startDate' || activeDatePickerField === 'startDate') && isDark && { backgroundColor: '#1E293B', borderColor: '#059669' },
+                        ]}
+                      >
+                        <TextInput
+                          style={[
+                            styles.datePickerInput,
+                            isDark && { color: '#F8FAFC' },
+                          ]}
+                          value={formStartDate}
+                          onChangeText={setFormStartDate}
+                          placeholder="dd/mm/yyyy"
+                          placeholderTextColor="#A8A29E"
+                          onFocus={() => setFocusedField('startDate')}
+                        />
+                        <TouchableOpacity
+                          style={styles.calendarIconBtn}
+                          onPress={() => toggleDatePicker('startDate')}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons
+                            name="calendar-outline"
+                            size={18}
+                            color={activeDatePickerField === 'startDate' ? '#059669' : (isDark ? '#94A3B8' : '#78716C')}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <View style={[styles.formGroup, { flex: 1 }]}>
+                      <Text style={[styles.inputLabel, isDark && { color: '#E2E8F0' }]}>
+                        {isVi ? 'Hạn trả nợ (Tùy chọn)' : 'Due Date (Optional)'}
+                      </Text>
+                      <View
+                        style={[
+                          styles.datePickerInputWrap,
+                          isDark && { backgroundColor: '#0F172A', borderColor: '#334155' },
+                          (focusedField === 'dueDate' || activeDatePickerField === 'dueDate') && styles.textInputFocused,
+                          (focusedField === 'dueDate' || activeDatePickerField === 'dueDate') && isDark && { backgroundColor: '#1E293B', borderColor: '#059669' },
+                        ]}
+                      >
+                        <TextInput
+                          style={[
+                            styles.datePickerInput,
+                            isDark && { color: '#F8FAFC' },
+                          ]}
+                          value={formDueDate}
+                          onChangeText={setFormDueDate}
+                          placeholder="dd/mm/yyyy"
+                          placeholderTextColor="#A8A29E"
+                          onFocus={() => setFocusedField('dueDate')}
+                        />
+                        <TouchableOpacity
+                          style={styles.calendarIconBtn}
+                          onPress={() => toggleDatePicker('dueDate')}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons
+                            name="calendar-outline"
+                            size={18}
+                            color={activeDatePickerField === 'dueDate' ? '#059669' : (isDark ? '#94A3B8' : '#78716C')}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* Dropdown Mini Calendar khi chọn lịch */}
+                  {activeDatePickerField && (
+                    <View style={[styles.miniDatePickerBox, isDark && { backgroundColor: '#0F172A', borderColor: '#334155' }]}>
+                      <View style={styles.miniDateHeader}>
+                        <TouchableOpacity
+                          onPress={handlePrevPickerMonth}
+                          style={[styles.arrowMiniBtn, isDark && { backgroundColor: '#1E293B' }]}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.arrowMiniBtnText, isDark && { color: '#F8FAFC' }]}>‹</Text>
+                        </TouchableOpacity>
+                        <Text style={[styles.miniDateTitle, isDark && { color: '#F8FAFC' }]}>
+                          {isVi
+                            ? `Tháng ${pickerMonth + 1}, ${pickerYear} (${activeDatePickerField === 'dueDate' ? 'Hạn trả nợ' : 'Ngày vay'})`
+                            : `${new Date(pickerYear, pickerMonth).toLocaleString('en-US', { month: 'short' })} ${pickerYear}`}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={handleNextPickerMonth}
+                          style={[styles.arrowMiniBtn, isDark && { backgroundColor: '#1E293B' }]}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.arrowMiniBtnText, isDark && { color: '#F8FAFC' }]}>›</Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <View style={styles.dowRow}>
+                        {(isVi
+                          ? ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
+                          : ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
+                        ).map((dow, idx) => (
+                          <View key={dow + idx} style={styles.dowCell}>
+                            <Text style={[styles.dowText, isDark && { color: '#94A3B8' }]}>{dow}</Text>
+                          </View>
+                        ))}
+                      </View>
+
+                      <View style={styles.dayGrid}>
+                        {calendarCells.map((day, idx) => {
+                          if (day === null) {
+                            return <View key={`empty-${idx}`} style={styles.dayCell} />;
+                          }
+                          const currentVal = activeDatePickerField === 'dueDate' ? formDueDate : formStartDate;
+                          const parsed = parseDateStr(currentVal);
+                          const isSelected = !!(
+                            parsed &&
+                            parsed.getDate() === day &&
+                            parsed.getMonth() === pickerMonth &&
+                            parsed.getFullYear() === pickerYear
+                          );
+
+                          return (
+                            <TouchableOpacity
+                              key={`d-${day}`}
+                              style={[
+                                styles.dayCell,
+                                isSelected && styles.dayCellSelected,
+                              ]}
+                              onPress={() => handleSelectCalendarDay(day)}
+                              activeOpacity={0.7}
+                            >
+                              <Text
+                                style={[
+                                  styles.dayCellText,
+                                  isDark && { color: '#F8FAFC' },
+                                  isSelected && styles.dayCellTextSelected,
+                                ]}
+                              >
+                                {day}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+
+                      {/* Quick options: Hôm nay / Không đặt hạn */}
+                      <View style={[styles.miniDateFooter, isDark && { borderTopColor: '#334155' }]}>
+                        {activeDatePickerField === 'dueDate' && (
+                          <TouchableOpacity
+                            onPress={() => {
+                              setFormDueDate('');
+                              setActiveDatePickerField(null);
+                            }}
+                            style={[styles.miniDateActionBtn, isDark && { backgroundColor: '#1E293B' }]}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[styles.miniDateActionBtnText, isDark && { color: '#CBD5E1' }]}>
+                              {isVi ? 'Không đặt hạn' : 'No due date'}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                          onPress={() => {
+                            const today = new Date();
+                            const dd = String(today.getDate()).padStart(2, '0');
+                            const mm = String(today.getMonth() + 1).padStart(2, '0');
+                            const yyyy = today.getFullYear();
+                            const formatted = `${dd}/${mm}/${yyyy}`;
+                            if (activeDatePickerField === 'dueDate') {
+                              setFormDueDate(formatted);
+                            } else {
+                              setFormStartDate(formatted);
+                            }
+                            setActiveDatePickerField(null);
+                          }}
+                          style={[styles.miniDateActionBtn, { backgroundColor: '#059669' }]}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[styles.miniDateActionBtnText, { color: '#FFFFFF' }]}>
+                            {isVi ? 'Hôm nay' : 'Today'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+
+                  <View style={styles.formGroup}>
+                    <Text style={[styles.inputLabel, isDark && { color: '#E2E8F0' }]}>
+                      {isVi ? 'Ghi chú / Mục đích vay' : 'Note / Reason'}
                     </Text>
                     <TextInput
                       style={[
                         styles.textInput,
-                        focusedField === 'paid' && styles.textInputFocused,
+                        isDark && { backgroundColor: '#0F172A', borderColor: '#334155', color: '#F8FAFC' },
+                        focusedField === 'note' && styles.textInputFocused,
+                        focusedField === 'note' && isDark && { backgroundColor: '#1E293B', borderColor: '#059669' },
                       ]}
-                      value={formPaidStr}
-                      onChangeText={(text) => {
-                        const numeric = text.replace(/\D/g, '');
-                        setFormPaidStr(numeric);
+                      value={formNote}
+                      onChangeText={setFormNote}
+                      placeholder={
+                        isVi
+                          ? 'Ví dụ: Mượn mua điện thoại, cọc tiền nhà...'
+                          : 'e.g. Rent deposit, laptop purchase'
+                      }
+                      placeholderTextColor="#A8A29E"
+                      onFocus={() => {
+                        setFocusedField('note');
+                        setActiveDatePickerField(null);
                       }}
-                      keyboardType="numeric"
-                      placeholder="0"
-                      placeholderTextColor="#A8A29E"
-                      onFocus={() => setFocusedField('paid')}
                     />
                   </View>
-                </View>
-
-                <View style={styles.formRow}>
-                  <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.inputLabel}>
-                      {isVi ? 'Ngày vay / mượn' : 'Start Date'}
-                    </Text>
-                    <TextInput
-                      style={[
-                        styles.textInput,
-                        focusedField === 'startDate' && styles.textInputFocused,
-                      ]}
-                      value={formStartDate}
-                      onChangeText={setFormStartDate}
-                      placeholder="dd/mm/yyyy"
-                      placeholderTextColor="#A8A29E"
-                      onFocus={() => setFocusedField('startDate')}
-                    />
-                  </View>
-
-                  <View style={[styles.formGroup, { flex: 1 }]}>
-                    <Text style={styles.inputLabel}>
-                      {isVi ? 'Hạn trả nợ (Tùy chọn)' : 'Due Date (Optional)'}
-                    </Text>
-                    <TextInput
-                      style={[
-                        styles.textInput,
-                        focusedField === 'dueDate' && styles.textInputFocused,
-                      ]}
-                      value={formDueDate}
-                      onChangeText={setFormDueDate}
-                      placeholder="dd/mm/yyyy"
-                      placeholderTextColor="#A8A29E"
-                      onFocus={() => setFocusedField('dueDate')}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.formGroup}>
-                  <Text style={styles.inputLabel}>
-                    {isVi ? 'Ghi chú / Mục đích vay' : 'Note / Reason'}
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.textInput,
-                      focusedField === 'note' && styles.textInputFocused,
-                    ]}
-                    value={formNote}
-                    onChangeText={setFormNote}
-                    placeholder={
-                      isVi
-                        ? 'Ví dụ: Mượn mua điện thoại, cọc tiền nhà...'
-                        : 'e.g. Rent deposit, laptop purchase'
-                    }
-                    placeholderTextColor="#A8A29E"
-                    onFocus={() => setFocusedField('note')}
-                  />
-                </View>
+                </ScrollView>
 
                 {/* Modal Footer Actions */}
                 <View style={styles.modalActionsRow}>
                   <TouchableOpacity
-                    style={styles.cancelBtn}
-                    onPress={() => setIsFormModalOpen(false)}
+                    style={[styles.cancelBtn, isDark && { backgroundColor: '#334155' }]}
+                    onPress={() => {
+                      setActiveDatePickerField(null);
+                      setIsFormModalOpen(false);
+                    }}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.cancelBtnText}>{isVi ? 'Hủy' : 'Cancel'}</Text>
+                    <Text style={[styles.cancelBtnText, isDark && { color: '#E2E8F0' }]}>
+                      {isVi ? 'Hủy' : 'Cancel'}
+                    </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -1261,19 +1597,18 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
                 )}
 
                 <View style={styles.formGroup}>
-                  <Text style={styles.inputLabel}>
+                  <Text style={[styles.inputLabel, isDark && { color: '#E2E8F0' }]}>
                     {isVi ? 'Số tiền thanh toán (VNĐ) *' : 'Payment Amount (VND) *'}
                   </Text>
                   <TextInput
                     style={[
                       styles.textInput,
+                      isDark && { backgroundColor: '#0F172A', borderColor: '#334155', color: '#F8FAFC' },
                       payFocusedField === 'payAmount' && styles.textInputFocused,
+                      payFocusedField === 'payAmount' && isDark && { backgroundColor: '#1E293B', borderColor: '#059669' },
                     ]}
                     value={payAmountStr}
-                    onChangeText={(text) => {
-                      const numeric = text.replace(/\D/g, '');
-                      setPayAmountStr(numeric);
-                    }}
+                    onChangeText={(text) => handleAmountInputChange(text, setPayAmountStr)}
                     keyboardType="numeric"
                     placeholder="0"
                     placeholderTextColor="#A8A29E"
@@ -1286,23 +1621,22 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
                   <View style={styles.quickChipsRow}>
                     <TouchableOpacity
                       style={styles.quickChip}
-                      onPress={() => setPayAmountStr('500000')}
+                      onPress={() => setPayAmountStr((500000).toLocaleString('vi-VN'))}
                     >
                       <Text style={styles.quickChipText}>+500.000</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.quickChip}
-                      onPress={() => setPayAmountStr('1000000')}
+                      onPress={() => setPayAmountStr((1000000).toLocaleString('vi-VN'))}
                     >
                       <Text style={styles.quickChipText}>+1.000.000</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.quickChip}
-                      onPress={() =>
-                        setPayAmountStr(
-                          String(Math.max(0, payingDebt.amount - payingDebt.paidAmount))
-                        )
-                      }
+                      onPress={() => {
+                        const rem = Math.max(0, payingDebt.amount - payingDebt.paidAmount);
+                        setPayAmountStr(rem > 0 ? rem.toLocaleString('vi-VN') : '');
+                      }}
                     >
                       <Text style={styles.quickChipText}>
                         {isVi ? 'Toàn bộ còn lại' : 'All Remaining'}
@@ -1312,13 +1646,15 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
                 )}
 
                 <View style={styles.formGroup}>
-                  <Text style={styles.inputLabel}>
+                  <Text style={[styles.inputLabel, isDark && { color: '#E2E8F0' }]}>
                     {isVi ? 'Ghi chú thanh toán' : 'Payment Note'}
                   </Text>
                   <TextInput
                     style={[
                       styles.textInput,
+                      isDark && { backgroundColor: '#0F172A', borderColor: '#334155', color: '#F8FAFC' },
                       payFocusedField === 'payNote' && styles.textInputFocused,
+                      payFocusedField === 'payNote' && isDark && { backgroundColor: '#1E293B', borderColor: '#059669' },
                     ]}
                     value={payNoteStr}
                     onChangeText={setPayNoteStr}
@@ -1334,11 +1670,11 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
 
                 <View style={styles.modalActionsRow}>
                   <TouchableOpacity
-                    style={styles.cancelBtn}
+                    style={[styles.cancelBtn, isDark && { backgroundColor: '#334155' }]}
                     onPress={() => setIsPayModalOpen(false)}
                     activeOpacity={0.8}
                   >
-                    <Text style={styles.cancelBtnText}>{isVi ? 'Hủy' : 'Cancel'}</Text>
+                    <Text style={[styles.cancelBtnText, isDark && { color: '#E2E8F0' }]}>{isVi ? 'Hủy' : 'Cancel'}</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -2013,6 +2349,7 @@ const styles = StyleSheet.create({
   modalDialogCard: {
     width: '100%',
     maxWidth: 480,
+    maxHeight: '92%',
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
     borderWidth: 1,
@@ -2101,6 +2438,122 @@ const styles = StyleSheet.create({
   textInputFocused: {
     backgroundColor: '#FFFFFF',
     borderColor: '#059669',
+  },
+  datePickerInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F7F4EE',
+    borderWidth: 1.5,
+    borderColor: '#E7DECF',
+    borderRadius: 14,
+    paddingLeft: 14,
+    paddingRight: 6,
+    minHeight: 44,
+  },
+  datePickerInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#221D18',
+    fontWeight: '600',
+  },
+  calendarIconBtn: {
+    padding: 6,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniDatePickerBox: {
+    width: '100%',
+    backgroundColor: '#FAF7F2',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#E7DECF',
+    padding: 12,
+    marginBottom: 14,
+  },
+  miniDateHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  arrowMiniBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#EAE3D5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  arrowMiniBtnText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#221D18',
+    marginTop: -2,
+  },
+  miniDateTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#221D18',
+  },
+  dowRow: {
+    flexDirection: 'row',
+    marginBottom: 6,
+  },
+  dowCell: {
+    width: '14.28%',
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  dowText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#78716C',
+  },
+  dayGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  dayCell: {
+    width: '14.28%',
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    marginVertical: 2,
+  },
+  dayCellSelected: {
+    backgroundColor: '#059669',
+  },
+  dayCellText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#221D18',
+  },
+  dayCellTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  miniDateFooter: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E7DECF',
+  },
+  miniDateActionBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: '#F4EFE6',
+  },
+  miniDateActionBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#57534E',
   },
   modalActionsRow: {
     flexDirection: 'row',

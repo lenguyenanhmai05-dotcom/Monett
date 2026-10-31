@@ -650,13 +650,16 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
   };
 
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isMobile = windowWidth < 768;
+  const baseBottom = isMobile ? 84 : 24;
+  const baseRight = isMobile ? 16 : 24;
 
   const chatWidth = Math.min(360, windowWidth - 32);
-  const chatHeight = Math.min(520, windowHeight - 96);
+  const chatHeight = Math.min(520, windowHeight - (isMobile ? 110 : 96));
 
   // Vị trí con ếch trên màn hình (đo từ mép trái và mép trên)
-  const frogX = windowWidth - 24 - 36 + panOffset.x;
-  const frogY = windowHeight - 24 - 36 + panOffset.y;
+  const frogX = windowWidth - baseRight - 36 + panOffset.x;
+  const frogY = windowHeight - baseBottom - 36 + panOffset.y;
 
   const isFrogOnLeft = frogX < windowWidth / 2;
   const isFrogOnTop = frogY < windowHeight / 2;
@@ -682,7 +685,7 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
         bottom: undefined,
       }
     : {
-        bottom: Math.max(16, Math.min(windowHeight - frogY + 44, windowHeight - chatHeight - 72)),
+        bottom: Math.max(isMobile ? 84 : 16, Math.min(windowHeight - frogY + 44, windowHeight - chatHeight - (isMobile ? 84 : 72))),
         top: undefined,
       };
 
@@ -729,7 +732,7 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
         {
           backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
           borderColor: isDark ? '#334155' : '#E2E8F0',
-          position: 'fixed' as any,
+          position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as any,
           width: chatWidth,
           height: chatHeight,
           maxHeight: chatHeight,
@@ -963,7 +966,17 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
   );
 
   return (
-    <View style={styles.floatingWrapper} pointerEvents="box-none">
+    <View
+      style={[
+        styles.floatingWrapper,
+        {
+          position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as any,
+          bottom: baseBottom,
+          right: baseRight,
+        },
+      ]}
+      pointerEvents="box-none"
+    >
       {/* 1. CỬA SỔ CHAT TỰ ĐỘNG CÂN CHỈNH TRÊN MÀN HÌNH - KHÔNG BỊ TRÀN HAY MẤT NÚT ĐÓNG */}
       {isOpen && renderChatWindow()}
 
@@ -1050,7 +1063,7 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
 
 const styles = StyleSheet.create({
   floatingWrapper: {
-    position: 'fixed' as any,
+    position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as any,
     bottom: 24,
     right: 24,
     zIndex: 999998,

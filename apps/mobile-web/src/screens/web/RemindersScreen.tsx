@@ -1179,17 +1179,20 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
                 </Text>
 
                 <View style={styles.timeInputsRow}>
-                  <View style={styles.timeInputBox}>
+                  <View style={[styles.timeInputBox, isDark && { backgroundColor: '#1E293B', borderColor: '#334155' }]}>
                     <TouchableOpacity
-                      style={styles.stepperBtn}
+                      style={[styles.stepperBtn, isDark && { backgroundColor: 'rgba(5, 150, 105, 0.2)' }]}
                       onPress={() => handleStepHour(1)}
                       activeOpacity={0.6}
                     >
-                      <Ionicons name="chevron-up" size={16} color="#047857" />
+                      <Ionicons name="chevron-up" size={18} color={isDark ? '#34D399' : '#047857'} />
                     </TouchableOpacity>
 
                     <TextInput
-                      style={styles.timeNumberInput}
+                      style={[
+                        styles.timeNumberInput,
+                        isDark && { backgroundColor: '#0F172A', borderColor: '#334155', color: '#34D399' },
+                      ]}
                       keyboardType="number-pad"
                       maxLength={2}
                       selectTextOnFocus={true}
@@ -1201,28 +1204,31 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
                     />
 
                     <TouchableOpacity
-                      style={styles.stepperBtn}
+                      style={[styles.stepperBtn, isDark && { backgroundColor: 'rgba(5, 150, 105, 0.2)' }]}
                       onPress={() => handleStepHour(-1)}
                       activeOpacity={0.6}
                     >
-                      <Ionicons name="chevron-down" size={16} color="#047857" />
+                      <Ionicons name="chevron-down" size={18} color={isDark ? '#34D399' : '#047857'} />
                     </TouchableOpacity>
-                    <Text style={styles.timeInputSub}>{isVi ? 'Giờ (0-23)' : 'Hour'}</Text>
+                    <Text style={[styles.timeInputSub, isDark && { color: '#94A3B8' }]}>{isVi ? 'Giờ (0-23)' : 'Hour'}</Text>
                   </View>
 
-                  <Text style={styles.timeColonText}>:</Text>
+                  <Text style={[styles.timeColonText, isDark && { color: '#34D399' }]}>:</Text>
 
-                  <View style={styles.timeInputBox}>
+                  <View style={[styles.timeInputBox, isDark && { backgroundColor: '#1E293B', borderColor: '#334155' }]}>
                     <TouchableOpacity
-                      style={styles.stepperBtn}
+                      style={[styles.stepperBtn, isDark && { backgroundColor: 'rgba(5, 150, 105, 0.2)' }]}
                       onPress={() => handleStepMinute(1)}
                       activeOpacity={0.6}
                     >
-                      <Ionicons name="chevron-up" size={16} color="#047857" />
+                      <Ionicons name="chevron-up" size={18} color={isDark ? '#34D399' : '#047857'} />
                     </TouchableOpacity>
 
                     <TextInput
-                      style={styles.timeNumberInput}
+                      style={[
+                        styles.timeNumberInput,
+                        isDark && { backgroundColor: '#0F172A', borderColor: '#334155', color: '#34D399' },
+                      ]}
                       keyboardType="number-pad"
                       maxLength={2}
                       selectTextOnFocus={true}
@@ -1234,13 +1240,13 @@ export const RemindersScreen: React.FC<RemindersScreenProps> = ({ onNavigateToTa
                     />
 
                     <TouchableOpacity
-                      style={styles.stepperBtn}
+                      style={[styles.stepperBtn, isDark && { backgroundColor: 'rgba(5, 150, 105, 0.2)' }]}
                       onPress={() => handleStepMinute(-1)}
                       activeOpacity={0.6}
                     >
-                      <Ionicons name="chevron-down" size={16} color="#047857" />
+                      <Ionicons name="chevron-down" size={18} color={isDark ? '#34D399' : '#047857'} />
                     </TouchableOpacity>
-                    <Text style={styles.timeInputSub}>{isVi ? 'Phút (0-59)' : 'Minute'}</Text>
+                    <Text style={[styles.timeInputSub, isDark && { color: '#94A3B8' }]}>{isVi ? 'Phút (0-59)' : 'Minute'}</Text>
                   </View>
                 </View>
               </View>
@@ -2052,38 +2058,47 @@ const styles = StyleSheet.create({
   timeInputBox: {
     flex: 1,
     alignItems: 'center',
-    borderWidth: 1,
+    justifyContent: 'center',
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    borderRadius: 12,
-    paddingVertical: 6,
+    borderRadius: 14,
+    paddingVertical: 8,
     backgroundColor: '#F8FAFC',
   },
   stepperBtn: {
-    width: 36,
-    height: 22,
-    borderRadius: 6,
+    width: 44,
+    height: 26,
+    borderRadius: 8,
     backgroundColor: '#ECFDF5',
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 2,
+    marginVertical: 3,
   },
   timeInputSub: {
-    fontSize: 10.5,
+    fontSize: 11,
     color: '#64748B',
-    fontWeight: '600',
-    marginTop: 3,
+    fontWeight: '700',
+    marginTop: 4,
   },
   timeNumberInput: {
     fontSize: 24,
     fontWeight: '900',
     color: '#047857',
     textAlign: 'center',
-    width: 68,
-    height: 38,
+    textAlignVertical: 'center',
+    width: 76,
+    height: 48,
+    padding: 0,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    includeFontPadding: false,
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
+    borderRadius: 10,
+    borderWidth: 1.5,
     borderColor: '#CBD5E1',
+    ...(Platform.OS === 'web' ? {
+      outlineWidth: 0,
+    } : {}),
   },
   timeColonText: {
     fontSize: 28,

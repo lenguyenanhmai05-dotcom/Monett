@@ -240,8 +240,60 @@ export const REAL_EVENTS_FOR_USER: MonettEvent[] = [
 ];
 
 const STORAGE_PREFIX = '@monett_events_v2_';
+export const EVENTS_UPDATED_EVENT = 'monett:events_updated';
 const LEGACY_GLOBAL_KEY = 'monett_events_v1';
 export const TARGET_EMAIL = 'lenguyenanhmai113@gmail.com';
+
+// 1. In-memory cache đồng bộ để đọc tức thì 0ms trên cả React Native Mobile & Web
+const inMemoryCache: Record<string, MonettEvent[]> = {};
+
+// In-memory listeners cho cập nhật chéo giữa các widget và màn hình
+const eventsListeners = new Set<() => void>();
+let isNotifying = false;
+
+export function notifyEventsUpdated(): void {
+  if (isNotifying) return;
+  isNotifying = true;
+  try {
+    eventsListeners.forEach((cb) => {
+      try {
+        cb();
+      } catch {}
+    });
+
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      try {
+        if (typeof CustomEvent !== 'undefined') {
+          window.dispatchEvent(new CustomEvent(EVENTS_UPDATED_EVENT));
+        }
+        window.dispatchEvent(new Event('storage'));
+      } catch {}
+    }
+  } finally {
+    isNotifying = false;
+  }
+}
+
+export function subscribeEventsUpdates(callback: () => void): () => void {
+  eventsListeners.add(callback);
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    const handleEvent = () => {
+      try {
+        callback();
+      } catch {}
+    };
+    window.addEventListener(EVENTS_UPDATED_EVENT, handleEvent);
+    window.addEventListener('storage', handleEvent);
+    return () => {
+      eventsListeners.delete(callback);
+      window.removeEventListener(EVENTS_UPDATED_EVENT, handleEvent);
+      window.removeEventListener('storage', handleEvent);
+    };
+  }
+  return () => {
+    eventsListeners.delete(callback);
+  };
+}
 
 export const getEventsStorageKey = (userEmail?: string, userId?: string): string => {
   const emailKey = (userEmail || '').trim().toLowerCase();
@@ -254,54 +306,214 @@ export const getEventsStorageKey = (userEmail?: string, userId?: string): string
   return `${STORAGE_PREFIX}guest`;
 };
 
-export const loadEventsFromStorage = (userEmail?: string, userId?: string): MonettEvent[] => {
+// Helper an toàn lấy AsyncStorage
+const getAsyncStorage = () => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      // Dọn dẹp key cũ dùng chung để không bao giờ bị dính dữ liệu chéo giữa các tài khoản
+    return require('@react-native-async-storage/async-storage').default;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Đọc đồng bộ dữ liệu sự kiện (ưu tiên Memory Cache -> LocalStorage -> Fallback)
+ */
+export const loadEventsFromStorage = (userEmail?: string, userId?: string): MonettEvent[] => {
+  const normEmail = (userEmail || '').trim().toLowerCase();
+  const primaryKey = getEventsStorageKey(normEmail, userId);
+
+  // 1. Kiểm tra trong bộ nhớ đệm (In-Memory Cache) trước - tức thời 0ms
+  if (inMemoryCache[primaryKey] && inMemoryCache[primaryKey].length > 0) {
+    return inMemoryCache[primaryKey];
+  }
+
+  // Thử các khóa phụ trong bộ nhớ
+  const memoryCandidates = [
+    normEmail ? `${STORAGE_PREFIX}${normEmail}` : '',
+    userId && userId.trim() ? `${STORAGE_PREFIX}${userId.trim()}` : '',
+    `${STORAGE_PREFIX}guest`,
+    `${STORAGE_PREFIX}global`,
+  ].filter(Boolean);
+
+  for (const cKey of memoryCandidates) {
+    if (inMemoryCache[cKey] && inMemoryCache[cKey].length > 0) {
+      inMemoryCache[primaryKey] = inMemoryCache[cKey];
+      return inMemoryCache[cKey];
+    }
+  }
+
+  // 2. Thử đọc từ window.localStorage nếu chạy trên Web / Mobile Web
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
       try {
         window.localStorage.removeItem(LEGACY_GLOBAL_KEY);
       } catch {}
 
-      const normEmail = (userEmail || '').trim().toLowerCase();
-      const key = getEventsStorageKey(normEmail, userId);
-      const stored = window.localStorage.getItem(key);
-
+      const stored = window.localStorage.getItem(primaryKey);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          // Lọc bỏ toàn bộ các tài khoản ảo @monett.vn khỏi sự kiện
-          const cleaned = parsed.map((evt: MonettEvent) => ({
-            ...evt,
-            members: (evt.members || []).filter(
-              (m) =>
-                !m.email?.includes('monett.vn') &&
-                !m.id?.startsWith('u-') &&
-                !m.id?.startsWith('user_linh_nhi') &&
-                !m.id?.startsWith('user_minh_quan') &&
-                !m.id?.startsWith('user_khanh_vy') &&
-                !m.id?.startsWith('user_phong_to') &&
-                !m.id?.startsWith('user_bao_tram') &&
-                !m.id?.startsWith('user_hoang_nam')
-            ),
-          }));
-          return cleaned;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          inMemoryCache[primaryKey] = parsed;
+          return parsed;
         }
       }
 
-      // CHỈ duy nhất tài khoản lenguyenanhmai113@gmail.com được tự động nạp dữ liệu thật này
-      if (normEmail === TARGET_EMAIL) {
-        saveEventsToStorage(REAL_EVENTS_FOR_USER, normEmail, userId);
-        return REAL_EVENTS_FOR_USER;
+      for (const fbKey of memoryCandidates) {
+        const rawFb = window.localStorage.getItem(fbKey);
+        if (rawFb) {
+          const parsed = JSON.parse(rawFb);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            inMemoryCache[primaryKey] = parsed;
+            inMemoryCache[fbKey] = parsed;
+            try {
+              window.localStorage.setItem(primaryKey, JSON.stringify(parsed));
+            } catch {}
+            return parsed;
+          }
+        }
       }
 
-      // Mọi tài khoản khác bắt đầu từ danh sách rỗng để người dùng tự tạo riêng của họ
-      return [];
-    }
-  } catch (err) {
-    console.warn('Lỗi đọc sự kiện từ localStorage:', err);
+      // Quét tất cả các key localStorage có tiền tố @monett_events_v2_
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const k = window.localStorage.key(i);
+        if (k && k.startsWith(STORAGE_PREFIX)) {
+          const val = window.localStorage.getItem(k);
+          if (val) {
+            const parsed = JSON.parse(val);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              inMemoryCache[primaryKey] = parsed;
+              return parsed;
+            }
+          }
+        }
+      }
+    } catch {}
   }
+
+  // 3. Fallback dữ liệu mẫu nếu là tài khoản demo đặc thù
+  if (normEmail === TARGET_EMAIL) {
+    inMemoryCache[primaryKey] = REAL_EVENTS_FOR_USER;
+    return REAL_EVENTS_FOR_USER;
+  }
+
+  return inMemoryCache[primaryKey] || [];
+};
+
+/**
+ * Lưu dữ liệu sự kiện đồng thời vào:
+ * 1. In-memory cache (cho lần đọc kế tiếp tức thì 0ms)
+ * 2. AsyncStorage (lưu bền vững trên thiết bị Android / iOS)
+ * 3. LocalStorage (lưu bền vững trên Web)
+ */
+export const saveEventsToStorage = (events: MonettEvent[], userEmail?: string, userId?: string): void => {
   const normEmail = (userEmail || '').trim().toLowerCase();
-  return normEmail === TARGET_EMAIL ? REAL_EVENTS_FOR_USER : [];
+  const primaryKey = getEventsStorageKey(normEmail, userId);
+  const jsonStr = JSON.stringify(events);
+
+  // 1. Cập nhật ngay lập tức vào Memory Cache
+  inMemoryCache[primaryKey] = events;
+  inMemoryCache[`${STORAGE_PREFIX}guest`] = events;
+  inMemoryCache[`${STORAGE_PREFIX}global`] = events;
+  if (normEmail) inMemoryCache[`${STORAGE_PREFIX}${normEmail}`] = events;
+  if (userId && userId.trim()) inMemoryCache[`${STORAGE_PREFIX}${userId.trim()}`] = events;
+
+  // 2. Lưu vào window.localStorage nếu có
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      window.localStorage.setItem(primaryKey, jsonStr);
+      window.localStorage.setItem(`${STORAGE_PREFIX}guest`, jsonStr);
+      window.localStorage.setItem(`${STORAGE_PREFIX}global`, jsonStr);
+      if (normEmail) window.localStorage.setItem(`${STORAGE_PREFIX}${normEmail}`, jsonStr);
+      if (userId && userId.trim()) window.localStorage.setItem(`${STORAGE_PREFIX}${userId.trim()}`, jsonStr);
+    } catch {}
+  }
+
+  // 3. Lưu bền vững vào AsyncStorage (hỗ trợ cả React Native Mobile Android/iOS và Expo)
+  const asyncStorage = getAsyncStorage();
+  if (asyncStorage) {
+    try {
+      asyncStorage.setItem(primaryKey, jsonStr).catch(() => {});
+      asyncStorage.setItem(`${STORAGE_PREFIX}guest`, jsonStr).catch(() => {});
+      asyncStorage.setItem(`${STORAGE_PREFIX}global`, jsonStr).catch(() => {});
+      if (normEmail) {
+        asyncStorage.setItem(`${STORAGE_PREFIX}${normEmail}`, jsonStr).catch(() => {});
+      }
+      if (userId && userId.trim()) {
+        asyncStorage.setItem(`${STORAGE_PREFIX}${userId.trim()}`, jsonStr).catch(() => {});
+      }
+    } catch {}
+  }
+
+  // 4. Phát tín hiệu cập nhật tức thời
+  notifyEventsUpdated();
+};
+
+/**
+ * Tải trước dữ liệu sự kiện từ AsyncStorage khi app/màn hình mở lên
+ */
+export async function preloadEventsFromAsyncStorage(userEmail?: string, userId?: string): Promise<MonettEvent[]> {
+  const asyncStorage = getAsyncStorage();
+  if (!asyncStorage) return loadEventsFromStorage(userEmail, userId);
+
+  try {
+    const normEmail = (userEmail || '').trim().toLowerCase();
+    const primaryKey = getEventsStorageKey(normEmail, userId);
+
+    const keysToTry = [
+      primaryKey,
+      normEmail ? `${STORAGE_PREFIX}${normEmail}` : '',
+      userId && userId.trim() ? `${STORAGE_PREFIX}${userId.trim()}` : '',
+      `${STORAGE_PREFIX}guest`,
+      `${STORAGE_PREFIX}global`,
+    ].filter(Boolean);
+
+    for (const key of keysToTry) {
+      const raw = await asyncStorage.getItem(key);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            inMemoryCache[primaryKey] = parsed;
+            inMemoryCache[`${STORAGE_PREFIX}guest`] = parsed;
+            inMemoryCache[`${STORAGE_PREFIX}global`] = parsed;
+            notifyEventsUpdated();
+            return parsed;
+          }
+        } catch {}
+      }
+    }
+
+    // Quét toàn bộ key trong AsyncStorage nếu chưa thấy
+    try {
+      const allKeys = await asyncStorage.getAllKeys();
+      const eventKeys = allKeys.filter((k: string) => k && k.startsWith(STORAGE_PREFIX));
+      if (eventKeys.length > 0) {
+        const pairs = await asyncStorage.multiGet(eventKeys);
+        for (const [, v] of pairs) {
+          if (v) {
+            const parsed = JSON.parse(v);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              inMemoryCache[primaryKey] = parsed;
+              inMemoryCache[`${STORAGE_PREFIX}guest`] = parsed;
+              notifyEventsUpdated();
+              return parsed;
+            }
+          }
+        }
+      }
+    } catch {}
+  } catch {}
+
+  return loadEventsFromStorage(userEmail, userId);
+}
+
+// Khởi chạy nạp ngay khi module được import
+preloadEventsFromAsyncStorage().catch(() => {});
+
+export const resetToRealEvents = (userEmail?: string, userId?: string): MonettEvent[] => {
+  const normEmail = (userEmail || '').trim().toLowerCase();
+  saveEventsToStorage(REAL_EVENTS_FOR_USER, normEmail, userId);
+  return REAL_EVENTS_FOR_USER;
 };
 
 
@@ -312,25 +524,6 @@ function dispatchCustomEventSafely(name: string, detail?: any): void {
     } catch (_) {}
   }
 }
-
-export const saveEventsToStorage = (events: MonettEvent[], userEmail?: string, userId?: string): void => {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const normEmail = (userEmail || '').trim().toLowerCase();
-      const key = getEventsStorageKey(normEmail, userId);
-      window.localStorage.setItem(key, JSON.stringify(events));
-      dispatchCustomEventSafely('monett:events_updated', events);
-    }
-  } catch (err) {
-    console.warn('Lỗi lưu sự kiện vào localStorage:', err);
-  }
-};
-
-export const resetToRealEvents = (userEmail?: string, userId?: string): MonettEvent[] => {
-  const normEmail = (userEmail || '').trim().toLowerCase();
-  saveEventsToStorage(REAL_EVENTS_FOR_USER, normEmail, userId);
-  return REAL_EVENTS_FOR_USER;
-};
 
 // ================= EVENT INVITATION SYSTEM =================
 export interface EventInvitation {
@@ -351,31 +544,41 @@ export interface EventInvitation {
 }
 
 const INVITATIONS_STORAGE_KEY = '@monett_event_invitations_v1';
+let inMemoryInvitationsCache: EventInvitation[] | null = null;
 
 export const getStoredEventInvitations = (): EventInvitation[] => {
+  if (inMemoryInvitationsCache && Array.isArray(inMemoryInvitationsCache)) {
+    return inMemoryInvitationsCache;
+  }
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
       const stored = window.localStorage.getItem(INVITATIONS_STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          inMemoryInvitationsCache = parsed;
+          return parsed;
+        }
       }
     }
-  } catch (err) {
-    console.warn('Lỗi đọc lời mời sự kiện:', err);
-  }
+  } catch (err) {}
   return [];
 };
 
 export const saveStoredEventInvitations = (list: EventInvitation[]): void => {
+  inMemoryInvitationsCache = list;
   try {
+    const jsonStr = JSON.stringify(list);
     if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(INVITATIONS_STORAGE_KEY, JSON.stringify(list));
-      dispatchCustomEventSafely('monett:event_invitations_updated', list);
+      window.localStorage.setItem(INVITATIONS_STORAGE_KEY, jsonStr);
     }
-  } catch (err) {
-    console.warn('Lỗi lưu lời mời sự kiện:', err);
-  }
+    const asyncStorage = getAsyncStorage();
+    if (asyncStorage) {
+      asyncStorage.setItem(INVITATIONS_STORAGE_KEY, jsonStr).catch(() => {});
+    }
+    dispatchCustomEventSafely('monett:event_invitations_updated', list);
+    notifyEventsUpdated();
+  } catch (err) {}
 };
 
 export const sendEventInvitation = (data: {
@@ -414,48 +617,58 @@ export const sendEventInvitation = (data: {
 
   // Tạo thông báo vào hộp thư thông báo của người nhận
   try {
+    const recipientNotifKey = data.recipientId && data.recipientId !== 'guest'
+      ? `monett_notifications_${data.recipientId}`
+      : 'monett_notifications_guest';
+
+    const notifItem: any = {
+      id: `notif-invite-${newInvite.id}`,
+      type: 'event',
+      title: 'Lời mời tham gia sự kiện 🏕️',
+      message: `${data.inviterName} đã mời bạn tham gia sự kiện "${data.eventTitle}". Bạn có muốn tham gia không?`,
+      createdAt: new Date().toISOString(),
+      read: false,
+      iconName: 'calendar',
+      iconColor: '#059669',
+      iconBg: '#DCFCE7',
+      metadata: {
+        type: 'event_invite',
+        inviteId: newInvite.id,
+        eventId: data.eventId,
+        eventTitle: data.eventTitle,
+        inviterName: data.inviterName,
+        inviterId: data.inviterId,
+        inviterEmail: data.inviterEmail,
+        recipientId: data.recipientId,
+        recipientName: data.recipientName,
+        recipientEmail: data.recipientEmail,
+        inviteStatus: 'pending',
+        targetTab: 'events',
+      },
+    };
+
     if (typeof window !== 'undefined' && window.localStorage) {
-      const recipientNotifKey = data.recipientId && data.recipientId !== 'guest'
-        ? `monett_notifications_${data.recipientId}`
-        : 'monett_notifications_guest';
       const existingNotifsRaw = window.localStorage.getItem(recipientNotifKey);
       let notifs = existingNotifsRaw ? JSON.parse(existingNotifsRaw) : [];
       if (!Array.isArray(notifs)) notifs = [];
-
-      const notifItem = {
-        id: `notif-invite-${newInvite.id}`,
-        type: 'event',
-        title: 'Lời mời tham gia sự kiện 🏕️',
-        message: `${data.inviterName} đã mời bạn tham gia sự kiện "${data.eventTitle}". Bạn có muốn tham gia không?`,
-        createdAt: new Date().toISOString(),
-        read: false,
-        iconName: 'calendar',
-        iconColor: '#059669',
-        iconBg: '#DCFCE7',
-        metadata: {
-          type: 'event_invite',
-          inviteId: newInvite.id,
-          eventId: data.eventId,
-          eventTitle: data.eventTitle,
-          inviterName: data.inviterName,
-          inviterId: data.inviterId,
-          inviterEmail: data.inviterEmail,
-          recipientId: data.recipientId,
-          recipientName: data.recipientName,
-          recipientEmail: data.recipientEmail,
-          inviteStatus: 'pending',
-          targetTab: 'events',
-        },
-      };
-
       notifs = [notifItem, ...notifs];
       window.localStorage.setItem(recipientNotifKey, JSON.stringify(notifs));
       dispatchCustomEventSafely('monett:notification_added', notifItem);
+    }
+    const asyncStorage = getAsyncStorage();
+    if (asyncStorage) {
+      asyncStorage.getItem(recipientNotifKey).then((raw: any) => {
+        let notifs = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(notifs)) notifs = [];
+        notifs = [notifItem, ...notifs.filter((n: any) => n.id !== notifItem.id)];
+        asyncStorage.setItem(recipientNotifKey, JSON.stringify(notifs)).catch(() => {});
+      }).catch(() => {});
     }
   } catch (e) {
     console.warn('Lỗi ghi thông báo mời sự kiện:', e);
   }
 
+  notifyEventsUpdated();
   return newInvite;
 };
 
@@ -567,6 +780,31 @@ export const acceptEventInvitation = (
           });
           window.localStorage.setItem(notifKey, JSON.stringify(list));
         }
+      }
+      const asyncStorage = getAsyncStorage();
+      if (asyncStorage) {
+        const notifKey = recipientId && recipientId !== 'guest' ? `monett_notifications_${recipientId}` : 'monett_notifications_guest';
+        asyncStorage.getItem(notifKey).then((raw: any) => {
+          let list = raw ? JSON.parse(raw) : [];
+          if (Array.isArray(list)) {
+            list = list.map((n) =>
+              n?.metadata?.inviteId === inviteId ? { ...n, metadata: { ...n.metadata, inviteStatus: 'accepted' }, read: true } : n
+            );
+            list.unshift({
+              id: `notif-joined-${Date.now()}`,
+              type: 'event',
+              title: 'Đã tham gia sự kiện thành công 🎉',
+              message: `Bạn đã chính thức gia nhập sự kiện "${updatedEvent.title}". Bạn có thể xem và cùng lên kế hoạch chi tiêu ngay bây giờ!`,
+              createdAt: new Date().toISOString(),
+              read: false,
+              iconName: 'calendar',
+              iconColor: '#059669',
+              iconBg: '#DCFCE7',
+              metadata: { targetTab: 'events', eventId: updatedEvent.id },
+            });
+            asyncStorage.setItem(notifKey, JSON.stringify(list)).catch(() => {});
+          }
+        }).catch(() => {});
 
         // Bắn thông báo về cho người mời (Owner)
         if (invite.inviterId && invite.inviterId !== recipientId) {
@@ -640,10 +878,39 @@ export const declineEventInvitation = (inviteId: string): void => {
         window.localStorage.setItem(notifKey, JSON.stringify(list));
       }
     }
+    const asyncStorage = getAsyncStorage();
+    if (asyncStorage) {
+      const notifKey = invite.recipientId && invite.recipientId !== 'guest' ? `monett_notifications_${invite.recipientId}` : 'monett_notifications_guest';
+      asyncStorage.getItem(notifKey).then((raw: any) => {
+        let list = raw ? JSON.parse(raw) : [];
+        if (Array.isArray(list)) {
+          list = list.map((n) =>
+            n?.metadata?.inviteId === inviteId ? { ...n, metadata: { ...n.metadata, inviteStatus: 'declined' }, read: true } : n
+          );
+          asyncStorage.setItem(notifKey, JSON.stringify(list)).catch(() => {});
+        }
+      }).catch(() => {});
+    }
   } catch (e) {
     console.warn(e);
   }
 
   dispatchCustomEventSafely('monett:event_declined', { inviteId });
+  notifyEventsUpdated();
 };
 
+
+// Tải trước danh sách lời mời sự kiện từ AsyncStorage khi khởi động module
+(() => {
+  const asyncStorage = getAsyncStorage();
+  if (asyncStorage) {
+    asyncStorage.getItem(INVITATIONS_STORAGE_KEY).then((raw: any) => {
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) inMemoryInvitationsCache = parsed;
+        } catch {}
+      }
+    }).catch(() => {});
+  }
+})();

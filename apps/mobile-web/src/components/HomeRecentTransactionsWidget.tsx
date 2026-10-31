@@ -22,6 +22,34 @@ interface HomeRecentTransactionsWidgetProps {
   language?: 'vi' | 'en';
 }
 
+// Hàm trích xuất thời điểm TẠO giao dịch chính xác (ưu tiên createdAt, updatedAt, MongoDB ObjectId, timestamp id, fallback date)
+export const getTransactionCreationTime = (tx: any): number => {
+  if (!tx) return 0;
+  if (tx.createdAt) {
+    const t = new Date(tx.createdAt).getTime();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  if (tx.updatedAt) {
+    const t = new Date(tx.updatedAt).getTime();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  const idStr = String(tx._id || tx.id || '');
+  if (/^[0-9a-fA-F]{24}$/.test(idStr)) {
+    const sec = parseInt(idStr.substring(0, 8), 16);
+    if (!isNaN(sec) && sec > 0) return sec * 1000;
+  }
+  const numMatch = idStr.match(/\d{10,13}/);
+  if (numMatch) {
+    const ts = parseInt(numMatch[0], 10);
+    return ts < 10000000000 ? ts * 1000 : ts;
+  }
+  if (tx.date) {
+    const t = new Date(tx.date).getTime();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  return 0;
+};
+
 export const HomeRecentTransactionsWidget: React.FC<HomeRecentTransactionsWidgetProps> = ({
   transactions,
   onViewAll,
@@ -30,8 +58,33 @@ export const HomeRecentTransactionsWidget: React.FC<HomeRecentTransactionsWidget
 }) => {
   const isVi = language === 'vi';
 
-  const totalCount = transactions?.length || 0;
-  const displayList = transactions && transactions.length > 0 ? transactions.slice(0, 3) : [];
+  // Sắp xếp các giao dịch theo THỜI ĐIỂM TẠO GẦN ĐÂY NHẤT (mới thêm gần đây nhất lên đầu)
+  const sortedTransactions = React.useMemo(() => {
+    if (!transactions || transactions.length === 0) return [];
+    return [...transactions].sort((a, b) => {
+      const timeA = getTransactionCreationTime(a);
+      const timeB = getTransactionCreationTime(b);
+      return timeB - timeA;
+    });
+  }, [transactions]);
+
+  const totalCount = sortedTransactions.length;
+  // Hiển thị tối đa 5 giao dịch gần đây nhất để không bị sót
+  const displayList = sortedTransactions.slice(0, 5);
+
+  const formatItemDate = (dateVal?: string) => {
+    if (!dateVal) return isVi ? 'Hôm nay' : 'Today';
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return String(dateVal);
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch {
+      return String(dateVal);
+    }
+  };
 
   const formatAmountText = (item: TransactionItem) => {
     if (typeof item.amount === 'string') {
@@ -120,7 +173,7 @@ export const HomeRecentTransactionsWidget: React.FC<HomeRecentTransactionsWidget
                   {item.title}
                 </Text>
                 <Text style={styles.itemSubtitle} numberOfLines={1}>
-                  {item.category || (isVi ? 'Đăng ký' : 'General')} · {item.date || (isVi ? 'Hôm qua' : 'Yesterday')}
+                  {item.category || (isVi ? 'Đăng ký' : 'General')} · {formatItemDate(item.date)}
                 </Text>
               </View>
 
