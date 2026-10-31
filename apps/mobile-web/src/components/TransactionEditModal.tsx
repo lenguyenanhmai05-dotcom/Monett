@@ -96,9 +96,9 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
     if (visible) {
       if (initialData) {
         setTxType(initialData.type || 'expense');
-        setAmountStr(initialData.amount ? String(initialData.amount) : '20000');
+        setAmountStr(initialData.amount ? String(initialData.amount) : '');
         setDate(initialData.date || '18/10/2026');
-        setCategory(initialData.category || (initialData.type === 'income' ? 'Lương' : 'Cafe'));
+        setCategory(initialData.category || (initialData.type === 'income' ? 'Tiết kiệm' : 'Ăn uống'));
         setNote(initialData.note || '');
         setPayer(initialData.payer || (isVi ? 'Tôi' : 'Me'));
       } else {
@@ -108,7 +108,7 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
         const yyyy = today.getFullYear();
 
         setTxType('expense');
-        setAmountStr('20000');
+        setAmountStr('');
         setDate(`${dd}/${mm}/${yyyy}`);
         setCategory('Ăn uống');
         setNote('');
@@ -171,10 +171,10 @@ export const TransactionEditModal: React.FC<TransactionEditModalProps> = ({
       amount: rawNum,
       type: txType,
       category,
-      categoryIcon: category,
+      categoryIcon: txType === 'income' ? '💰' : category,
       date: date.trim() || '18/10/2026',
       note: note.trim() || undefined,
-      payer: payer.trim() || 'Phong Tờ',
+      payer: payer.trim() || 'Tôi',
     });
 
     onClose();

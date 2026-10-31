@@ -105,6 +105,15 @@ export interface BillSplitData {
   splitCount?: number;
   perPerson?: number;
   isSettled?: boolean;
+  is1to1?: boolean;
+  splitMode?: '1to1' | 'group';
+  peerId?: string;
+  peerName?: string;
+  creatorShare?: number;
+  peerShare?: number;
+  peerPaid?: boolean;
+  peerPaidAt?: string;
+  settledAt?: string;
 }
 
 export interface Message {
@@ -180,6 +189,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   const [billTitle, setBillTitle] = useState('');
   const [billTotal, setBillTotal] = useState('');
   const [billPeopleCount, setBillPeopleCount] = useState<number>(3);
+  const [split1to1Mode, setSplit1to1Mode] = useState<'half' | 'custom'>('half');
+  const [customPeerAmount, setCustomPeerAmount] = useState<string>('');
 
   // Nickname input
   const [customNickname, setCustomNickname] = useState('');
@@ -348,6 +359,15 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         if (msg._id && !msg._id.startsWith('msg_') && result[existingIndex]._id.startsWith('msg_')) {
           result[existingIndex] = { ...result[existingIndex], _id: msg._id };
         }
+        if (msg.bill) {
+          result[existingIndex] = {
+            ...result[existingIndex],
+            bill: {
+              ...(result[existingIndex].bill || {}),
+              ...msg.bill,
+            },
+          };
+        }
       }
     }
 
@@ -469,6 +489,24 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     const handleIncomingDirectMsg = (msg: any) => {
       if (!isGroup && msg && (String(msg.sender) === String(convId) || String(msg.receiver) === String(convId))) {
         setMessages((prev) => {
+          const rawBill = msg.bill || msg.billData;
+          // Cập nhật thẻ hóa đơn nếu đã có sẵn trong danh sách tin nhắn
+          const existingBillIdx = prev.findIndex((m) =>
+            (m._id && msg._id && m._id === msg._id) ||
+            (m.bill && rawBill && (m.bill.id === rawBill.id || m.bill.title === rawBill.title))
+          );
+
+          if (existingBillIdx !== -1) {
+            const updated = [...prev];
+            updated[existingBillIdx] = {
+              ...updated[existingBillIdx],
+              bill: rawBill || updated[existingBillIdx].bill,
+              text: msg.text || updated[existingBillIdx].text,
+            };
+            saveLocalStorageMessages(updated);
+            return updated;
+          }
+
           if (prev.some((m) => m._id === msg._id)) return prev;
           const formatted: Message = {
             _id: String(msg._id || Date.now()),
@@ -477,7 +515,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
             receiver: convId,
             text: msg.text || '',
             imageUrl: msg.imageUrl,
-            bill: msg.bill || msg.billData,
+            bill: rawBill,
             createdAt: msg.createdAt || new Date().toISOString(),
           };
           const next = deduplicateMessages([...prev, formatted]);
@@ -628,9 +666,29 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       alert('Vui lòng nhập số tiền hợp lệ để chia bill!');
       return;
     }
-    const title = billTitle.trim() || 'Hóa đơn chi tiêu nhóm 🧾';
-    const numPeople = billPeopleCount > 1 ? billPeopleCount : 2;
-    const perPerson = Math.round(total / numPeople);
+    const title = billTitle.trim() || (isGroup ? 'Hóa đơn chi tiêu nhóm 🧾' : 'Hóa đơn chia tiền 🧾');
+    
+    let numPeople = 2;
+    let perPerson = Math.round(total / 2);
+    let creatorShare = total - perPerson;
+    let peerShare = perPerson;
+
+    if (isGroup) {
+      numPeople = billPeopleCount > 1 ? billPeopleCount : 2;
+      perPerson = Math.round(total / numPeople);
+      creatorShare = perPerson;
+      peerShare = perPerson;
+    } else {
+      numPeople = 2;
+      if (split1to1Mode === 'custom') {
+        const customAmt = parseInt(customPeerAmount.replace(/\D/g, '') || '0', 10);
+        if (customAmt > 0 && customAmt <= total) {
+          peerShare = customAmt;
+          creatorShare = total - customAmt;
+          perPerson = peerShare;
+        }
+      }
+    }
 
     const newBill: BillSplitData & Record<string, any> = {
       id: 'bill_' + Date.now(),
@@ -642,10 +700,17 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       numPeople,
       splitCount: numPeople,
       isSettled: false,
-      paidMembers: [currentUserId], // Người tạo bill mặc định coi như đã thanh toán
+      paidMembers: [currentUserId], // Người tạo bill mặc định coi như đã thanh toán phần của họ
       receipts: {},
       createdBy: currentUserId,
       creatorName: currentUserName,
+      is1to1: !isGroup,
+      splitMode: !isGroup ? '1to1' : 'group',
+      peerId: !isGroup ? convId : undefined,
+      peerName: !isGroup ? displayName : undefined,
+      creatorShare,
+      peerShare,
+      peerPaid: false,
     };
 
     const billMsg: Message = {
@@ -653,7 +718,9 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       sender: currentUserId,
       senderName: currentUserName,
       receiver: convId,
-      text: `🧾 Đã tạo chia bill: ${title} - ${total.toLocaleString('vi-VN')} đ (Mỗi người: ${perPerson.toLocaleString('vi-VN')} đ)`,
+      text: !isGroup
+        ? `🧾 Yêu cầu chia tiền: ${title} - ${peerShare.toLocaleString('vi-VN')} đ (Tổng bill: ${total.toLocaleString('vi-VN')} đ)`
+        : `🧾 Đã tạo chia bill: ${title} - ${total.toLocaleString('vi-VN')} đ (Mỗi người: ${perPerson.toLocaleString('vi-VN')} đ)`,
       createdAt: new Date().toISOString(),
       bill: newBill,
     };
@@ -666,6 +733,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     setBillTitle('');
     setBillTotal('');
     setBillPeopleCount(3);
+    setSplit1to1Mode('half');
+    setCustomPeerAmount('');
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
 
     if (isGroup) {
@@ -730,7 +799,110 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     }
   };
 
-  // ─── CONFIRM PAYMENT IN SPLIT BILL ─────────────────────────────────────────
+  // ─── SYNC BILL UPDATE REALTIME (SOCKET + CROSS-TAB) ─────────────────────────
+  const syncBillUpdate = (targetMsg: Message, action: string) => {
+    if (!targetMsg || !targetMsg.bill || !convId) return;
+
+    let notifText = '';
+    if (action === 'peer_paid') {
+      notifText = `✅ ${currentUserName} đã xác nhận chuyển tiền cho "${targetMsg.bill.title}"`;
+    } else if (action === 'bill_settled') {
+      notifText = `🎉 ${currentUserName} đã xác nhận nhận đủ tiền cho "${targetMsg.bill.title}". Hóa đơn đã hoàn tất!`;
+    }
+
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(
+          'monett_cross_tab_notif',
+          JSON.stringify({
+            type: 'message',
+            recipientId: convId,
+            senderId: currentUserId,
+            senderName: currentUserName,
+            text: notifText || `🧾 Cập nhật hóa đơn "${targetMsg.bill.title}"`,
+            billData: targetMsg.bill,
+            bill: targetMsg.bill,
+            timestamp: Date.now(),
+          })
+        );
+      }
+    } catch {}
+
+    try {
+      if (socket && socket.connected) {
+        socket.emit('send_message', {
+          receiverId: convId,
+          text: notifText || `🧾 Cập nhật hóa đơn "${targetMsg.bill.title}"`,
+          type: 'bill_split',
+          billData: targetMsg.bill,
+          bill: targetMsg.bill,
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to emit bill update socket:', err);
+    }
+  };
+
+  // ─── 1-ON-1: BẠN BÈ BÁO ĐÃ CHUYỂN TIỀN HOẶC HỦY BÁO CHUYỂN ────────────────
+  const handlePeerTogglePaid = (msgId: string) => {
+    let targetMsg: Message | undefined;
+    const updated = messages.map((m) => {
+      if (m._id !== msgId || !m.bill) return m;
+      const currentPeerPaid = !!m.bill.peerPaid;
+      const nextPeerPaid = !currentPeerPaid;
+      const currentPaid = Array.isArray(m.bill.paidMembers) ? [...m.bill.paidMembers] : [];
+      const newPaid = nextPeerPaid
+        ? (currentPaid.includes(currentUserId) ? currentPaid : [...currentPaid, currentUserId])
+        : currentPaid.filter((id) => id !== currentUserId);
+
+      const updatedBill: BillSplitData & Record<string, any> = {
+        ...m.bill,
+        peerPaid: nextPeerPaid,
+        peerPaidAt: nextPeerPaid ? new Date().toISOString() : undefined,
+        paidMembers: newPaid,
+      };
+      targetMsg = { ...m, bill: updatedBill };
+      return targetMsg;
+    });
+
+    setMessages(updated);
+    saveLocalStorageMessages(updated);
+
+    if (targetMsg?.bill) {
+      syncBillUpdate(targetMsg, targetMsg.bill.peerPaid ? 'peer_paid' : 'peer_unpaid');
+    }
+  };
+
+  // ─── 1-ON-1: CHỦ BILL XÁC NHẬN ĐÃ NHẬN TIỀN (HOÀN TẤT) ───────────────────
+  const handleSettleBill = (msgId: string, settleStatus: boolean = true) => {
+    let targetMsg: Message | undefined;
+    const updated = messages.map((m) => {
+      if (m._id !== msgId || !m.bill) return m;
+      const currentPaid = Array.isArray(m.bill.paidMembers) ? [...m.bill.paidMembers] : [];
+      const newPaid = settleStatus
+        ? Array.from(new Set([...currentPaid, currentUserId, convId]))
+        : currentPaid;
+
+      const updatedBill: BillSplitData & Record<string, any> = {
+        ...m.bill,
+        isSettled: settleStatus,
+        peerPaid: settleStatus ? true : m.bill.peerPaid,
+        settledAt: settleStatus ? new Date().toISOString() : undefined,
+        paidMembers: newPaid,
+      };
+      targetMsg = { ...m, bill: updatedBill };
+      return targetMsg;
+    });
+
+    setMessages(updated);
+    saveLocalStorageMessages(updated);
+
+    if (targetMsg?.bill) {
+      syncBillUpdate(targetMsg, settleStatus ? 'bill_settled' : 'bill_unsettled');
+    }
+  };
+
+  // ─── CONFIRM PAYMENT IN GROUP SPLIT BILL ───────────────────────────────────
   const handleToggleBillPaid = (msgId: string) => {
     const updated = messages.map((m) => {
       if (m._id !== msgId || !m.bill) return m;
@@ -764,26 +936,29 @@ export const ChatModal: React.FC<ChatModalProps> = ({
           const reader = new FileReader();
           reader.onload = (event) => {
             const receiptImg = event.target?.result as string;
+            let targetMsg: Message | undefined;
             const updated = messages.map((m) => {
               if (m._id !== msgId || !m.bill) return m;
-              const newPaid = m.bill.paidMembers.includes(currentUserId)
-                ? m.bill.paidMembers
-                : [...m.bill.paidMembers, currentUserId];
+              const currentPaid = Array.isArray(m.bill.paidMembers) ? [...m.bill.paidMembers] : [];
+              const newPaid = currentPaid.includes(currentUserId) ? currentPaid : [...currentPaid, currentUserId];
 
-              return {
-                ...m,
-                bill: {
-                  ...m.bill,
-                  paidMembers: newPaid,
-                  receipts: {
-                    ...(m.bill.receipts || {}),
-                    [currentUserId]: receiptImg,
-                  },
+              const updatedBill = {
+                ...m.bill,
+                peerPaid: true,
+                paidMembers: newPaid,
+                receipts: {
+                  ...(m.bill.receipts || {}),
+                  [currentUserId]: receiptImg,
                 },
               };
+              targetMsg = { ...m, bill: updatedBill };
+              return targetMsg;
             });
             setMessages(updated);
             saveLocalStorageMessages(updated);
+            if (targetMsg?.bill) {
+              syncBillUpdate(targetMsg, 'peer_paid');
+            }
           };
           reader.readAsDataURL(file);
         }
@@ -866,14 +1041,240 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     // Render thẻ Hóa đơn Chia tiền (Split Bill Card)
     if (item.bill) {
       const bill = item.bill;
+      const is1to1 = !isGroup || bill.is1to1 || bill.splitMode === '1to1' || (bill.numPeople === 2 && !isGroup);
       const paidMembersList = Array.isArray(bill.paidMembers) ? bill.paidMembers : [];
+      const totalAmount = bill.totalAmount || bill.amount || 0;
+      const myReceipt = bill.receipts?.[currentUserId];
+
+      if (is1to1) {
+        // ─── GIAO DIỆN CHIA BILL 1 - 1 (CÁ NHÂN / BẠN BÈ) ───
+        const isCreator = isMe || String(bill.createdBy) === currentUserId;
+        const isSettled = !!bill.isSettled;
+        const peerAmount = bill.peerShare || bill.perPersonAmount || bill.perPerson || Math.round(totalAmount / 2);
+        const hasPeerPaid = !isCreator
+          ? (!!bill.peerPaid || paidMembersList.includes(currentUserId))
+          : (!!bill.peerPaid || paidMembersList.some((id) => id !== currentUserId && id !== String(bill.createdBy)));
+        const peerReceipt = (bill.receipts && (bill.receipts[convId] || Object.values(bill.receipts)[0])) || null;
+        const displayReceipt = isCreator ? peerReceipt : (myReceipt || peerReceipt);
+
+        return (
+          <View style={[styles.billCardWrap, isMe ? { alignSelf: 'flex-end' } : { alignSelf: 'flex-start' }]}>
+            <View style={[styles.billCard, { borderColor: isSettled ? '#10B981' : activeTheme.primary }]}>
+              {/* Bill Header */}
+              <View style={[styles.billCardHeader, { backgroundColor: isSettled ? '#059669' : activeTheme.primary }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Ionicons name={isSettled ? "checkmark-done-circle" : "receipt"} size={18} color="#FFFFFF" />
+                  <Text style={styles.billCardHeaderTitle}>
+                    {isSettled ? 'HÓA ĐƠN ĐÃ HOÀN TẤT' : 'YÊU CẦU CHIA TIỀN (1 - 1)'}
+                  </Text>
+                </View>
+                <Text style={styles.billCardHeaderTime}>{timeStr}</Text>
+              </View>
+
+              {/* Bill Body */}
+              <View style={styles.billCardBody}>
+                {/* Header row: title and role badge */}
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                  <Text style={[styles.billCardTitle, { flex: 1, marginBottom: 0 }]} numberOfLines={2}>
+                    {bill.title}
+                  </Text>
+                  <View style={[styles.roleBadge, { backgroundColor: isDark ? '#334155' : '#E2E8F0' }]}>
+                    <Text style={[styles.roleBadgeText, { color: isDark ? '#94A3B8' : '#475569' }]}>
+                      {isCreator ? 'Bạn đã chi trả' : `${bill.creatorName || displayName} đã trả`}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Amount highlights */}
+                <View style={[styles.billCardAmountRow, { backgroundColor: isSettled ? (isDark ? '#064E3B' : '#ECFDF5') : (isDark ? '#1E293B' : activeTheme.lightBg) }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.billCardSubLabel}>
+                      {isCreator ? `Chờ ${displayName} chuyển` : '👉 Số tiền bạn cần chuyển'}
+                    </Text>
+                    <Text style={[styles.billCardBigAmount, { color: isSettled ? '#059669' : activeTheme.primary, fontSize: 18 }]}>
+                      {peerAmount.toLocaleString('vi-VN')} đ
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
+                    <Text style={styles.billCardSubLabel}>Tổng bill</Text>
+                    <Text style={styles.billCardTotalAmount}>
+                      {totalAmount.toLocaleString('vi-VN')} đ
+                    </Text>
+                    <Text style={{ fontSize: 10.5, color: '#64748B', marginTop: 1 }}>
+                      (Chia đôi 50%)
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Status Notice / Settled Banner (Không còn progress bar 1/2 người nữa) */}
+                {isSettled ? (
+                  <View style={[styles.settledBanner, { backgroundColor: isDark ? '#064E3B' : '#D1FAE5', borderColor: '#10B981' }]}>
+                    <Ionicons name="checkmark-circle" size={18} color="#059669" />
+                    <View style={{ flex: 1, marginLeft: 8 }}>
+                      <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#065F46' }}>
+                        Đã thanh toán hoàn tất 🎉
+                      </Text>
+                      <Text style={{ fontSize: 11, color: '#047857' }}>
+                        {isCreator
+                          ? `Bạn đã xác nhận nhận đủ ${peerAmount.toLocaleString('vi-VN')} đ từ ${displayName}`
+                          : `Khoản chia đã được người tạo xác nhận nhận đủ tiền`}
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={{ marginTop: 8 }}>
+                    {isCreator ? (
+                      /* Góc nhìn Người tạo (Chủ bill) */
+                      hasPeerPaid ? (
+                        <View style={[styles.statusNoticeBox, { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' }]}>
+                          <Ionicons name="notifications" size={16} color="#D97706" />
+                          <View style={{ flex: 1, marginLeft: 6 }}>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#92400E' }}>
+                              🔔 {displayName} đã báo đã chuyển tiền!
+                            </Text>
+                            <Text style={{ fontSize: 11, color: '#B45309' }}>
+                              Vui lòng kiểm tra tài khoản và xác nhận bên dưới.
+                            </Text>
+                          </View>
+                        </View>
+                      ) : (
+                        <View style={[styles.statusNoticeBox, { backgroundColor: isDark ? '#0F172A' : '#F8FAFC', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
+                          <Ionicons name="time-outline" size={15} color="#64748B" />
+                          <Text style={{ fontSize: 11.5, color: isDark ? '#94A3B8' : '#64748B', flex: 1, marginLeft: 6 }}>
+                            Đang chờ {displayName} chuyển {peerAmount.toLocaleString('vi-VN')} đ...
+                          </Text>
+                        </View>
+                      )
+                    ) : (
+                      /* Góc nhìn Người nợ (Bạn bè) */
+                      hasPeerPaid ? (
+                        <View style={[styles.statusNoticeBox, { backgroundColor: '#E0F2FE', borderColor: '#38BDF8' }]}>
+                          <Ionicons name="checkmark-done-circle" size={16} color="#0284C7" />
+                          <View style={{ flex: 1, marginLeft: 6 }}>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#0369A1' }}>
+                              Bạn đã báo đã chuyển tiền ✓
+                            </Text>
+                            <Text style={{ fontSize: 11, color: '#0284C7' }}>
+                              Đang chờ {bill.creatorName || displayName} xác nhận nhận được tiền.
+                            </Text>
+                          </View>
+                        </View>
+                      ) : (
+                        <View style={[styles.statusNoticeBox, { backgroundColor: isDark ? '#0F172A' : '#FFFBEB', borderColor: '#FDE68A' }]}>
+                          <Ionicons name="information-circle-outline" size={15} color="#D97706" />
+                          <Text style={{ fontSize: 11.5, color: '#B45309', flex: 1, marginLeft: 6 }}>
+                            Bạn cần chuyển lại cho {bill.creatorName || displayName}: {peerAmount.toLocaleString('vi-VN')} đ
+                          </Text>
+                        </View>
+                      )
+                    )}
+                  </View>
+                )}
+
+                {/* Receipt Preview */}
+                {displayReceipt && (
+                  <TouchableOpacity
+                    style={styles.receiptPreviewChip}
+                    onPress={() => setPreviewImageModal(displayReceipt)}
+                    activeOpacity={0.8}
+                  >
+                    <Image source={{ uri: displayReceipt }} style={styles.receiptMiniThumb} />
+                    <View style={{ flex: 1, marginLeft: 8 }}>
+                      <Text style={styles.receiptChipTitle}>
+                        {isCreator ? `Biên lai từ ${displayName} ✓` : 'Đã đính kèm biên lai chuyển ✓'}
+                      </Text>
+                      <Text style={styles.receiptChipSub}>Chạm để xem ảnh chuyển tiền</Text>
+                    </View>
+                    <Ionicons name="eye-outline" size={16} color={activeTheme.primary} />
+                  </TouchableOpacity>
+                )}
+
+                {/* Action Buttons for 1-on-1 */}
+                <View style={styles.billCardActions}>
+                  {isCreator ? (
+                    /* Chủ bill */
+                    isSettled ? (
+                      <TouchableOpacity
+                        style={[styles.billReceiptBtn, { borderColor: '#CBD5E1', flex: 1 }]}
+                        onPress={() => handleSettleBill(item._id, false)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="refresh-outline" size={14} color="#64748B" style={{ marginRight: 4 }} />
+                        <Text style={{ fontSize: 11.5, color: '#64748B', fontWeight: '600' }}>
+                          Mở lại bill (nếu cần)
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={[
+                          styles.billPaidBtn,
+                          { backgroundColor: hasPeerPaid ? '#10B981' : activeTheme.primary, flex: 1 },
+                        ]}
+                        onPress={() => handleSettleBill(item._id, true)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" style={{ marginRight: 5 }} />
+                        <Text style={styles.billPaidBtnText}>
+                          {hasPeerPaid ? 'Xác nhận đã nhận tiền ✅' : 'Đã nhận đủ tiền (CK / Tiền mặt) ✅'}
+                        </Text>
+                      </TouchableOpacity>
+                    )
+                  ) : (
+                    /* Bạn bè (Người nợ) */
+                    isSettled ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', paddingVertical: 4 }}>
+                        <Ionicons name="checkmark-done" size={16} color="#10B981" />
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#10B981', marginLeft: 4 }}>
+                          Giao dịch đã hoàn tất
+                        </Text>
+                      </View>
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          style={[
+                            styles.billPaidBtn,
+                            hasPeerPaid ? { backgroundColor: '#64748B' } : { backgroundColor: '#10B981' },
+                          ]}
+                          onPress={() => handlePeerTogglePaid(item._id)}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons
+                            name={hasPeerPaid ? 'checkmark-done-circle' : 'send-outline'}
+                            size={15}
+                            color="#FFFFFF"
+                            style={{ marginRight: 5 }}
+                          />
+                          <Text style={styles.billPaidBtnText}>
+                            {hasPeerPaid ? 'Hủy báo chuyển' : 'Tôi đã chuyển tiền ✅'}
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.billReceiptBtn, { borderColor: activeTheme.primary }]}
+                          onPress={() => handleAttachBillReceipt(item._id)}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="camera-outline" size={15} color={activeTheme.primary} style={{ marginRight: 4 }} />
+                          <Text style={[styles.billReceiptBtnText, { color: activeTheme.primary }]}>
+                            {displayReceipt ? 'Đổi biên lai' : 'Chụp bill chuyển'}
+                          </Text>
+                        </TouchableOpacity>
+                      </>
+                    )
+                  )}
+                </View>
+              </View>
+            </View>
+          </View>
+        );
+      }
+
+      // ─── GIAO DIỆN CHIA BILL NHÓM (GROUP CHAT) ───
       const isPaidByMe = paidMembersList.includes(currentUserId) || !!bill.isSettled;
       const numPeople = bill.numPeople || bill.splitCount || 2;
-      const totalAmount = bill.totalAmount || bill.amount || 0;
       const perPersonAmount = bill.perPersonAmount || bill.perPerson || (numPeople > 0 ? Math.round(totalAmount / numPeople) : 0);
       const paidCount = paidMembersList.length > 0 ? paidMembersList.length : (bill.isSettled ? 1 : 0);
       const progressPercent = Math.min(100, Math.round((paidCount / numPeople) * 100));
-      const myReceipt = bill.receipts?.[currentUserId];
 
       return (
         <View style={[styles.billCardWrap, isMe ? { alignSelf: 'flex-end' } : { alignSelf: 'flex-start' }]}>
@@ -882,7 +1283,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
             <View style={[styles.billCardHeader, { backgroundColor: activeTheme.primary }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <Ionicons name="receipt" size={18} color="#FFFFFF" />
-                <Text style={styles.billCardHeaderTitle}>HÓA ĐƠN CHIA TIỀN</Text>
+                <Text style={styles.billCardHeaderTitle}>HÓA ĐƠN CHIA TIỀN NHÓM</Text>
               </View>
               <Text style={styles.billCardHeaderTime}>{timeStr}</Text>
             </View>
@@ -1472,9 +1873,16 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                 <View style={[styles.dialogIconBadge, { backgroundColor: activeTheme.lightBg }]}>
                   <Ionicons name="receipt" size={18} color={activeTheme.primary} />
                 </View>
-                <Text style={[styles.dialogTitle, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
-                  Chia sẻ hóa đơn (Split Bill)
-                </Text>
+                <View>
+                  <Text style={[styles.dialogTitle, { color: isDark ? '#F1F5F9' : '#0F172A' }]}>
+                    {isGroup ? 'Chia sẻ hóa đơn nhóm' : 'Chia sẻ hóa đơn (1 - 1)'}
+                  </Text>
+                  {!isGroup && (
+                    <Text style={{ fontSize: 11, color: '#64748B', marginTop: 1 }}>
+                      Yêu cầu chia tiền với {displayName}
+                    </Text>
+                  )}
+                </View>
               </View>
               <TouchableOpacity onPress={() => setShowSplitBillModal(false)}>
                 <Ionicons name="close" size={20} color="#64748B" />
@@ -1493,14 +1901,16 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                     backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
                   },
                 ]}
-                placeholder="Ví dụ: Lẩu Haidilao, Trà sữa Gongcha..."
+                placeholder={isGroup ? "Ví dụ: Lẩu Haidilao, Trà sữa..." : "Ví dụ: Ăn trưa, Cà phê, Trà sữa..."}
                 placeholderTextColor="#94A3B8"
                 value={billTitle}
                 onChangeText={setBillTitle}
               />
 
               {/* Tổng số tiền */}
-              <Text style={styles.dialogFieldLabel}>Tổng số tiền cần chia (VNĐ):</Text>
+              <Text style={styles.dialogFieldLabel}>
+                {isGroup ? "Tổng số tiền cần chia (VNĐ):" : "Tổng tiền bạn đã thanh toán (VNĐ):"}
+              </Text>
               <TextInput
                 style={[
                   styles.dialogInput,
@@ -1512,7 +1922,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                     backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
                   },
                 ]}
-                placeholder="Nhập tổng tiền (vd: 600000)"
+                placeholder="Nhập tổng tiền (vd: 500000)"
                 placeholderTextColor="#94A3B8"
                 keyboardType="numeric"
                 value={billTotal}
@@ -1522,49 +1932,168 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                 }}
               />
 
-              {/* Số người chia */}
-              <Text style={styles.dialogFieldLabel}>Chia cho bao nhiêu người?</Text>
-              <View style={styles.peopleCountChipsRow}>
-                {[2, 3, 4, 5, 6].map((num) => {
-                  const isSelected = billPeopleCount === num;
-                  return (
+              {isGroup ? (
+                <>
+                  {/* Số người chia nhóm */}
+                  <Text style={styles.dialogFieldLabel}>Chia cho bao nhiêu người?</Text>
+                  <View style={styles.peopleCountChipsRow}>
+                    {[2, 3, 4, 5, 6].map((num) => {
+                      const isSelected = billPeopleCount === num;
+                      return (
+                        <TouchableOpacity
+                          key={num}
+                          style={[
+                            styles.peopleCountChip,
+                            isSelected && { backgroundColor: activeTheme.primary, borderColor: activeTheme.primary },
+                          ]}
+                          onPress={() => setBillPeopleCount(num)}
+                        >
+                          <Text
+                            style={[
+                              styles.peopleCountChipText,
+                              isSelected && { color: '#FFFFFF', fontWeight: '800' },
+                            ]}
+                          >
+                            {num} người
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* Real-time Calculation Card cho Group */}
+                  {(() => {
+                    const total = parseInt(billTotal.replace(/\D/g, '') || '0', 10);
+                    const perPerson = total > 0 ? Math.round(total / billPeopleCount) : 0;
+                    return (
+                      <View style={[styles.calcCard, { backgroundColor: isDark ? '#0F172A' : activeTheme.lightBg }]}>
+                        <Text style={styles.calcCardLabel}>Mỗi người cần chuyển khoản:</Text>
+                        <Text style={[styles.calcCardAmount, { color: activeTheme.primary }]}>
+                          {perPerson.toLocaleString('vi-VN')} đ
+                        </Text>
+                        <Text style={styles.calcCardNote}>
+                          ({total.toLocaleString('vi-VN')} đ ÷ {billPeopleCount} người)
+                        </Text>
+                      </View>
+                    );
+                  })()}
+                </>
+              ) : (
+                <>
+                  {/* Lựa chọn cách chia 1 - 1 */}
+                  <Text style={styles.dialogFieldLabel}>Hình thức chia tiền:</Text>
+                  <View style={styles.splitModeRow}>
                     <TouchableOpacity
-                      key={num}
                       style={[
-                        styles.peopleCountChip,
-                        isSelected && { backgroundColor: activeTheme.primary, borderColor: activeTheme.primary },
+                        styles.splitModeBtn,
+                        split1to1Mode === 'half' && { backgroundColor: activeTheme.primary, borderColor: activeTheme.primary },
                       ]}
-                      onPress={() => setBillPeopleCount(num)}
+                      onPress={() => setSplit1to1Mode('half')}
                     >
+                      <Ionicons
+                        name="pie-chart"
+                        size={15}
+                        color={split1to1Mode === 'half' ? '#FFFFFF' : '#64748B'}
+                        style={{ marginRight: 5 }}
+                      />
                       <Text
                         style={[
-                          styles.peopleCountChipText,
-                          isSelected && { color: '#FFFFFF', fontWeight: '800' },
+                          styles.splitModeBtnText,
+                          split1to1Mode === 'half' && { color: '#FFFFFF', fontWeight: '800' },
                         ]}
                       >
-                        {num} người
+                        Chia đôi 50/50
                       </Text>
                     </TouchableOpacity>
-                  );
-                })}
-              </View>
 
-              {/* Real-time Calculation Card */}
-              {(() => {
-                const total = parseInt(billTotal.replace(/\D/g, '') || '0', 10);
-                const perPerson = total > 0 ? Math.round(total / billPeopleCount) : 0;
-                return (
-                  <View style={[styles.calcCard, { backgroundColor: isDark ? '#0F172A' : activeTheme.lightBg }]}>
-                    <Text style={styles.calcCardLabel}>Mỗi người cần chuyển khoản:</Text>
-                    <Text style={[styles.calcCardAmount, { color: activeTheme.primary }]}>
-                      {perPerson.toLocaleString('vi-VN')} đ
-                    </Text>
-                    <Text style={styles.calcCardNote}>
-                      ({total.toLocaleString('vi-VN')} đ ÷ {billPeopleCount} người)
-                    </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.splitModeBtn,
+                        split1to1Mode === 'custom' && { backgroundColor: activeTheme.primary, borderColor: activeTheme.primary },
+                      ]}
+                      onPress={() => setSplit1to1Mode('custom')}
+                    >
+                      <Ionicons
+                        name="create-outline"
+                        size={15}
+                        color={split1to1Mode === 'custom' ? '#FFFFFF' : '#64748B'}
+                        style={{ marginRight: 5 }}
+                      />
+                      <Text
+                        style={[
+                          styles.splitModeBtnText,
+                          split1to1Mode === 'custom' && { color: '#FFFFFF', fontWeight: '800' },
+                        ]}
+                      >
+                        Tùy chỉnh số tiền
+                      </Text>
+                    </TouchableOpacity>
                   </View>
-                );
-              })()}
+
+                  {/* Input tùy chỉnh nếu chọn custom */}
+                  {split1to1Mode === 'custom' && (
+                    <View style={{ marginTop: 8 }}>
+                      <Text style={[styles.dialogFieldLabel, { marginTop: 0 }]}>
+                        Số tiền {displayName} cần chuyển (VNĐ):
+                      </Text>
+                      <TextInput
+                        style={[
+                          styles.dialogInput,
+                          {
+                            color: activeTheme.primary,
+                            fontWeight: '800',
+                            borderColor: isDark ? '#334155' : '#CBD5E1',
+                            backgroundColor: isDark ? '#0F172A' : '#F8FAFC',
+                          },
+                        ]}
+                        placeholder="Nhập số tiền bạn kia trả"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="numeric"
+                        value={customPeerAmount}
+                        onChangeText={(v) => {
+                          const cleaned = v.replace(/\D/g, '');
+                          setCustomPeerAmount(cleaned ? parseInt(cleaned, 10).toLocaleString('vi-VN') : '');
+                        }}
+                      />
+                    </View>
+                  )}
+
+                  {/* Calculation Breakdown Card cho 1 - 1 */}
+                  {(() => {
+                    const total = parseInt(billTotal.replace(/\D/g, '') || '0', 10);
+                    let peerAmt = Math.round(total / 2);
+                    if (split1to1Mode === 'custom') {
+                      const customAmt = parseInt(customPeerAmount.replace(/\D/g, '') || '0', 10);
+                      if (customAmt > 0) peerAmt = customAmt;
+                    }
+                    const myAmt = Math.max(0, total - peerAmt);
+
+                    return (
+                      <View style={[styles.calcCard1to1, { backgroundColor: isDark ? '#0F172A' : activeTheme.lightBg, borderColor: activeTheme.primary }]}>
+                        <View style={styles.calc1to1Row}>
+                          <View style={styles.calc1to1Item}>
+                            <Text style={styles.calc1to1Label}>Bạn đã chi trả:</Text>
+                            <Text style={styles.calc1to1Val}>{total.toLocaleString('vi-VN')} đ</Text>
+                            <Text style={styles.calc1to1Sub}>(Phần của bạn: {myAmt.toLocaleString('vi-VN')} đ)</Text>
+                          </View>
+                          <View style={styles.calc1to1Divider} />
+                          <View style={styles.calc1to1Item}>
+                            <Text style={[styles.calc1to1Label, { color: activeTheme.primary, fontWeight: '700' }]}>
+                              👉 {displayName} cần chuyển:
+                            </Text>
+                            <Text style={[styles.calc1to1ValHighlight, { color: activeTheme.primary }]}>
+                              {peerAmt.toLocaleString('vi-VN')} đ
+                            </Text>
+                            <Text style={styles.calc1to1Sub}>
+                              ({split1to1Mode === 'half' ? '50% hóa đơn' : 'Số tiền thỏa thuận'})
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })()}
+                </>
+              )}
             </ScrollView>
 
             <View style={styles.dialogButtonRow}>
@@ -1582,7 +2111,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                 disabled={!billTotal}
               >
                 <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13.5 }}>
-                  Gửi bill vào chat 🚀
+                  {isGroup ? 'Gửi bill vào chat nhóm 🚀' : 'Gửi yêu cầu chia tiền 🚀'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -2221,6 +2750,92 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
+  },
+  roleBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  roleBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+  settledBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  statusNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 9,
+    borderRadius: 9,
+    borderWidth: 1,
+  },
+  splitModeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  splitModeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  splitModeBtnText: {
+    fontSize: 12,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  calcCard1to1: {
+    padding: 12,
+    borderRadius: 12,
+    marginVertical: 10,
+    borderWidth: 1,
+  },
+  calc1to1Row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  calc1to1Item: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  calc1to1Divider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#CBD5E1',
+    marginHorizontal: 8,
+  },
+  calc1to1Label: {
+    fontSize: 11,
+    color: '#64748B',
+    marginBottom: 2,
+  },
+  calc1to1Val: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  calc1to1ValHighlight: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  calc1to1Sub: {
+    fontSize: 10,
+    color: '#94A3B8',
+    marginTop: 2,
   },
   previewImageOverlay: {
     flex: 1,
