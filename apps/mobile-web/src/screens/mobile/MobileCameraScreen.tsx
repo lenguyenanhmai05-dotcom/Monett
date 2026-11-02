@@ -225,7 +225,7 @@ export const MobileCameraScreen: React.FC<MobileCameraScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      <StatusBar barStyle="light-content" />
 
       <View style={styles.container}>
         {/* ============================================================ */}

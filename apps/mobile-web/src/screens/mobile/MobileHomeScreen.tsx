@@ -260,7 +260,7 @@ export const MobileHomeScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.header} />
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
       {/* ============================================================ */}
       {/* 1. TOP HEADER BAR                                             */}

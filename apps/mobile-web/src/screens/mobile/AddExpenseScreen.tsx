@@ -55,7 +55,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   const { language } = useLanguage();
   const { addNotification } = useNotifications();
   const isVi = language === 'vi';
-  const amountInputRef = React.useRef<TextInput>(null);
+  const amountInputRef = React.useRef<any>(null);
   const [photoUrl, setPhotoUrl] = useState<string | undefined>(initialPhotoUrl || initialData?.photoUri);
   const [amountStr, setAmountStr] = useState(initialData?.amount ? String(Math.abs(initialData.amount)) : '0');
   const [title, setTitle] = useState(initialData?.title || '');

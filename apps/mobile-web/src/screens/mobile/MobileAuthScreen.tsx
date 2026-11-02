@@ -49,10 +49,10 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
   }, [initialMode]);
 
   // Refs hỗ trợ phím Enter chuyển nhanh giữa các ô nhập liệu
-  const passwordInputRef = useRef<TextInput>(null);
-  const regEmailRef = useRef<TextInput>(null);
-  const regPasswordRef = useRef<TextInput>(null);
-  const confirmPassRef = useRef<TextInput>(null);
+  const passwordInputRef = useRef<any>(null);
+  const regEmailRef = useRef<any>(null);
+  const regPasswordRef = useRef<any>(null);
+  const confirmPassRef = useRef<any>(null);
 
   // Đăng nhập State
   const [email, setEmail] = useState('');

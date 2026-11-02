@@ -866,7 +866,7 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
                 </Text>
               </View>
             </View>
-          ) : null
+          ) : undefined
         }
       />
 

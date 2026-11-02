@@ -729,7 +729,7 @@ export const MomentFormModal = ({
   const { user } = useAuth();
   const { width } = useWindowDimensions();
   const isWide = width >= 860;
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<any>(null);
   const [caption, setCaption] = useState(editingItem?.caption || '');
   const [category, setCategory] = useState(editingItem?.category || initialCategory || CATEGORIES[0]);
   const [submitting, setSubmitting] = useState(false);
@@ -1704,7 +1704,7 @@ export const MomentChatModal = ({
   const [isMinimized, setIsMinimized] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<any>(null);
   const { socket } = useSocket();
 
   // Quản lý danh sách bình luận động realtime

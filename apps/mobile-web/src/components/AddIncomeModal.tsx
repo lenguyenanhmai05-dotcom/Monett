@@ -49,7 +49,7 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
   const [date, setDate] = useState<string>(todayStr);
   const [note, setNote] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<any>(null);
 
   const numericAmount = parseInt(rawAmount.replace(/\D/g, '') || '0', 10);
   const formattedDisplay = numericAmount > 0 ? numericAmount.toLocaleString('vi-VN') : '0';

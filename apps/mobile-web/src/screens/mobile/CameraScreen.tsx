@@ -261,7 +261,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']} {...panResponder.panHandlers}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <StatusBar barStyle="light-content" />
 
       {/* 1. Header Bar trên kính ngắm */}
       <View style={styles.topBar}>
