@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ScanReceiptDto } from './ocr.dto';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export interface ParsedReceiptData {
   amount: number;
@@ -45,7 +47,12 @@ export class OcrService {
     if (geminiKey) {
       try {
         const genAI = new GoogleGenerativeAI(geminiKey);
-        const model = genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || 'gemini-1.5-flash' });
+        const model = genAI.getGenerativeModel({
+          model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+          generationConfig: {
+            responseMimeType: 'application/json',
+          },
+        });
 
         const prompt = `
           Bạn là hệ thống AI phân tích hóa đơn (receipt) của ứng dụng tài chính Monett.
@@ -77,7 +84,14 @@ export class OcrService {
           },
         ]);
 
-        const responseText = result.response.text().trim().replace(/```json/gi, '').replace(/```/gi, '');
+        let responseText = result.response.text().trim().replace(/```json/gi, '').replace(/```/gi, '');
+        if (responseText.includes('{')) {
+          const firstBrace = responseText.indexOf('{');
+          const lastBrace = responseText.lastIndexOf('}');
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            responseText = responseText.substring(firstBrace, lastBrace + 1);
+          }
+        }
         const parsedData = JSON.parse(responseText);
 
         return {
@@ -132,12 +146,12 @@ export class OcrService {
 
     // 3. FALLBACK THÔNG MINH
     return {
-      success: true,
+      success: false,
       data: {
-        amount: 85000,
+        amount: 0,
         date: new Date().toISOString().split('T')[0],
         currency: 'VND',
-        supplier: 'Hóa đơn chi tiêu',
+        supplier: '',
         category: 'Ăn uống',
         items: [],
       },

@@ -86,13 +86,30 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     setScanStatus('scanning');
     setScanMessage(isVi ? 'Gemini AI đang phân tích hóa đơn...' : 'Gemini AI is analyzing receipt...');
 
-    // 1. Phân tích OCR bằng Gemini Vision AI ngay lập tức
-    try {
-      const ocrData = await scanReceiptOcrApi(targetUri);
-      if (ocrData) {
-        if (typeof ocrData.amount === 'number' && ocrData.amount > 0) {
-          setAmountStr(String(ocrData.amount));
+    let imageForScan = targetUri;
+    let didUpload = false;
+
+    // Nếu ảnh là URI cục bộ của thiết bị (file:/// hoặc ph://), tải lên server trước để backend có URL đọc được
+    if (!imageForScan.startsWith('data:') && !imageForScan.startsWith('http')) {
+      try {
+        setScanMessage(isVi ? 'Đang tải ảnh hóa đơn...' : 'Uploading receipt image...');
+        const uploadedUrl = await uploadReceiptApi(targetUri, 'image/jpeg', 'receipt.jpg');
+        if (uploadedUrl) {
+          imageForScan = uploadedUrl;
+          setPhotoUrl(uploadedUrl);
+          didUpload = true;
+          setScanMessage(isVi ? 'Gemini AI đang phân tích hóa đơn...' : 'Gemini AI is analyzing receipt...');
         }
+      } catch (uploadErr) {
+        console.warn('Pre-upload for OCR error:', uploadErr);
+      }
+    }
+
+    // 1. Phân tích OCR bằng Gemini Vision AI
+    try {
+      const ocrData = await scanReceiptOcrApi(imageForScan);
+      if (ocrData && typeof ocrData.amount === 'number' && ocrData.amount > 0) {
+        setAmountStr(String(ocrData.amount));
         if (ocrData.supplier && typeof ocrData.supplier === 'string' && ocrData.supplier.trim()) {
           setTitle(ocrData.supplier.trim());
         }
@@ -109,22 +126,26 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
         setScanMessage(isVi ? '✓ Gemini AI đã tự điền thông tin' : '✓ Auto-filled by Gemini AI');
       } else {
         setScanStatus('failed');
+        setScanMessage(isVi ? 'Không đọc được hóa đơn từ ảnh này' : 'Could not read receipt from photo');
       }
     } catch (ocrErr) {
       console.warn('AI OCR scan error:', ocrErr);
       setScanStatus('failed');
+      setScanMessage(isVi ? 'Lỗi phân tích hóa đơn' : 'OCR analysis error');
     } finally {
       setIsScanning(false);
     }
 
-    // 2. Tải ảnh lên máy chủ ở chế độ nền để lưu trữ
-    try {
-      const uploadResponse = await uploadReceiptApi(targetUri, 'image/jpeg', 'receipt.jpg');
-      if (uploadResponse) {
-        setPhotoUrl(uploadResponse);
+    // 2. Tải ảnh lên máy chủ ở chế độ nền nếu chưa tải
+    if (!didUpload && targetUri.startsWith('data:')) {
+      try {
+        const uploadResponse = await uploadReceiptApi(targetUri, 'image/jpeg', 'receipt.jpg');
+        if (uploadResponse) {
+          setPhotoUrl(uploadResponse);
+        }
+      } catch (e: any) {
+        console.warn('Background upload receipt warning:', e);
       }
-    } catch (e: any) {
-      console.warn('Background upload receipt warning:', e);
     }
   }, [categories, isVi]);
 
