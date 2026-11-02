@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import {
   createTransactionApi,
   updateTransactionApi,
@@ -61,61 +62,12 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   const [selectedCategory, setSelectedCategory] = useState(initialData?.category || (isVi ? 'Ăn uống' : 'Food'));
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState('');
+  const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'success' | 'failed'>(
+    initialPhotoUrl ? 'scanning' : 'idle'
+  );
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    let isMounted = true;
-    const processReceipt = async () => {
-      if (!initialPhotoUrl) return;
-
-      setIsScanning(true);
-      setScanMessage(isVi ? 'Đang tải ảnh lên máy chủ...' : 'Uploading photo to server...');
-
-      try {
-        const uploadResponse = await uploadReceiptApi(initialPhotoUrl, 'image/jpeg', 'receipt.jpg');
-        if (uploadResponse && isMounted) {
-          setPhotoUrl(uploadResponse);
-          setScanMessage(isVi ? 'AI đang phân tích hóa đơn...' : 'AI is analyzing receipt...');
-          try {
-            const ocrData = await scanReceiptOcrApi(uploadResponse);
-            if (ocrData && typeof ocrData.amount === 'number' && ocrData.amount > 0 && isMounted) {
-              setAmountStr(String(ocrData.amount));
-            }
-            if (ocrData && ocrData.supplier && typeof ocrData.supplier === 'string' && ocrData.supplier.trim() && isMounted) {
-              setTitle(ocrData.supplier.trim());
-            }
-            if (ocrData && ocrData.category && typeof ocrData.category === 'string' && isMounted) {
-              setSelectedCategory(ocrData.category);
-            }
-          } catch (ocrErr) {
-            console.log('OCR analysis skipped:', ocrErr);
-          }
-        }
-      } catch (e: any) {
-        console.warn('Upload receipt error:', e);
-        if (isMounted) {
-          setPhotoUrl(initialPhotoUrl);
-        }
-      } finally {
-        if (isMounted) {
-          setIsScanning(false);
-        }
-      }
-    };
-
-    processReceipt();
-    return () => {
-      isMounted = false;
-    };
-  }, [initialPhotoUrl]);
-
-  const categories: {
-    id: string;
-    name: string;
-    icon: string;
-    color: string;
-    bg: string;
-  }[] = [
+  const categories = useMemo(() => [
     { id: 'food', name: isVi ? 'Ăn uống' : 'Food', icon: '🍜', color: '#059669', bg: '#ECFDF5' },
     { id: 'coffee', name: isVi ? 'Cà phê' : 'Coffee', icon: '☕', color: '#7C3AED', bg: '#F5F3FF' },
     { id: 'milktea', name: isVi ? 'Trà sữa' : 'Milk Tea', icon: '🧋', color: '#DB2777', bg: '#FDF2F8' },
@@ -125,7 +77,109 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     { id: 'entertainment', name: isVi ? 'Giải trí' : 'Entertainment', icon: '🎮', color: '#8B5CF6', bg: '#F5F3FF' },
     { id: 'bills', name: isVi ? 'Hóa đơn' : 'Bills', icon: '⚡', color: '#EA580C', bg: '#FFF7ED' },
     { id: 'other', name: isVi ? 'Khác' : 'Other', icon: '📦', color: '#64748B', bg: '#F1F5F9' },
-  ];
+  ], [isVi]);
+
+  // Quét AI và bóc tách thông tin trực tiếp từ ảnh hóa đơn
+  const processReceipt = useCallback(async (targetUri: string) => {
+    if (!targetUri) return;
+    setIsScanning(true);
+    setScanStatus('scanning');
+    setScanMessage(isVi ? 'Gemini AI đang phân tích hóa đơn...' : 'Gemini AI is analyzing receipt...');
+
+    // 1. Phân tích OCR bằng Gemini Vision AI ngay lập tức
+    try {
+      const ocrData = await scanReceiptOcrApi(targetUri);
+      if (ocrData) {
+        if (typeof ocrData.amount === 'number' && ocrData.amount > 0) {
+          setAmountStr(String(ocrData.amount));
+        }
+        if (ocrData.supplier && typeof ocrData.supplier === 'string' && ocrData.supplier.trim()) {
+          setTitle(ocrData.supplier.trim());
+        }
+        if (ocrData.category && typeof ocrData.category === 'string') {
+          const matched = categories.find(
+            (c) =>
+              c.name.toLowerCase() === ocrData.category.toLowerCase() ||
+              ocrData.category.toLowerCase().includes(c.name.toLowerCase()) ||
+              c.name.toLowerCase().includes(ocrData.category.toLowerCase())
+          );
+          setSelectedCategory(matched ? matched.name : ocrData.category);
+        }
+        setScanStatus('success');
+        setScanMessage(isVi ? '✓ Gemini AI đã tự điền thông tin' : '✓ Auto-filled by Gemini AI');
+      } else {
+        setScanStatus('failed');
+      }
+    } catch (ocrErr) {
+      console.warn('AI OCR scan error:', ocrErr);
+      setScanStatus('failed');
+    } finally {
+      setIsScanning(false);
+    }
+
+    // 2. Tải ảnh lên máy chủ ở chế độ nền để lưu trữ
+    try {
+      const uploadResponse = await uploadReceiptApi(targetUri, 'image/jpeg', 'receipt.jpg');
+      if (uploadResponse) {
+        setPhotoUrl(uploadResponse);
+      }
+    } catch (e: any) {
+      console.warn('Background upload receipt warning:', e);
+    }
+  }, [categories, isVi]);
+
+  useEffect(() => {
+    if (initialPhotoUrl) {
+      processReceipt(initialPhotoUrl);
+    }
+  }, [initialPhotoUrl, processReceipt]);
+
+  // Chọn ảnh từ thư viện
+  const handlePickFromGallery = async () => {
+    try {
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.85,
+        base64: true,
+      });
+      if (!res.canceled && res.assets && res.assets[0]) {
+        const asset = res.assets[0];
+        const uriToSend = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+        setPhotoUrl(uriToSend);
+        processReceipt(uriToSend);
+      }
+    } catch (err) {
+      console.warn('Gallery pick error:', err);
+    }
+  };
+
+  // Chụp ảnh bằng camera
+  const handleTakePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        const msg = isVi ? 'Cần cấp quyền camera để chụp ảnh hóa đơn' : 'Camera permission required';
+        if (Platform.OS === 'web') window.alert(msg);
+        else Alert.alert(isVi ? 'Quyền truy cập' : 'Permission', msg);
+        return;
+      }
+      const res = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        quality: 0.85,
+        base64: true,
+      });
+      if (!res.canceled && res.assets && res.assets[0]) {
+        const asset = res.assets[0];
+        const uriToSend = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+        setPhotoUrl(uriToSend);
+        processReceipt(uriToSend);
+      }
+    } catch (err) {
+      console.warn('Camera snap error, fallback to gallery:', err);
+      handlePickFromGallery();
+    }
+  };
 
   // Định dạng hiển thị tiền tệ VND
   const formattedAmount = Number(amountStr || '0').toLocaleString('vi-VN') + ' đ';
@@ -355,15 +409,102 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
           {photoUrl ? (
             <View style={styles.photoContainer}>
               <Image source={{ uri: photoUrl }} style={styles.photoThumb} />
+              <View style={styles.photoOverlayBadge}>
+                {isScanning ? (
+                  <View style={styles.statusChipScanning}>
+                    <ActivityIndicator size="small" color="#059669" />
+                    <Text style={styles.statusChipScanningText}>
+                      {isVi ? 'Đang đọc...' : 'Reading...'}
+                    </Text>
+                  </View>
+                ) : scanStatus === 'success' ? (
+                  <View style={styles.statusChipSuccess}>
+                    <Ionicons name="sparkles" size={10} color="#059669" />
+                    <Text style={styles.statusChipSuccessText}>AI OCR</Text>
+                  </View>
+                ) : null}
+              </View>
               <TouchableOpacity
                 style={styles.removePhotoBadge}
-                onPress={() => setPhotoUrl(undefined)}
+                onPress={() => {
+                  setPhotoUrl(undefined);
+                  setScanStatus('idle');
+                }}
               >
                 <Ionicons name="close" size={13} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
           ) : null}
         </View>
+
+        {/* Thanh Chụp / Tải ảnh hóa đơn nếu chưa có ảnh */}
+        {!photoUrl && (
+          <View style={styles.attachReceiptRow}>
+            <TouchableOpacity
+              style={styles.attachActionBtn}
+              onPress={handleTakePhoto}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="camera" size={17} color="#059669" />
+              <Text style={styles.attachActionText}>
+                {isVi ? 'Chụp hóa đơn' : 'Snap receipt'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.attachActionBtn}
+              onPress={handlePickFromGallery}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="images" size={17} color="#059669" />
+              <Text style={styles.attachActionText}>
+                {isVi ? 'Tải ảnh hóa đơn' : 'Upload receipt'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Thông báo trạng thái đọc AI khi có ảnh */}
+        {photoUrl && (
+          <View style={styles.aiStatusRow}>
+            {isScanning ? (
+              <View style={styles.aiStatusChip}>
+                <ActivityIndicator size="small" color="#059669" />
+                <Text style={styles.aiStatusText}>
+                  {isVi ? 'Gemini AI đang phân tích hóa đơn...' : 'Gemini AI analyzing receipt...'}
+                </Text>
+              </View>
+            ) : scanStatus === 'success' ? (
+              <View style={[styles.aiStatusChip, styles.aiStatusSuccessChip]}>
+                <Ionicons name="sparkles" size={15} color="#059669" />
+                <Text style={styles.aiStatusSuccessText}>
+                  {isVi ? '✓ Đã nhận diện hóa đơn bằng Gemini AI' : '✓ Auto-extracted by Gemini AI'}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => processReceipt(photoUrl)}
+                  style={styles.rescanLink}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.rescanLinkText}>{isVi ? 'Quét lại' : 'Re-scan'}</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.aiStatusChip}>
+                <Ionicons name="image-outline" size={15} color="#64748B" />
+                <Text style={styles.aiStatusNeutralText}>
+                  {isVi ? 'Đã đính kèm ảnh' : 'Photo attached'}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => processReceipt(photoUrl)}
+                  style={styles.rescanLink}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.rescanLinkText}>{isVi ? 'Thử quét AI' : 'Scan AI'}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* 3. Tên món / Ghi chú */}
         <View style={styles.inputGroup}>
@@ -594,6 +735,110 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  attachReceiptRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  attachActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1.2,
+    borderColor: '#BBF7D0',
+    borderStyle: 'dashed',
+    borderRadius: 14,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+  },
+  attachActionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#065F46',
+  },
+  aiStatusRow: {
+    marginBottom: 16,
+  },
+  aiStatusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  aiStatusSuccessChip: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  aiStatusText: {
+    fontSize: 12.5,
+    color: '#059669',
+    fontWeight: '600',
+    flex: 1,
+  },
+  aiStatusSuccessText: {
+    fontSize: 12.5,
+    color: '#065F46',
+    fontWeight: '700',
+    flex: 1,
+  },
+  aiStatusNeutralText: {
+    fontSize: 12.5,
+    color: '#64748B',
+    fontWeight: '600',
+    flex: 1,
+  },
+  rescanLink: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: 'rgba(5, 150, 105, 0.12)',
+  },
+  rescanLinkText: {
+    fontSize: 11.5,
+    color: '#059669',
+    fontWeight: '700',
+  },
+  photoOverlayBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+  },
+  statusChipScanning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  statusChipScanningText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#059669',
+  },
+  statusChipSuccess: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  statusChipSuccessText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#059669',
   },
   inputGroup: {
     marginBottom: 18,

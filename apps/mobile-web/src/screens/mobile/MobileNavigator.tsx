@@ -31,7 +31,8 @@ import { RecurringScreen } from '../web/RecurringScreen';
 import { RemindersScreen } from '../web/RemindersScreen';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { createTransactionApi, getBudgetApi } from '../../services/api';
+import { useNotifications } from '../../contexts/NotificationContext';
+import { createTransactionApi, getBudgetApi, uploadReceiptApi } from '../../services/api';
 import {
   getInitialDayRecordsFromLocalStorage,
   mergeTransactionsIntoDayRecords,
@@ -55,6 +56,7 @@ interface MobileNavigatorProps {
 export const MobileNavigator: React.FC<MobileNavigatorProps> = ({ onOpenAdminDashboard }) => {
   const { language } = useLanguage();
   const { isDark } = useTheme();
+  const { addNotification } = useNotifications();
   const subScreenBg = isDark ? '#0B0F17' : '#F5F0E8';
   const isVi = language === 'vi';
   const [currentTab, setCurrentTab] = useState<MobileTab>('home');

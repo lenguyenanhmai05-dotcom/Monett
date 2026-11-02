@@ -104,6 +104,21 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
       fetchAllEvents();
       refreshInvites();
     });
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      const handleEventsUpdated = (e: any) => {
+        if (e?.detail && Array.isArray(e.detail) && e.detail.length > 0) {
+          setEvents(e.detail);
+        }
+      };
+      window.addEventListener('monett:events_updated', handleEventsUpdated);
+      return () => {
+        unsubscribe();
+        if (typeof window.removeEventListener === 'function') {
+          window.removeEventListener('monett:events_updated', handleEventsUpdated);
+        }
+      };
+    }
     return unsubscribe;
   }, [fetchAllEvents, userEmail, userId]);
 
@@ -487,20 +502,24 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
 
   // If an event is selected, render the dedicated Event Detail Page
   if (selectedEventId) {
-    const activeEvent = events.find((e) => e.id === selectedEventId);
+    const activeEvent = events.find((e) => e.id === selectedEventId || (e as any)._id === selectedEventId);
     if (activeEvent) {
       return (
         <EventDetailScreen
           event={activeEvent}
           onBack={() => setSelectedEventId(null)}
           onUpdateEvent={(updatedEvent) => {
+            const targetId = updatedEvent.id || (updatedEvent as any)._id;
             setEvents((prev) => {
-              const next = prev.map((e) => (e.id === updatedEvent.id ? updatedEvent : e));
+              const next = prev.map((e) => {
+                const eid = e.id || (e as any)._id;
+                return (eid === targetId || e.id === updatedEvent.id) ? updatedEvent : e;
+              });
               saveEventsToStorage(next, userEmail, userId);
               return next;
             });
-            if (updatedEvent.id) {
-              updateEventApi(updatedEvent.id, {
+            if (targetId && !targetId.startsWith('evt-')) {
+              updateEventApi(targetId, {
                 expenses: updatedEvent.expenses,
                 spentAmount: updatedEvent.spentAmount,
                 incomeAmount: updatedEvent.incomeAmount,
@@ -568,7 +587,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
         </Text>
       </TouchableOpacity>
 
-      {/* ================= PENDING EVENT INVITATIONS BANNER (CÁCH 2) ================= */}
+      {/* ================= PENDING EVENT INVITATIONS BANNER ================= */}
       {pendingInvitations.length > 0 && (
         <View style={styles.inviteBannerContainer}>
           {pendingInvitations.map((inv) => (
@@ -668,89 +687,176 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
         </View>
       )}
 
-      {/* ================= OVERVIEW STATS CARDS (GIỐNG TRANG TÍCH LŨY) ================= */}
-      <View style={styles.statsContainer}>
-        {/* Card 1: ĐANG / SẮP TỚI (#221D18 - Hẹp lại / thon gọn) */}
-        <View style={[
-          styles.statCard,
-          styles.cardDark,
-          styles.cardDarkSlim,
-          isDark && {
-            backgroundColor: '#0D2018',
-            borderColor: 'rgba(16, 185, 129, 0.35)',
-            shadowColor: '#000',
-          }
-        ]}>
-          <View style={styles.statCardHeader}>
-            <Text style={styles.cardDarkLabel}>
-              {isVi ? 'ĐANG / SẮP TỚI' : 'ACTIVE / UPCOMING'}
-            </Text>
-            <View style={[styles.cardDarkBadge, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.2)' }]}>
-              <Text style={[styles.cardDarkBadgeText, isDark && { color: '#34D399' }]}>{totalEvents}</Text>
-            </View>
-          </View>
-          <Text style={styles.cardDarkAmount}>
-            {totalEvents} <Text style={{ fontSize: 18, fontWeight: '700' }}>{isVi ? 'sự kiện' : 'events'}</Text>
-          </Text>
-          <View style={[styles.cardDarkDivider, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.15)' }]} />
-          <Text style={styles.cardDarkSub}>
-            {isVi
-              ? `${ongoingCount} đang diễn ra • ${upcomingCount} sắp tới • ${completedCount} đã xong`
-              : `${ongoingCount} ongoing • ${upcomingCount} upcoming • ${completedCount} done`}
-          </Text>
-        </View>
-
-        {/* Gộp Tab 2 & Tab 3: Bên trái là Tab 3 (Ngân sách), bên phải là Tab 2 (Đang diễn ra) */}
-        <View style={styles.twoCardsRow}>
-          {/* Bên trái: Tab 3 (Ngân sách - thẻ vàng) */}
-          <View style={[
-            styles.statCard,
-            styles.cardSky,
-            styles.halfCard,
-            isDark && {
-              backgroundColor: '#241B0E',
-              borderColor: 'rgba(245, 158, 11, 0.3)',
-            }
-          ]}>
-            <View style={styles.cardHeaderLeftWrap}>
-              <Ionicons name="time-outline" size={16} color={isDark ? '#FBBF24' : '#B45309'} style={{ marginRight: 5 }} />
-              <Text style={[styles.cardSkyLabel, isDark && { color: '#FBBF24' }]} numberOfLines={1}>
-                {isVi ? 'Ngân sách' : 'Budget'}
+      {/* ================= OVERVIEW STATS CARDS ================= */}
+      {isDesktop ? (
+        /* ================= GIAO DIỆN WEB: 3 Ô NGANG HÀNG ================= */
+        <View style={styles.statsGrid}>
+          {/* Card 1: ĐANG / SẮP TỚI */}
+          <View
+            style={[
+              styles.statCard,
+              styles.cardDark,
+              isDark && {
+                backgroundColor: '#0D2018',
+                borderColor: 'rgba(16, 185, 129, 0.35)',
+                shadowColor: '#000',
+              },
+            ]}
+          >
+            <View style={styles.statCardHeader}>
+              <Text style={styles.cardDarkLabel}>
+                {isVi ? 'ĐANG / SẮP TỚI' : 'ACTIVE / UPCOMING'}
               </Text>
+              <View style={[styles.cardDarkBadge, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.2)' }]}>
+                <Text style={[styles.cardDarkBadgeText, isDark && { color: '#34D399' }]}>{totalEvents}</Text>
+              </View>
             </View>
-            <Text style={[styles.halfCardAmount, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
-              {totalBudget.toLocaleString('vi-VN')} <Text style={{ fontSize: 13, fontWeight: '700', color: isDark ? '#FBBF24' : '#92400E' }}>đ</Text>
+            <Text style={styles.cardDarkAmount}>
+              {totalEvents} <Text style={{ fontSize: 18, fontWeight: '700' }}>{isVi ? 'sự kiện' : 'events'}</Text>
             </Text>
-            <Text style={[styles.cardSkySub, isDark && { color: '#FDE68A' }]} numberOfLines={1}>
-              {isVi ? 'đang + sắp tới' : 'active + upcoming'}
+            <View style={[styles.cardDarkDivider, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.15)' }]} />
+            <Text style={styles.cardDarkSub}>
+              {isVi
+                ? `${ongoingCount} đang diễn ra • ${upcomingCount} sắp tới • ${completedCount} đã xong`
+                : `${ongoingCount} ongoing • ${upcomingCount} upcoming • ${completedCount} done`}
             </Text>
           </View>
 
-          {/* Bên phải: Tab 2 (Đang diễn ra - thẻ xanh mint) */}
-          <View style={[
-            styles.statCard,
-            styles.cardMint,
-            styles.halfCard,
-            isDark && {
-              backgroundColor: '#0F261D',
-              borderColor: 'rgba(16, 185, 129, 0.3)',
-            }
-          ]}>
+          {/* Card 2: Đang diễn ra */}
+          <View
+            style={[
+              styles.statCard,
+              styles.cardMint,
+              isDark && {
+                backgroundColor: '#0F261D',
+                borderColor: 'rgba(16, 185, 129, 0.3)',
+              },
+            ]}
+          >
             <View style={styles.cardHeaderLeftWrap}>
-              <Ionicons name="sparkles" size={15} color={isDark ? '#34D399' : '#047857'} style={{ marginRight: 5 }} />
-              <Text style={[styles.cardMintLabel, isDark && { color: '#34D399' }]} numberOfLines={1}>
+              <Ionicons name="sparkles" size={17} color={isDark ? '#34D399' : '#047857'} style={{ marginRight: 6 }} />
+              <Text style={[styles.cardMintLabel, isDark && { color: '#34D399' }]}>
                 {isVi ? 'Đang diễn ra' : 'Ongoing now'}
               </Text>
             </View>
-            <Text style={[styles.halfCardAmountMint, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
+            <Text style={[styles.cardMintAmount, isDark && { color: '#F8FAFC' }]}>
               {ongoingCount}
             </Text>
-            <Text style={[styles.cardMintSub, isDark && { color: '#6EE7B7' }]} numberOfLines={1}>
-              {isVi ? 'sự kiện active' : 'active events'}
+            <Text style={[styles.cardMintSub, isDark && { color: '#6EE7B7' }]}>
+              {isVi ? 'sự kiện đang hoạt động' : 'active events'}
+            </Text>
+          </View>
+
+          {/* Card 3: Ngân sách */}
+          <View
+            style={[
+              styles.statCard,
+              styles.cardSky,
+              isDark && {
+                backgroundColor: '#241B0E',
+                borderColor: 'rgba(245, 158, 11, 0.3)',
+              },
+            ]}
+          >
+            <View style={styles.cardHeaderLeftWrap}>
+              <Ionicons name="time-outline" size={17} color={isDark ? '#FBBF24' : '#B45309'} style={{ marginRight: 6 }} />
+              <Text style={[styles.cardSkyLabel, isDark && { color: '#FBBF24' }]}>
+                {isVi ? 'Ngân sách' : 'Budget'}
+              </Text>
+            </View>
+            <Text style={[styles.cardSkyAmount, isDark && { color: '#F8FAFC' }]}>
+              {totalBudget.toLocaleString('vi-VN')} <Text style={{ fontSize: 16, fontWeight: '700', color: isDark ? '#FBBF24' : '#92400E' }}>đ</Text>
+            </Text>
+            <Text style={[styles.cardSkySub, isDark && { color: '#FDE68A' }]}>
+              {isVi ? 'đang + sắp tới' : 'active + upcoming'}
             </Text>
           </View>
         </View>
-      </View>
+      ) : (
+        /* ================= GIAO DIỆN MOBILE: GIỮ NGUYÊN (1 Ô TRÊN + 2 Ô DƯỚI) ================= */
+        <View style={styles.statsContainer}>
+          {/* Card 1: ĐANG / SẮP TỚI (#221D18 - Hẹp lại / thon gọn) */}
+          <View style={[
+            styles.statCard,
+            styles.cardDark,
+            styles.cardDarkSlim,
+            isDark && {
+              backgroundColor: '#0D2018',
+              borderColor: 'rgba(16, 185, 129, 0.35)',
+              shadowColor: '#000',
+            }
+          ]}>
+            <View style={styles.statCardHeader}>
+              <Text style={styles.cardDarkLabel}>
+                {isVi ? 'ĐANG / SẮP TỚI' : 'ACTIVE / UPCOMING'}
+              </Text>
+              <View style={[styles.cardDarkBadge, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.2)' }]}>
+                <Text style={[styles.cardDarkBadgeText, isDark && { color: '#34D399' }]}>{totalEvents}</Text>
+              </View>
+            </View>
+            <Text style={styles.cardDarkAmount}>
+              {totalEvents} <Text style={{ fontSize: 18, fontWeight: '700' }}>{isVi ? 'sự kiện' : 'events'}</Text>
+            </Text>
+            <View style={[styles.cardDarkDivider, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.15)' }]} />
+            <Text style={styles.cardDarkSub}>
+              {isVi
+                ? `${ongoingCount} đang diễn ra • ${upcomingCount} sắp tới • ${completedCount} đã xong`
+                : `${ongoingCount} ongoing • ${upcomingCount} upcoming • ${completedCount} done`}
+            </Text>
+          </View>
+
+          {/* Gộp Tab 2 & Tab 3: Bên trái là Tab 3 (Ngân sách), bên phải là Tab 2 (Đang diễn ra) */}
+          <View style={styles.twoCardsRow}>
+            {/* Bên trái: Tab 3 (Ngân sách - thẻ vàng) */}
+            <View style={[
+              styles.statCard,
+              styles.cardSky,
+              styles.halfCard,
+              isDark && {
+                backgroundColor: '#241B0E',
+                borderColor: 'rgba(245, 158, 11, 0.3)',
+              }
+            ]}>
+              <View style={styles.cardHeaderLeftWrap}>
+                <Ionicons name="time-outline" size={16} color={isDark ? '#FBBF24' : '#B45309'} style={{ marginRight: 5 }} />
+                <Text style={[styles.cardSkyLabel, isDark && { color: '#FBBF24' }]} numberOfLines={1}>
+                  {isVi ? 'Ngân sách' : 'Budget'}
+                </Text>
+              </View>
+              <Text style={[styles.halfCardAmount, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
+                {totalBudget.toLocaleString('vi-VN')} <Text style={{ fontSize: 13, fontWeight: '700', color: isDark ? '#FBBF24' : '#92400E' }}>đ</Text>
+              </Text>
+              <Text style={[styles.cardSkySub, isDark && { color: '#FDE68A' }]} numberOfLines={1}>
+                {isVi ? 'đang + sắp tới' : 'active + upcoming'}
+              </Text>
+            </View>
+
+            {/* Bên phải: Tab 2 (Đang diễn ra - thẻ xanh mint) */}
+            <View style={[
+              styles.statCard,
+              styles.cardMint,
+              styles.halfCard,
+              isDark && {
+                backgroundColor: '#0F261D',
+                borderColor: 'rgba(16, 185, 129, 0.3)',
+              }
+            ]}>
+              <View style={styles.cardHeaderLeftWrap}>
+                <Ionicons name="sparkles" size={15} color={isDark ? '#34D399' : '#047857'} style={{ marginRight: 5 }} />
+                <Text style={[styles.cardMintLabel, isDark && { color: '#34D399' }]} numberOfLines={1}>
+                  {isVi ? 'Đang diễn ra' : 'Ongoing now'}
+                </Text>
+              </View>
+              <Text style={[styles.halfCardAmountMint, isDark && { color: '#F8FAFC' }]} numberOfLines={1}>
+                {ongoingCount}
+              </Text>
+              <Text style={[styles.cardMintSub, isDark && { color: '#6EE7B7' }]} numberOfLines={1}>
+                {isVi ? 'sự kiện active' : 'active events'}
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* ================= SEARCH & STATUS FILTERS ================= */}
       <View style={[styles.filterBar, { backgroundColor: cardBg, borderColor: cardBorder }]}>
@@ -1256,8 +1362,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#98E4B0',
-    paddingVertical: 12,
-    paddingHorizontal: 22,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#82D99E',
@@ -1266,8 +1372,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
-    alignSelf: 'flex-start',
-    marginBottom: 20,
   },
   createEventBtnText: {
     fontSize: 15,

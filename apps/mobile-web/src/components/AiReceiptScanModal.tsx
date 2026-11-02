@@ -13,6 +13,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import Svg, { Path, Rect, Circle, Line, Polyline } from 'react-native-svg';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { compressImageFile } from '../services/calendarStorage';
@@ -113,7 +114,7 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
   targetDate,
   targetDayNum,
 }) => {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isDesktop = width >= 768;
   const { isDark, colors } = useTheme();
   const { language } = useLanguage();
@@ -142,56 +143,6 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
     return '';
   });
   const [showApiKeySetting, setShowApiKeySetting] = useState<boolean>(false);
-
-  // Reset form when modal opens with initial photo & target date
-  useEffect(() => {
-    if (visible) {
-      const incomingImage = initialPhotoUri || '';
-      setImageUri(incomingImage);
-      if (targetDate) {
-        setDate(targetDate);
-      }
-      setErrorMessage('');
-
-      // Nếu ô này chưa có ảnh (initialPhotoUri rỗng), reset toàn bộ thông tin về mặc định
-      if (!incomingImage) {
-        setSupplier('');
-        setAmountStr('');
-        setSelectedCategory('Ăn uống');
-        setCategoryIcon('🍜');
-        setItems([]);
-        setScanSuccess(false);
-      }
-    }
-  }, [visible, initialPhotoUri, targetDate]);
-
-  // Handle local file picking on Web & Mobile
-  const handlePickImage = () => {
-    if (Platform.OS === 'web' && typeof document !== 'undefined') {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.onchange = async (e: any) => {
-        const file = e.target?.files?.[0];
-        if (file) {
-          try {
-            setIsUploading(true);
-            setErrorMessage('');
-            const compressed = await compressImageFile(file);
-            setImageUri(compressed);
-            // Tự động kích hoạt quét sau khi chọn ảnh
-            handleTriggerScan(compressed);
-          } catch (err: any) {
-            console.error('Lỗi nén ảnh:', err);
-            setErrorMessage('Không thể đọc file ảnh này. Vui lòng thử lại.');
-          } finally {
-            setIsUploading(false);
-          }
-        }
-      };
-      input.click();
-    }
-  };
 
   // Helper tìm icon cho category name
   const matchCategoryIcon = (catName: string): string => {
@@ -255,6 +206,111 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
     }
   };
 
+  // Reset form when modal opens with initial photo & target date
+  useEffect(() => {
+    if (visible) {
+      const incomingImage = initialPhotoUri || '';
+      setImageUri(incomingImage);
+      if (targetDate) {
+        setDate(targetDate);
+      }
+      setErrorMessage('');
+
+      // Nếu ô này chưa có ảnh (initialPhotoUri rỗng), reset toàn bộ thông tin về mặc định
+      if (!incomingImage) {
+        setSupplier('');
+        setAmountStr('');
+        setSelectedCategory('Ăn uống');
+        setCategoryIcon('🍜');
+        setItems([]);
+        setScanSuccess(false);
+      } else {
+        // Tự động kích hoạt quét Gemini Vision AI ngay khi nhận ảnh hóa đơn
+        handleTriggerScan(incomingImage);
+      }
+    }
+  }, [visible, initialPhotoUri, targetDate]);
+
+  // Handle local file picking on Web & Mobile
+  const handlePickFromGallery = async () => {
+    try {
+      setIsUploading(true);
+      setErrorMessage('');
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.85,
+        base64: true,
+      });
+      if (!res.canceled && res.assets && res.assets[0]) {
+        const asset = res.assets[0];
+        let photoUri = asset.uri;
+        if (asset.base64) {
+          photoUri = `data:image/jpeg;base64,${asset.base64}`;
+        }
+        setImageUri(photoUri);
+        handleTriggerScan(photoUri);
+      }
+    } catch (err: any) {
+      console.warn('Gallery pick error, fallback to web input:', err);
+      handlePickImageWebFallback();
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    try {
+      setIsUploading(true);
+      setErrorMessage('');
+      const res = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        quality: 0.85,
+        base64: true,
+      });
+      if (!res.canceled && res.assets && res.assets[0]) {
+        const asset = res.assets[0];
+        let photoUri = asset.uri;
+        if (asset.base64) {
+          photoUri = `data:image/jpeg;base64,${asset.base64}`;
+        }
+        setImageUri(photoUri);
+        handleTriggerScan(photoUri);
+      }
+    } catch (err: any) {
+      console.warn('Camera capture error, fallback to gallery:', err);
+      handlePickFromGallery();
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handlePickImageWebFallback = () => {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = async (e: any) => {
+        const file = e.target?.files?.[0];
+        if (file) {
+          try {
+            setIsUploading(true);
+            setErrorMessage('');
+            const compressed = await compressImageFile(file);
+            setImageUri(compressed);
+            handleTriggerScan(compressed);
+          } catch (err: any) {
+            console.error('Lỗi nén ảnh:', err);
+            setErrorMessage('Không thể đọc file ảnh này. Vui lòng thử lại.');
+          } finally {
+            setIsUploading(false);
+          }
+        }
+      };
+      input.click();
+    }
+  };
+
   // Load sample receipt
   const handleLoadSample = (sampleType: 'coffee' | 'mart') => {
     const sampleUri = createSampleReceiptSvg(sampleType);
@@ -265,13 +321,21 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
       setAmountStr('85000');
       setSelectedCategory('Cà phê & Nước');
       setCategoryIcon('☕');
-      setItems([]);
+      setItems([
+        { name: 'Phin Sữa Đá (L)', quantity: 1, price: 39000, total: 39000 },
+        { name: 'Bánh Mousse Đào', quantity: 1, price: 46000, total: 46000 },
+      ]);
     } else {
       setSupplier('WinMart+ Cửa Hàng Tiện Lợi');
       setAmountStr('168000');
       setSelectedCategory('Đi chợ & Siêu thị');
       setCategoryIcon('🛒');
-      setItems([]);
+      setItems([
+        { name: 'Sữa TH True Milk 1L', quantity: 1, price: 38000, total: 38000 },
+        { name: 'Trứng gà Ba Huân (10)', quantity: 1, price: 35000, total: 35000 },
+        { name: 'Bánh mì sandwich bơ', quantity: 1, price: 25000, total: 25000 },
+        { name: 'Táo Envy New Zealand', quantity: 1, price: 70000, total: 70000 },
+      ]);
     }
 
     setScanSuccess(true);
@@ -364,7 +428,7 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
           {/* Body Content - 2 Columns on Desktop */}
           <ScrollView
             showsVerticalScrollIndicator={false}
-            style={{ maxHeight: isDesktop ? 620 : 540 }}
+            style={{ maxHeight: isDesktop ? 620 : Math.max(320, Math.min(height - 180, 560)) }}
             contentContainerStyle={{ padding: 18, paddingBottom: 24 }}
           >
             {errorMessage ? (
@@ -426,11 +490,21 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
                     <View style={styles.imageActionsRow}>
                       <TouchableOpacity
                         style={styles.imageActionBtnChange}
-                        onPress={handlePickImage}
+                        onPress={handleTakePhoto}
                         activeOpacity={0.8}
                       >
                         <Text style={styles.imageActionBtnTextChange}>
-                          🔄 {language === 'vi' ? 'Đổi ảnh khác' : 'Change photo'}
+                          📷 {language === 'vi' ? 'Chụp lại' : 'Retake'}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.imageActionBtnChange}
+                        onPress={handlePickFromGallery}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.imageActionBtnTextChange}>
+                          🖼️ {language === 'vi' ? 'Đổi ảnh' : 'Change'}
                         </Text>
                       </TouchableOpacity>
 
@@ -452,13 +526,11 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
                     </View>
                   </View>
                 ) : (
-                  <TouchableOpacity
+                  <View
                     style={[
                       styles.dropBox,
                       { borderColor: isDark ? '#059669' : '#10B981', backgroundColor: isDark ? 'rgba(16, 185, 129, 0.05)' : '#F0FDF4' },
                     ]}
-                    onPress={handlePickImage}
-                    activeOpacity={0.75}
                   >
                     <View style={styles.dropIconCircle}>
                       <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
@@ -472,14 +544,52 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
                       </Svg>
                     </View>
                     <Text style={styles.dropMainText}>
-                      {language === 'vi' ? 'Nhấn để chọn ảnh hóa đơn' : 'Click to select receipt image'}
+                      {language === 'vi' ? 'Tải ảnh hóa đơn để AI nhận diện' : 'Upload receipt for AI scan'}
                     </Text>
                     <Text style={styles.dropSubText}>
                       {language === 'vi'
-                        ? 'Hỗ trợ JPG, PNG, WebP • Tự động xoay & làm nét'
-                        : 'Supports JPG, PNG, WebP • Auto-straightens'}
+                        ? 'Gemini Vision AI tự động trích xuất quán, danh mục & số tiền'
+                        : 'Gemini Vision AI auto-extracts supplier, category & amount'}
                     </Text>
-                  </TouchableOpacity>
+
+                    {/* Nút Chụp ảnh & Chọn thư viện trực tiếp */}
+                    <View style={styles.dropActionsGrid}>
+                      <TouchableOpacity
+                        style={styles.dropActionChoiceBtnPrimary}
+                        onPress={handleTakePhoto}
+                        activeOpacity={0.8}
+                      >
+                        <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                          <Path
+                            d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+                            stroke="#FFFFFF"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                          <Circle cx="12" cy="13" r="4" stroke="#FFFFFF" strokeWidth="2" />
+                        </Svg>
+                        <Text style={styles.dropActionChoiceBtnPrimaryText}>
+                          {language === 'vi' ? 'Chụp ảnh' : 'Take Photo'}
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.dropActionChoiceBtnSecondary}
+                        onPress={handlePickFromGallery}
+                        activeOpacity={0.8}
+                      >
+                        <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+                          <Rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke="#059669" strokeWidth="2" />
+                          <Circle cx="8.5" cy="8.5" r="1.5" fill="#059669" />
+                          <Polyline points="21 15 16 10 5 21" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </Svg>
+                        <Text style={styles.dropActionChoiceBtnSecondaryText}>
+                          {language === 'vi' ? 'Thư viện ảnh' : 'Gallery'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 )}
 
                 {/* Primary Scan Button */}
@@ -496,7 +606,7 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                       <ActivityIndicator size="small" color="#FFFFFF" />
                       <Text style={styles.scanActionBtnText}>
-                        {language === 'vi' ? 'AI đang đọc hóa đơn...' : 'AI scanning receipt...'}
+                        {language === 'vi' ? 'Gemini AI đang phân tích...' : 'Gemini AI analyzing receipt...'}
                       </Text>
                     </View>
                   ) : (
@@ -510,6 +620,33 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
                     </View>
                   )}
                 </TouchableOpacity>
+
+                {/* Hóa đơn mẫu để thử nghiệm 1-chạm */}
+                <View style={styles.sampleBillsSection}>
+                  <Text style={styles.sampleBillsTitle}>
+                    {language === 'vi' ? 'Hoặc thử ngay hóa đơn mẫu:' : 'Or try sample receipts:'}
+                  </Text>
+                  <View style={styles.sampleChipsRow}>
+                    <TouchableOpacity
+                      style={[styles.sampleChip, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}
+                      onPress={() => handleLoadSample('coffee')}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[styles.sampleChipText, { color: isDark ? '#E2E8F0' : '#475569' }]}>
+                        ☕ Highlands (85k)
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.sampleChip, { backgroundColor: isDark ? '#1E293B' : '#FFFFFF' }]}
+                      onPress={() => handleLoadSample('mart')}
+                      activeOpacity={0.75}
+                    >
+                      <Text style={[styles.sampleChipText, { color: isDark ? '#E2E8F0' : '#475569' }]}>
+                        🛒 WinMart (168k)
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </View>
 
               {/* ========== CỘT PHẢI (RIGHT COLUMN): KẾT QUẢ TRÍCH XUẤT ========== */}
@@ -705,7 +842,68 @@ export const AiReceiptScanModal: React.FC<AiReceiptScanModalProps> = ({
                   </View>
                 </View>
 
+                {/* 5. Chi tiết các món (Item Breakdown) */}
+                {items && items.length > 0 && (
+                  <View style={styles.fieldCard}>
+                    <Text style={styles.fieldLabel}>
+                      {language === 'vi' ? `Chi tiết món hàng (${items.length})` : `Item Breakdown (${items.length})`}
+                    </Text>
+                    <View style={[styles.itemsListContainer, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: isDark ? '#334155' : '#E2E8F0' }]}>
+                      {items.map((it, idx) => (
+                        <View key={idx} style={[styles.itemDetailRow, idx > 0 && { borderTopWidth: 1, borderTopColor: isDark ? '#334155' : '#F1F5F9' }]}>
+                          <Text style={[styles.itemDetailName, { color: isDark ? '#F1F5F9' : '#1E293B' }]} numberOfLines={1}>
+                            {it.name} {it.quantity > 1 ? `x${it.quantity}` : ''}
+                          </Text>
+                          <Text style={[styles.itemDetailPrice, { color: isDark ? '#34D399' : '#059669' }]}>
+                            {(it.total || it.price || 0).toLocaleString('vi-VN')} đ
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
 
+                {/* 6. Cài đặt Gemini API Key tùy chọn */}
+                <TouchableOpacity
+                  style={styles.apiKeyToggleBtn}
+                  onPress={() => setShowApiKeySetting((prev) => !prev)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.apiKeyToggleText}>
+                    ⚙️ {language === 'vi' ? 'Cài đặt Gemini API Key (tùy chọn)' : 'Custom Gemini API Key (optional)'} {showApiKeySetting ? '▲' : '▼'}
+                  </Text>
+                </TouchableOpacity>
+
+                {showApiKeySetting && (
+                  <View style={[styles.apiKeyBox, { backgroundColor: isDark ? '#1E293B' : '#F8FAFC', borderColor: isDark ? '#334155' : '#CBD5E1' }]}>
+                    <Text style={styles.apiKeyHelpText}>
+                      {language === 'vi'
+                        ? 'Mặc định Monett sử dụng Google Gemini 1.5 Flash. Bạn có thể nhập API Key riêng nếu muốn:'
+                        : 'Monett uses Google Gemini 1.5 Flash by default. You can provide your own API key:'}
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.textInput,
+                        {
+                          backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+                          color: isDark ? '#F1F5F9' : '#0F172A',
+                          borderColor: isDark ? '#334155' : '#CBD5E1',
+                          fontSize: 12,
+                        },
+                      ]}
+                      value={apiKeyInput}
+                      onChangeText={(val) => {
+                        setApiKeyInput(val);
+                        if (typeof window !== 'undefined' && window.localStorage) {
+                          localStorage.setItem('monett_gemini_api_key', val.trim());
+                        }
+                      }}
+                      placeholder="AIzaSy..."
+                      placeholderTextColor="#94A3B8"
+                      autoCapitalize="none"
+                    />
+                  </View>
+                )}
               </View>
             </View>
           </ScrollView>
@@ -872,7 +1070,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   uploadingBox: {
-    height: 380,
+    height: 280,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#10B981',
@@ -887,23 +1085,23 @@ const styles = StyleSheet.create({
     color: '#059669',
   },
   dropBox: {
-    height: 380,
+    minHeight: 220,
     borderWidth: 2,
     borderStyle: 'dashed',
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
-    gap: 12,
+    padding: 20,
+    gap: 10,
   },
   dropIconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: 'rgba(16, 185, 129, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   dropMainText: {
     fontSize: 15,
@@ -916,13 +1114,60 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'center',
     lineHeight: 18,
+    marginBottom: 6,
+  },
+  dropActionsGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+    maxWidth: 280,
+    marginTop: 4,
+  },
+  dropActionChoiceBtnPrimary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#059669',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  dropActionChoiceBtnPrimaryText: {
+    color: '#FFFFFF',
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  dropActionChoiceBtnSecondary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#059669',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+  },
+  dropActionChoiceBtnSecondaryText: {
+    color: '#059669',
+    fontSize: 12.5,
+    fontWeight: '800',
   },
   imagePreviewWrap: {
     borderRadius: 14,
     overflow: 'hidden',
   },
   receiptFrame: {
-    height: 380,
+    height: 280,
     backgroundColor: '#0F172A',
     borderRadius: 14,
     position: 'relative',
@@ -1189,6 +1434,53 @@ const styles = StyleSheet.create({
   itemPriceText: {
     fontSize: 13,
     fontWeight: '800',
+  },
+  itemsListContainer: {
+    borderRadius: 10,
+    borderWidth: 1,
+    overflow: 'hidden',
+    marginTop: 4,
+  },
+  itemDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  itemDetailName: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    flex: 1,
+    marginRight: 8,
+  },
+  itemDetailPrice: {
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  apiKeyToggleBtn: {
+    alignSelf: 'flex-start',
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  apiKeyToggleText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  apiKeyBox: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+    gap: 8,
+  },
+  apiKeyHelpText: {
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 16,
   },
   footer: {
     flexDirection: 'row',

@@ -155,9 +155,12 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
         allowsEditing: true,
         aspect: [3, 4],
         quality: 0.85,
+        base64: true,
       });
       if (!res.canceled && res.assets && res.assets[0]?.uri) {
-        if (onPhotoCaptured) onPhotoCaptured(res.assets[0].uri, mode);
+        const asset = res.assets[0];
+        const uriToSend = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
+        if (onPhotoCaptured) onPhotoCaptured(uriToSend, mode);
       }
     } catch (err) {
       console.warn('Gallery error:', err);
@@ -169,9 +172,11 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
       if (cameraRef.current && permission?.granted) {
         const photo = await cameraRef.current.takePictureAsync({
           quality: 0.85,
+          base64: true,
         });
         if (photo?.uri && onPhotoCaptured) {
-          onPhotoCaptured(photo.uri, mode);
+          const uriToSend = photo.base64 ? `data:image/jpeg;base64,${photo.base64}` : photo.uri;
+          onPhotoCaptured(uriToSend, mode);
           return;
         }
       }
@@ -337,6 +342,26 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
               }
             </Text>
           </TouchableOpacity>
+
+          {/* Khung căn chỉnh hóa đơn cho chế độ Quét AI */}
+          {mode === 'bill' && (
+            <View style={styles.billScanGuideOverlay} pointerEvents="none">
+              <View style={styles.billScanFrame}>
+                <View style={[styles.scanCorner, styles.scanCornerTL]} />
+                <View style={[styles.scanCorner, styles.scanCornerTR]} />
+                <View style={[styles.scanCorner, styles.scanCornerBL]} />
+                <View style={[styles.scanCorner, styles.scanCornerBR]} />
+
+                <View style={styles.billScanBadge}>
+                  <Ionicons name="sparkles" size={13} color="#10B981" />
+                  <Text style={styles.billScanBadgeText}>Gemini Vision AI OCR</Text>
+                </View>
+              </View>
+              <Text style={styles.billScanHint}>
+                {isVi ? 'Căn chỉnh hóa đơn vào khung để AI đọc rõ nhất' : 'Align receipt within frame for best AI scan'}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* 3. Bottom Controls */}
@@ -355,13 +380,22 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
 
           {/* Nút chụp to tròn chính giữa */}
           <TouchableOpacity
-            style={styles.shutterOuter}
+            style={[styles.shutterOuter, mode === 'bill' && styles.shutterOuterBill]}
             onPress={handleCapture}
             activeOpacity={0.8}
           >
-            <View style={styles.shutterInner}>
-              <View style={styles.frogEarLeft} />
-              <View style={styles.frogEarRight} />
+            <View style={[styles.shutterInner, mode === 'bill' && styles.shutterInnerBill]}>
+              {mode === 'bill' ? (
+                <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="scan" size={26} color="#FFFFFF" />
+                  <Text style={styles.shutterBillText}>AI</Text>
+                </View>
+              ) : (
+                <>
+                  <View style={styles.frogEarLeft} />
+                  <View style={styles.frogEarRight} />
+                </>
+              )}
             </View>
           </TouchableOpacity>
 
@@ -547,12 +581,112 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 3,
   },
+  shutterOuterBill: {
+    borderColor: '#34D399',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    elevation: 8,
+  },
   shutterInner: {
     width: '100%',
     height: '100%',
     borderRadius: 40,
     backgroundColor: '#10B981',
     position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shutterInnerBill: {
+    backgroundColor: '#059669',
+  },
+  shutterBillText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+    marginTop: -2,
+    letterSpacing: 0.5,
+  },
+  billScanGuideOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  billScanFrame: {
+    width: '85%',
+    height: '75%',
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 12,
+  },
+  scanCorner: {
+    position: 'absolute',
+    width: 28,
+    height: 28,
+    borderColor: '#10B981',
+  },
+  scanCornerTL: {
+    top: 0,
+    left: 0,
+    borderTopWidth: 3.5,
+    borderLeftWidth: 3.5,
+    borderTopLeftRadius: 8,
+  },
+  scanCornerTR: {
+    top: 0,
+    right: 0,
+    borderTopWidth: 3.5,
+    borderRightWidth: 3.5,
+    borderTopRightRadius: 8,
+  },
+  scanCornerBL: {
+    bottom: 0,
+    left: 0,
+    borderBottomWidth: 3.5,
+    borderLeftWidth: 3.5,
+    borderBottomLeftRadius: 8,
+  },
+  scanCornerBR: {
+    bottom: 0,
+    right: 0,
+    borderBottomWidth: 3.5,
+    borderRightWidth: 3.5,
+    borderBottomRightRadius: 8,
+  },
+  billScanBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+  },
+  billScanBadgeText: {
+    color: '#F8FAFC',
+    fontSize: 11.5,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  billScanHint: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 12,
+    textAlign: 'center',
   },
   frogEarLeft: {
     position: 'absolute',
