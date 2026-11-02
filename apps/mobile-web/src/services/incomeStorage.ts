@@ -1,7 +1,8 @@
 /**
  * incomeStorage.ts
  * Quản lý và lưu trữ các khoản thu nhập (Income Records) của Monett
- * Hỗ trợ lưu trữ bền vững qua localStorage & đồng bộ với backend / ngân sách tổng
+ * Hỗ trợ lưu trữ bền vững qua in-memory cache, AsyncStorage (Mobile Native iOS/Android)
+ * và localStorage (Web) & đồng bộ thời gian thực với backend MongoDB / ngân sách tổng.
  */
 
 import { Platform } from 'react-native';
@@ -12,6 +13,8 @@ import {
   notifyBudgetUpdated,
   CachedBudgetData,
   calculateMonthTotalExpenses,
+  isIncomeTransactionOrItem,
+  INCOME_CATEGORY_NAMES,
 } from './calendarStorage';
 
 export type IncomeCategoryType =
@@ -36,57 +39,141 @@ export interface IncomeRecord {
 export const INCOME_STORAGE_KEY = 'monett_income_records';
 export const INCOME_UPDATED_EVENT = 'monett:income_records_updated';
 
+// 1. In-memory cache đồng bộ để đọc tức thì 0ms trên cả React Native Mobile & Web
+const inMemoryCache: Record<string, IncomeRecord[]> = {};
+
+// In-memory listeners cho cập nhật chéo giữa các widget và màn hình
+const incomeListeners = new Set<(records: IncomeRecord[]) => void>();
+let isNotifying = false;
+
+// Helper an toàn lấy AsyncStorage trên React Native
+const getAsyncStorage = () => {
+  try {
+    return require('@react-native-async-storage/async-storage').default;
+  } catch {
+    return null;
+  }
+};
+
 export function getIncomeStorageKey(userId?: string): string {
   const uid = userId || getStoredUserId();
   return uid && uid !== 'guest' ? `monett_income_records_${uid}` : 'monett_income_records';
 }
 
-// Danh sách thu nhập khởi tạo rỗng để người dùng tự thêm
-const INITIAL_INCOME_RECORDS: IncomeRecord[] = [];
-
 /**
- * Lấy danh sách các khoản thu nhập từ storage theo từng tài khoản
+ * Phát tín hiệu cập nhật danh sách thu nhập đến tất cả component đang lắng nghe
  */
-export function getIncomeRecords(userId?: string): IncomeRecord[] {
-  if (typeof window === 'undefined' || !window.localStorage) {
-    return [];
-  }
+export function notifyIncomeUpdated(records?: IncomeRecord[]): void {
+  if (isNotifying) return;
+  isNotifying = true;
   try {
-    const key = getIncomeStorageKey(userId);
-    const raw = localStorage.getItem(key);
-    if (!raw) {
-      return [];
+    const list = records || getIncomeRecords();
+    incomeListeners.forEach((cb) => {
+      try {
+        cb(list);
+      } catch (_) {}
+    });
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      try {
+        if (typeof CustomEvent !== 'undefined') {
+          window.dispatchEvent(new CustomEvent(INCOME_UPDATED_EVENT, { detail: list }));
+        }
+        window.dispatchEvent(new Event('storage'));
+      } catch (_) {}
     }
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      // Tự động loại bỏ khoản thu mẫu hardcode 'inc-sample-1' hoặc 'Lương hàng tháng' trước đó
-      const cleaned = parsed.filter(
-        (r) => r && r.id !== 'inc-sample-1' && r.title !== 'Lương hàng tháng'
-      );
-      if (cleaned.length !== parsed.length) {
-        saveIncomeRecords(cleaned, userId);
-      }
-      return cleaned;
-    }
-    return [];
-  } catch {
-    return [];
+  } finally {
+    isNotifying = false;
   }
 }
 
 /**
- * Lưu danh sách các khoản thu nhập vào storage theo từng tài khoản và bắn event thông báo
+ * Tải trước dữ liệu thu nhập từ AsyncStorage vào in-memory cache khi khởi động app
  */
-export function saveIncomeRecords(records: IncomeRecord[], userId?: string): void {
-  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+export async function preloadIncomeFromAsyncStorage(userId?: string): Promise<IncomeRecord[]> {
+  const key = getIncomeStorageKey(userId);
+  const storage = getAsyncStorage();
+  if (!storage) return inMemoryCache[key] || [];
+
+  try {
+    const raw = await storage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const cleaned = parsed.filter(
+          (r) => r && r.id !== 'inc-sample-1' && r.title !== 'Lương hàng tháng'
+        );
+        inMemoryCache[key] = cleaned;
+        notifyIncomeUpdated(cleaned);
+        return cleaned;
+      }
+    }
+  } catch (_) {}
+
+  return inMemoryCache[key] || [];
+}
+
+/**
+ * Lấy danh sách các khoản thu nhập từ storage theo từng tài khoản (0ms đồng bộ)
+ */
+export function getIncomeRecords(userId?: string): IncomeRecord[] {
+  const key = getIncomeStorageKey(userId);
+
+  // 1. In-memory cache trước (nhanh nhất và không mất giữa các lần chuyển màn hình)
+  if (inMemoryCache[key] && Array.isArray(inMemoryCache[key])) {
+    return inMemoryCache[key];
+  }
+
+  // 2. Thử đọc từ window.localStorage nếu chạy trên Web / Mobile Web
+  if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      const key = getIncomeStorageKey(userId);
-      localStorage.setItem(key, JSON.stringify(records));
-      if (typeof window.dispatchEvent === 'function' && typeof CustomEvent !== 'undefined') {
-        window.dispatchEvent(new CustomEvent(INCOME_UPDATED_EVENT, { detail: records }));
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const cleaned = parsed.filter(
+            (r) => r && r.id !== 'inc-sample-1' && r.title !== 'Lương hàng tháng'
+          );
+          inMemoryCache[key] = cleaned;
+          return cleaned;
+        }
       }
     } catch (_) {}
   }
+
+  // 3. Nếu chưa có trong memory, khởi tạo rỗng và kích hoạt preload AsyncStorage ngầm
+  if (!inMemoryCache[key]) {
+    inMemoryCache[key] = [];
+    preloadIncomeFromAsyncStorage(userId).catch(() => {});
+  }
+
+  return inMemoryCache[key] || [];
+}
+
+/**
+ * Lưu danh sách các khoản thu nhập vào storage theo từng tài khoản và phát thông báo
+ */
+export function saveIncomeRecords(records: IncomeRecord[], userId?: string): void {
+  const key = getIncomeStorageKey(userId);
+  inMemoryCache[key] = records;
+
+  // 1. Lưu vào Web localStorage nếu có
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      localStorage.setItem(key, JSON.stringify(records));
+    } catch (_) {}
+  }
+
+  // 2. Lưu bền vững vào AsyncStorage trên Native Mobile (iOS / Android)
+  const storage = getAsyncStorage();
+  if (storage) {
+    try {
+      storage.setItem(key, JSON.stringify(records)).catch(() => {});
+    } catch (_) {}
+  }
+
+  // 3. Thông báo cho tất cả subscribers
+  notifyIncomeUpdated(records);
 }
 
 /**
@@ -94,11 +181,23 @@ export function saveIncomeRecords(records: IncomeRecord[], userId?: string): voi
  */
 export function clearUserIncomeStorage(userId?: string): void {
   const uid = userId || getStoredUserId();
+  const key = getIncomeStorageKey(uid);
+  delete inMemoryCache[key];
+
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      localStorage.removeItem(getIncomeStorageKey(uid));
+      localStorage.removeItem(key);
     } catch (_) {}
   }
+
+  const storage = getAsyncStorage();
+  if (storage) {
+    try {
+      storage.removeItem(key).catch(() => {});
+    } catch (_) {}
+  }
+
+  notifyIncomeUpdated([]);
 }
 
 /**
@@ -202,7 +301,7 @@ export async function addIncomeRecord(
   saveIncomeRecords(updated);
   syncIncomeWithBudget(updated);
 
-  // Thử đồng bộ lên backend
+  // Thử đồng bộ lên MongoDB backend
   try {
     await createTransactionApi({
       title: data.title,
@@ -234,28 +333,38 @@ export async function deleteIncomeRecord(id: string): Promise<boolean> {
 }
 
 /**
- * Đăng ký lắng nghe sự kiện cập nhật khoản thu nhập
+ * Đăng ký lắng nghe sự kiện cập nhật khoản thu nhập (hoạt động đồng thời trên cả React Native Mobile & Web)
  */
 export function subscribeIncomeUpdates(callback: (records: IncomeRecord[]) => void): () => void {
-  if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof window.addEventListener !== 'function') return () => {};
+  incomeListeners.add(callback);
 
-  const handleCustom = (e: any) => {
-    callback(e.detail || getIncomeRecords());
-  };
+  let handleCustom: ((e: any) => void) | null = null;
+  let handleStorage: ((e: StorageEvent) => void) | null = null;
 
-  const handleStorage = (e: StorageEvent) => {
-    if (e.key && e.key.startsWith('monett_income_records')) {
-      callback(getIncomeRecords());
-    }
-  };
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    handleCustom = (e: any) => {
+      try {
+        callback(e.detail || getIncomeRecords());
+      } catch (_) {}
+    };
 
-  window.addEventListener(INCOME_UPDATED_EVENT, handleCustom);
-  window.addEventListener('storage', handleStorage);
+    handleStorage = (e: StorageEvent) => {
+      if (e.key && e.key.startsWith('monett_income_records')) {
+        try {
+          callback(getIncomeRecords());
+        } catch (_) {}
+      }
+    };
+
+    window.addEventListener(INCOME_UPDATED_EVENT, handleCustom);
+    window.addEventListener('storage', handleStorage);
+  }
 
   return () => {
-    if (typeof window.removeEventListener === 'function') {
-      window.removeEventListener(INCOME_UPDATED_EVENT, handleCustom);
-      window.removeEventListener('storage', handleStorage);
+    incomeListeners.delete(callback);
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+      if (handleCustom) window.removeEventListener(INCOME_UPDATED_EVENT, handleCustom);
+      if (handleStorage) window.removeEventListener('storage', handleStorage);
     }
   };
 }
@@ -269,9 +378,17 @@ export function syncIncomesFromBackendTransactions(
 ): IncomeRecord[] {
   if (!Array.isArray(txList) || txList.length === 0) return getIncomeRecords(userId);
 
-  const incomeTxs = txList.filter(
-    (t) => t && (t.type === 'income' || (t.amount && Number(t.amount) > 0 && t.type !== 'expense'))
-  );
+  const isIncome = (t: any): boolean => {
+    if (!t) return false;
+    if (t.type === 'income') return true;
+    if (typeof t.id === 'string' && t.id.startsWith('inc-')) return true;
+    if (typeof t._id === 'string' && t._id.startsWith('inc-')) return true;
+    if (t.category && INCOME_CATEGORY_NAMES.includes(t.category)) return true;
+    if (Number(t.amount) > 0 && t.type !== 'expense') return true;
+    return isIncomeTransactionOrItem(t);
+  };
+
+  const incomeTxs = txList.filter(isIncome);
 
   if (incomeTxs.length === 0) return getIncomeRecords(userId);
 
@@ -288,11 +405,15 @@ export function syncIncomesFromBackendTransactions(
       ? dateObj.toISOString().split('T')[0]
       : new Date().toISOString().split('T')[0];
 
+    const categoryName = (t.category && INCOME_CATEGORY_NAMES.includes(t.category))
+      ? t.category
+      : (t.category || 'Lương');
+
     const rec: IncomeRecord = {
       id,
-      title: t.title || t.note || 'Thu nhập',
+      title: t.title || t.note || (t.category ? `Khoản thu: ${t.category}` : 'Thu nhập'),
       amount: Math.abs(Number(t.amount) || 0),
-      category: t.category || 'Lương',
+      category: categoryName,
       date: dateStr,
       note: t.note || '',
       createdAt: isNaN(dateObj.getTime()) ? Date.now() : dateObj.getTime(),
@@ -305,3 +426,6 @@ export function syncIncomesFromBackendTransactions(
   syncIncomeWithBudget(merged);
   return merged;
 }
+
+// Tự động nạp trước từ AsyncStorage khi khởi tạo module
+preloadIncomeFromAsyncStorage().catch(() => {});

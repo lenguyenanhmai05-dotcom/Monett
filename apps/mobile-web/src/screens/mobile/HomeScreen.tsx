@@ -49,6 +49,7 @@ import {
   syncIncomeWithBudget,
   syncIncomesFromBackendTransactions,
   getIncomeRecords,
+  preloadIncomeFromAsyncStorage,
 } from '../../services/incomeStorage';
 
 interface HomeScreenProps {
@@ -403,6 +404,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   // Lắng nghe cập nhật các khoản thu nhập để nhảy tổng thu tức thì
   React.useEffect(() => {
+    preloadIncomeFromAsyncStorage().catch(() => {});
     const unsub = subscribeIncomeUpdates(() => {
       setIncomeRefreshTrigger((c) => c + 1);
     });
@@ -429,6 +431,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           setIsIncomeScreenOpen(false);
           fetchHomeData();
         }}
+        transactions={monthTransactions}
       />
     );
   }

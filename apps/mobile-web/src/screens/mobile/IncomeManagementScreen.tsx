@@ -23,12 +23,21 @@ import { AddIncomeModal } from '../../components/AddIncomeModal';
 
 interface IncomeManagementScreenProps {
   onBack: () => void;
+  transactions?: any[];
 }
 
-export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ onBack }) => {
+export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ onBack, transactions }) => {
   const { language } = useLanguage();
   const isVi = language === 'vi';
-  const [incomes, setIncomes] = useState<IncomeRecord[]>(() => getIncomeRecords());
+
+  // Khởi tạo state incomes ngay lập tức từ transactions (từ HomeScreen) hoặc getIncomeRecords()
+  const [incomes, setIncomes] = useState<IncomeRecord[]>(() => {
+    if (Array.isArray(transactions) && transactions.length > 0) {
+      const synced = syncIncomesFromBackendTransactions(transactions);
+      if (synced && synced.length > 0) return synced;
+    }
+    return getIncomeRecords();
+  });
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -43,19 +52,33 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
     return unsub;
   }, []);
 
+  // Đồng bộ ngay khi prop transactions thay đổi hoặc được truyền vào
+  useEffect(() => {
+    if (Array.isArray(transactions) && transactions.length > 0) {
+      const synced = syncIncomesFromBackendTransactions(transactions);
+      if (synced && synced.length > 0) {
+        setIncomes(synced);
+      }
+    }
+  }, [transactions]);
+
   // Tự động đồng bộ các khoản thu nhập từ backend transactions
   useEffect(() => {
+    let isMounted = true;
     const fetchBackendIncomes = async () => {
       try {
         const monthRes: any = await getTransactionsApi({ limit: 300 });
         const txList = Array.isArray(monthRes) ? monthRes : monthRes?.data || monthRes?.items || [];
-        if (Array.isArray(txList) && txList.length > 0) {
+        if (Array.isArray(txList) && txList.length > 0 && isMounted) {
           const synced = syncIncomesFromBackendTransactions(txList);
           setIncomes(synced);
         }
       } catch (err) {}
     };
     fetchBackendIncomes();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Tổng thu nhập của tháng hiện tại
@@ -246,6 +269,7 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
         visible={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onSuccess={async () => {
+          setIncomes(getIncomeRecords());
           try {
             const monthRes: any = await getTransactionsApi({ limit: 300 });
             const txList = Array.isArray(monthRes) ? monthRes : monthRes?.data || monthRes?.items || [];
