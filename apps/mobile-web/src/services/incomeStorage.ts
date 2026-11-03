@@ -2,7 +2,7 @@
  * incomeStorage.ts
  * Quản lý và lưu trữ các khoản thu nhập (Income Records) của Monett
  * Hỗ trợ lưu trữ bền vững qua in-memory cache, AsyncStorage (Mobile Native iOS/Android)
- * và localStorage (Web) & đồng bộ thời gian thực với backend MongoDB / ngân sách tổng.
+ * và localStorage (Web) & đồng bộ an toàn không gây render loop với React 19 Fabric.
  */
 
 import { Platform } from 'react-native';
@@ -61,30 +61,34 @@ export function getIncomeStorageKey(userId?: string): string {
 }
 
 /**
- * Phát tín hiệu cập nhật danh sách thu nhập đến tất cả component đang lắng nghe
+ * Phát tín hiệu cập nhật danh sách thu nhập đến tất cả component đang lắng nghe.
+ * Đẩy qua setTimeout(0) để KHÔNG bao giờ gọi setState đồng bộ trong chu trình render của React 19.
  */
 export function notifyIncomeUpdated(records?: IncomeRecord[]): void {
   if (isNotifying) return;
   isNotifying = true;
-  try {
-    const list = records || getIncomeRecords();
-    incomeListeners.forEach((cb) => {
-      try {
-        cb(list);
-      } catch (_) {}
-    });
 
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
-      try {
-        if (typeof CustomEvent !== 'undefined') {
-          window.dispatchEvent(new CustomEvent(INCOME_UPDATED_EVENT, { detail: list }));
-        }
-        window.dispatchEvent(new Event('storage'));
-      } catch (_) {}
+  setTimeout(() => {
+    try {
+      const list = records || getIncomeRecords();
+      incomeListeners.forEach((cb) => {
+        try {
+          cb(list);
+        } catch (_) {}
+      });
+
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+        try {
+          if (typeof CustomEvent !== 'undefined') {
+            window.dispatchEvent(new CustomEvent(INCOME_UPDATED_EVENT, { detail: list }));
+          }
+          window.dispatchEvent(new Event('storage'));
+        } catch (_) {}
+      }
+    } finally {
+      isNotifying = false;
     }
-  } finally {
-    isNotifying = false;
-  }
+  }, 0);
 }
 
 /**
@@ -114,7 +118,7 @@ export async function preloadIncomeFromAsyncStorage(userId?: string): Promise<In
 }
 
 /**
- * Lấy danh sách các khoản thu nhập từ storage theo từng tài khoản (0ms đồng bộ)
+ * Lấy danh sách các khoản thu nhập từ storage theo từng tài khoản (0ms đồng bộ, hoàn toàn pure)
  */
 export function getIncomeRecords(userId?: string): IncomeRecord[] {
   const key = getIncomeStorageKey(userId);
@@ -141,13 +145,11 @@ export function getIncomeRecords(userId?: string): IncomeRecord[] {
     } catch (_) {}
   }
 
-  // 3. Nếu chưa có trong memory, khởi tạo rỗng và kích hoạt preload AsyncStorage ngầm
   if (!inMemoryCache[key]) {
     inMemoryCache[key] = [];
-    preloadIncomeFromAsyncStorage(userId).catch(() => {});
   }
 
-  return inMemoryCache[key] || [];
+  return inMemoryCache[key];
 }
 
 /**
@@ -172,7 +174,7 @@ export function saveIncomeRecords(records: IncomeRecord[], userId?: string): voi
     } catch (_) {}
   }
 
-  // 3. Thông báo cho tất cả subscribers
+  // 3. Thông báo bất đồng bộ cho tất cả subscribers
   notifyIncomeUpdated(records);
 }
 
@@ -370,13 +372,11 @@ export function subscribeIncomeUpdates(callback: (records: IncomeRecord[]) => vo
 }
 
 /**
- * Đồng bộ danh sách các khoản thu nhập từ các giao dịch trên MongoDB Backend
+ * Hàm thuần túy (pure function) trích xuất danh sách IncomeRecord từ các giao dịch.
+ * Không gọi storage, không bắn event, hoàn toàn an toàn khi gọi trong useState initializer.
  */
-export function syncIncomesFromBackendTransactions(
-  txList: any[],
-  userId?: string
-): IncomeRecord[] {
-  if (!Array.isArray(txList) || txList.length === 0) return getIncomeRecords(userId);
+export function extractIncomesFromTransactions(txList: any[]): IncomeRecord[] {
+  if (!Array.isArray(txList) || txList.length === 0) return [];
 
   const isIncome = (t: any): boolean => {
     if (!t) return false;
@@ -389,16 +389,9 @@ export function syncIncomesFromBackendTransactions(
   };
 
   const incomeTxs = txList.filter(isIncome);
+  if (incomeTxs.length === 0) return [];
 
-  if (incomeTxs.length === 0) return getIncomeRecords(userId);
-
-  const existing = getIncomeRecords(userId);
-  const existingMap = new Map<string, IncomeRecord>();
-  existing.forEach((r) => {
-    if (r.id) existingMap.set(r.id, r);
-  });
-
-  incomeTxs.forEach((t) => {
+  return incomeTxs.map((t) => {
     const id = String(t._id || t.id);
     const dateObj = t.date ? new Date(t.date) : (t.createdAt ? new Date(t.createdAt) : new Date());
     const dateStr = !isNaN(dateObj.getTime())
@@ -409,7 +402,7 @@ export function syncIncomesFromBackendTransactions(
       ? t.category
       : (t.category || 'Lương');
 
-    const rec: IncomeRecord = {
+    return {
       id,
       title: t.title || t.note || (t.category ? `Khoản thu: ${t.category}` : 'Thu nhập'),
       amount: Math.abs(Number(t.amount) || 0),
@@ -418,8 +411,41 @@ export function syncIncomesFromBackendTransactions(
       note: t.note || '',
       createdAt: isNaN(dateObj.getTime()) ? Date.now() : dateObj.getTime(),
     };
-    existingMap.set(id, rec);
+  }).sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/**
+ * Đồng bộ danh sách các khoản thu nhập từ các giao dịch trên MongoDB Backend.
+ * Chỉ lưu và phát sự kiện nếu có dữ liệu mới/thay đổi để ngăn chặn render loop.
+ */
+export function syncIncomesFromBackendTransactions(
+  txList: any[],
+  userId?: string
+): IncomeRecord[] {
+  const existing = getIncomeRecords(userId);
+  if (!Array.isArray(txList) || txList.length === 0) return existing;
+
+  const extracted = extractIncomesFromTransactions(txList);
+  if (extracted.length === 0) return existing;
+
+  const existingMap = new Map<string, IncomeRecord>();
+  existing.forEach((r) => {
+    if (r.id) existingMap.set(r.id, r);
   });
+
+  let hasNewOrChanged = false;
+  extracted.forEach((rec) => {
+    const prev = existingMap.get(rec.id);
+    if (!prev || prev.amount !== rec.amount || prev.title !== rec.title || prev.date !== rec.date || prev.category !== rec.category) {
+      hasNewOrChanged = true;
+      existingMap.set(rec.id, rec);
+    }
+  });
+
+  // Nếu không có thay đổi nào, giữ nguyên tham chiếu cũ để không kích hoạt re-render
+  if (!hasNewOrChanged && existing.length === existingMap.size) {
+    return existing;
+  }
 
   const merged = Array.from(existingMap.values()).sort((a, b) => b.createdAt - a.createdAt);
   saveIncomeRecords(merged, userId);

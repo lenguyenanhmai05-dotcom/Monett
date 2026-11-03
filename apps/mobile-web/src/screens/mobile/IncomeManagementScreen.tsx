@@ -15,6 +15,7 @@ import {
   deleteIncomeRecord,
   subscribeIncomeUpdates,
   syncIncomesFromBackendTransactions,
+  extractIncomesFromTransactions,
   IncomeRecord,
 } from '../../services/incomeStorage';
 import { getTransactionsApi } from '../../services/api';
@@ -30,14 +31,21 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
   const { language } = useLanguage();
   const isVi = language === 'vi';
 
-  // Khởi tạo state incomes ngay lập tức từ transactions (từ HomeScreen) hoặc getIncomeRecords()
+  // Khởi tạo state incomes thuần túy (không side effect) từ transactions prop hoặc storage
   const [incomes, setIncomes] = useState<IncomeRecord[]>(() => {
+    const fromStorage = getIncomeRecords();
     if (Array.isArray(transactions) && transactions.length > 0) {
-      const synced = syncIncomesFromBackendTransactions(transactions);
-      if (synced && synced.length > 0) return synced;
+      const fromTx = extractIncomesFromTransactions(transactions);
+      if (fromTx.length > 0) {
+        const map = new Map<string, IncomeRecord>();
+        fromStorage.forEach((r) => map.set(r.id, r));
+        fromTx.forEach((r) => map.set(r.id, r));
+        return Array.from(map.values()).sort((a, b) => b.createdAt - a.createdAt);
+      }
     }
-    return getIncomeRecords();
+    return fromStorage;
   });
+
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -45,24 +53,41 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
   const curMonth = now.getMonth() + 1;
   const curYear = now.getFullYear();
 
+  // Đăng ký lắng nghe sự kiện cập nhật khoản thu
   useEffect(() => {
     const unsub = subscribeIncomeUpdates((updated) => {
-      setIncomes(updated);
+      setIncomes((prev) => {
+        if (
+          prev.length === updated.length &&
+          prev.every((p, i) => p.id === updated[i]?.id && p.amount === updated[i]?.amount)
+        ) {
+          return prev;
+        }
+        return updated;
+      });
     });
     return unsub;
   }, []);
 
-  // Đồng bộ ngay khi prop transactions thay đổi hoặc được truyền vào
+  // Đồng bộ ngầm khi prop transactions thay đổi (chỉ set state nếu thực sự khác)
   useEffect(() => {
     if (Array.isArray(transactions) && transactions.length > 0) {
       const synced = syncIncomesFromBackendTransactions(transactions);
       if (synced && synced.length > 0) {
-        setIncomes(synced);
+        setIncomes((prev) => {
+          if (
+            prev.length === synced.length &&
+            prev.every((p, i) => p.id === synced[i]?.id && p.amount === synced[i]?.amount)
+          ) {
+            return prev;
+          }
+          return synced;
+        });
       }
     }
   }, [transactions]);
 
-  // Tự động đồng bộ các khoản thu nhập từ backend transactions
+  // Tự động đồng bộ các khoản thu nhập từ backend MongoDB
   useEffect(() => {
     let isMounted = true;
     const fetchBackendIncomes = async () => {
@@ -71,7 +96,15 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
         const txList = Array.isArray(monthRes) ? monthRes : monthRes?.data || monthRes?.items || [];
         if (Array.isArray(txList) && txList.length > 0 && isMounted) {
           const synced = syncIncomesFromBackendTransactions(txList);
-          setIncomes(synced);
+          setIncomes((prev) => {
+            if (
+              prev.length === synced.length &&
+              prev.every((p, i) => p.id === synced[i]?.id && p.amount === synced[i]?.amount)
+            ) {
+              return prev;
+            }
+            return synced;
+          });
         }
       } catch (err) {}
     };
