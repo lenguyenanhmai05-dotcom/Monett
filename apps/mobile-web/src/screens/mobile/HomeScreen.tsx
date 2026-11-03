@@ -50,6 +50,7 @@ import {
   syncIncomesFromBackendTransactions,
   getIncomeRecords,
   preloadIncomeFromAsyncStorage,
+  getDeletedIncomeIds,
 } from '../../services/incomeStorage';
 
 interface HomeScreenProps {
@@ -335,11 +336,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       const monthRes: any = await getTransactionsApi({ limit: 300 });
       const txList = Array.isArray(monthRes) ? monthRes : monthRes?.data || monthRes?.items || [];
       if (Array.isArray(txList)) {
-        setMonthTransactions(txList);
+        const deletedIds = getDeletedIncomeIds();
+        const activeTxList = txList.filter((t) => !deletedIds.has(String(t._id || t.id)));
+        setMonthTransactions(activeTxList);
         const curRecords = getInitialDayRecordsFromLocalStorage();
-        const merged = mergeTransactionsIntoDayRecords(curRecords, txList);
+        const merged = mergeTransactionsIntoDayRecords(curRecords, activeTxList);
         saveDayRecordsToStorage(merged);
-        syncIncomesFromBackendTransactions(txList);
+        syncIncomesFromBackendTransactions(activeTxList);
       }
     } catch (e) {}
 

@@ -16,6 +16,7 @@ import {
   subscribeIncomeUpdates,
   syncIncomesFromBackendTransactions,
   extractIncomesFromTransactions,
+  getDeletedIncomeIds,
   IncomeRecord,
 } from '../../services/incomeStorage';
 import { getTransactionsApi } from '../../services/api';
@@ -31,15 +32,23 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
   const { language } = useLanguage();
   const isVi = language === 'vi';
 
-  // Khởi tạo state incomes thuần túy (không side effect) từ transactions prop hoặc storage
+  const now = useMemo(() => new Date(), []);
+  const [viewYear, setViewYear] = useState<number>(now.getFullYear());
+  const [viewMonth, setViewMonth] = useState<number>(now.getMonth() + 1);
+  const [activeTab, setActiveTab] = useState<'month' | 'all'>('month');
+
+  // Khởi tạo state incomes thuần túy (không side effect), loại bỏ các mục đã bị xóa
   const [incomes, setIncomes] = useState<IncomeRecord[]>(() => {
-    const fromStorage = getIncomeRecords();
+    const deletedIds = getDeletedIncomeIds();
+    const fromStorage = getIncomeRecords().filter((r) => !deletedIds.has(r.id));
     if (Array.isArray(transactions) && transactions.length > 0) {
       const fromTx = extractIncomesFromTransactions(transactions);
       if (fromTx.length > 0) {
         const map = new Map<string, IncomeRecord>();
         fromStorage.forEach((r) => map.set(r.id, r));
-        fromTx.forEach((r) => map.set(r.id, r));
+        fromTx.forEach((r) => {
+          if (!deletedIds.has(r.id)) map.set(r.id, r);
+        });
         return Array.from(map.values()).sort((a, b) => b.createdAt - a.createdAt);
       }
     }
@@ -49,39 +58,39 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const now = useMemo(() => new Date(), []);
-  const curMonth = now.getMonth() + 1;
-  const curYear = now.getFullYear();
-
   // Đăng ký lắng nghe sự kiện cập nhật khoản thu
   useEffect(() => {
     const unsub = subscribeIncomeUpdates((updated) => {
+      const deletedIds = getDeletedIncomeIds();
+      const valid = updated.filter((r) => !deletedIds.has(r.id));
       setIncomes((prev) => {
         if (
-          prev.length === updated.length &&
-          prev.every((p, i) => p.id === updated[i]?.id && p.amount === updated[i]?.amount)
+          prev.length === valid.length &&
+          prev.every((p, i) => p.id === valid[i]?.id && p.amount === valid[i]?.amount)
         ) {
           return prev;
         }
-        return updated;
+        return valid;
       });
     });
     return unsub;
   }, []);
 
-  // Đồng bộ ngầm khi prop transactions thay đổi (chỉ set state nếu thực sự khác)
+  // Đồng bộ ngầm khi prop transactions thay đổi
   useEffect(() => {
     if (Array.isArray(transactions) && transactions.length > 0) {
       const synced = syncIncomesFromBackendTransactions(transactions);
       if (synced && synced.length > 0) {
+        const deletedIds = getDeletedIncomeIds();
+        const valid = synced.filter((r) => !deletedIds.has(r.id));
         setIncomes((prev) => {
           if (
-            prev.length === synced.length &&
-            prev.every((p, i) => p.id === synced[i]?.id && p.amount === synced[i]?.amount)
+            prev.length === valid.length &&
+            prev.every((p, i) => p.id === valid[i]?.id && p.amount === valid[i]?.amount)
           ) {
             return prev;
           }
-          return synced;
+          return valid;
         });
       }
     }
@@ -96,14 +105,16 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
         const txList = Array.isArray(monthRes) ? monthRes : monthRes?.data || monthRes?.items || [];
         if (Array.isArray(txList) && txList.length > 0 && isMounted) {
           const synced = syncIncomesFromBackendTransactions(txList);
+          const deletedIds = getDeletedIncomeIds();
+          const valid = synced.filter((r) => !deletedIds.has(r.id));
           setIncomes((prev) => {
             if (
-              prev.length === synced.length &&
-              prev.every((p, i) => p.id === synced[i]?.id && p.amount === synced[i]?.amount)
+              prev.length === valid.length &&
+              prev.every((p, i) => p.id === valid[i]?.id && p.amount === valid[i]?.amount)
             ) {
               return prev;
             }
-            return synced;
+            return valid;
           });
         }
       } catch (err) {}
@@ -114,24 +125,51 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
     };
   }, []);
 
-  // Tổng thu nhập của tháng hiện tại
+  // Danh sách các khoản thu của tháng đang xem
+  const monthIncomes = useMemo(() => {
+    return incomes.filter((r) => {
+      if (!r || !r.date) return false;
+      const d = new Date(r.date);
+      if (!isNaN(d.getTime())) {
+        return d.getFullYear() === viewYear && d.getMonth() + 1 === viewMonth;
+      }
+      const parts = String(r.date).split('-');
+      return Number(parts[0]) === viewYear && Number(parts[1]) === viewMonth;
+    });
+  }, [incomes, viewYear, viewMonth]);
+
+  // Tổng thu nhập của tháng đang chọn xem
   const monthTotalIncome = useMemo(() => {
-    return incomes
-      .filter((r) => {
-        if (!r || !r.date) return false;
-        const d = new Date(r.date);
-        if (!isNaN(d.getTime())) {
-          return d.getFullYear() === curYear && d.getMonth() + 1 === curMonth;
-        }
-        const parts = String(r.date).split('-');
-        return Number(parts[0]) === curYear && Number(parts[1]) === curMonth;
-      })
-      .reduce((sum, item) => sum + (item.amount || 0), 0);
-  }, [incomes, curYear, curMonth]);
+    return monthIncomes.reduce((sum, item) => sum + (item.amount || 0), 0);
+  }, [monthIncomes]);
+
+  // Danh sách hiển thị theo tab (Tháng đang chọn hoặc Tất cả)
+  const displayedIncomes = activeTab === 'month' ? monthIncomes : incomes;
+
+  const handlePrevMonth = () => {
+    if (viewMonth === 1) {
+      setViewMonth(12);
+      setViewYear((y) => y - 1);
+    } else {
+      setViewMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (viewMonth === 12) {
+      setViewMonth(1);
+      setViewYear((y) => y + 1);
+    } else {
+      setViewMonth((m) => m + 1);
+    }
+  };
 
   const handleDelete = (id: string, title: string) => {
     const doDelete = async () => {
       setDeletingId(id);
+      // 1. Cập nhật lạc quan (Optimistic UI): Xóa ngay khỏi danh sách hiển thị
+      setIncomes((prev) => prev.filter((r) => r.id !== id));
+      // 2. Xóa vĩnh viễn trong Storage và MongoDB Backend
       await deleteIncomeRecord(id);
       setDeletingId(null);
     };
@@ -182,7 +220,32 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ================= 1. CARD TỔNG THU NHẬP (CHUẨN HÌNH 1) ================= */}
+        {/* ================= THANH ĐIỀU HƯỚNG THÁNG/NĂM ================= */}
+        <View style={styles.monthNavRow}>
+          <TouchableOpacity
+            style={styles.monthNavBtn}
+            onPress={handlePrevMonth}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="chevron-back" size={18} color="#064E3B" />
+          </TouchableOpacity>
+
+          <Text style={styles.monthNavTitle}>
+            {isVi ? `Thg ${viewMonth}, ${viewYear}` : `${viewMonth}/${viewYear}`}
+          </Text>
+
+          <TouchableOpacity
+            style={styles.monthNavBtn}
+            onPress={handleNextMonth}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="chevron-forward" size={18} color="#064E3B" />
+          </TouchableOpacity>
+        </View>
+
+        {/* ================= 1. CARD TỔNG THU NHẬP THEO THÁNG ================= */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryTopRow}>
             <View style={styles.trendingIconBox}>
@@ -191,7 +254,7 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
 
             <View style={styles.summaryInfoCol}>
               <Text style={styles.summaryLabel}>
-                TỔNG THU NHẬP (THÁNG {curMonth}/{curYear})
+                TỔNG THU NHẬP (THÁNG {viewMonth}/{viewYear})
               </Text>
               <Text style={styles.summaryAmount} numberOfLines={1}>
                 +{monthTotalIncome.toLocaleString('vi-VN')} đ
@@ -204,7 +267,7 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
           <View style={styles.summaryBottomRow}>
             <View>
               <Text style={styles.countSubText}>Số khoản thu</Text>
-              <Text style={styles.countMainText}>{incomes.length} khoản</Text>
+              <Text style={styles.countMainText}>{monthIncomes.length} khoản</Text>
             </View>
 
             <TouchableOpacity
@@ -218,19 +281,40 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
           </View>
         </View>
 
-        {/* ================= 2. LỊCH SỬ THU NHẬP THÁNG NÀY ================= */}
-        <View style={styles.listSectionHeader}>
-          <Text style={styles.listSectionTitle}>
-            LỊCH SỬ THU NHẬP THÁNG NÀY ({incomes.length})
-          </Text>
+        {/* ================= 2. TAB CHUYỂN ĐỔI: THÁNG NÀY VS TẤT CẢ ================= */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'month' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('month')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.tabBtnText, activeTab === 'month' && styles.tabBtnTextActive]}>
+              Tháng {viewMonth} ({monthIncomes.length})
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.tabBtn, activeTab === 'all' && styles.tabBtnActive]}
+            onPress={() => setActiveTab('all')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.tabBtnText, activeTab === 'all' && styles.tabBtnTextActive]}>
+              Tất cả lịch sử ({incomes.length})
+            </Text>
+          </TouchableOpacity>
         </View>
 
-        {incomes.length === 0 ? (
+        {/* ================= 3. DANH SÁCH CÁC KHOẢN THU ================= */}
+        {displayedIncomes.length === 0 ? (
           <View style={styles.emptyContainer}>
             <View style={styles.emptyIconBox}>
               <Ionicons name="wallet-outline" size={36} color="#059669" />
             </View>
-            <Text style={styles.emptyTitle}>Chưa có khoản thu nhập nào</Text>
+            <Text style={styles.emptyTitle}>
+              {activeTab === 'month'
+                ? `Chưa có khoản thu nào trong Tháng ${viewMonth}/${viewYear}`
+                : 'Chưa có khoản thu nhập nào'}
+            </Text>
             <Text style={styles.emptySubtitle}>
               Ghi chép các nguồn thu lương, thưởng, freelance để quản lý dòng tiền chính xác hơn nhé!
             </Text>
@@ -239,11 +323,11 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
               onPress={() => setIsAddModalOpen(true)}
               activeOpacity={0.85}
             >
-              <Text style={styles.emptyAddBtnText}>+ Thêm Khoản Thu Đầu Tiên</Text>
+              <Text style={styles.emptyAddBtnText}>+ Thêm Thu Nhập</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          incomes.map((item) => {
+          displayedIncomes.map((item) => {
             const catMeta = INCOME_CATEGORIES_LIST.find((c) => c.name === item.category);
             const bgColor = catMeta?.bgColor || '#FEF3C7';
 
@@ -301,6 +385,7 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
       <AddIncomeModal
         visible={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
+        defaultDate={`${viewYear}-${String(viewMonth).padStart(2, '0')}-${String(Math.min(now.getDate(), 28)).padStart(2, '0')}`}
         onSuccess={async () => {
           setIncomes(getIncomeRecords());
           try {
@@ -328,7 +413,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 12,
+    paddingBottom: 10,
     backgroundColor: '#F5F0E8',
   },
   backBtn: {
@@ -373,10 +458,33 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 4,
   },
 
-  // 1. Thẻ tổng quan thu nhập (Chuẩn theo hình 1)
+  // Thanh điều hướng tháng
+  monthNavRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    backgroundColor: '#ECE5D8',
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    alignSelf: 'center',
+  },
+  monthNavBtn: {
+    padding: 6,
+  },
+  monthNavTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#064E3B',
+    marginHorizontal: 12,
+    letterSpacing: -0.2,
+  },
+
+  // 1. Thẻ tổng quan thu nhập
   summaryCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
@@ -388,7 +496,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 10,
     elevation: 3,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   summaryTopRow: {
     flexDirection: 'row',
@@ -460,19 +568,40 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
 
-  // 2. Section Header
-  listSectionHeader: {
-    marginBottom: 10,
-    paddingHorizontal: 2,
+  // Tabs
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#EBE5D8',
+    borderRadius: 14,
+    padding: 3,
+    marginBottom: 14,
   },
-  listSectionTitle: {
-    fontSize: 12,
-    fontWeight: '800',
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  tabBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#221D18',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  tabBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
     color: '#64748B',
-    letterSpacing: 0.6,
+  },
+  tabBtnTextActive: {
+    color: '#064E3B',
+    fontWeight: '800',
   },
 
-  // 3. Item Card
+  // Item Card
   incomeItemCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -551,7 +680,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#EFE9DF',
-    marginTop: 8,
+    marginTop: 4,
   },
   emptyIconBox: {
     width: 64,
@@ -567,6 +696,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#1E293B',
     marginBottom: 6,
+    textAlign: 'center',
   },
   emptySubtitle: {
     fontSize: 13,

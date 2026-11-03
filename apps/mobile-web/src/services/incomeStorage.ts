@@ -42,6 +42,9 @@ export const INCOME_UPDATED_EVENT = 'monett:income_records_updated';
 // 1. In-memory cache đồng bộ để đọc tức thì 0ms trên cả React Native Mobile & Web
 const inMemoryCache: Record<string, IncomeRecord[]> = {};
 
+// Danh sách các id đã bị người dùng xóa để không bao giờ bị merge lại từ transaction cũ
+const inMemoryDeletedIds = new Set<string>();
+
 // In-memory listeners cho cập nhật chéo giữa các widget và màn hình
 const incomeListeners = new Set<(records: IncomeRecord[]) => void>();
 let isNotifying = false;
@@ -54,6 +57,53 @@ const getAsyncStorage = () => {
     return null;
   }
 };
+
+export function getDeletedIncomeIds(): Set<string> {
+  return inMemoryDeletedIds;
+}
+
+export function markIncomeDeleted(id: string): void {
+  if (!id) return;
+  inMemoryDeletedIds.add(id);
+
+  // Lưu vào AsyncStorage và localStorage
+  const storage = getAsyncStorage();
+  if (storage) {
+    storage.setItem('monett_deleted_income_ids', JSON.stringify(Array.from(inMemoryDeletedIds))).catch(() => {});
+  }
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      localStorage.setItem('monett_deleted_income_ids', JSON.stringify(Array.from(inMemoryDeletedIds)));
+    } catch (_) {}
+  }
+}
+
+export async function preloadDeletedIncomeIds(): Promise<Set<string>> {
+  const storage = getAsyncStorage();
+  if (storage) {
+    try {
+      const raw = await storage.getItem('monett_deleted_income_ids');
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          arr.forEach((id: string) => inMemoryDeletedIds.add(id));
+        }
+      }
+    } catch (_) {}
+  }
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const raw = localStorage.getItem('monett_deleted_income_ids');
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          arr.forEach((id: string) => inMemoryDeletedIds.add(id));
+        }
+      }
+    } catch (_) {}
+  }
+  return inMemoryDeletedIds;
+}
 
 export function getIncomeStorageKey(userId?: string): string {
   const uid = userId || getStoredUserId();
@@ -95,6 +145,7 @@ export function notifyIncomeUpdated(records?: IncomeRecord[]): void {
  * Tải trước dữ liệu thu nhập từ AsyncStorage vào in-memory cache khi khởi động app
  */
 export async function preloadIncomeFromAsyncStorage(userId?: string): Promise<IncomeRecord[]> {
+  await preloadDeletedIncomeIds();
   const key = getIncomeStorageKey(userId);
   const storage = getAsyncStorage();
   if (!storage) return inMemoryCache[key] || [];
@@ -105,7 +156,7 @@ export async function preloadIncomeFromAsyncStorage(userId?: string): Promise<In
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         const cleaned = parsed.filter(
-          (r) => r && r.id !== 'inc-sample-1' && r.title !== 'Lương hàng tháng'
+          (r) => r && r.id !== 'inc-sample-1' && r.title !== 'Lương hàng tháng' && !inMemoryDeletedIds.has(r.id)
         );
         inMemoryCache[key] = cleaned;
         notifyIncomeUpdated(cleaned);
@@ -125,7 +176,7 @@ export function getIncomeRecords(userId?: string): IncomeRecord[] {
 
   // 1. In-memory cache trước (nhanh nhất và không mất giữa các lần chuyển màn hình)
   if (inMemoryCache[key] && Array.isArray(inMemoryCache[key])) {
-    return inMemoryCache[key];
+    return inMemoryCache[key].filter((r) => r && !inMemoryDeletedIds.has(r.id));
   }
 
   // 2. Thử đọc từ window.localStorage nếu chạy trên Web / Mobile Web
@@ -136,7 +187,7 @@ export function getIncomeRecords(userId?: string): IncomeRecord[] {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
           const cleaned = parsed.filter(
-            (r) => r && r.id !== 'inc-sample-1' && r.title !== 'Lương hàng tháng'
+            (r) => r && r.id !== 'inc-sample-1' && r.title !== 'Lương hàng tháng' && !inMemoryDeletedIds.has(r.id)
           );
           inMemoryCache[key] = cleaned;
           return cleaned;
@@ -157,12 +208,13 @@ export function getIncomeRecords(userId?: string): IncomeRecord[] {
  */
 export function saveIncomeRecords(records: IncomeRecord[], userId?: string): void {
   const key = getIncomeStorageKey(userId);
-  inMemoryCache[key] = records;
+  const filtered = records.filter((r) => r && !inMemoryDeletedIds.has(r.id));
+  inMemoryCache[key] = filtered;
 
   // 1. Lưu vào Web localStorage nếu có
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
-      localStorage.setItem(key, JSON.stringify(records));
+      localStorage.setItem(key, JSON.stringify(filtered));
     } catch (_) {}
   }
 
@@ -170,12 +222,12 @@ export function saveIncomeRecords(records: IncomeRecord[], userId?: string): voi
   const storage = getAsyncStorage();
   if (storage) {
     try {
-      storage.setItem(key, JSON.stringify(records)).catch(() => {});
+      storage.setItem(key, JSON.stringify(filtered)).catch(() => {});
     } catch (_) {}
   }
 
   // 3. Thông báo bất đồng bộ cho tất cả subscribers
-  notifyIncomeUpdated(records);
+  notifyIncomeUpdated(filtered);
 }
 
 /**
@@ -319,9 +371,10 @@ export async function addIncomeRecord(
 }
 
 /**
- * Xóa một khoản thu nhập
+ * Xóa một khoản thu nhập (vĩnh viễn, không bị hồi sinh lại từ cache cũ)
  */
 export async function deleteIncomeRecord(id: string): Promise<boolean> {
+  markIncomeDeleted(id);
   const current = getIncomeRecords();
   const updated = current.filter((r) => r.id !== id);
   saveIncomeRecords(updated);
@@ -373,13 +426,15 @@ export function subscribeIncomeUpdates(callback: (records: IncomeRecord[]) => vo
 
 /**
  * Hàm thuần túy (pure function) trích xuất danh sách IncomeRecord từ các giao dịch.
- * Không gọi storage, không bắn event, hoàn toàn an toàn khi gọi trong useState initializer.
+ * Không gọi storage, không bắn event, loại bỏ các mục đã bị xóa.
  */
 export function extractIncomesFromTransactions(txList: any[]): IncomeRecord[] {
   if (!Array.isArray(txList) || txList.length === 0) return [];
 
   const isIncome = (t: any): boolean => {
     if (!t) return false;
+    const id = String(t._id || t.id);
+    if (inMemoryDeletedIds.has(id)) return false; // Không lấy các mục đã bị xóa
     if (t.type === 'income') return true;
     if (typeof t.id === 'string' && t.id.startsWith('inc-')) return true;
     if (typeof t._id === 'string' && t._id.startsWith('inc-')) return true;
@@ -430,11 +485,12 @@ export function syncIncomesFromBackendTransactions(
 
   const existingMap = new Map<string, IncomeRecord>();
   existing.forEach((r) => {
-    if (r.id) existingMap.set(r.id, r);
+    if (r.id && !inMemoryDeletedIds.has(r.id)) existingMap.set(r.id, r);
   });
 
   let hasNewOrChanged = false;
   extracted.forEach((rec) => {
+    if (inMemoryDeletedIds.has(rec.id)) return;
     const prev = existingMap.get(rec.id);
     if (!prev || prev.amount !== rec.amount || prev.title !== rec.title || prev.date !== rec.date || prev.category !== rec.category) {
       hasNewOrChanged = true;
