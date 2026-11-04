@@ -658,69 +658,134 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
         </View>
 
         {/* ========================================================================= */}
-        {/* 2. OVERVIEW STAT CARDS (GIỐNG TRANG TÍCH LŨY) */}
+        {/* 2. OVERVIEW STAT CARDS (GIỐNG TRANG SỰ KIỆN) */}
         {/* ========================================================================= */}
-        <View style={styles.statsContainer}>
-          {/* Card 1: Tổng đang cho mượn / Tổng nợ cần trả (#221D18 - Hẹp lại / thon gọn) */}
-          <View style={[styles.statCard, styles.statCardDark, styles.statCardDarkSlim]}>
-            <View style={styles.statCardHeader}>
-              <Text style={styles.statCardLabelDark}>
+        {isDesktop ? (
+          /* ================= GIAO DIỆN WEB: 3 Ô NGANG HÀNG ================= */
+          <View style={styles.statsGrid}>
+            {/* Card 1: Tổng đang cho mượn / Tổng nợ cần trả (#064E3B) */}
+            <View
+              style={[
+                styles.statCard,
+                styles.statCardDark,
+                isDark && {
+                  backgroundColor: '#0D2018',
+                  borderColor: 'rgba(16, 185, 129, 0.35)',
+                  shadowColor: '#000',
+                },
+              ]}
+            >
+              <View style={[styles.statCardHeader, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+                <Text style={styles.statCardLabelDark}>
+                  {activeTab === 'lent'
+                    ? isVi
+                      ? 'TỔNG ĐANG CHO MƯỢN'
+                      : 'TOTAL RECEIVABLE'
+                    : isVi
+                      ? 'TỔNG NỢ CẦN TRẢ'
+                      : 'TOTAL PAYABLE'}
+                </Text>
+                <View style={[styles.percentBadge, isDark && { backgroundColor: 'rgba(52, 211, 153, 0.2)' }]}>
+                  <Text style={[styles.percentBadgeText, isDark && { color: '#34D399' }]}>{stats.completionPercent}%</Text>
+                </View>
+              </View>
+
+              <Text style={styles.statCardValueDark} numberOfLines={1}>
+                {formatVND(stats.totalRemaining)} <Text style={styles.currencySubDark}>đ</Text>
+              </Text>
+
+              <View style={styles.cardDarkDivider} />
+
+              <Text style={styles.statCardSubDark}>
+                {stats.unsettledCount}{' '}
                 {activeTab === 'lent'
                   ? isVi
-                    ? 'TỔNG ĐANG CHO MƯỢN'
-                    : 'TOTAL RECEIVABLE'
+                    ? `người chưa trả · Tổng: ${formatVND(stats.totalAmount)} đ`
+                    : `unpaid · Total: ${formatVND(stats.totalAmount)} đ`
                   : isVi
-                    ? 'TỔNG NỢ CẦN TRẢ'
-                    : 'TOTAL PAYABLE'}
+                    ? `khoản chưa trả · Tổng: ${formatVND(stats.totalAmount)} đ`
+                    : `unpaid · Total: ${formatVND(stats.totalAmount)} đ`}
               </Text>
-              <View style={styles.percentBadge}>
-                <Text style={styles.percentBadgeText}>{stats.completionPercent}%</Text>
-              </View>
             </View>
 
-            <Text style={styles.statCardValueDark} numberOfLines={1}>
-              {formatVND(stats.totalRemaining)} <Text style={styles.currencySubDark}>đ</Text>
-            </Text>
+            {/* Card 2: Đã thu hồi / Đã trả bớt (thẻ mint giống Sự kiện) */}
+            <View
+              style={[
+                styles.statCard,
+                styles.statCardMint,
+                isDark && {
+                  backgroundColor: '#0F261D',
+                  borderColor: 'rgba(16, 185, 129, 0.3)',
+                },
+              ]}
+            >
+              <View style={styles.cardHeaderLeftWrap}>
+                <Ionicons name="sparkles" size={17} color={isDark ? '#34D399' : '#047857'} style={{ marginRight: 6 }} />
+                <Text
+                  style={[
+                    styles.statCardLabelPastel,
+                    { color: isDark ? '#34D399' : '#047857' },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {activeTab === 'lent'
+                    ? isVi
+                      ? 'Đã thu hồi'
+                      : 'Recovered'
+                    : isVi
+                      ? 'Đã trả bớt'
+                      : 'Repaid'}
+                </Text>
+              </View>
 
-            <View style={styles.cardDarkDivider} />
+              <Text
+                style={[
+                  styles.cardMintAmount,
+                  { color: isDark ? '#F8FAFC' : '#047857' },
+                ]}
+                numberOfLines={1}
+              >
+                {formatVND(stats.totalPaid)} <Text style={{ fontSize: 16, fontWeight: '700' }}>đ</Text>
+              </Text>
 
-            <Text style={styles.statCardSubDark}>
-              {stats.unsettledCount}{' '}
-              {activeTab === 'lent'
-                ? isVi
-                  ? `người chưa trả · Tổng: ${formatVND(stats.totalAmount)} đ`
-                  : `unpaid · Total: ${formatVND(stats.totalAmount)} đ`
-                : isVi
-                  ? `khoản chưa trả · Tổng: ${formatVND(stats.totalAmount)} đ`
-                  : `unpaid · Total: ${formatVND(stats.totalAmount)} đ`}
-            </Text>
-          </View>
+              <Text
+                style={[
+                  styles.statCardSubPastel,
+                  { color: isDark ? '#6EE7B7' : '#065F46' },
+                ]}
+                numberOfLines={1}
+              >
+                {stats.completionPercent}%{' '}
+                {activeTab === 'lent'
+                  ? isVi
+                    ? 'thu hồi xong'
+                    : 'collected'
+                  : isVi
+                    ? 'đã thanh toán'
+                    : 'paid off'}
+              </Text>
+            </View>
 
-          {/* Gộp Tab 2 & Tab 3: Bên trái là Tab 3 (Số khoản), bên phải là Tab 2 (Đã thu hồi / Đã trả bớt) */}
-          <View style={styles.twoCardsRow}>
-            {/* Bên trái: Tab 3 (Số khoản - thẻ xanh pastel) */}
+            {/* Card 3: Số khoản (thẻ vàng pastel giống Sự kiện) */}
             <View
               style={[
                 styles.statCard,
                 styles.statCardBlue,
-                styles.halfCard,
                 isDark && { backgroundColor: '#241B0E', borderColor: 'rgba(245, 158, 11, 0.3)' },
               ]}
             >
-              <View style={styles.statCardHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <SvgBook size={15} color={isDark ? '#FBBF24' : '#1E3A8A'} />
-                  <Text
-                    style={[styles.statCardLabelBlue, isDark && { color: '#FBBF24' }]}
-                    numberOfLines={1}
-                  >
-                    {isVi ? 'Số khoản' : 'Debts count'}
-                  </Text>
-                </View>
+              <View style={styles.cardHeaderLeftWrap}>
+                <Ionicons name="time-outline" size={17} color={isDark ? '#FBBF24' : '#B45309'} style={{ marginRight: 6 }} />
+                <Text
+                  style={[styles.statCardLabelBlue, isDark && { color: '#FBBF24' }]}
+                  numberOfLines={1}
+                >
+                  {isVi ? 'Số khoản' : 'Debts count'}
+                </Text>
               </View>
 
               <Text
-                style={[styles.halfCardAmountBlue, isDark && { color: '#F8FAFC' }]}
+                style={[styles.cardSkyAmount, isDark && { color: '#F8FAFC' }]}
                 numberOfLines={1}
               >
                 {currentTabDebts.length}
@@ -740,74 +805,157 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
                     : 'active debts'}
               </Text>
             </View>
-
-            {/* Bên phải: Tab 2 (Đã thu hồi / Đã trả bớt - thẻ mint / pink) */}
-            <View
-              style={[
-                styles.statCard,
-                activeTab === 'lent' ? styles.statCardMint : styles.statCardPink,
-                styles.halfCard,
-                isDark && {
-                  backgroundColor: activeTab === 'lent' ? '#0F261D' : '#2A1215',
-                  borderColor: activeTab === 'lent' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
-                },
-              ]}
-            >
+          </View>
+        ) : (
+          /* ================= GIAO DIỆN MOBILE: (1 Ô TRÊN + 2 Ô DƯỚI) ================= */
+          <View style={styles.statsContainer}>
+            {/* Card 1: Tổng đang cho mượn / Tổng nợ cần trả (#221D18 - Hẹp lại / thon gọn) */}
+            <View style={[styles.statCard, styles.statCardDark, styles.statCardDarkSlim]}>
               <View style={styles.statCardHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <SvgCheckCircle
-                    size={15}
-                    color={isDark ? (activeTab === 'lent' ? '#34D399' : '#F87171') : (activeTab === 'lent' ? '#065F46' : '#7F1D1D')}
-                  />
-                  <Text
-                    style={[
-                      styles.statCardLabelPastel,
-                      { color: isDark ? (activeTab === 'lent' ? '#34D399' : '#F87171') : (activeTab === 'lent' ? '#065F46' : '#7F1D1D') },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {activeTab === 'lent'
-                      ? isVi
-                        ? 'Đã thu hồi'
-                        : 'Recovered'
-                      : isVi
-                        ? 'Đã trả bớt'
-                        : 'Repaid'}
-                  </Text>
+                <Text style={styles.statCardLabelDark}>
+                  {activeTab === 'lent'
+                    ? isVi
+                      ? 'TỔNG ĐANG CHO MƯỢN'
+                      : 'TOTAL RECEIVABLE'
+                    : isVi
+                      ? 'TỔNG NỢ CẦN TRẢ'
+                      : 'TOTAL PAYABLE'}
+                </Text>
+                <View style={styles.percentBadge}>
+                  <Text style={styles.percentBadgeText}>{stats.completionPercent}%</Text>
                 </View>
               </View>
 
-              <Text
-                style={[
-                  styles.halfCardAmountPastel,
-                  { color: isDark ? '#F8FAFC' : (activeTab === 'lent' ? '#065F46' : '#7F1D1D') },
-                ]}
-                numberOfLines={1}
-              >
-                {formatVND(stats.totalPaid)} <Text style={{ fontSize: 13, fontWeight: '700' }}>đ</Text>
+              <Text style={styles.statCardValueDark} numberOfLines={1}>
+                {formatVND(stats.totalRemaining)} <Text style={styles.currencySubDark}>đ</Text>
               </Text>
 
-              <Text
-                style={[
-                  styles.statCardSubPastel,
-                  { color: isDark ? (activeTab === 'lent' ? '#6EE7B7' : '#FCA5A5') : (activeTab === 'lent' ? '#065F46' : '#7F1D1D') },
-                ]}
-                numberOfLines={1}
-              >
-                {stats.completionPercent}%{' '}
+              <View style={styles.cardDarkDivider} />
+
+              <Text style={styles.statCardSubDark}>
+                {stats.unsettledCount}{' '}
                 {activeTab === 'lent'
                   ? isVi
-                    ? 'thu hồi xong'
-                    : 'collected'
+                    ? `người chưa trả · Tổng: ${formatVND(stats.totalAmount)} đ`
+                    : `unpaid · Total: ${formatVND(stats.totalAmount)} đ`
                   : isVi
-                    ? 'đã thanh toán'
-                    : 'paid off'}
+                    ? `khoản chưa trả · Tổng: ${formatVND(stats.totalAmount)} đ`
+                    : `unpaid · Total: ${formatVND(stats.totalAmount)} đ`}
               </Text>
             </View>
-          </View>
-        </View>
 
-        {/* ========================================================================= */}
+            {/* Gộp Tab 2 & Tab 3: Bên trái là Tab 3 (Số khoản), bên phải là Tab 2 (Đã thu hồi / Đã trả bớt) */}
+            <View style={styles.twoCardsRow}>
+              {/* Bên trái: Tab 3 (Số khoản - thẻ vàng) */}
+              <View
+                style={[
+                  styles.statCard,
+                  styles.statCardBlue,
+                  styles.halfCard,
+                  isDark && { backgroundColor: '#241B0E', borderColor: 'rgba(245, 158, 11, 0.3)' },
+                ]}
+              >
+                <View style={styles.statCardHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <SvgBook size={15} color={isDark ? '#FBBF24' : '#B45309'} />
+                    <Text
+                      style={[styles.statCardLabelBlue, isDark && { color: '#FBBF24' }]}
+                      numberOfLines={1}
+                    >
+                      {isVi ? 'Số khoản' : 'Debts count'}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text
+                  style={[styles.halfCardAmountBlue, isDark && { color: '#F8FAFC' }]}
+                  numberOfLines={1}
+                >
+                  {currentTabDebts.length}
+                </Text>
+
+                <Text
+                  style={[styles.statCardSubBlue, isDark && { color: '#FDE68A' }]}
+                  numberOfLines={1}
+                >
+                  {stats.unsettledCount}{' '}
+                  {activeTab === 'lent'
+                    ? isVi
+                      ? 'khoản theo dõi'
+                      : 'active lent'
+                    : isVi
+                      ? 'khoản đang nợ'
+                      : 'active debts'}
+                </Text>
+              </View>
+
+              {/* Bên phải: Tab 2 (Đã thu hồi / Đã trả bớt - thẻ mint / pink) */}
+              <View
+                style={[
+                  styles.statCard,
+                  activeTab === 'lent' ? styles.statCardMint : styles.statCardPink,
+                  styles.halfCard,
+                  isDark && {
+                    backgroundColor: activeTab === 'lent' ? '#0F261D' : '#2A1215',
+                    borderColor: activeTab === 'lent' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)',
+                  },
+                ]}
+              >
+                <View style={styles.statCardHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <SvgCheckCircle
+                      size={15}
+                      color={isDark ? (activeTab === 'lent' ? '#34D399' : '#F87171') : (activeTab === 'lent' ? '#065F46' : '#7F1D1D')}
+                    />
+                    <Text
+                      style={[
+                        styles.statCardLabelPastel,
+                        { color: isDark ? (activeTab === 'lent' ? '#34D399' : '#F87171') : (activeTab === 'lent' ? '#065F46' : '#7F1D1D') },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {activeTab === 'lent'
+                        ? isVi
+                          ? 'Đã thu hồi'
+                          : 'Recovered'
+                        : isVi
+                          ? 'Đã trả bớt'
+                          : 'Repaid'}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text
+                  style={[
+                    styles.halfCardAmountPastel,
+                    { color: isDark ? '#F8FAFC' : (activeTab === 'lent' ? '#065F46' : '#7F1D1D') },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {formatVND(stats.totalPaid)} <Text style={{ fontSize: 13, fontWeight: '700' }}>đ</Text>
+                </Text>
+
+                <Text
+                  style={[
+                    styles.statCardSubPastel,
+                    { color: isDark ? (activeTab === 'lent' ? '#6EE7B7' : '#FCA5A5') : (activeTab === 'lent' ? '#065F46' : '#7F1D1D') },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {stats.completionPercent}%{' '}
+                  {activeTab === 'lent'
+                    ? isVi
+                      ? 'thu hồi xong'
+                      : 'collected'
+                    : isVi
+                      ? 'đã thanh toán'
+                      : 'paid off'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* 3. LIST SECTION HEADER & FILTER PILLS */}
         {/* ========================================================================= */}
         <View style={styles.sectionHeaderRow}>
@@ -906,7 +1054,7 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.debtList}>
+          <View style={[styles.debtList, isDesktop && styles.debtListDesktop]}>
             {displayedDebts.map((debt) => {
               const remaining = Math.max(0, debt.amount - debt.paidAmount);
               const percent = debt.amount > 0 ? Math.min(100, Math.round((debt.paidAmount / debt.amount) * 100)) : 0;
@@ -914,7 +1062,7 @@ export const DebtScreen: React.FC<DebtScreenProps> = ({ onNavigateToTab, onBack 
               const avatarColor = getAvatarColor(debt.personName);
 
               return (
-                <View key={debt.id} style={styles.debtCard}>
+                <View key={debt.id} style={[styles.debtCard, isDesktop && styles.debtCardDesktop]}>
                   {/* Card Top Row */}
                   <View style={styles.debtCardTop}>
                     <View style={styles.personGroup}>
@@ -1822,6 +1970,33 @@ const styles = StyleSheet.create({
   },
 
   // 2. Stat Cards Row (Giống trang Tích Lũy)
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 24,
+    width: '100%',
+  },
+  cardHeaderLeftWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  cardMintAmount: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#047857',
+    letterSpacing: -0.5,
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  cardSkyAmount: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#92400E',
+    letterSpacing: -0.5,
+    marginTop: 2,
+    marginBottom: 4,
+  },
   statsContainer: {
     marginBottom: 20,
     gap: 12,
@@ -1904,7 +2079,7 @@ const styles = StyleSheet.create({
   },
   statCardMint: {
     backgroundColor: '#BEE3C2',
-    borderColor: '#BEE3C2',
+    borderColor: '#A7F3D0',
     flex: 1,
   },
   statCardPink: {
@@ -2112,6 +2287,12 @@ const styles = StyleSheet.create({
   // 5. Debt Item Cards
   debtList: {
     gap: 14,
+    width: '100%',
+  },
+  debtListDesktop: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
   },
   debtCard: {
     backgroundColor: '#FFFFFF',
@@ -2125,6 +2306,11 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 1,
     gap: 14,
+    width: '100%',
+  },
+  debtCardDesktop: {
+    width: 'calc((100% - 48px) / 4)' as any,
+    maxWidth: 'calc((100% - 48px) / 4)' as any,
   },
   debtCardTop: {
     flexDirection: 'row',

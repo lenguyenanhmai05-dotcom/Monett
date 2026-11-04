@@ -8,6 +8,8 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Modal,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -77,6 +79,7 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
   const isVi = language === 'vi';
   const [loading, setLoading] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showFullImage, setShowFullImage] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [detail, setDetail] = useState({
     title: 'Bún bò Huế Cô Lan',
@@ -196,13 +199,31 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 2. Hero Image */}
-        <View style={styles.imageContainer}>
-          <Image source={{ uri: detail.imageUrl }} style={styles.heroImage} />
-          <View style={styles.imageBadge}>
-            <Ionicons name="camera-outline" size={14} color="#FFFFFF" style={{ marginRight: 5 }} />
-            <Text style={styles.imageBadgeText}>{isVi ? 'Khoảnh khắc chi tiêu' : 'Spending moment'}</Text>
+        {detail.imageUrl ? (
+          <View style={styles.imageContainer}>
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => setShowFullImage(true)}
+              style={styles.imageTouchWrapper}
+            >
+              <Image source={{ uri: detail.imageUrl }} style={styles.heroImage} />
+              <View style={styles.imageBadge}>
+                <Ionicons name="camera-outline" size={14} color="#FFFFFF" style={{ marginRight: 5 }} />
+                <Text style={styles.imageBadgeText}>{isVi ? 'Khoảnh khắc chi tiêu' : 'Spending moment'}</Text>
+              </View>
+
+              {/* Nút bấm xem full ảnh */}
+              <TouchableOpacity
+                style={styles.fullscreenBtn}
+                onPress={() => setShowFullImage(true)}
+                activeOpacity={0.8}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="scan-outline" size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+            </TouchableOpacity>
           </View>
-        </View>
+        ) : null}
 
         {/* 3. Header số tiền & Tên */}
         <View style={styles.mainInfoCard}>
@@ -284,6 +305,39 @@ export const TransactionDetail: React.FC<TransactionDetailProps> = ({
         onConfirm={handleConfirmDelete}
         onCancel={() => setShowDeleteModal(false)}
       />
+
+      {/* 7. Modal xem full ảnh khoảnh khắc chi tiêu */}
+      <Modal
+        visible={showFullImage}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowFullImage(false)}
+      >
+        <View style={styles.fullImageOverlay}>
+          <SafeAreaView style={styles.fullImageHeader} edges={['top']}>
+            <TouchableOpacity
+              style={styles.fullImageCloseBtn}
+              onPress={() => setShowFullImage(false)}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          </SafeAreaView>
+
+          <TouchableWithoutFeedback onPress={() => setShowFullImage(false)}>
+            <View style={styles.fullImageBackdrop}>
+              <TouchableWithoutFeedback>
+                <Image
+                  source={{ uri: detail.imageUrl }}
+                  style={styles.fullscreenImage}
+                  resizeMode="contain"
+                />
+              </TouchableWithoutFeedback>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -341,6 +395,24 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+  },
+  imageTouchWrapper: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+  },
+  fullscreenBtn: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   heroImage: {
     width: '100%',
@@ -512,5 +584,38 @@ const styles = StyleSheet.create({
     color: '#DC2626',
     fontSize: 14,
     fontWeight: '700',
+  },
+  fullImageOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  },
+  fullImageHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  fullImageCloseBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullImageBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12,
+  },
+  fullscreenImage: {
+    width: '100%',
+    height: '100%',
   },
 });

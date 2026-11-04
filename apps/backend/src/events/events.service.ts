@@ -201,16 +201,21 @@ export class EventsService {
   ) {}
 
   async findAllForUser(userId: string, email?: string): Promise<MonettEventModel[]> {
+    if (!userId && !email) return [];
+
     let userObjId: Types.ObjectId | null = null;
     try {
-      userObjId = new Types.ObjectId(userId);
+      if (userId && Types.ObjectId.isValid(userId)) {
+        userObjId = new Types.ObjectId(userId);
+      }
     } catch {}
 
     const normEmail = (email || '').trim().toLowerCase();
 
-    const memberMatchConditions: any[] = [
-      { id: userId, status: 'accepted' },
-    ];
+    const memberMatchConditions: any[] = [];
+    if (userId) {
+      memberMatchConditions.push({ id: userId, status: 'accepted' });
+    }
     if (userObjId) {
       memberMatchConditions.push({ user: userObjId, status: 'accepted' });
     }
@@ -218,14 +223,18 @@ export class EventsService {
       memberMatchConditions.push({ email: normEmail, status: 'accepted' });
     }
 
-    const queryConditions: any[] = [
-      { ownerId: userId },
-      { members: { $elemMatch: { $or: memberMatchConditions } } },
-    ];
-
+    const queryConditions: any[] = [];
+    if (userId) {
+      queryConditions.push({ ownerId: userId });
+    }
     if (userObjId) {
       queryConditions.push({ owner: userObjId });
     }
+    if (memberMatchConditions.length > 0) {
+      queryConditions.push({ members: { $elemMatch: { $or: memberMatchConditions } } });
+    }
+
+    if (queryConditions.length === 0) return [];
 
     let list = await this.eventModel.find({ $or: queryConditions }).sort({ createdAt: -1 });
 
@@ -274,6 +283,29 @@ export class EventsService {
     return evt;
   }
 
+  async findByIdForUser(userId: string, email: string, id: string): Promise<MonettEventModel> {
+    const event = await this.findById(id);
+    const normEmail = (email || '').trim().toLowerCase();
+
+    const isOwner =
+      (event.ownerId && event.ownerId === userId) ||
+      (event.owner && event.owner.toString() === userId);
+
+    const isMember = (event.members || []).some((m) => {
+      if (m.status !== 'accepted') return false;
+      if (m.id && m.id === userId) return true;
+      if (m.user && m.user.toString() === userId) return true;
+      if (normEmail && m.email && m.email.trim().toLowerCase() === normEmail) return true;
+      return false;
+    });
+
+    if (!isOwner && !isMember) {
+      throw new ForbiddenException('Bạn không có quyền truy cập sự kiện này');
+    }
+
+    return event;
+  }
+
   async create(userId: string, userFullName: string, userEmail: string, dto: CreateEventDto): Promise<MonettEventModel> {
     let userObjId: Types.ObjectId | null = null;
     try {
@@ -303,7 +335,7 @@ export class EventsService {
     return newEvent.save();
   }
 
-  async update(userId: string, id: string, dto: UpdateEventDto): Promise<MonettEventModel> {
+  async update(userId: string, email: string, id: string, dto: UpdateEventDto): Promise<MonettEventModel> {
     let event: any = null;
     try {
       if (Types.ObjectId.isValid(id)) {
@@ -315,6 +347,23 @@ export class EventsService {
     }
     if (!event) {
       throw new NotFoundException('Không tìm thấy sự kiện cần cập nhật');
+    }
+
+    const normEmail = (email || '').trim().toLowerCase();
+    const isOwner =
+      (event.ownerId && event.ownerId === userId) ||
+      (event.owner && event.owner.toString() === userId);
+
+    const isMember = (event.members || []).some((m) => {
+      if (m.status !== 'accepted') return false;
+      if (m.id && m.id === userId) return true;
+      if (m.user && m.user.toString() === userId) return true;
+      if (normEmail && m.email && m.email.trim().toLowerCase() === normEmail) return true;
+      return false;
+    });
+
+    if (!isOwner && !isMember) {
+      throw new ForbiddenException('Bạn không có quyền chỉnh sửa sự kiện này');
     }
 
     if (dto.title !== undefined) event.title = dto.title;
@@ -379,6 +428,23 @@ export class EventsService {
     }
     if (!event) {
       throw new NotFoundException('Không tìm thấy sự kiện');
+    }
+
+    const normEmail = (inviterEmail || '').trim().toLowerCase();
+    const isOwner =
+      (event.ownerId && event.ownerId === inviterId) ||
+      (event.owner && event.owner.toString() === inviterId);
+
+    const isMember = (event.members || []).some((m) => {
+      if (m.status !== 'accepted') return false;
+      if (m.id && m.id === inviterId) return true;
+      if (m.user && m.user.toString() === inviterId) return true;
+      if (normEmail && m.email && m.email.trim().toLowerCase() === normEmail) return true;
+      return false;
+    });
+
+    if (!isOwner && !isMember) {
+      throw new ForbiddenException('Chỉ thành viên trong sự kiện mới có quyền mời bạn bè');
     }
 
     const recipientId = dto.recipientId;

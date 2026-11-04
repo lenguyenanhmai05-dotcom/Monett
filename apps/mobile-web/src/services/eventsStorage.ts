@@ -297,10 +297,10 @@ export function subscribeEventsUpdates(callback: () => void): () => void {
 
 export const getEventsStorageKey = (userEmail?: string, userId?: string): string => {
   const emailKey = (userEmail || '').trim().toLowerCase();
-  if (emailKey) {
+  if (emailKey && emailKey !== 'guest') {
     return `${STORAGE_PREFIX}${emailKey}`;
   }
-  if (userId && userId.trim()) {
+  if (userId && userId.trim() && userId !== 'guest') {
     return `${STORAGE_PREFIX}${userId.trim()}`;
   }
   return `${STORAGE_PREFIX}guest`;
@@ -316,131 +316,77 @@ const getAsyncStorage = () => {
 };
 
 /**
- * Đọc đồng bộ dữ liệu sự kiện (ưu tiên Memory Cache -> LocalStorage -> Fallback)
+ * Đọc đồng bộ dữ liệu sự kiện (Ưu tiên Memory Cache -> LocalStorage của ĐÚNG user này)
+ * Tuyệt đối không fallback sang guest hay tài khoản người khác!
  */
 export const loadEventsFromStorage = (userEmail?: string, userId?: string): MonettEvent[] => {
   const normEmail = (userEmail || '').trim().toLowerCase();
   const primaryKey = getEventsStorageKey(normEmail, userId);
 
-  // 1. Kiểm tra trong bộ nhớ đệm (In-Memory Cache) trước - tức thời 0ms
-  if (inMemoryCache[primaryKey] && inMemoryCache[primaryKey].length > 0) {
+  // 1. Kiểm tra trong bộ nhớ đệm (In-Memory Cache) theo đúng primaryKey của user này
+  if (inMemoryCache[primaryKey] !== undefined) {
     return inMemoryCache[primaryKey];
-  }
-
-  // Thử các khóa phụ trong bộ nhớ
-  const memoryCandidates = [
-    normEmail ? `${STORAGE_PREFIX}${normEmail}` : '',
-    userId && userId.trim() ? `${STORAGE_PREFIX}${userId.trim()}` : '',
-    `${STORAGE_PREFIX}guest`,
-    `${STORAGE_PREFIX}global`,
-  ].filter(Boolean);
-
-  for (const cKey of memoryCandidates) {
-    if (inMemoryCache[cKey] && inMemoryCache[cKey].length > 0) {
-      inMemoryCache[primaryKey] = inMemoryCache[cKey];
-      return inMemoryCache[cKey];
-    }
   }
 
   // 2. Thử đọc từ window.localStorage nếu chạy trên Web / Mobile Web
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
+      // Dọn dẹp key global rác cũ nếu có
       try {
         window.localStorage.removeItem(LEGACY_GLOBAL_KEY);
+        window.localStorage.removeItem(`${STORAGE_PREFIX}global`);
       } catch {}
 
       const stored = window.localStorage.getItem(primaryKey);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           inMemoryCache[primaryKey] = parsed;
           return parsed;
-        }
-      }
-
-      for (const fbKey of memoryCandidates) {
-        const rawFb = window.localStorage.getItem(fbKey);
-        if (rawFb) {
-          const parsed = JSON.parse(rawFb);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            inMemoryCache[primaryKey] = parsed;
-            inMemoryCache[fbKey] = parsed;
-            try {
-              window.localStorage.setItem(primaryKey, JSON.stringify(parsed));
-            } catch {}
-            return parsed;
-          }
-        }
-      }
-
-      // Quét tất cả các key localStorage có tiền tố @monett_events_v2_
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const k = window.localStorage.key(i);
-        if (k && k.startsWith(STORAGE_PREFIX)) {
-          const val = window.localStorage.getItem(k);
-          if (val) {
-            const parsed = JSON.parse(val);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              inMemoryCache[primaryKey] = parsed;
-              return parsed;
-            }
-          }
         }
       }
     } catch {}
   }
 
-  // 3. Fallback dữ liệu mẫu nếu là tài khoản demo đặc thù
+  // 3. Fallback dữ liệu mẫu CHỈ khi là tài khoản demo đặc thù
   if (normEmail === TARGET_EMAIL) {
     inMemoryCache[primaryKey] = REAL_EVENTS_FOR_USER;
     return REAL_EVENTS_FOR_USER;
   }
 
-  return inMemoryCache[primaryKey] || [];
+  // Mọi tài khoản khác: nếu chưa có sự kiện thì trả về mảng rỗng []
+  inMemoryCache[primaryKey] = [];
+  return [];
 };
 
 /**
- * Lưu dữ liệu sự kiện đồng thời vào:
- * 1. In-memory cache (cho lần đọc kế tiếp tức thì 0ms)
- * 2. AsyncStorage (lưu bền vững trên thiết bị Android / iOS)
- * 3. LocalStorage (lưu bền vững trên Web)
+ * Lưu dữ liệu sự kiện đồng thời vào In-memory cache, AsyncStorage và LocalStorage
+ * CHỈ lưu đúng primaryKey của tài khoản đang đăng nhập, tuyệt đối không ghi đè vào guest hay global.
  */
 export const saveEventsToStorage = (events: MonettEvent[], userEmail?: string, userId?: string): void => {
   const normEmail = (userEmail || '').trim().toLowerCase();
   const primaryKey = getEventsStorageKey(normEmail, userId);
   const jsonStr = JSON.stringify(events);
 
-  // 1. Cập nhật ngay lập tức vào Memory Cache
+  // 1. Cập nhật Memory Cache của riêng user này
   inMemoryCache[primaryKey] = events;
-  inMemoryCache[`${STORAGE_PREFIX}guest`] = events;
-  inMemoryCache[`${STORAGE_PREFIX}global`] = events;
-  if (normEmail) inMemoryCache[`${STORAGE_PREFIX}${normEmail}`] = events;
-  if (userId && userId.trim()) inMemoryCache[`${STORAGE_PREFIX}${userId.trim()}`] = events;
 
-  // 2. Lưu vào window.localStorage nếu có
+  // 2. Lưu vào window.localStorage theo đúng primaryKey
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
       window.localStorage.setItem(primaryKey, jsonStr);
-      window.localStorage.setItem(`${STORAGE_PREFIX}guest`, jsonStr);
-      window.localStorage.setItem(`${STORAGE_PREFIX}global`, jsonStr);
-      if (normEmail) window.localStorage.setItem(`${STORAGE_PREFIX}${normEmail}`, jsonStr);
-      if (userId && userId.trim()) window.localStorage.setItem(`${STORAGE_PREFIX}${userId.trim()}`, jsonStr);
+      window.localStorage.removeItem(`${STORAGE_PREFIX}global`);
+      window.localStorage.removeItem(LEGACY_GLOBAL_KEY);
     } catch {}
   }
 
-  // 3. Lưu bền vững vào AsyncStorage (hỗ trợ cả React Native Mobile Android/iOS và Expo)
+  // 3. Lưu bền vững vào AsyncStorage theo đúng primaryKey
   const asyncStorage = getAsyncStorage();
   if (asyncStorage) {
     try {
       asyncStorage.setItem(primaryKey, jsonStr).catch(() => {});
-      asyncStorage.setItem(`${STORAGE_PREFIX}guest`, jsonStr).catch(() => {});
-      asyncStorage.setItem(`${STORAGE_PREFIX}global`, jsonStr).catch(() => {});
-      if (normEmail) {
-        asyncStorage.setItem(`${STORAGE_PREFIX}${normEmail}`, jsonStr).catch(() => {});
-      }
-      if (userId && userId.trim()) {
-        asyncStorage.setItem(`${STORAGE_PREFIX}${userId.trim()}`, jsonStr).catch(() => {});
-      }
+      asyncStorage.removeItem(`${STORAGE_PREFIX}global`).catch(() => {});
+      asyncStorage.removeItem(LEGACY_GLOBAL_KEY).catch(() => {});
     } catch {}
   }
 
@@ -450,6 +396,7 @@ export const saveEventsToStorage = (events: MonettEvent[], userEmail?: string, u
 
 /**
  * Tải trước dữ liệu sự kiện từ AsyncStorage khi app/màn hình mở lên
+ * Chỉ đọc đúng key của user này!
  */
 export async function preloadEventsFromAsyncStorage(userEmail?: string, userId?: string): Promise<MonettEvent[]> {
   const asyncStorage = getAsyncStorage();
@@ -459,49 +406,21 @@ export async function preloadEventsFromAsyncStorage(userEmail?: string, userId?:
     const normEmail = (userEmail || '').trim().toLowerCase();
     const primaryKey = getEventsStorageKey(normEmail, userId);
 
-    const keysToTry = [
-      primaryKey,
-      normEmail ? `${STORAGE_PREFIX}${normEmail}` : '',
-      userId && userId.trim() ? `${STORAGE_PREFIX}${userId.trim()}` : '',
-      `${STORAGE_PREFIX}guest`,
-      `${STORAGE_PREFIX}global`,
-    ].filter(Boolean);
+    // Dọn dẹp key global cũ trên AsyncStorage
+    asyncStorage.removeItem(`${STORAGE_PREFIX}global`).catch(() => {});
+    asyncStorage.removeItem(LEGACY_GLOBAL_KEY).catch(() => {});
 
-    for (const key of keysToTry) {
-      const raw = await asyncStorage.getItem(key);
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            inMemoryCache[primaryKey] = parsed;
-            inMemoryCache[`${STORAGE_PREFIX}guest`] = parsed;
-            inMemoryCache[`${STORAGE_PREFIX}global`] = parsed;
-            notifyEventsUpdated();
-            return parsed;
-          }
-        } catch {}
-      }
-    }
-
-    // Quét toàn bộ key trong AsyncStorage nếu chưa thấy
-    try {
-      const allKeys = await asyncStorage.getAllKeys();
-      const eventKeys = allKeys.filter((k: string) => k && k.startsWith(STORAGE_PREFIX));
-      if (eventKeys.length > 0) {
-        const pairs = await asyncStorage.multiGet(eventKeys);
-        for (const [, v] of pairs) {
-          if (v) {
-            const parsed = JSON.parse(v);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              inMemoryCache[primaryKey] = parsed;
-              inMemoryCache[`${STORAGE_PREFIX}guest`] = parsed;
-              notifyEventsUpdated();
-              return parsed;
-            }
-          }
+    const raw = await asyncStorage.getItem(primaryKey);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          inMemoryCache[primaryKey] = parsed;
+          notifyEventsUpdated();
+          return parsed;
         }
-      }
-    } catch {}
+      } catch {}
+    }
   } catch {}
 
   return loadEventsFromStorage(userEmail, userId);
@@ -515,6 +434,22 @@ export const resetToRealEvents = (userEmail?: string, userId?: string): MonettEv
   saveEventsToStorage(REAL_EVENTS_FOR_USER, normEmail, userId);
   return REAL_EVENTS_FOR_USER;
 };
+
+export function clearUserEventsStorage(userEmail?: string, userId?: string): void {
+  const key = getEventsStorageKey(userEmail, userId);
+  delete inMemoryCache[key];
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      window.localStorage.removeItem(key);
+    } catch {}
+  }
+  const asyncStorage = getAsyncStorage();
+  if (asyncStorage) {
+    try {
+      asyncStorage.removeItem(key).catch(() => {});
+    } catch {}
+  }
+}
 
 
 function dispatchCustomEventSafely(name: string, detail?: any): void {

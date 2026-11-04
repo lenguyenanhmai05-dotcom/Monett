@@ -51,6 +51,8 @@ import {
   getIncomeRecords,
   preloadIncomeFromAsyncStorage,
   getDeletedIncomeIds,
+  deduplicateIncomeRecords,
+  extractIncomesFromTransactions,
 } from '../../services/incomeStorage';
 
 interface HomeScreenProps {
@@ -203,52 +205,27 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [isPhotoJournalOpen, setIsPhotoJournalOpen] = React.useState<boolean>(false);
   const [incomeRefreshTrigger, setIncomeRefreshTrigger] = React.useState<number>(0);
 
-  // Tổng thu nhập thực tế của tháng hiện tại (kết hợp đồng bộ cả backend transactions và incomeStorage)
+  // Tổng thu nhập thực tế của tháng hiện tại (kết hợp đồng bộ cả backend transactions và incomeStorage, khử trùng lặp 100%)
   const totalMonthIncome = React.useMemo(() => {
     const n = new Date();
     const curYear = n.getFullYear();
     const curMonth = n.getMonth() + 1;
 
-    let incomeFromTx = 0;
-    const txIdSet = new Set<string>();
-    if (Array.isArray(monthTransactions) && monthTransactions.length > 0) {
-      monthTransactions.forEach((tx: any) => {
-        if (!tx) return;
-        const isInc = tx.type === 'income' || (Number(tx.amount) > 0 && tx.type !== 'expense') || isIncomeTransactionOrItem(tx);
-        if (isInc) {
-          const d = tx.date ? new Date(tx.date) : (tx.createdAt ? new Date(tx.createdAt) : null);
-          if (d && !isNaN(d.getTime())) {
-            if (d.getFullYear() === curYear && d.getMonth() + 1 === curMonth) {
-              const amt = Math.abs(Number(tx.rawAmount || tx.amount || 0));
-              incomeFromTx += amt;
-              if (tx._id || tx.id) txIdSet.add(String(tx._id || tx.id));
-            }
-          }
-        }
-      });
-    }
+    const fromTx = extractIncomesFromTransactions(monthTransactions || []);
+    const fromStorage = getIncomeRecords();
+    const allIncomes = deduplicateIncomeRecords([...fromTx, ...fromStorage]);
 
-    const localRecords = getIncomeRecords();
-    let localExtra = 0;
-    localRecords.forEach((r) => {
-      if (r && !txIdSet.has(r.id)) {
-        const d = r.date ? new Date(r.date) : null;
-        if (d && !isNaN(d.getTime())) {
-          if (d.getFullYear() === curYear && d.getMonth() + 1 === curMonth) {
-            localExtra += (r.amount || 0);
-          }
-        } else {
-          const parts = r.date ? String(r.date).split('-') : [];
-          if (parts.length >= 2 && Number(parts[0]) === curYear && Number(parts[1]) === curMonth) {
-            localExtra += (r.amount || 0);
-          }
+    return allIncomes
+      .filter((r) => {
+        if (!r || !r.date) return false;
+        const d = new Date(r.date);
+        if (!isNaN(d.getTime())) {
+          return d.getFullYear() === curYear && d.getMonth() + 1 === curMonth;
         }
-      }
-    });
-
-    const combined = incomeFromTx + localExtra;
-    const fromStorage = getTotalIncomeForMonth(curYear, curMonth);
-    return Math.max(combined, fromStorage);
+        const parts = String(r.date).split('-');
+        return Number(parts[0]) === curYear && Number(parts[1]) === curMonth;
+      })
+      .reduce((sum, item) => sum + (item.amount || 0), 0);
   }, [monthTransactions, incomeRefreshTrigger]);
 
   // Tổng chi tiêu thực tế của tháng hiện tại

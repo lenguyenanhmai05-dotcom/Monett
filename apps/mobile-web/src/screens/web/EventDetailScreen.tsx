@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useNotifications } from '../../contexts/NotificationContext';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   MonettEvent,
   EventExpenseItem,
@@ -113,9 +114,32 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
   // State for Invite Friends modal
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
-  // Vai trò của người dùng hiện tại (Owner hoặc Bạn bè/Member)
-  const [currentRole, setCurrentRole] = useState<'owner' | 'member'>('owner');
-  const isOwner = currentRole === 'owner';
+  const { user } = useAuth();
+  const currentUserId = String((user as any)?.id || (user as any)?._id || '');
+  const currentUserEmail = String((user as any)?.email || '').trim().toLowerCase();
+
+  // Xác định chính xác vai trò của người dùng hiện tại đối với sự kiện này
+  const isOwner = React.useMemo(() => {
+    if (!currentEvent) return false;
+    if (currentUserId && currentEvent.ownerId && currentEvent.ownerId === currentUserId) return true;
+    const ownerMember = currentEvent.members?.find((m) => m.role === 'owner');
+    if (ownerMember) {
+      if (currentUserId && ownerMember.id && ownerMember.id === currentUserId) return true;
+      if (currentUserEmail && ownerMember.email && ownerMember.email.toLowerCase() === currentUserEmail) return true;
+    }
+    return false;
+  }, [currentEvent, currentUserId, currentUserEmail]);
+
+  const isMember = React.useMemo(() => {
+    if (!currentEvent) return false;
+    if (isOwner) return true;
+    return (currentEvent.members || []).some((m) => {
+      if (m.status !== 'accepted') return false;
+      if (currentUserId && m.id && m.id === currentUserId) return true;
+      if (currentUserEmail && m.email && m.email.toLowerCase() === currentUserEmail) return true;
+      return false;
+    });
+  }, [currentEvent, isOwner, currentUserId, currentUserEmail]);
 
   // State for Transaction CRUD Modal (Create / Edit)
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
@@ -493,6 +517,34 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
     badgeBorder: isDark ? 'rgba(52, 211, 153, 0.35)' : '#BFDECA',
   };
 
+  // Ngăn chặn truy cập nếu tài khoản hiện tại không phải chủ và không nằm trong danh sách thành viên
+  if (!isOwner && !isMember) {
+    return (
+      <View style={[styles.container, { backgroundColor: pageBg, justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+        <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: '#FEF2F2', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+          <Ionicons name="lock-closed-outline" size={32} color="#EF4444" />
+        </View>
+        <Text style={{ fontSize: 20, fontWeight: '700', color: textPrimary, marginBottom: 8, textAlign: 'center' }}>
+          {isVi ? 'Không có quyền truy cập' : 'Access Denied'}
+        </Text>
+        <Text style={{ fontSize: 14, color: textSecondary, textAlign: 'center', marginBottom: 24, lineHeight: 20 }}>
+          {isVi
+            ? `Tài khoản ${currentUserEmail || 'của bạn'} không phải chủ sự kiện và chưa được mời tham gia sự kiện này.`
+            : `Your account does not have permission to view this event because you are not a member.`}
+        </Text>
+        <TouchableOpacity
+          style={{ paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12, backgroundColor: '#059669' }}
+          onPress={onBack}
+          activeOpacity={0.8}
+        >
+          <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 15 }}>
+            {isVi ? 'Quay lại' : 'Go back'}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: pageBg }]}
@@ -768,7 +820,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
               >
                 <Ionicons name="add" size={16} color="#FFFFFF" />
                 <Text style={[styles.addTxPillBtnText, { color: '#FFFFFF' }]}>
-                  {filterTxType === 'income' ? (isVi ? '+ Ghi nhận khoản thu' : '+ Add Income') : (isVi ? '+ Thêm khoản chi' : '+ Add Expense')}
+                  {filterTxType === 'income' ? (isVi ? 'Ghi nhận khoản thu' : 'Add Income') : (isVi ? 'Thêm khoản chi' : 'Add Expense')}
                 </Text>
               </TouchableOpacity>
             </View>

@@ -62,6 +62,106 @@ export function getDeletedIncomeIds(): Set<string> {
   return inMemoryDeletedIds;
 }
 
+/**
+ * Thuật toán chuẩn hoá & khử trùng lặp (Deduplication) các khoản thu nhập:
+ * 1. Loại bỏ các ID nằm trong danh sách đã xóa (tombstone inMemoryDeletedIds)
+ * 2. Loại bỏ bản ghi trùng ID
+ * 3. Nếu một khoản thu tạm thời (ID dạng inc-...) có khoản thu chính thức từ backend MongoDB
+ *    (cùng ngày YYYY-MM-DD, cùng số tiền, và cùng tiêu đề hoặc danh mục),
+ *    khoản thu chính thức từ backend sẽ được GIỮ LẠI và bản ghi tạm inc-... sẽ bị LOẠI BỎ.
+ * 4. Loại bỏ các bản ghi trùng lặp do bấm đúp nhanh (cùng ngày, số tiền, tiêu đề, tạo trong vòng 15 giây).
+ */
+export function deduplicateIncomeRecords(records: IncomeRecord[]): IncomeRecord[] {
+  if (!Array.isArray(records) || records.length === 0) return [];
+
+  const deletedIds = getDeletedIncomeIds();
+  // Lọc ban đầu loại bỏ null/undefined và các ID đã bị xóa
+  const valid = records.filter((r) => r && r.id && !deletedIds.has(r.id));
+  if (valid.length <= 1) return valid;
+
+  // B1: Khử trùng lặp ID tuyệt đối
+  const seenIds = new Set<string>();
+  const uniqueById: IncomeRecord[] = [];
+  for (const r of valid) {
+    if (!seenIds.has(r.id)) {
+      seenIds.add(r.id);
+      uniqueById.push(r);
+    }
+  }
+
+  // B2: Tách biệt backend records (ID từ MongoDB) và temp records (ID inc-...)
+  const backendRecords = uniqueById.filter((r) => !r.id.startsWith('inc-'));
+  const tempRecords = uniqueById.filter((r) => r.id.startsWith('inc-'));
+
+  const redundantTempIds = new Set<string>();
+  for (const temp of tempRecords) {
+    const tempDateStr = String(temp.date || '').slice(0, 10);
+    const tempAmt = Math.abs(Number(temp.amount) || 0);
+    const tempTitle = (temp.title || '').trim().toLowerCase();
+    const tempCat = (temp.category || '').trim().toLowerCase();
+
+    const matchingBackend = backendRecords.find((b) => {
+      const bDateStr = String(b.date || '').slice(0, 10);
+      const bAmt = Math.abs(Number(b.amount) || 0);
+      const bTitle = (b.title || '').trim().toLowerCase();
+      const bCat = (b.category || '').trim().toLowerCase();
+
+      const sameDate = bDateStr === tempDateStr;
+      const sameAmount = bAmt === tempAmt;
+      const sameTitleOrCat =
+        (bTitle && tempTitle && bTitle === tempTitle) ||
+        (bCat && tempCat && bCat === tempCat) ||
+        (bTitle && tempCat && bTitle === tempCat) ||
+        (tempTitle && bCat && tempTitle === bCat);
+
+      return sameDate && sameAmount && sameTitleOrCat;
+    });
+
+    if (matchingBackend) {
+      redundantTempIds.add(temp.id);
+    }
+  }
+
+  // B3: Lọc bỏ các temp record bị thừa
+  const nonRedundant = uniqueById.filter((r) => !redundantTempIds.has(r.id));
+
+  // B4: Khử trùng lặp do double-tap (2 bản ghi trùng hệt nhau tạo cách nhau <= 15s)
+  const result: IncomeRecord[] = [];
+  for (const r of nonRedundant) {
+    const rDateStr = String(r.date || '').slice(0, 10);
+    const rAmt = Math.abs(Number(r.amount) || 0);
+    const rTitle = (r.title || '').trim().toLowerCase();
+
+    const isDuplicateDoubleTap = result.some((existing) => {
+      if (existing.id === r.id) return true;
+      const exDateStr = String(existing.date || '').slice(0, 10);
+      const exAmt = Math.abs(Number(existing.amount) || 0);
+      const exTitle = (existing.title || '').trim().toLowerCase();
+
+      const sameDate = exDateStr === rDateStr;
+      const sameAmount = exAmt === rAmt;
+      const sameTitle = exTitle === rTitle;
+      const timeDiff = Math.abs((existing.createdAt || 0) - (r.createdAt || 0));
+
+      if (
+        sameDate &&
+        sameAmount &&
+        sameTitle &&
+        (timeDiff <= 15000 || existing.id.startsWith('inc-') || r.id.startsWith('inc-'))
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (!isDuplicateDoubleTap) {
+      result.push(r);
+    }
+  }
+
+  return result.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+}
+
 export function markIncomeDeleted(id: string): void {
   if (!id) return;
   inMemoryDeletedIds.add(id);
@@ -148,15 +248,17 @@ export async function preloadIncomeFromAsyncStorage(userId?: string): Promise<In
   await preloadDeletedIncomeIds();
   const key = getIncomeStorageKey(userId);
   const storage = getAsyncStorage();
-  if (!storage) return inMemoryCache[key] || [];
+  if (!storage) return getIncomeRecords(userId);
 
   try {
     const raw = await storage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        const cleaned = parsed.filter(
-          (r) => r && r.id !== 'inc-sample-1' && r.title !== 'Lương hàng tháng' && !inMemoryDeletedIds.has(r.id)
+        const cleaned = deduplicateIncomeRecords(
+          parsed.filter(
+            (r) => r && r.id !== 'inc-sample-1' && r.title !== 'Lương hàng tháng' && !inMemoryDeletedIds.has(r.id)
+          )
         );
         inMemoryCache[key] = cleaned;
         notifyIncomeUpdated(cleaned);
@@ -165,18 +267,20 @@ export async function preloadIncomeFromAsyncStorage(userId?: string): Promise<In
     }
   } catch (_) {}
 
-  return inMemoryCache[key] || [];
+  return getIncomeRecords(userId);
 }
 
 /**
- * Lấy danh sách các khoản thu nhập từ storage theo từng tài khoản (0ms đồng bộ, hoàn toàn pure)
+ * Lấy danh sách các khoản thu nhập từ storage theo từng tài khoản (0ms đồng bộ, hoàn toàn pure & tự động khử trùng lặp)
  */
 export function getIncomeRecords(userId?: string): IncomeRecord[] {
   const key = getIncomeStorageKey(userId);
 
   // 1. In-memory cache trước (nhanh nhất và không mất giữa các lần chuyển màn hình)
   if (inMemoryCache[key] && Array.isArray(inMemoryCache[key])) {
-    return inMemoryCache[key].filter((r) => r && !inMemoryDeletedIds.has(r.id));
+    const cleaned = deduplicateIncomeRecords(inMemoryCache[key]);
+    inMemoryCache[key] = cleaned;
+    return cleaned;
   }
 
   // 2. Thử đọc từ window.localStorage nếu chạy trên Web / Mobile Web
@@ -186,8 +290,8 @@ export function getIncomeRecords(userId?: string): IncomeRecord[] {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          const cleaned = parsed.filter(
-            (r) => r && r.id !== 'inc-sample-1' && r.title !== 'Lương hàng tháng' && !inMemoryDeletedIds.has(r.id)
+          const cleaned = deduplicateIncomeRecords(
+            parsed.filter((r) => r && r.id !== 'inc-sample-1' && r.title !== 'Lương hàng tháng')
           );
           inMemoryCache[key] = cleaned;
           return cleaned;
@@ -208,7 +312,7 @@ export function getIncomeRecords(userId?: string): IncomeRecord[] {
  */
 export function saveIncomeRecords(records: IncomeRecord[], userId?: string): void {
   const key = getIncomeStorageKey(userId);
-  const filtered = records.filter((r) => r && !inMemoryDeletedIds.has(r.id));
+  const filtered = deduplicateIncomeRecords(records);
   inMemoryCache[key] = filtered;
 
   // 1. Lưu vào Web localStorage nếu có
@@ -339,25 +443,19 @@ export function syncIncomeWithBudget(records?: IncomeRecord[]): CachedBudgetData
 }
 
 /**
- * Thêm một khoản thu nhập mới
+ * Thêm một khoản thu nhập mới:
+ * 1. Gửi đồng bộ lên backend MongoDB trước (nếu thiết bị online) để lấy ObjectId chính thức.
+ * 2. Lưu vào storage với ID chính thức đó (tránh việc lưu id tạm inc-... rồi sau đó bị merge thành 2 bản ghi).
+ * 3. Nếu offline hoặc lỗi, fallback sang ID inc-..., và thuật toán deduplicate sẽ tự động thay thế khi online.
  */
 export async function addIncomeRecord(
   data: Omit<IncomeRecord, 'id' | 'createdAt'>
 ): Promise<IncomeRecord> {
-  const newRecord: IncomeRecord = {
-    ...data,
-    id: `inc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-    createdAt: Date.now(),
-  };
+  let realId: string | null = null;
+  const now = Date.now();
 
-  const current = getIncomeRecords();
-  const updated = [newRecord, ...current];
-  saveIncomeRecords(updated);
-  syncIncomeWithBudget(updated);
-
-  // Thử đồng bộ lên MongoDB backend
   try {
-    await createTransactionApi({
+    const res: any = await createTransactionApi({
       title: data.title,
       amount: Math.abs(data.amount),
       type: 'income',
@@ -365,18 +463,57 @@ export async function addIncomeRecord(
       date: data.date,
       note: data.note,
     });
-  } catch (_) {}
+    const backendItem = res?.data || res;
+    if (backendItem && (backendItem._id || backendItem.id)) {
+      realId = String(backendItem._id || backendItem.id);
+    }
+  } catch (_) {
+    // Offline hoặc lỗi mạng -> dùng fallback ID
+  }
+
+  const recordId = realId || `inc-${now}-${Math.random().toString(36).substring(2, 7)}`;
+  const newRecord: IncomeRecord = {
+    ...data,
+    id: recordId,
+    createdAt: now,
+  };
+
+  const current = getIncomeRecords();
+  const merged = deduplicateIncomeRecords([newRecord, ...current]);
+  saveIncomeRecords(merged);
+  syncIncomeWithBudget(merged);
 
   return newRecord;
 }
 
 /**
- * Xóa một khoản thu nhập (vĩnh viễn, không bị hồi sinh lại từ cache cũ)
+ * Xóa một khoản thu nhập (vĩnh viễn, không bị hồi sinh lại từ cache cũ):
+ * Đánh dấu xóa cả ID hiện tại và bất kỳ bản sao đối ứng nào (inc-... vs MongoDB ID).
  */
 export async function deleteIncomeRecord(id: string): Promise<boolean> {
   markIncomeDeleted(id);
   const current = getIncomeRecords();
-  const updated = current.filter((r) => r.id !== id);
+  const toDelete = current.find((r) => r.id === id);
+
+  // Nếu bản ghi có bản sao tương ứng (cùng date, amount, title), đánh dấu xóa luôn cả bản sao
+  if (toDelete) {
+    const targetDate = String(toDelete.date || '').slice(0, 10);
+    const targetAmt = Math.abs(Number(toDelete.amount) || 0);
+    const targetTitle = (toDelete.title || '').trim().toLowerCase();
+
+    current.forEach((r) => {
+      if (r.id !== id) {
+        const rDate = String(r.date || '').slice(0, 10);
+        const rAmt = Math.abs(Number(r.amount) || 0);
+        const rTitle = (r.title || '').trim().toLowerCase();
+        if (rDate === targetDate && rAmt === targetAmt && rTitle === targetTitle) {
+          markIncomeDeleted(r.id);
+        }
+      }
+    });
+  }
+
+  const updated = current.filter((r) => r.id !== id && !getDeletedIncomeIds().has(r.id));
   saveIncomeRecords(updated);
   syncIncomeWithBudget(updated);
 
@@ -426,15 +563,17 @@ export function subscribeIncomeUpdates(callback: (records: IncomeRecord[]) => vo
 
 /**
  * Hàm thuần túy (pure function) trích xuất danh sách IncomeRecord từ các giao dịch.
- * Không gọi storage, không bắn event, loại bỏ các mục đã bị xóa.
+ * Không gọi storage, không bắn event, loại bỏ các mục đã bị xóa và tự động khử trùng lặp.
  */
 export function extractIncomesFromTransactions(txList: any[]): IncomeRecord[] {
   if (!Array.isArray(txList) || txList.length === 0) return [];
 
+  const deletedIds = getDeletedIncomeIds();
+
   const isIncome = (t: any): boolean => {
     if (!t) return false;
     const id = String(t._id || t.id);
-    if (inMemoryDeletedIds.has(id)) return false; // Không lấy các mục đã bị xóa
+    if (deletedIds.has(id)) return false; // Không lấy các mục đã bị xóa
     if (t.type === 'income') return true;
     if (typeof t.id === 'string' && t.id.startsWith('inc-')) return true;
     if (typeof t._id === 'string' && t._id.startsWith('inc-')) return true;
@@ -446,7 +585,7 @@ export function extractIncomesFromTransactions(txList: any[]): IncomeRecord[] {
   const incomeTxs = txList.filter(isIncome);
   if (incomeTxs.length === 0) return [];
 
-  return incomeTxs.map((t) => {
+  const rawList: IncomeRecord[] = incomeTxs.map((t) => {
     const id = String(t._id || t.id);
     const dateObj = t.date ? new Date(t.date) : (t.createdAt ? new Date(t.createdAt) : new Date());
     const dateStr = !isNaN(dateObj.getTime())
@@ -466,12 +605,14 @@ export function extractIncomesFromTransactions(txList: any[]): IncomeRecord[] {
       note: t.note || '',
       createdAt: isNaN(dateObj.getTime()) ? Date.now() : dateObj.getTime(),
     };
-  }).sort((a, b) => b.createdAt - a.createdAt);
+  });
+
+  return deduplicateIncomeRecords(rawList);
 }
 
 /**
  * Đồng bộ danh sách các khoản thu nhập từ các giao dịch trên MongoDB Backend.
- * Chỉ lưu và phát sự kiện nếu có dữ liệu mới/thay đổi để ngăn chặn render loop.
+ * Tự động hợp nhất và khử trùng lặp giữa local storage và backend MongoDB.
  */
 export function syncIncomesFromBackendTransactions(
   txList: any[],
@@ -483,30 +624,25 @@ export function syncIncomesFromBackendTransactions(
   const extracted = extractIncomesFromTransactions(txList);
   if (extracted.length === 0) return existing;
 
-  const existingMap = new Map<string, IncomeRecord>();
-  existing.forEach((r) => {
-    if (r.id && !inMemoryDeletedIds.has(r.id)) existingMap.set(r.id, r);
-  });
+  const combined = deduplicateIncomeRecords([...extracted, ...existing]);
 
-  let hasNewOrChanged = false;
-  extracted.forEach((rec) => {
-    if (inMemoryDeletedIds.has(rec.id)) return;
-    const prev = existingMap.get(rec.id);
-    if (!prev || prev.amount !== rec.amount || prev.title !== rec.title || prev.date !== rec.date || prev.category !== rec.category) {
-      hasNewOrChanged = true;
-      existingMap.set(rec.id, rec);
-    }
-  });
+  // Kiểm tra xem có dữ liệu mới hoặc thay đổi hay không để tránh re-render thừa
+  const deletedIds = getDeletedIncomeIds();
+  const validExisting = existing.filter((r) => !deletedIds.has(r.id));
+  const isIdentical =
+    combined.length === validExisting.length &&
+    combined.every((c, idx) => {
+      const ex = validExisting[idx];
+      return ex && c.id === ex.id && c.amount === ex.amount && c.date === ex.date && c.title === ex.title;
+    });
 
-  // Nếu không có thay đổi nào, giữ nguyên tham chiếu cũ để không kích hoạt re-render
-  if (!hasNewOrChanged && existing.length === existingMap.size) {
-    return existing;
+  if (isIdentical) {
+    return validExisting;
   }
 
-  const merged = Array.from(existingMap.values()).sort((a, b) => b.createdAt - a.createdAt);
-  saveIncomeRecords(merged, userId);
-  syncIncomeWithBudget(merged);
-  return merged;
+  saveIncomeRecords(combined, userId);
+  syncIncomeWithBudget(combined);
+  return combined;
 }
 
 // Tự động nạp trước từ AsyncStorage khi khởi tạo module

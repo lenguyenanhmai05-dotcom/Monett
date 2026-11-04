@@ -239,7 +239,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
                     >
                       <Ionicons name="add-circle-outline" size={16} color="#064E3B" />
                       <Text style={styles.addExpenseBtnText}>
-                        {isVi ? '+ Thêm chi tiêu' : '+ Add Expense'}
+                        {isVi ? 'Thêm chi tiêu' : 'Add Expense'}
                       </Text>
                     </TouchableOpacity>
                   </View>

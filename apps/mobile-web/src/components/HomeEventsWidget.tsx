@@ -34,11 +34,11 @@ export const HomeEventsWidget: React.FC<HomeEventsWidgetProps> = ({
   }, [userEmail, userId]);
 
   useEffect(() => {
-    reloadEvents();
+    setEvents(loadEventsFromStorage(userEmail, userId) || []);
     preloadEventsFromAsyncStorage(userEmail, userId).then((res) => {
-      if (res && res.length > 0) setEvents(res);
+      if (Array.isArray(res)) setEvents(res);
     });
-  }, [reloadEvents, refreshTrigger, userEmail, userId]);
+  }, [refreshTrigger, userEmail, userId]);
 
   useEffect(() => {
     const unsubscribe = subscribeEventsUpdates(() => {

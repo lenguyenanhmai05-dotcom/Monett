@@ -86,7 +86,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
   const fetchAllEvents = useCallback(async () => {
     try {
       const apiList = await getEventsApi();
-      if (Array.isArray(apiList) && apiList.length > 0) {
+      if (Array.isArray(apiList)) {
         setEvents(apiList);
         saveEventsToStorage(apiList, userEmail, userId);
         return;
@@ -96,9 +96,11 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
   }, [userEmail, userId]);
 
   useEffect(() => {
+    // Luôn reset state events theo đúng tài khoản người dùng hiện tại ngay khi userEmail / userId thay đổi
+    setEvents(loadEventsFromStorage(userEmail, userId));
     fetchAllEvents();
     preloadEventsFromAsyncStorage(userEmail, userId).then((res) => {
-      if (res && res.length > 0) setEvents(res);
+      if (Array.isArray(res)) setEvents(res);
     });
     const unsubscribe = subscribeEventsUpdates(() => {
       fetchAllEvents();
@@ -107,7 +109,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
 
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       const handleEventsUpdated = (e: any) => {
-        if (e?.detail && Array.isArray(e.detail) && e.detail.length > 0) {
+        if (e?.detail && Array.isArray(e.detail)) {
           setEvents(e.detail);
         }
       };
@@ -572,17 +574,17 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
         </TouchableOpacity>
       </View>
 
-      {/* Action Button: Nút Tạo Sự Kiện Mới / + Thêm ở dưới tiêu đề (giống trang Tích lũy) */}
+      {/* Action Button: Nút Tạo Sự Kiện Mới / + Thêm ở dưới tiêu đề (giống trang Định kỳ) */}
       <TouchableOpacity
-        style={styles.createEventBtn}
+        style={[styles.createEventBtn, isDark && { backgroundColor: '#059669', shadowColor: '#059669' }]}
         onPress={() => {
           setEditingEvent(null);
           setIsCreateModalOpen(true);
         }}
         activeOpacity={0.85}
       >
-        <Ionicons name="add" size={16} color="#064E3B" style={{ marginRight: 6 }} />
-        <Text style={styles.createEventBtnText}>
+        <Ionicons name="add" size={16} color={isDark ? '#FFFFFF' : '#064E3B'} style={{ marginRight: 6 }} />
+        <Text style={[styles.createEventBtnText, isDark && { color: '#FFFFFF' }]}>
           {isVi ? 'Thêm' : 'New'}
         </Text>
       </TouchableOpacity>
@@ -1361,12 +1363,14 @@ const styles = StyleSheet.create({
   createEventBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     backgroundColor: '#98E4B0',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 22,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#82D99E',
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -1657,11 +1661,10 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   compactCard: {
-    flex: 1,
-    minWidth: 320,
-    maxWidth: '48.5%' as any,
+    width: 'calc((100% - 48px) / 4)' as any,
+    maxWidth: 'calc((100% - 48px) / 4)' as any,
     borderRadius: 22,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingTop: 18,
     paddingBottom: 16,
     borderWidth: 1,

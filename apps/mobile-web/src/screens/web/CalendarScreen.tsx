@@ -1752,14 +1752,15 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   calCellPrevMonth: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#EAE2D5',
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: '#D5C9B5',
+    borderStyle: 'dashed',
   },
   prevMonthNum: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#CBD5E1',
+    fontWeight: '700',
+    color: '#78716C',
   },
   calCellNormal: {
     backgroundColor: '#F1F4F9',

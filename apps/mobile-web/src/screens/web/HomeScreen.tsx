@@ -997,20 +997,18 @@ const HomeRecurringEventsRow: React.FC<{
   const fetchEvents = useCallback(async () => {
     try {
       const apiEvents = await getEventsApi();
-      if (Array.isArray(apiEvents) && apiEvents.length > 0) {
+      if (Array.isArray(apiEvents)) {
         setEvents(apiEvents.slice(0, 3));
         saveEventsToStorage(apiEvents, userEmail, userId);
-      } else {
-        const local = loadEventsFromStorage(userEmail, userId);
-        setEvents(local.slice(0, 3));
+        return;
       }
-    } catch {
-      const local = loadEventsFromStorage(userEmail, userId);
-      setEvents(local.slice(0, 3));
-    }
+    } catch {}
+    const local = loadEventsFromStorage(userEmail, userId);
+    setEvents(local.slice(0, 3));
   }, [userEmail, userId]);
 
   useEffect(() => {
+    setEvents(loadEventsFromStorage(userEmail, userId).slice(0, 3));
     fetchEvents();
 
     const handleUpdate = () => {
@@ -2325,7 +2323,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
     };
 
     setDayRecords((prev) => {
-      const existing = prev[photoKey];
+      const existing = prev[photoKey] || prev[paddedKey];
       let existingItems = existing?.items ? [...existing.items] : [];
       if (existingItems.length === 0 && (existing?.amount || existing?.photoUri)) {
         existingItems.push({
@@ -2410,7 +2408,7 @@ export const HomeScreen: React.FC<{ onNavigateToTab?: (tab: any) => void }> = ({
         if (createdTx && (createdTx._id || createdTx.id)) {
           const realId = String(createdTx._id || createdTx.id);
           setDayRecords((prev) => {
-            const rec = prev[photoKey];
+            const rec = prev[photoKey] || prev[paddedKey];
             if (!rec || !rec.items) return prev;
             const updatedItems = rec.items.map((it) => (it.id === tempId ? { ...it, id: realId, photoUri: finalPhotoUri || it.photoUri } : it));
             const next = { ...prev, [photoKey]: { ...rec, items: updatedItems, photoUri: finalPhotoUri || rec.photoUri }, [paddedKey]: { ...rec, items: updatedItems, photoUri: finalPhotoUri || rec.photoUri } };
@@ -5133,14 +5131,15 @@ const getStyles = (isDark: boolean, colors: any) => StyleSheet.create({
     overflow: 'hidden',
   },
   calCellPrevMonth: {
-    backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)',
-    borderColor: 'transparent',
-    opacity: 0.35,
+    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#EAE2D5',
+    borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#D5C9B5',
+    borderWidth: 1,
+    borderStyle: 'dashed',
   },
   prevMonthNum: {
     fontSize: 11,
-    color: '#94A3B8',
-    fontWeight: '500',
+    color: isDark ? '#94A3B8' : '#78716C',
+    fontWeight: '700',
   },
   calCellWithPhoto: {
     borderWidth: 1.5,

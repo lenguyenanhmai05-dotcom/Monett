@@ -49,6 +49,7 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
   const [date, setDate] = useState<string>(todayStr);
   const [note, setNote] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const isSubmittingRef = useRef<boolean>(false);
   const inputRef = useRef<any>(null);
 
   const numericAmount = parseInt(rawAmount.replace(/\D/g, '') || '0', 10);
@@ -86,12 +87,14 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
   };
 
   const handleSubmit = async () => {
+    if (isSubmittingRef.current) return;
     if (numericAmount <= 0) {
       alert('Vui lòng nhập số tiền thu nhập hợp lệ');
       return;
     }
     const finalTitle = title.trim() || selectedCategory;
 
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     try {
       await addIncomeRecord({
@@ -113,6 +116,7 @@ export const AddIncomeModal: React.FC<AddIncomeModalProps> = ({
     } catch (err) {
       alert('Có lỗi xảy ra khi lưu khoản thu nhập');
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };

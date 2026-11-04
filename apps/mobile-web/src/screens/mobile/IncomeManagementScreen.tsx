@@ -17,6 +17,7 @@ import {
   syncIncomesFromBackendTransactions,
   extractIncomesFromTransactions,
   getDeletedIncomeIds,
+  deduplicateIncomeRecords,
   IncomeRecord,
 } from '../../services/incomeStorage';
 import { getTransactionsApi } from '../../services/api';
@@ -37,22 +38,15 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
   const [viewMonth, setViewMonth] = useState<number>(now.getMonth() + 1);
   const [activeTab, setActiveTab] = useState<'month' | 'all'>('month');
 
-  // Khởi tạo state incomes thuần túy (không side effect), loại bỏ các mục đã bị xóa
+  // Khởi tạo state incomes thuần túy (không side effect), loại bỏ các mục đã bị xóa và khử trùng lặp
   const [incomes, setIncomes] = useState<IncomeRecord[]>(() => {
     const deletedIds = getDeletedIncomeIds();
     const fromStorage = getIncomeRecords().filter((r) => !deletedIds.has(r.id));
     if (Array.isArray(transactions) && transactions.length > 0) {
       const fromTx = extractIncomesFromTransactions(transactions);
-      if (fromTx.length > 0) {
-        const map = new Map<string, IncomeRecord>();
-        fromStorage.forEach((r) => map.set(r.id, r));
-        fromTx.forEach((r) => {
-          if (!deletedIds.has(r.id)) map.set(r.id, r);
-        });
-        return Array.from(map.values()).sort((a, b) => b.createdAt - a.createdAt);
-      }
+      return deduplicateIncomeRecords([...fromTx, ...fromStorage]);
     }
-    return fromStorage;
+    return deduplicateIncomeRecords(fromStorage);
   });
 
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
@@ -61,8 +55,7 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
   // Đăng ký lắng nghe sự kiện cập nhật khoản thu
   useEffect(() => {
     const unsub = subscribeIncomeUpdates((updated) => {
-      const deletedIds = getDeletedIncomeIds();
-      const valid = updated.filter((r) => !deletedIds.has(r.id));
+      const valid = deduplicateIncomeRecords(updated);
       setIncomes((prev) => {
         if (
           prev.length === valid.length &&
@@ -81,8 +74,7 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
     if (Array.isArray(transactions) && transactions.length > 0) {
       const synced = syncIncomesFromBackendTransactions(transactions);
       if (synced && synced.length > 0) {
-        const deletedIds = getDeletedIncomeIds();
-        const valid = synced.filter((r) => !deletedIds.has(r.id));
+        const valid = deduplicateIncomeRecords(synced);
         setIncomes((prev) => {
           if (
             prev.length === valid.length &&
@@ -105,8 +97,7 @@ export const IncomeManagementScreen: React.FC<IncomeManagementScreenProps> = ({ 
         const txList = Array.isArray(monthRes) ? monthRes : monthRes?.data || monthRes?.items || [];
         if (Array.isArray(txList) && txList.length > 0 && isMounted) {
           const synced = syncIncomesFromBackendTransactions(txList);
-          const deletedIds = getDeletedIncomeIds();
-          const valid = synced.filter((r) => !deletedIds.has(r.id));
+          const valid = deduplicateIncomeRecords(synced);
           setIncomes((prev) => {
             if (
               prev.length === valid.length &&

@@ -67,8 +67,10 @@ export class EventsController {
   }
 
   @Get(':id')
-  async findById(@Param('id') id: string) {
-    return this.eventsService.findById(id);
+  async findById(@Req() req, @Param('id') id: string) {
+    const userId = this.getUserId(req);
+    const userEmail = this.getUserEmail(req);
+    return this.eventsService.findByIdForUser(userId, userEmail, id);
   }
 
   @Put(':id')
@@ -78,7 +80,8 @@ export class EventsController {
     @Body() dto: UpdateEventDto,
   ) {
     const userId = this.getUserId(req);
-    return this.eventsService.update(userId, id, dto);
+    const userEmail = this.getUserEmail(req);
+    return this.eventsService.update(userId, userEmail, id, dto);
   }
 
   @Delete(':id')
