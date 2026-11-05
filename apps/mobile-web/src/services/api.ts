@@ -52,13 +52,23 @@ export const getBaseUrl = (): string => {
     return `http://${hostname}:3000`;
   }
 
-  // 3. Nếu chạy Native Mobile App (iOS / Android trong Expo Go)
+  // 3. Nếu chạy Native Mobile App (iOS / Android trong Expo Go hoặc Emulator)
   try {
-    if (envApiUrl && !envApiUrl.includes('localhost') && !envApiUrl.includes('127.0.0.1')) {
+    const Constants = require('expo-constants').default;
+    const isEmulator = !Constants.isDevice;
+
+    // Trên Android Emulator: 10.0.2.2 luôn luôn định tuyến trực tiếp vào localhost của máy host
+    // (hoạt động bền vững, không bị phụ thuộc việc đổi Wifi trường học, quán cafe hay ở nhà!)
+    if (Platform.OS === 'android' && isEmulator) {
+      return 'http://10.0.2.2:3000';
+    }
+
+    // Nếu có cấu hình https (tunnel / production) -> ưu tiên dùng
+    if (envApiUrl && envApiUrl.startsWith('https://')) {
       return envApiUrl.replace(/\/$/, '');
     }
-    
-    const Constants = require('expo-constants').default;
+
+    // Tự động lấy IP của máy tính host từ hostUri của Expo (khi kết nối qua Expo Go trên máy thật)
     const hostUri =
       Constants.expoConfig?.hostUri ||
       Constants.manifest2?.extra?.expoClient?.hostUri ||
@@ -74,6 +84,10 @@ export const getBaseUrl = (): string => {
       if (isIp && hostIp !== 'localhost' && hostIp !== '127.0.0.1') {
         return `http://${hostIp}:3000`;
       }
+    }
+
+    if (envApiUrl && !envApiUrl.includes('localhost') && !envApiUrl.includes('127.0.0.1')) {
+      return envApiUrl.replace(/\/$/, '');
     }
   } catch (e) {
     console.warn('Resolve host IP notice:', e);

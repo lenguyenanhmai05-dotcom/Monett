@@ -599,6 +599,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
             if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
               window.dispatchEvent(new CustomEvent('monett:open_photo_journal'));
             }
+          } else if (newNotif.type === 'event' || newNotif.metadata?.targetTab === 'events') {
+            if (newNotif.metadata?.eventId && Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+              window.dispatchEvent(new CustomEvent('monett:open_event', { detail: { eventId: newNotif.metadata.eventId } }));
+            } else {
+              setIsOpen(true);
+            }
           } else {
             setIsOpen(true);
           }
@@ -607,6 +613,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           if (newNotif.type === 'expense' || newNotif.metadata?.targetTab === 'photo_journal') {
             if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
               window.dispatchEvent(new CustomEvent('monett:open_photo_journal'));
+            }
+          } else if (newNotif.type === 'event' || newNotif.metadata?.targetTab === 'events') {
+            if (newNotif.metadata?.eventId && Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+              window.dispatchEvent(new CustomEvent('monett:open_event', { detail: { eventId: newNotif.metadata.eventId } }));
+            } else {
+              setIsOpen(true);
             }
           } else {
             setIsOpen(true);
@@ -813,11 +825,65 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const handleEventNotification = (data: any) => {
       if (data) {
         addNotification(data);
-        notifyEventsUpdated();
+        const eventDetail = data?.metadata?.event ? [data.metadata.event] : undefined;
+        notifyEventsUpdated(eventDetail);
+        if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+          try {
+            if (data?.metadata?.action === 'accepted') {
+              window.dispatchEvent(new CustomEvent('monett:event_accepted', { detail: data?.metadata }));
+            } else if (data?.metadata?.action === 'declined') {
+              window.dispatchEvent(new CustomEvent('monett:event_declined', { detail: data?.metadata }));
+            }
+          } catch {}
+        }
       }
     };
+
     const handleEventInvitation = () => {
       notifyEventsUpdated();
+    };
+
+    const handleEventAccepted = (data: any) => {
+      if (data) {
+        const ev = data.event ? [data.event] : undefined;
+        notifyEventsUpdated(ev);
+        if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+          try {
+            window.dispatchEvent(new CustomEvent('monett:event_accepted', { detail: data }));
+          } catch {}
+        }
+      }
+    };
+
+    const handleEventDeclined = (data: any) => {
+      if (data) {
+        const ev = data.event ? [data.event] : undefined;
+        notifyEventsUpdated(ev);
+        if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+          try {
+            window.dispatchEvent(new CustomEvent('monett:event_declined', { detail: data }));
+          } catch {}
+        }
+      }
+    };
+
+    const handleEventUpdated = (data: any) => {
+      if (data) {
+        const evList = Array.isArray(data) ? data : [data];
+        notifyEventsUpdated(evList);
+      }
+    };
+
+    const handleEventExpensesUpdated = (data: any) => {
+      if (data) {
+        const ev = data.event ? [data.event] : (data.eventId ? [{ id: data.eventId, _id: data.eventId, expenses: data.expenses, spentAmount: data.spentAmount, incomeAmount: data.incomeAmount }] : undefined);
+        notifyEventsUpdated(ev);
+        if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+          try {
+            window.dispatchEvent(new CustomEvent('monett:event_expenses_updated', { detail: data }));
+          } catch {}
+        }
+      }
     };
 
     if (socket) {
@@ -826,6 +892,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       socket.on('group_notification', handleMomentNotification);
       socket.on('event_notification', handleEventNotification);
       socket.on('event_invitation', handleEventInvitation);
+      socket.on('event_accepted', handleEventAccepted);
+      socket.on('event_declined', handleEventDeclined);
+      socket.on('event_updated', handleEventUpdated);
+      socket.on('event_expenses_updated', handleEventExpensesUpdated);
     }
 
     // 3. Lắng nghe thông báo chéo giữa các tab trên cùng trình duyệt
@@ -889,6 +959,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         socket.off('group_notification', handleMomentNotification);
         socket.off('event_notification', handleEventNotification);
         socket.off('event_invitation', handleEventInvitation);
+        socket.off('event_accepted', handleEventAccepted);
+        socket.off('event_declined', handleEventDeclined);
+        socket.off('event_updated', handleEventUpdated);
+        socket.off('event_expenses_updated', handleEventExpensesUpdated);
       }
       if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
         window.removeEventListener('storage', handleStorage);

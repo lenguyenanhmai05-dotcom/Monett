@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,9 @@ import {
   getPendingEventInvitationsForUser,
   acceptEventInvitation,
   declineEventInvitation,
+  getDeletedEventIds,
+  saveDeletedEventIds,
+  filterDeletedEvents,
 } from '../../services/eventsStorage';
 import {
   getEventsApi,
@@ -67,7 +70,15 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
   const { user } = useAuth();
   const userEmail = (user as any)?.email || '';
   const userId = (user as any)?.id || (user as any)?._id || '';
+  const userKey = userId || userEmail || 'guest';
   const isVi = language === 'vi';
+
+  const isFetchingRef = useRef(false);
+  const deletedEventIdsRef = useRef<Set<string>>(getDeletedEventIds(userKey));
+
+  useEffect(() => {
+    deletedEventIdsRef.current = getDeletedEventIds(userKey);
+  }, [userKey]);
 
   const handleBack = () => {
     if (onBack) {
@@ -78,29 +89,120 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
   };
 
   // Events state - chỉ nạp dữ liệu thật nếu tài khoản là lenguyenanhmai113@gmail.com
-  const [events, setEvents] = useState<MonettEvent[]>(() =>
-    loadEventsFromStorage(userEmail, userId)
-  );
+  const [events, setEvents] = useState<MonettEvent[]>(() => {
+    const raw = loadEventsFromStorage(userEmail, userId);
+    const deleted = getDeletedEventIds(userKey);
+    return raw.filter((loc) => {
+      const locId = String(loc.id || (loc as any)._id || '');
+      const locTemp = String((loc as any).tempId || '');
+      return !deleted.has(locId) && (!locTemp || !deleted.has(locTemp));
+    });
+  });
 
   // Khi tài khoản người dùng thay đổi hoặc khi khởi động: nạp từ API & Local Storage
   const fetchAllEvents = useCallback(async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
       const apiList = await getEventsApi();
       if (Array.isArray(apiList)) {
-        setEvents(apiList);
-        saveEventsToStorage(apiList, userEmail, userId);
+        const deletedIds = deletedEventIdsRef.current;
+        const activeApiList = apiList.filter((item) => {
+          const aId = String(item.id || (item as any)._id || '');
+          const aTemp = String((item as any).tempId || '');
+          return !deletedIds.has(aId) && (!aTemp || !deletedIds.has(aTemp));
+        });
+
+        setEvents((prev) => {
+          const localEvents = (prev.length > 0 ? prev : loadEventsFromStorage(userEmail, userId)).filter((loc) => {
+            const locId = String(loc.id || (loc as any)._id || '');
+            const locTemp = String((loc as any).tempId || '');
+            return !deletedIds.has(locId) && (!locTemp || !deletedIds.has(locTemp));
+          });
+
+          // 1. Duyệt qua activeApiList, nếu local có cùng sự kiện, bảo lưu giao dịch và trạng thái local
+          const merged = activeApiList.map((apiItem) => {
+            const apiId = String(apiItem.id || (apiItem as any)._id || '');
+            const loc = localEvents.find((l) => {
+              const lId = String(l.id || (l as any)._id || '');
+              const lTempId = String((l as any).tempId || '');
+              return (lId && lId === apiId) || (lTempId && lTempId === apiId);
+            });
+            if (loc) {
+              const locExpenses = loc.expenses || [];
+              const apiExpenses = apiItem.expenses || [];
+              return {
+                ...apiItem,
+                expenses: locExpenses.length > apiExpenses.length ? locExpenses : apiExpenses,
+                spentAmount: loc.spentAmount !== undefined ? loc.spentAmount : apiItem.spentAmount,
+                incomeAmount: loc.incomeAmount !== undefined ? loc.incomeAmount : apiItem.incomeAmount,
+                status: loc.status || apiItem.status,
+              };
+            }
+            return apiItem;
+          });
+
+          // 2. Giữ lại bất kỳ sự kiện local nào chưa có trên backend (trừ các sự kiện đã bị xóa)
+          localEvents.forEach((loc) => {
+            const locId = String(loc.id || (loc as any)._id || '');
+            const locTempId = String((loc as any).tempId || '');
+            if (deletedIds.has(locId) || (locTempId && deletedIds.has(locTempId))) {
+              return;
+            }
+            const exists = merged.some((a) => {
+              const aId = String(a.id || (a as any)._id || '');
+              if (aId && (aId === locId || (locTempId && aId === locTempId))) return true;
+              if (a.title === loc.title && Math.abs(new Date(a.createdAt).getTime() - new Date(loc.createdAt).getTime()) < 60000) {
+                return true;
+              }
+              return false;
+            });
+            if (!exists) {
+              merged.unshift(loc);
+            }
+          });
+          saveEventsToStorage(merged, userEmail, userId, merged.length === 0, true); // skipNotify = true to avoid infinite loops!
+          return merged;
+        });
         return;
       }
-    } catch {}
-    setEvents(loadEventsFromStorage(userEmail, userId));
+    } catch (e) {
+      console.warn('Lỗi fetchAllEvents:', e);
+    } finally {
+      isFetchingRef.current = false;
+    }
+
+    const localEvents = loadEventsFromStorage(userEmail, userId).filter((loc) => {
+      const locId = String(loc.id || (loc as any)._id || '');
+      const locTemp = String((loc as any).tempId || '');
+      return !deletedEventIdsRef.current.has(locId) && (!locTemp || !deletedEventIdsRef.current.has(locTemp));
+    });
+    if (localEvents.length > 0) {
+      setEvents(localEvents);
+    }
   }, [userEmail, userId]);
 
   useEffect(() => {
-    // Luôn reset state events theo đúng tài khoản người dùng hiện tại ngay khi userEmail / userId thay đổi
-    setEvents(loadEventsFromStorage(userEmail, userId));
+    // Đọc ngay từ local storage nếu có
+    const deleted = deletedEventIdsRef.current;
+    const local = loadEventsFromStorage(userEmail, userId).filter((loc) => {
+      const locId = String(loc.id || (loc as any)._id || '');
+      const locTemp = String((loc as any).tempId || '');
+      return !deleted.has(locId) && (!locTemp || !deleted.has(locTemp));
+    });
+    if (local.length > 0) {
+      setEvents(local);
+    }
     fetchAllEvents();
     preloadEventsFromAsyncStorage(userEmail, userId).then((res) => {
-      if (Array.isArray(res)) setEvents(res);
+      if (Array.isArray(res) && res.length > 0) {
+        const filtered = res.filter((loc) => {
+          const locId = String(loc.id || (loc as any)._id || '');
+          const locTemp = String((loc as any).tempId || '');
+          return !deleted.has(locId) && (!locTemp || !deleted.has(locTemp));
+        });
+        setEvents((prev) => (prev.length === 0 ? filtered : prev));
+      }
     });
     const unsubscribe = subscribeEventsUpdates(() => {
       fetchAllEvents();
@@ -109,15 +211,57 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
 
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       const handleEventsUpdated = (e: any) => {
-        if (e?.detail && Array.isArray(e.detail)) {
-          setEvents(e.detail);
+        if (e?.detail) {
+          const detailList = Array.isArray(e.detail) ? e.detail : [e.detail];
+          if (detailList.length > 0) {
+            setEvents((prev) => {
+              const updatedMap = new Map<string, any>();
+              detailList.forEach((item: any) => {
+                const targetObj = item?.event || item;
+                const id = String(targetObj?.id || targetObj?._id || targetObj?.tempId || '');
+                if (id) updatedMap.set(id, targetObj);
+              });
+
+              if (updatedMap.size === 0) return prev;
+
+              const next = prev.map((oldItem) => {
+                const oldId = String(oldItem.id || (oldItem as any)._id || (oldItem as any).tempId || '');
+                const updated = updatedMap.get(oldId);
+                if (updated) {
+                  updatedMap.delete(oldId);
+                  return {
+                    ...oldItem,
+                    ...updated,
+                    expenses: updated.expenses !== undefined ? updated.expenses : oldItem.expenses,
+                    spentAmount: updated.spentAmount !== undefined ? updated.spentAmount : oldItem.spentAmount,
+                    incomeAmount: updated.incomeAmount !== undefined ? updated.incomeAmount : oldItem.incomeAmount,
+                    members: updated.members || oldItem.members,
+                  };
+                }
+                return oldItem;
+              });
+
+              updatedMap.forEach((newItem) => {
+                next.unshift(newItem);
+              });
+              return next;
+            });
+          }
         }
+        fetchAllEvents();
+        refreshInvites();
       };
       window.addEventListener('monett:events_updated', handleEventsUpdated);
+      window.addEventListener('monett:event_accepted', handleEventsUpdated);
+      window.addEventListener('monett:event_declined', handleEventsUpdated);
+      window.addEventListener('monett:event_expenses_updated', handleEventsUpdated);
       return () => {
         unsubscribe();
         if (typeof window.removeEventListener === 'function') {
           window.removeEventListener('monett:events_updated', handleEventsUpdated);
+          window.removeEventListener('monett:event_accepted', handleEventsUpdated);
+          window.removeEventListener('monett:event_declined', handleEventsUpdated);
+          window.removeEventListener('monett:event_expenses_updated', handleEventsUpdated);
         }
       };
     }
@@ -263,11 +407,6 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
   const [expenseCategory, setExpenseCategory] = useState('Ăn uống');
   const [expenseCategoryIcon, setExpenseCategoryIcon] = useState('🍜');
 
-  // Sync to storage on state change cho đúng tài khoản
-  useEffect(() => {
-    saveEventsToStorage(events, userEmail, userId);
-  }, [events, userEmail, userId]);
-
   // Keep selectedDetailEvent in sync with events state
   useEffect(() => {
     if (selectedDetailEvent) {
@@ -351,18 +490,35 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
       setEditingEvent(null);
     } else {
       // Create new
+      const userName = (user as any)?.name || (user as any)?.fullName || userEmail.split('@')[0] || 'Chủ sự kiện';
+      const tempId = `evt-${Date.now()}`;
       const newEvent: MonettEvent = {
-        id: `evt-${Date.now()}`,
+        id: tempId,
         ...eventData,
+        ownerId: userId,
+        ownerName: userName,
+        ownerEmail: userEmail,
+        members: [
+          {
+            id: userId,
+            name: userName,
+            email: userEmail,
+            role: 'owner',
+            status: 'accepted',
+          },
+        ],
         spentAmount: 0,
+        incomeAmount: 0,
         expenses: [],
         status: eventData.status || 'ongoing', // Default new event to selected or ongoing
         createdAt: new Date().toISOString(),
       };
+      (newEvent as any).tempId = tempId;
 
-      const nextEvents = [newEvent, ...events.filter((x) => x.id !== newEvent.id)];
+      const nextEvents = [newEvent, ...events.filter((x) => x.id !== newEvent.id && (x as any).tempId !== tempId)];
       setEvents(nextEvents);
-      saveEventsToStorage(nextEvents, userEmail, userId);
+      saveEventsToStorage(nextEvents, userEmail, userId, false, false);
+      setIsCreateModalOpen(false);
 
       // Tự động đồng bộ sự kiện mới lên Backend MongoDB để có ID hợp lệ khi mời bạn bè
       createEventApi({
@@ -377,12 +533,25 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
         if (res && (res._id || res.id)) {
           const backendId = String(res._id || res.id);
           setEvents((prev) => {
-            const synced = prev.map((e) => (e.id === newEvent.id ? { ...e, id: backendId, _id: backendId } : e));
-            saveEventsToStorage(synced, userEmail, userId);
+            const synced = prev.map((e) => (e.id === newEvent.id || (e as any).tempId === tempId || e.id === tempId ? {
+              ...e,
+              ...res,
+              id: backendId,
+              _id: backendId,
+              tempId: tempId,
+              ownerId: res.ownerId || e.ownerId || userId,
+              ownerName: res.ownerName || e.ownerName || userName,
+              ownerEmail: res.ownerEmail || e.ownerEmail || userEmail,
+              members: res.members && res.members.length > 0 ? res.members : e.members,
+            } : e));
+            saveEventsToStorage(synced, userEmail, userId, false, true); // skipNotify = true
             return synced;
           });
+          setSelectedEventId((cur) => (cur === tempId ? backendId : cur));
         }
-      }).catch(() => {});
+      }).catch((err) => {
+        console.warn('Lỗi gọi createEventApi (giữ lại sự kiện local):', err);
+      });
 
       addNotification({
         type: 'event',
@@ -397,19 +566,52 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
     }
   };
 
-  const handleDeleteEvent = (id: string, title: string) => {
+  const handleDeleteEvent = async (id: string, title: string): Promise<boolean> => {
     const confirmMsg = isVi
       ? `Bạn có chắc chắn muốn xóa sự kiện "${title}" không?`
       : `Are you sure you want to delete event "${title}"?`;
 
     if (typeof window !== 'undefined' && window.confirm) {
-      if (!window.confirm(confirmMsg)) return;
+      if (!window.confirm(confirmMsg)) return false;
     }
 
-    const nextEvents = events.filter((e) => e.id !== id);
+    // 1. Tìm sự kiện để thu thập toàn bộ các ID khả dĩ (id, _id, tempId)
+    const targetEvent = events.find(
+      (e) =>
+        e.id === id ||
+        (e as any)._id === id ||
+        (e as any).tempId === id ||
+        (title && e.title === title)
+    );
+
+    const possibleIds = new Set<string>();
+    if (id) possibleIds.add(String(id));
+    if (targetEvent?.id) possibleIds.add(String(targetEvent.id));
+    if ((targetEvent as any)?._id) possibleIds.add(String((targetEvent as any)._id));
+    if ((targetEvent as any)?.tempId) possibleIds.add(String((targetEvent as any).tempId));
+
+    // Thêm vào danh sách đã xóa để fetchAllEvents KHÔNG BAO GIỜ hồi sinh sự kiện này
+    if (title) possibleIds.add(title);
+    possibleIds.forEach((pid) => deletedEventIdsRef.current.add(pid));
+    saveDeletedEventIds(userKey, Array.from(possibleIds));
+
+    // 2. Lọc ngay khỏi danh sách events trên State và Storage
+    const nextEvents = filterDeletedEvents(events, userKey).filter((e) => {
+      const eId = String(e.id || '');
+      const eUnderId = String((e as any)._id || '');
+      const eTempId = String((e as any).tempId || '');
+      return !possibleIds.has(eId) && (!eUnderId || !possibleIds.has(eUnderId)) && (!eTempId || !possibleIds.has(eTempId));
+    });
+
     setEvents(nextEvents);
-    saveEventsToStorage(nextEvents, userEmail, userId);
-    if (selectedDetailEvent?.id === id) setSelectedDetailEvent(null);
+    saveEventsToStorage(nextEvents, userEmail, userId, true, false); // Phát tín hiệu cập nhật tức thì đến HomeScreen & Widgets
+
+    if (selectedDetailEvent && possibleIds.has(String(selectedDetailEvent.id || (selectedDetailEvent as any)._id || ''))) {
+      setSelectedDetailEvent(null);
+    }
+    if (selectedEventId && possibleIds.has(String(selectedEventId))) {
+      setSelectedEventId(null);
+    }
 
     addNotification({
       type: 'event',
@@ -419,21 +621,100 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
       iconColor: '#DC2626',
       metadata: { targetTab: 'events' },
     });
+
+    // 3. Gọi Backend API để xóa vĩnh viễn trên MongoDB Atlas
+    let backendId =
+      (targetEvent as any)?._id ||
+      (targetEvent?.id && !String(targetEvent.id).startsWith('evt-') ? targetEvent.id : null) ||
+      (!String(id).startsWith('evt-') ? id : null);
+
+    if (!backendId) {
+      try {
+        const remoteList = await getEventsApi();
+        if (Array.isArray(remoteList)) {
+          const match = remoteList.find(
+            (r: any) =>
+              (r._id && possibleIds.has(String(r._id))) ||
+              (r.id && possibleIds.has(String(r.id))) ||
+              (r.title === title)
+          );
+          if (match && (match._id || match.id)) {
+            backendId = String(match._id || match.id);
+            possibleIds.add(backendId);
+            deletedEventIdsRef.current.add(backendId);
+            saveDeletedEventIds(userKey, [backendId]);
+          }
+        }
+      } catch {}
+    }
+
+    if (backendId && !String(backendId).startsWith('evt-')) {
+      try {
+        await deleteEventApi(String(backendId));
+      } catch (err) {
+        console.warn('Lỗi gọi deleteEventApi:', err);
+      }
+    }
+
+    return true;
   };
 
-  const handleToggleStatus = (id: string) => {
-    const nextEvents = events.map((e) => {
-      if (e.id !== id) return e;
-      const nextStatus: Record<'upcoming' | 'ongoing' | 'completed', 'upcoming' | 'ongoing' | 'completed'> = {
-        upcoming: 'ongoing',
-        ongoing: 'completed',
-        completed: 'upcoming',
-      };
-      const status = nextStatus[e.status];
-      return { ...e, status };
+  const handleToggleStatus = async (id: string) => {
+    const targetEvent = events.find(
+      (e) => e.id === id || (e as any)._id === id || (e as any).tempId === id
+    );
+    if (!targetEvent) return;
+
+    const curStatus = (targetEvent.status || 'ongoing').toLowerCase();
+    const statusCycle: Record<string, 'upcoming' | 'ongoing' | 'completed'> = {
+      ongoing: 'completed',
+      completed: 'upcoming',
+      upcoming: 'ongoing',
+    };
+    const nextStatus: 'upcoming' | 'ongoing' | 'completed' = statusCycle[curStatus] || 'completed';
+
+    const targetBackendId =
+      (targetEvent as any)?._id ||
+      (!String(targetEvent.id).startsWith('evt-') ? targetEvent.id : null) ||
+      (!String(id).startsWith('evt-') ? id : null);
+
+    const nextEvents: MonettEvent[] = events.map((e) => {
+      const isMatch =
+        e.id === id ||
+        (e as any)._id === id ||
+        (e as any).tempId === id;
+      if (!isMatch) return e;
+      return { ...e, status: nextStatus };
     });
+
     setEvents(nextEvents);
-    saveEventsToStorage(nextEvents, userEmail, userId);
+    saveEventsToStorage(nextEvents, userEmail, userId, false, false);
+
+    addNotification({
+      type: 'event',
+      title: isVi ? 'Đổi trạng thái sự kiện 🔄' : 'Event Status Changed 🔄',
+      message: isVi
+        ? `Đã đổi trạng thái sang "${
+            nextStatus === 'completed'
+              ? 'Hoàn thành'
+              : nextStatus === 'upcoming'
+              ? 'Sắp tới'
+              : 'Đang diễn ra'
+          }"`
+        : `Changed status to "${nextStatus}"`,
+      iconBg: nextStatus === 'completed' ? '#F3E8FF' : nextStatus === 'upcoming' ? '#FEF3C7' : '#DCFCE7',
+      iconColor: nextStatus === 'completed' ? '#7C3AED' : nextStatus === 'upcoming' ? '#D97706' : '#059669',
+      metadata: { targetTab: 'events', eventId: id },
+    });
+
+    // Đồng bộ lên backend MongoDB Atlas
+    if (targetBackendId && !String(targetBackendId).startsWith('evt-')) {
+      try {
+        await updateEventApi(targetBackendId, { status: nextStatus });
+      } catch (err) {
+        console.warn('Lỗi gọi updateEventApi khi đổi trạng thái:', err);
+      }
+    }
   };
 
   const handleAddExpenseToEvent = () => {
@@ -478,6 +759,20 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
     setEvents(nextEvents);
     saveEventsToStorage(nextEvents, userEmail, userId);
 
+    const targetBackendId = expenseModalEvent.id || (expenseModalEvent as any)._id;
+    if (targetBackendId && !targetBackendId.startsWith('evt-')) {
+      const targetEvt = nextEvents.find((e) => (e.id || (e as any)._id) === targetBackendId);
+      if (targetEvt) {
+        updateEventApi(targetBackendId, {
+          expenses: targetEvt.expenses,
+          spentAmount: targetEvt.spentAmount,
+          incomeAmount: targetEvt.incomeAmount,
+        }).catch((err) => {
+          console.warn('Lỗi gọi updateEventApi từ modal addExpense:', err);
+        });
+      }
+    }
+
     addNotification({
       type: 'event',
       title: isVi ? 'Ghi nhận chi tiêu sự kiện 💸' : 'Event Expense Logged 💸',
@@ -504,7 +799,21 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
 
   // If an event is selected, render the dedicated Event Detail Page
   if (selectedEventId) {
-    const activeEvent = events.find((e) => e.id === selectedEventId || (e as any)._id === selectedEventId);
+    let activeEvent = events.find(
+      (e) =>
+        e.id === selectedEventId ||
+        (e as any)._id === selectedEventId ||
+        (e as any).tempId === selectedEventId
+    );
+    if (!activeEvent) {
+      const stored = loadEventsFromStorage(userEmail, userId);
+      activeEvent = stored.find(
+        (e) =>
+          e.id === selectedEventId ||
+          (e as any)._id === selectedEventId ||
+          (e as any).tempId === selectedEventId
+      );
+    }
     if (activeEvent) {
       return (
         <EventDetailScreen
@@ -515,9 +824,9 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
             setEvents((prev) => {
               const next = prev.map((e) => {
                 const eid = e.id || (e as any)._id;
-                return (eid === targetId || e.id === updatedEvent.id) ? updatedEvent : e;
+                return (eid === targetId || e.id === updatedEvent.id || (e as any).tempId === updatedEvent.id) ? updatedEvent : e;
               });
-              saveEventsToStorage(next, userEmail, userId);
+              saveEventsToStorage(next, userEmail, userId, false, true); // skipNotify = true
               return next;
             });
             if (targetId && !targetId.startsWith('evt-')) {
@@ -525,12 +834,17 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                 expenses: updatedEvent.expenses,
                 spentAmount: updatedEvent.spentAmount,
                 incomeAmount: updatedEvent.incomeAmount,
-              }).catch(() => {});
+                status: updatedEvent.status,
+              }).catch((err) => {
+                console.warn('Lỗi gọi updateEventApi:', err);
+              });
             }
           }}
-          onDeleteEvent={(id, title) => {
-            handleDeleteEvent(id, title);
-            setSelectedEventId(null);
+          onDeleteEvent={async (id, title) => {
+            const ok = await handleDeleteEvent(id, title);
+            if (ok) {
+              setSelectedEventId(null);
+            }
           }}
           onOpenCreateNewEvent={() => {
             setEditingEvent(null);
@@ -967,6 +1281,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
       ) : (
         <View style={[styles.eventsGrid, !isDesktop && styles.eventsGridMobile]}>
           {filteredEvents.map((evt) => {
+            const evtStatusKey = (evt.status || 'ongoing').toLowerCase();
             const statusConfig = {
               ongoing: {
                 labelVi: 'Đang diễn ra',
@@ -992,7 +1307,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                 badgeBg: isDark ? 'rgba(168, 85, 247, 0.2)' : '#FFFFFF',
                 badgeColor: isDark ? '#C084FC' : '#6B21A8',
               },
-            }[evt.status] || {
+            }[evtStatusKey] || {
               labelVi: 'Đang diễn ra',
               labelEn: 'Ongoing',
               cardBg: isDark ? '#111B27' : '#D2EADA',
@@ -1003,7 +1318,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
 
             return (
               <TouchableOpacity
-                key={evt.id}
+                key={evt.id || (evt as any)._id}
                 style={[
                   styles.compactCard,
                   !isDesktop && styles.compactCardMobile,
@@ -1012,7 +1327,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                     borderColor: statusConfig.cardBorder,
                   },
                 ]}
-                onPress={() => setSelectedEventId(evt.id)}
+                onPress={() => setSelectedEventId(evt.id || (evt as any)._id)}
                 activeOpacity={0.88}
               >
                 {/* 1. Top Row: Icon Box (Xanh lá đậm #064E3B) + Title/Date + Status Badge */}
@@ -1036,7 +1351,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                   <TouchableOpacity
                     onPress={(e) => {
                       e.stopPropagation();
-                      handleToggleStatus(evt.id);
+                      handleToggleStatus(evt.id || (evt as any)._id);
                     }}
                     activeOpacity={0.75}
                     style={[styles.statusBadge, { backgroundColor: statusConfig.badgeBg }]}
@@ -1087,16 +1402,30 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
                     </Text>
                   </View>
 
-                  <TouchableOpacity
-                    onPress={() => setSelectedEventId(evt.id)}
-                    activeOpacity={0.7}
-                    accessibilityLabel={`Chi tiết sự kiện ${evt.title}`}
-                    style={styles.detailLinkWrap}
-                  >
-                    <Text style={[styles.detailLinkText, { color: isDark ? '#34D399' : '#047857', fontWeight: '800' }]}>
-                      {isVi ? 'Chi tiết →' : 'Details →'}
-                    </Text>
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleDeleteEvent(evt.id, evt.title);
+                      }}
+                      activeOpacity={0.7}
+                      accessibilityLabel={`Xóa sự kiện ${evt.title}`}
+                      style={{ padding: 4 }}
+                    >
+                      <Ionicons name="trash-outline" size={17} color={isDark ? '#EF4444' : '#DC2626'} />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => setSelectedEventId(evt.id)}
+                      activeOpacity={0.7}
+                      accessibilityLabel={`Chi tiết sự kiện ${evt.title}`}
+                      style={styles.detailLinkWrap}
+                    >
+                      <Text style={[styles.detailLinkText, { color: isDark ? '#34D399' : '#047857', fontWeight: '800' }]}>
+                        {isVi ? 'Chi tiết →' : 'Details →'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </TouchableOpacity>
             );
@@ -1116,7 +1445,6 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onNavigateToTab, onB
         }}
         onDelete={(id, title) => {
           handleDeleteEvent(id, title);
-          setSelectedDetailEvent(null);
         }}
         onToggleStatus={(id) => {
           handleToggleStatus(id);

@@ -81,6 +81,9 @@ export class MonettEventModel {
   @Prop({ default: '' })
   ownerName: string;
 
+  @Prop({ default: '' })
+  ownerEmail?: string;
+
   @Prop({ required: true })
   title: string;
 

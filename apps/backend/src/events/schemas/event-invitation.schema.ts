@@ -23,6 +23,9 @@ export class EventInvitationModel {
   @Prop({ type: Types.ObjectId, ref: 'User', required: false })
   inviterId?: Types.ObjectId;
 
+  @Prop({ default: '', index: true })
+  inviterUserId?: string;
+
   @Prop({ default: '' })
   inviterEmail?: string;
 

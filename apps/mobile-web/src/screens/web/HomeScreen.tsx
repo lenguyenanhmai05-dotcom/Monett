@@ -35,6 +35,8 @@ import {
   loadEventsFromStorage,
   saveEventsToStorage,
   MonettEvent,
+  filterDeletedEvents,
+  getDeletedEventIds,
 } from '../../services/eventsStorage';
 import {
   getBudgetApi,
@@ -990,29 +992,43 @@ const HomeRecurringEventsRow: React.FC<{
     }, 0);
   }, [recurringItems]);
 
+  const userKey = userId || userEmail || 'guest';
+
   const [events, setEvents] = useState<MonettEvent[]>(() => {
-    return loadEventsFromStorage(userEmail, userId).slice(0, 3);
+    return filterDeletedEvents(loadEventsFromStorage(userEmail, userId), userKey).slice(0, 3);
   });
 
   const fetchEvents = useCallback(async () => {
+    const local = filterDeletedEvents(loadEventsFromStorage(userEmail, userId), userKey);
     try {
       const apiEvents = await getEventsApi();
       if (Array.isArray(apiEvents)) {
-        setEvents(apiEvents.slice(0, 3));
-        saveEventsToStorage(apiEvents, userEmail, userId);
+        const activeApi = filterDeletedEvents(apiEvents, userKey);
+        const merged = [...activeApi];
+        local.forEach((loc) => {
+          const locId = String(loc.id || (loc as any)._id || '');
+          const exists = merged.some((a) => (a.id && a.id === locId) || ((a as any)._id && (a as any)._id === locId));
+          if (!exists) merged.push(loc);
+        });
+        const finalEvents = filterDeletedEvents(merged, userKey);
+        setEvents(finalEvents.slice(0, 3));
         return;
       }
     } catch {}
-    const local = loadEventsFromStorage(userEmail, userId);
     setEvents(local.slice(0, 3));
-  }, [userEmail, userId]);
+  }, [userEmail, userId, userKey]);
 
   useEffect(() => {
-    setEvents(loadEventsFromStorage(userEmail, userId).slice(0, 3));
+    setEvents(filterDeletedEvents(loadEventsFromStorage(userEmail, userId), userKey).slice(0, 3));
     fetchEvents();
 
-    const handleUpdate = () => {
-      fetchEvents();
+    const handleUpdate = (e: any) => {
+      if (e?.detail && Array.isArray(e.detail)) {
+        const filtered = filterDeletedEvents(e.detail, userKey);
+        setEvents(filtered.slice(0, 3));
+      } else {
+        fetchEvents();
+      }
     };
     if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('monett:events_updated', handleUpdate);
@@ -1024,7 +1040,7 @@ const HomeRecurringEventsRow: React.FC<{
         }
       };
     }
-  }, [fetchEvents]);
+  }, [fetchEvents, userEmail, userId, userKey]);
 
   const formatItemAmount = (amount: number) => {
     if (amount >= 1000 && amount % 1000 === 0 && amount < 1000000) {

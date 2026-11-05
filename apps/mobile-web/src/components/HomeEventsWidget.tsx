@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -7,6 +7,7 @@ import {
   loadEventsFromStorage,
   preloadEventsFromAsyncStorage,
   subscribeEventsUpdates,
+  filterDeletedEvents,
 } from '../services/eventsStorage';
 
 interface HomeEventsWidgetProps {
@@ -24,28 +25,44 @@ export const HomeEventsWidget: React.FC<HomeEventsWidgetProps> = ({
   const { user } = useAuth();
   const userEmail = (user as any)?.email || '';
   const userId = user?.id || (user as any)?._id || '';
+  const userKey = userId || userEmail || 'guest';
 
   const [events, setEvents] = useState<MonettEvent[]>(() => {
-    return loadEventsFromStorage(userEmail, userId) || [];
+    return filterDeletedEvents(loadEventsFromStorage(userEmail, userId) || [], userKey);
   });
 
   const reloadEvents = useCallback(() => {
-    setEvents(loadEventsFromStorage(userEmail, userId) || []);
-  }, [userEmail, userId]);
+    setEvents(filterDeletedEvents(loadEventsFromStorage(userEmail, userId) || [], userKey));
+  }, [userEmail, userId, userKey]);
 
   useEffect(() => {
-    setEvents(loadEventsFromStorage(userEmail, userId) || []);
+    setEvents(filterDeletedEvents(loadEventsFromStorage(userEmail, userId) || [], userKey));
     preloadEventsFromAsyncStorage(userEmail, userId).then((res) => {
-      if (Array.isArray(res)) setEvents(res);
+      if (Array.isArray(res)) setEvents(filterDeletedEvents(res, userKey));
     });
-  }, [refreshTrigger, userEmail, userId]);
+  }, [refreshTrigger, userEmail, userId, userKey]);
 
   useEffect(() => {
+    const handleUpdate = (e: any) => {
+      if (e?.detail && Array.isArray(e.detail)) {
+        setEvents(filterDeletedEvents(e.detail, userKey));
+      } else {
+        reloadEvents();
+      }
+    };
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('monett:events_updated', handleUpdate);
+      return () => {
+        if (typeof window.removeEventListener === 'function') {
+          window.removeEventListener('monett:events_updated', handleUpdate);
+        }
+      };
+    }
     const unsubscribe = subscribeEventsUpdates(() => {
       reloadEvents();
     });
     return unsubscribe;
-  }, [reloadEvents]);
+  }, [reloadEvents, userKey]);
 
   const activeEvents = events.filter((e) => e.status !== 'completed');
   const displayEvents = (activeEvents.length > 0 ? activeEvents : events).slice(0, 2);

@@ -25,7 +25,7 @@ import { DayExpensesScreen } from './DayExpensesScreen';
 import { PhotoJournalModal } from '../../components/PhotoJournalModal';
 import { IncomeManagementScreen } from './IncomeManagementScreen';
 import { EventsScreen } from '../web/EventsScreen';
-import { SavingsScreen } from '../web/SavingsScreen';
+import { SavingsScreen } from './SavingsScreen';
 import { DebtScreen } from '../web/DebtScreen';
 import { RecurringScreen } from '../web/RecurringScreen';
 import { RemindersScreen } from '../web/RemindersScreen';

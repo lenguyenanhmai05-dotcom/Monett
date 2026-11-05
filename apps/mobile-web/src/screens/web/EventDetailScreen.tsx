@@ -23,9 +23,10 @@ import {
   EventExpenseItem,
   EventMember,
   sendEventInvitation,
+  subscribeEventsUpdates,
   notifyEventsUpdated,
 } from '../../services/eventsStorage';
-import { inviteFriendToEventApi, updateEventApi, createEventApi } from '../../services/api';
+import { inviteFriendToEventApi, updateEventApi, createEventApi, getEventByIdApi } from '../../services/api';
 import { CreateEventModal } from '../../components/CreateEventModal';
 import { TransactionEditModal } from '../../components/TransactionEditModal';
 import { CategorySvgIcon } from '../../components/CategorySvgIcon';
@@ -104,9 +105,116 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
 
   useEffect(() => {
     if (event) {
-      setCurrentEvent(event);
+      setCurrentEvent((prev) => {
+        if (!prev) return event;
+        return {
+          ...prev,
+          ...event,
+          expenses: event.expenses !== undefined ? event.expenses : (prev.expenses || []),
+          spentAmount: event.spentAmount !== undefined ? event.spentAmount : prev.spentAmount,
+          incomeAmount: event.incomeAmount !== undefined ? event.incomeAmount : prev.incomeAmount,
+          members: event.members || prev.members,
+        };
+      });
     }
   }, [event]);
+
+  // Tự động đồng bộ và cập nhật Real-time thành viên & giao dịch sự kiện
+  useEffect(() => {
+    const handleSyncEvent = async (detail?: any) => {
+      const eid = currentEvent?.id || (currentEvent as any)?._id;
+      if (!eid) return;
+
+      // 1. Nếu có detail event truyền trực tiếp qua event socket
+      if (detail) {
+        const item = Array.isArray(detail)
+          ? detail.find((d: any) => String(d?.id || d?._id) === String(eid))
+          : (detail?.event && (String(detail.event.id || detail.event._id) === String(eid) || String(detail.eventId) === String(eid)))
+          ? detail.event
+          : (detail?.eventId && String(detail.eventId) === String(eid))
+          ? detail
+          : String(detail?.id || detail?._id) === String(eid)
+          ? detail
+          : null;
+
+        if (item) {
+          setCurrentEvent((prev) => {
+            const nextExpenses = item.expenses !== undefined ? item.expenses : (prev?.expenses || []);
+            const nextSpent = item.spentAmount !== undefined
+              ? item.spentAmount
+              : nextExpenses.filter((e: any) => e.type !== 'income').reduce((s: number, e: any) => s + (e.amount || 0), 0);
+            const nextIncome = item.incomeAmount !== undefined
+              ? item.incomeAmount
+              : nextExpenses.filter((e: any) => e.type === 'income').reduce((s: number, e: any) => s + (e.amount || 0), 0);
+
+            return {
+              ...prev,
+              ...item,
+              members: item.members || prev?.members,
+              expenses: nextExpenses,
+              spentAmount: nextSpent,
+              incomeAmount: nextIncome,
+            };
+          });
+          return;
+        }
+      }
+
+      // 2. Fetch trực tiếp bản ghi mới nhất từ Backend API
+      if (eid && !String(eid).startsWith('evt-')) {
+        try {
+          const fresh = await getEventByIdApi(String(eid));
+          if (fresh) {
+            setCurrentEvent((prev) => {
+              const nextExpenses = fresh.expenses !== undefined ? fresh.expenses : (prev?.expenses || []);
+              const nextSpent = fresh.spentAmount !== undefined
+                ? fresh.spentAmount
+                : nextExpenses.filter((e: any) => e.type !== 'income').reduce((s: number, e: any) => s + (e.amount || 0), 0);
+              const nextIncome = fresh.incomeAmount !== undefined
+                ? fresh.incomeAmount
+                : nextExpenses.filter((e: any) => e.type === 'income').reduce((s: number, e: any) => s + (e.amount || 0), 0);
+
+              return {
+                ...prev,
+                ...fresh,
+                members: fresh.members || prev?.members,
+                expenses: nextExpenses,
+                spentAmount: nextSpent,
+                incomeAmount: nextIncome,
+              };
+            });
+          }
+        } catch (e) {
+          console.warn('Lỗi sync EventDetailScreen:', e);
+        }
+      }
+    };
+
+    const unsub = subscribeEventsUpdates((detail) => {
+      handleSyncEvent(detail);
+    });
+
+    let onCustomEvent: any;
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      onCustomEvent = (e: any) => {
+        handleSyncEvent(e?.detail);
+      };
+      window.addEventListener('monett:events_updated', onCustomEvent);
+      window.addEventListener('monett:event_accepted', onCustomEvent);
+      window.addEventListener('monett:event_declined', onCustomEvent);
+      window.addEventListener('monett:event_expenses_updated', onCustomEvent);
+    }
+
+    return () => {
+      unsub();
+      if (onCustomEvent && typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+        window.removeEventListener('monett:events_updated', onCustomEvent);
+        window.removeEventListener('monett:event_accepted', onCustomEvent);
+        window.removeEventListener('monett:event_declined', onCustomEvent);
+        window.removeEventListener('monett:event_expenses_updated', onCustomEvent);
+      }
+    };
+  }, [currentEvent?.id, (currentEvent as any)?._id]);
 
   // State for Edit Event modal
   const [isEditEventModalOpen, setIsEditEventModalOpen] = useState(false);
@@ -121,22 +229,34 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
   // Xác định chính xác vai trò của người dùng hiện tại đối với sự kiện này
   const isOwner = React.useMemo(() => {
     if (!currentEvent) return false;
-    if (currentUserId && currentEvent.ownerId && currentEvent.ownerId === currentUserId) return true;
+    // 1. Khớp theo ownerId
+    if (currentUserId && currentEvent.ownerId && String(currentEvent.ownerId) === currentUserId) return true;
+    // 2. Khớp theo ownerEmail
+    const evtOwnerEmail = String((currentEvent as any).ownerEmail || '').trim().toLowerCase();
+    if (currentUserEmail && evtOwnerEmail && evtOwnerEmail === currentUserEmail) return true;
+    // 3. Khớp theo thành viên mang vai trò 'owner'
     const ownerMember = currentEvent.members?.find((m) => m.role === 'owner');
     if (ownerMember) {
-      if (currentUserId && ownerMember.id && ownerMember.id === currentUserId) return true;
-      if (currentUserEmail && ownerMember.email && ownerMember.email.toLowerCase() === currentUserEmail) return true;
+      if (currentUserId && ownerMember.id && String(ownerMember.id) === currentUserId) return true;
+      if (currentUserEmail && ownerMember.email && ownerMember.email.trim().toLowerCase() === currentUserEmail) return true;
+    }
+    // 4. Khớp theo tên người dùng
+    const currentUserName = String((user as any)?.name || (user as any)?.fullName || '').trim().toLowerCase();
+    if (currentUserName && currentEvent.ownerName && currentEvent.ownerName.trim().toLowerCase() === currentUserName) return true;
+    // 5. Fallback an toàn: Sự kiện local tạo trên máy này hoặc không có ownerId
+    if (!currentEvent.ownerId || (currentEvent.id && String(currentEvent.id).startsWith('evt-')) || ((currentEvent as any).tempId && String((currentEvent as any).tempId).startsWith('evt-')) || (!currentEvent.members || currentEvent.members.length === 0)) {
+      return true;
     }
     return false;
-  }, [currentEvent, currentUserId, currentUserEmail]);
+  }, [currentEvent, currentUserId, currentUserEmail, user]);
 
   const isMember = React.useMemo(() => {
     if (!currentEvent) return false;
     if (isOwner) return true;
     return (currentEvent.members || []).some((m) => {
       if (m.status !== 'accepted') return false;
-      if (currentUserId && m.id && m.id === currentUserId) return true;
-      if (currentUserEmail && m.email && m.email.toLowerCase() === currentUserEmail) return true;
+      if (currentUserId && m.id && String(m.id) === currentUserId) return true;
+      if (currentUserEmail && m.email && m.email.trim().toLowerCase() === currentUserEmail) return true;
       return false;
     });
   }, [currentEvent, isOwner, currentUserId, currentUserEmail]);
@@ -162,30 +282,32 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
   const [hoveredTxId, setHoveredTxId] = useState<string | null>(null);
 
   // Calculate statistics
-  const totalExpense = currentEvent.expenses
+  const expensesList = currentEvent.expenses || [];
+  const totalExpense = expensesList
     .filter((e) => e.type !== 'income')
-    .reduce((sum, e) => sum + e.amount, 0);
+    .reduce((sum, e) => sum + (e.amount || 0), 0);
 
-  const totalIncome = currentEvent.expenses
+  const totalIncome = expensesList
     .filter((e) => e.type === 'income')
-    .reduce((sum, e) => sum + e.amount, 0);
+    .reduce((sum, e) => sum + (e.amount || 0), 0);
 
-  const transactionCount = currentEvent.expenses.length;
-  const remainingBudget = currentEvent.estimatedBudget - totalExpense;
+  const transactionCount = expensesList.length;
+  const remainingBudget = (currentEvent.estimatedBudget || 0) - totalExpense;
 
   const displayedExpenses = React.useMemo(() => {
+    const list = currentEvent.expenses || [];
     if (filterTxType === 'expense') {
-      return currentEvent.expenses.filter((e) => e.type !== 'income');
+      return list.filter((e) => e.type !== 'income');
     }
     if (filterTxType === 'income') {
-      return currentEvent.expenses.filter((e) => e.type === 'income');
+      return list.filter((e) => e.type === 'income');
     }
-    return currentEvent.expenses;
+    return list;
   }, [currentEvent.expenses, filterTxType]);
 
   // Category breakdown for expenses
   const categoryBreakdown = React.useMemo(() => {
-    const expenseItems = currentEvent.expenses.filter((e) => e.type !== 'income');
+    const expenseItems = (currentEvent.expenses || []).filter((e) => e.type !== 'income');
     const catMap: { [cat: string]: number } = {};
     expenseItems.forEach((item) => {
       const cat = item.category || 'Khác';
@@ -250,10 +372,11 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
     }
 
     let updatedExpenses: EventExpenseItem[];
+    const baseExpenses = Array.isArray(currentEvent.expenses) ? currentEvent.expenses : [];
 
     if (editingTx) {
       // UPDATE
-      updatedExpenses = event.expenses.map((item) =>
+      updatedExpenses = baseExpenses.map((item) =>
         item.id === editingTx.id
           ? {
               ...item,
@@ -292,7 +415,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
         createdAt: new Date().toISOString(),
       };
 
-      updatedExpenses = [newTx, ...event.expenses];
+      updatedExpenses = [newTx, ...baseExpenses];
 
       addNotification({
         type: 'event',
@@ -315,12 +438,15 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
       .filter((e) => e.type === 'income')
       .reduce((sum, e) => sum + e.amount, 0);
 
-    onUpdateEvent({
-      ...event,
+    const updatedEvent: MonettEvent = {
+      ...currentEvent,
       expenses: updatedExpenses,
       spentAmount: updatedSpent,
       incomeAmount: updatedIncome,
-    });
+    };
+
+    setCurrentEvent(updatedEvent);
+    onUpdateEvent(updatedEvent);
 
     setIsTxModalOpen(false);
     setEditingTx(null);
@@ -336,7 +462,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
       if (!window.confirm(confirmMsg)) return;
     }
 
-    const updatedExpenses = currentEvent.expenses.filter((e) => e.id !== txId);
+    const updatedExpenses = (currentEvent.expenses || []).filter((e) => e.id !== txId);
     const updatedSpent = updatedExpenses
       .filter((e) => e.type !== 'income')
       .reduce((sum, e) => sum + e.amount, 0);
@@ -393,6 +519,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
       ...event,
       members: updatedMembers,
     };
+    setCurrentEvent(updatedEvent);
     onUpdateEvent(updatedEvent);
 
     // Gửi lời mời tới Backend API và hệ thống thông báo an toàn
@@ -473,7 +600,9 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
       );
       return;
     }
-    onDeleteEvent(event.id, event.title);
+    const targetId = (currentEvent as any)?._id || currentEvent?.id || (event as any)?._id || event?.id;
+    const targetTitle = currentEvent?.title || event?.title;
+    onDeleteEvent(targetId, targetTitle);
   };
 
   // Color tokens
@@ -486,7 +615,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
   const textSecondary = isDark ? '#94A3B8' : '#4B5563';
   const tagBg = isDark ? '#334155' : '#F1F5F9';
 
-  const currentStatus = event.status || 'ongoing';
+  const currentStatus = ((currentEvent?.status || event?.status || 'ongoing').toLowerCase()) as 'upcoming' | 'ongoing' | 'completed';
   const statusConfig = {
     ongoing: {
       labelVi: 'Đang diễn ra',
@@ -596,13 +725,16 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
             </Text>
             <TouchableOpacity
               onPress={() => {
-                const nextStatus: Record<'upcoming' | 'ongoing' | 'completed', 'upcoming' | 'ongoing' | 'completed'> = {
-                  upcoming: 'ongoing',
+                const cur = (currentEvent.status || event.status || 'ongoing').toLowerCase();
+                const nextStatusMap: Record<string, 'upcoming' | 'ongoing' | 'completed'> = {
                   ongoing: 'completed',
                   completed: 'upcoming',
+                  upcoming: 'ongoing',
                 };
-                const newStatus = nextStatus[currentStatus];
-                onUpdateEvent({ ...event, status: newStatus });
+                const newStatus = nextStatusMap[cur] || 'completed';
+                const updated = { ...currentEvent, status: newStatus };
+                setCurrentEvent(updated);
+                onUpdateEvent(updated);
               }}
               activeOpacity={0.75}
               style={{
@@ -1176,10 +1308,11 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
         }}
         onSave={(txData) => {
           let updatedExpenses: EventExpenseItem[];
+          const baseExpenses = Array.isArray(currentEvent.expenses) ? currentEvent.expenses : [];
 
           if (editingTx && editingTx.id) {
             // UPDATE
-            updatedExpenses = currentEvent.expenses.map((item) =>
+            updatedExpenses = baseExpenses.map((item) =>
               item.id === editingTx.id
                 ? {
                     ...item,
@@ -1220,7 +1353,7 @@ export const EventDetailScreen: React.FC<EventDetailScreenProps> = ({
               createdAt: new Date().toISOString(),
             };
 
-            updatedExpenses = [newTx, ...currentEvent.expenses];
+            updatedExpenses = [newTx, ...baseExpenses];
 
             addNotification({
               type: 'event',

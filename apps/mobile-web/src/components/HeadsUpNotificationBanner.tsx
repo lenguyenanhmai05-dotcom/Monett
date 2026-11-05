@@ -109,11 +109,12 @@ export const HeadsUpNotificationBanner: React.FC<HeadsUpNotificationBannerProps>
           transform: [{ translateY }],
           opacity,
         },
+        Platform.OS === 'web' && ({ pointerEvents: 'none' } as any),
       ]}
-      pointerEvents="box-none"
+      pointerEvents={Platform.OS === 'web' ? 'none' : 'box-none'}
     >
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card, Platform.OS === 'web' && ({ pointerEvents: 'auto' } as any)]}
         activeOpacity={0.92}
         onPress={() => {
           if (toast.onPress) {
@@ -202,7 +203,7 @@ const styles = StyleSheet.create({
     right: 10,
     zIndex: 999999999,
     alignItems: 'center',
-    pointerEvents: 'box-none',
+    pointerEvents: (Platform.OS === 'web' ? 'none' : 'box-none') as any,
   },
   card: {
     width: '100%',

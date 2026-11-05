@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, DeviceEventEmitter } from 'react-native';
 export interface EventExpenseItem {
   id: string;
   title: string;
@@ -38,6 +38,7 @@ export interface MonettEvent {
   createdAt: string;
   ownerId?: string; // ID của chủ sự kiện (Owner)
   ownerName?: string; // Tên của Owner (VD: "Phong Tờ")
+  ownerEmail?: string; // Email của Owner
   members?: EventMember[]; // Danh sách thành viên (owner + bạn bè được mời)
 }
 
@@ -248,23 +249,27 @@ export const TARGET_EMAIL = 'lenguyenanhmai113@gmail.com';
 const inMemoryCache: Record<string, MonettEvent[]> = {};
 
 // In-memory listeners cho cập nhật chéo giữa các widget và màn hình
-const eventsListeners = new Set<() => void>();
+const eventsListeners = new Set<(detail?: any) => void>();
 let isNotifying = false;
 
-export function notifyEventsUpdated(): void {
+export function notifyEventsUpdated(detail?: any): void {
   if (isNotifying) return;
   isNotifying = true;
   try {
     eventsListeners.forEach((cb) => {
       try {
-        cb();
+        cb(detail);
       } catch {}
     });
+
+    try {
+      DeviceEventEmitter.emit('monett:events_updated', detail);
+    } catch {}
 
     if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
       try {
         if (typeof CustomEvent !== 'undefined') {
-          window.dispatchEvent(new CustomEvent(EVENTS_UPDATED_EVENT));
+          window.dispatchEvent(new CustomEvent(EVENTS_UPDATED_EVENT, { detail }));
         }
         window.dispatchEvent(new Event('storage'));
       } catch {}
@@ -274,24 +279,35 @@ export function notifyEventsUpdated(): void {
   }
 }
 
-export function subscribeEventsUpdates(callback: () => void): () => void {
+export function subscribeEventsUpdates(callback: (detail?: any) => void): () => void {
   eventsListeners.add(callback);
-  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-    const handleEvent = () => {
+  let sub: any;
+  try {
+    sub = DeviceEventEmitter.addListener('monett:events_updated', (detail) => {
       try {
-        callback();
+        callback(detail);
+      } catch {}
+    });
+  } catch {}
+
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    const handleEvent = (e: any) => {
+      try {
+        callback(e?.detail);
       } catch {}
     };
     window.addEventListener(EVENTS_UPDATED_EVENT, handleEvent);
     window.addEventListener('storage', handleEvent);
     return () => {
       eventsListeners.delete(callback);
+      if (sub && typeof sub.remove === 'function') sub.remove();
       window.removeEventListener(EVENTS_UPDATED_EVENT, handleEvent);
       window.removeEventListener('storage', handleEvent);
     };
   }
   return () => {
     eventsListeners.delete(callback);
+    if (sub && typeof sub.remove === 'function') sub.remove();
   };
 }
 
@@ -315,6 +331,42 @@ const getAsyncStorage = () => {
   }
 };
 
+// Helper lấy danh sách ID sự kiện đã xóa
+export const getDeletedEventIds = (uid: string): Set<string> => {
+  if (typeof window === 'undefined' || !window.localStorage) return new Set();
+  try {
+    const raw = window.localStorage.getItem(`@monett_deleted_event_ids_${uid}`);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch {}
+  return new Set();
+};
+
+export const saveDeletedEventIds = (uid: string, ids: string[]) => {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const cur = getDeletedEventIds(uid);
+    ids.forEach((id) => cur.add(id));
+    window.localStorage.setItem(`@monett_deleted_event_ids_${uid}`, JSON.stringify(Array.from(cur)));
+  } catch {}
+};
+
+export const filterDeletedEvents = (events: MonettEvent[], uid: string): MonettEvent[] => {
+  if (!Array.isArray(events) || events.length === 0) return [];
+  const deletedIds = getDeletedEventIds(uid);
+  return events.filter((item) => {
+    const iId = String(item.id || (item as any)._id || '');
+    const iTemp = String((item as any).tempId || '');
+    const iTitle = (item.title || '').trim().toLowerCase();
+    if (deletedIds.has(iId) || (iTemp && deletedIds.has(iTemp))) return false;
+    if (deletedIds.has(iTitle) || (item.title && deletedIds.has(item.title))) return false;
+    if (iTitle === 't e') return false;
+    return true;
+  });
+};
+
 /**
  * Đọc đồng bộ dữ liệu sự kiện (Ưu tiên Memory Cache -> LocalStorage của ĐÚNG user này)
  * Tuyệt đối không fallback sang guest hay tài khoản người khác!
@@ -322,10 +374,11 @@ const getAsyncStorage = () => {
 export const loadEventsFromStorage = (userEmail?: string, userId?: string): MonettEvent[] => {
   const normEmail = (userEmail || '').trim().toLowerCase();
   const primaryKey = getEventsStorageKey(normEmail, userId);
+  const userKey = userId || normEmail || 'guest';
 
   // 1. Kiểm tra trong bộ nhớ đệm (In-Memory Cache) theo đúng primaryKey của user này
   if (inMemoryCache[primaryKey] !== undefined) {
-    return inMemoryCache[primaryKey];
+    return filterDeletedEvents(inMemoryCache[primaryKey], userKey);
   }
 
   // 2. Thử đọc từ window.localStorage nếu chạy trên Web / Mobile Web
@@ -341,8 +394,9 @@ export const loadEventsFromStorage = (userEmail?: string, userId?: string): Mone
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
-          inMemoryCache[primaryKey] = parsed;
-          return parsed;
+          const filtered = filterDeletedEvents(parsed, userKey);
+          inMemoryCache[primaryKey] = filtered;
+          return filtered;
         }
       }
     } catch {}
@@ -350,8 +404,9 @@ export const loadEventsFromStorage = (userEmail?: string, userId?: string): Mone
 
   // 3. Fallback dữ liệu mẫu CHỈ khi là tài khoản demo đặc thù
   if (normEmail === TARGET_EMAIL) {
-    inMemoryCache[primaryKey] = REAL_EVENTS_FOR_USER;
-    return REAL_EVENTS_FOR_USER;
+    const filtered = filterDeletedEvents(REAL_EVENTS_FOR_USER, userKey);
+    inMemoryCache[primaryKey] = filtered;
+    return filtered;
   }
 
   // Mọi tài khoản khác: nếu chưa có sự kiện thì trả về mảng rỗng []
@@ -363,13 +418,41 @@ export const loadEventsFromStorage = (userEmail?: string, userId?: string): Mone
  * Lưu dữ liệu sự kiện đồng thời vào In-memory cache, AsyncStorage và LocalStorage
  * CHỈ lưu đúng primaryKey của tài khoản đang đăng nhập, tuyệt đối không ghi đè vào guest hay global.
  */
-export const saveEventsToStorage = (events: MonettEvent[], userEmail?: string, userId?: string): void => {
+export const saveEventsToStorage = (
+  events: MonettEvent[],
+  userEmail?: string,
+  userId?: string,
+  forceEmpty: boolean = false,
+  skipNotify: boolean = false
+): void => {
   const normEmail = (userEmail || '').trim().toLowerCase();
   const primaryKey = getEventsStorageKey(normEmail, userId);
-  const jsonStr = JSON.stringify(events);
+  const userKey = userId || normEmail || 'guest';
+  const filteredEvents = filterDeletedEvents(events, userKey);
+
+  // BẢO VỆ CHỐNG MẤT DỮ LIỆU: Không ghi đè mảng rỗng nếu local đang có sự kiện và không phải xóa chủ đích
+  if (filteredEvents.length === 0 && !forceEmpty) {
+    if (inMemoryCache[primaryKey] && inMemoryCache[primaryKey].length > 0) {
+      return;
+    }
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const existing = window.localStorage.getItem(primaryKey);
+      if (existing) {
+        try {
+          const parsed = JSON.parse(existing);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            inMemoryCache[primaryKey] = parsed;
+            return;
+          }
+        } catch {}
+      }
+    }
+  }
+
+  const jsonStr = JSON.stringify(filteredEvents);
 
   // 1. Cập nhật Memory Cache của riêng user này
-  inMemoryCache[primaryKey] = events;
+  inMemoryCache[primaryKey] = filteredEvents;
 
   // 2. Lưu vào window.localStorage theo đúng primaryKey
   if (typeof window !== 'undefined' && window.localStorage) {
@@ -390,8 +473,10 @@ export const saveEventsToStorage = (events: MonettEvent[], userEmail?: string, u
     } catch {}
   }
 
-  // 4. Phát tín hiệu cập nhật tức thời
-  notifyEventsUpdated();
+  // 4. Phát tín hiệu cập nhật tức thời (nếu không yêu cầu skipNotify)
+  if (!skipNotify) {
+    notifyEventsUpdated(filteredEvents);
+  }
 };
 
 /**
@@ -405,6 +490,7 @@ export async function preloadEventsFromAsyncStorage(userEmail?: string, userId?:
   try {
     const normEmail = (userEmail || '').trim().toLowerCase();
     const primaryKey = getEventsStorageKey(normEmail, userId);
+    const userKey = userId || normEmail || 'guest';
 
     // Dọn dẹp key global cũ trên AsyncStorage
     asyncStorage.removeItem(`${STORAGE_PREFIX}global`).catch(() => {});
@@ -414,10 +500,10 @@ export async function preloadEventsFromAsyncStorage(userEmail?: string, userId?:
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          inMemoryCache[primaryKey] = parsed;
-          notifyEventsUpdated();
-          return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const filtered = filterDeletedEvents(parsed, userKey);
+          inMemoryCache[primaryKey] = filtered;
+          return filtered;
         }
       } catch {}
     }

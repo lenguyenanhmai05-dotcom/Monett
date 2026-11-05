@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Image, Platform, useWindowDimensions, TouchableOpacity } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -87,6 +87,20 @@ function MainApp() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
+
+  useEffect(() => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      const handleOpenEvent = () => {
+        setActiveTab('events');
+      };
+      window.addEventListener('monett:open_event', handleOpenEvent);
+      return () => {
+        if (typeof window.removeEventListener === 'function') {
+          window.removeEventListener('monett:open_event', handleOpenEvent);
+        }
+      };
+    }
+  }, []);
 
   if (isLoading) {
     return (

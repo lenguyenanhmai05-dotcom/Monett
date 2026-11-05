@@ -37,7 +37,7 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
   const { language } = useLanguage();
   const isVi = language === 'vi';
 
-  if (!visible || !event) return null;
+  if (!event) return null;
 
   const percentSpent =
     event.estimatedBudget > 0
@@ -70,7 +70,13 @@ export const EventDetailModal: React.FC<EventDetailModalProps> = ({
       color: '#64748B',
       icon: 'checkmark-circle-outline' as const,
     },
-  }[event.status];
+  }[event?.status] || {
+    labelVi: 'Đang diễn ra',
+    labelEn: 'Ongoing',
+    bg: isDark ? 'rgba(5, 150, 105, 0.2)' : '#DCFCE7',
+    color: '#059669',
+    icon: 'radio-button-on' as const,
+  };
 
   // Color tokens
   const cardBg = isDark ? '#1E293B' : '#FFFFFF';

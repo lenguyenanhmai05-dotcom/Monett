@@ -149,8 +149,6 @@ export const CreateEventModal: React.FC<CreateEventModalProps> = ({
     onClose();
   };
 
-  if (!visible) return null;
-
   // Calendar matrix calculation for date picker
   const pickerYear = pickerDate.getFullYear();
   const pickerMonth = pickerDate.getMonth();

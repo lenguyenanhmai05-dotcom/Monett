@@ -87,7 +87,8 @@ export class EventsController {
   @Delete(':id')
   async delete(@Req() req, @Param('id') id: string) {
     const userId = this.getUserId(req);
-    return this.eventsService.delete(userId, id);
+    const email = this.getUserEmail(req);
+    return this.eventsService.delete(userId, email, id);
   }
 
   @Post(':id/invite')
