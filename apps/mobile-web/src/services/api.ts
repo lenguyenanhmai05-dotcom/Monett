@@ -40,12 +40,19 @@ export const getBaseUrl = (): string => {
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return 'http://localhost:3000';
     }
-    // Nếu có envApiUrl (tức là đang chạy tunnel) -> dùng envApiUrl
+    // Chạy trên Vercel production hosting
+    if (hostname.includes('vercel.app')) {
+      if (envApiUrl && envApiUrl.startsWith('https://')) {
+        return envApiUrl.replace(/\/$/, '');
+      }
+      return 'https://monett.onrender.com';
+    }
+    // Nếu có envApiUrl (tức là đang chạy tunnel hoặc production) -> dùng envApiUrl
     if (envApiUrl && envApiUrl.startsWith('https://')) {
       return envApiUrl.replace(/\/$/, '');
     }
     // Chạy qua tunnel domain
-    if (hostname.includes('ngrok') || hostname.includes('trycloudflare') || hostname.includes('vercel.app') || hostname.includes('loca.lt')) {
+    if (hostname.includes('ngrok') || hostname.includes('trycloudflare') || hostname.includes('loca.lt')) {
       return `${window.location.protocol}//${hostname}`;
     }
     // Mở web qua IP LAN từ thiết bị khác
@@ -208,10 +215,11 @@ export const getAuthToken = (): string | null => {
   return null;
 };
 
-// Hàm gọi API kèm token
+// Hàm gọi API kèm token và timeout bảo vệ (mặc định 20 giây)
 const request = async <T>(
   endpoint: string,
   options: RequestInit = {},
+  timeoutMs: number = 20000,
 ): Promise<ApiResponse<T>> => {
   const token = getAuthToken();
   const headers: Record<string, string> = {
@@ -227,13 +235,42 @@ const request = async <T>(
 
   const url = `${getBaseUrl()}${endpoint}`;
   console.log('[API] Sending request to:', url);
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
 
-  let json;
-  try { json = await response.json(); } catch(e) { throw new Error('Server error'); }
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      signal: options.signal || controller.signal,
+    });
+  } catch (fetchErr: any) {
+    if (fetchErr.name === 'AbortError') {
+      throw new Error(
+        'Không thể kết nối đến máy chủ backend (quá thời gian chờ phản hồi 20s). Vui lòng thử lại sau giây lát!',
+      );
+    }
+    throw new Error(
+      fetchErr.message || 'Lỗi mạng: Không thể kết nối tới máy chủ backend.',
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+
+  let json: any;
+  try {
+    json = await response.json();
+  } catch (e) {
+    if (!response.ok) {
+      throw new Error(`Máy chủ backend phản hồi lỗi HTTP ${response.status}. Vui lòng thử lại sau!`);
+    }
+    throw new Error('Dữ liệu máy chủ trả về không đúng định dạng JSON.');
+  }
+
   console.log('[API] <--', response.status, endpoint, JSON.stringify(json).substring(0, 400));
   if (!response.ok) {
     const msgArr = json && json.message;

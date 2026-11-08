@@ -47,10 +47,14 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
         const primaryUri = configService.get<string>('MONGODB_URI', 'mongodb://localhost:27017/monett');
         let selectedUri = primaryUri;
 
-        try {
-          const dnsMod = await import('dns');
-          dnsMod.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
-        } catch (_) {}
+        const isProduction = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
+
+        if (!isProduction) {
+          try {
+            const dnsMod = await import('dns');
+            dnsMod.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+          } catch (_) {}
+        }
 
         if (primaryUri.includes('mongodb+srv')) {
           try {
@@ -62,7 +66,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
             console.log(`✅ Kết nối thành công tới MongoDB Atlas: ${primaryUri.replace(/:([^:@]+)@/, ':****@')}`);
           } catch (err: any) {
             console.warn(`⚠️ MongoDB Atlas SRV tạm thời không phản hồi (${err.message}). Đang thử kết nối trực tiếp qua ReplicaSet...`);
-            const directAtlasUri = 'mongodb://lenguyenanhmai05_db_user:tsnIsTO4lOJkaML2@ac-mo4wbzh-shard-00-00.0al5pfn.mongodb.net:27017,ac-mo4wbzh-shard-00-01.0al5pfn.mongodb.net:27017,ac-mo4wbzh-shard-00-02.0al5pfn.mongodb.net:27017/monett?ssl=true&replicaSet=atlas-9yzv7z-shard-0&authSource=admin&retryWrites=true&w=majority';
+            const directAtlasUri = 'mongodb://tobiez:Phong05@ac-mo4wbzh-shard-00-00.0al5pfn.mongodb.net:27017,ac-mo4wbzh-shard-00-01.0al5pfn.mongodb.net:27017,ac-mo4wbzh-shard-00-02.0al5pfn.mongodb.net:27017/monett?ssl=true&replicaSet=atlas-9yzv7z-shard-0&authSource=admin&retryWrites=true&w=majority';
             try {
               const mongooseMod = await import('mongoose');
               const testConn = await mongooseMod.default.createConnection(directAtlasUri, {
@@ -72,8 +76,12 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
               console.log(`✅ Kết nối thành công tới MongoDB Atlas qua Direct ReplicaSet!`);
               selectedUri = directAtlasUri;
             } catch (directErr: any) {
-              console.warn(`⚠️ Không thể kết nối Atlas (${directErr.message}). Tự động chuyển sang Local MongoDB...`);
-              selectedUri = 'mongodb://localhost:27017/monett';
+              if (isProduction) {
+                console.error(`❌ Lỗi kết nối MongoDB Atlas trên Production (${directErr.message}). Giữ nguyên URI chính để Mongoose tự retry.`);
+              } else {
+                console.warn(`⚠️ Không thể kết nối Atlas (${directErr.message}). Tự động chuyển sang Local MongoDB...`);
+                selectedUri = 'mongodb://localhost:27017/monett';
+              }
             }
           }
         }

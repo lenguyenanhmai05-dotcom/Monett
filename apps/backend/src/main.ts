@@ -1,10 +1,17 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as dns from 'dns';
+
+// Chỉ can thiệp DNS khi ở local development máy tính cá nhân để hỗ trợ ISP mạng nhà
+// Tuyệt đối không can thiệp trên cloud/container (Render/Docker) vì sẽ làm hỏng DNS nội bộ của container
+if (process.env.NODE_ENV !== 'production' && !process.env.RENDER) {
+  try {
+    dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+  } catch (_) {}
+}
 try {
-  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+  dns.setDefaultResultOrder('ipv4first');
 } catch (_) {}
-dns.setDefaultResultOrder('ipv4first');
 
 import { ValidationPipe } from '@nestjs/common';
 import { IoAdapter } from '@nestjs/platform-socket.io';
@@ -34,8 +41,8 @@ async function bootstrap() {
   });
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
-  console.log(`🚀 Monett Backend API đang chạy tại: http://localhost:${port}`);
+  await app.listen(port, '0.0.0.0');
+  console.log(`🚀 Monett Backend API đang chạy tại: http://0.0.0.0:${port}`);
   console.log(`🩺 Health check endpoint: http://localhost:${port}/api/health`);
 }
 bootstrap();
