@@ -215,11 +215,11 @@ export const getAuthToken = (): string | null => {
   return null;
 };
 
-// Hàm gọi API kèm token và timeout bảo vệ (mặc định 20 giây)
+// Hàm gọi API kèm token và timeout bảo vệ (mặc định 60 giây để thích ứng Render free tier cold start)
 const request = async <T>(
   endpoint: string,
   options: RequestInit = {},
-  timeoutMs: number = 20000,
+  timeoutMs: number = 60000,
 ): Promise<ApiResponse<T>> => {
   const token = getAuthToken();
   const headers: Record<string, string> = {
@@ -251,7 +251,7 @@ const request = async <T>(
   } catch (fetchErr: any) {
     if (fetchErr.name === 'AbortError') {
       throw new Error(
-        'Không thể kết nối đến máy chủ backend (quá thời gian chờ phản hồi 20s). Vui lòng thử lại sau giây lát!',
+        'Không thể kết nối đến máy chủ backend (quá thời gian chờ phản hồi 60s). Máy chủ có thể đang thức dậy từ chế độ ngủ, vui lòng thử lại sau ít giây!',
       );
     }
     throw new Error(

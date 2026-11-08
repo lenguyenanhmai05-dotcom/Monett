@@ -44,10 +44,20 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
-        const primaryUri = configService.get<string>('MONGODB_URI', 'mongodb://localhost:27017/monett');
-        let selectedUri = primaryUri;
+        const DEFAULT_ATLAS_URI =
+          'mongodb+srv://tobiez:Phong05@cluster0.0al5pfn.mongodb.net/monett?retryWrites=true&w=majority';
+        let rawUri = configService.get<string>('MONGODB_URI') || process.env.MONGODB_URI;
 
         const isProduction = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
+
+        // Nếu là production (Render/Vercel/Docker) hoặc không có URI, hoặc URI trỏ về localhost:
+        // Bắt buộc dùng MongoDB Atlas, tuyệt đối không dùng localhost vì container cloud không có local MongoDB!
+        if (isProduction && (!rawUri || rawUri.includes('localhost') || rawUri.includes('127.0.0.1'))) {
+          rawUri = DEFAULT_ATLAS_URI;
+        }
+
+        const primaryUri = rawUri || DEFAULT_ATLAS_URI;
+        let selectedUri = primaryUri;
 
         if (!isProduction) {
           try {
@@ -60,7 +70,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
           try {
             const mongooseMod = await import('mongoose');
             const testConn = await mongooseMod.default.createConnection(primaryUri, {
-              serverSelectionTimeoutMS: 5000,
+              serverSelectionTimeoutMS: 8000,
             }).asPromise();
             await testConn.close();
             console.log(`✅ Kết nối thành công tới MongoDB Atlas: ${primaryUri.replace(/:([^:@]+)@/, ':****@')}`);
@@ -70,14 +80,15 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
             try {
               const mongooseMod = await import('mongoose');
               const testConn = await mongooseMod.default.createConnection(directAtlasUri, {
-                serverSelectionTimeoutMS: 5000,
+                serverSelectionTimeoutMS: 8000,
               }).asPromise();
               await testConn.close();
               console.log(`✅ Kết nối thành công tới MongoDB Atlas qua Direct ReplicaSet!`);
               selectedUri = directAtlasUri;
             } catch (directErr: any) {
               if (isProduction) {
-                console.error(`❌ Lỗi kết nối MongoDB Atlas trên Production (${directErr.message}). Giữ nguyên URI chính để Mongoose tự retry.`);
+                console.error(`❌ Cảnh báo kết nối Atlas trên Production (${directErr.message}). Tiếp tục với Atlas URI để Mongoose tự retry.`);
+                selectedUri = primaryUri;
               } else {
                 console.warn(`⚠️ Không thể kết nối Atlas (${directErr.message}). Tự động chuyển sang Local MongoDB...`);
                 selectedUri = 'mongodb://localhost:27017/monett';
@@ -88,7 +99,10 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
 
         const maskedUri = selectedUri.replace(/:([^:@]+)@/, ':****@');
         console.log(`📡 Mongoose đang sử dụng Database: ${maskedUri}`);
-        return { uri: selectedUri };
+        return {
+          uri: selectedUri,
+          serverSelectionTimeoutMS: 15000,
+        };
       },
       inject: [ConfigService],
     }),

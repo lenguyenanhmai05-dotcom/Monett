@@ -588,7 +588,12 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                 activeOpacity={0.85}
               >
                 {loading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <Text style={[styles.primaryBtnText, { fontSize: 13, opacity: 0.95 }]}>
+                      {isVi ? 'Đang kết nối máy chủ...' : 'Connecting to server...'}
+                    </Text>
+                  </View>
                 ) : (
                   <Text style={styles.primaryBtnText}>
                     {isVi ? 'Đăng nhập vào Monett →' : 'Sign in to Monett →'}
@@ -674,7 +679,12 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                 activeOpacity={0.85}
               >
                 {loading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <Text style={[styles.primaryBtnText, { fontSize: 13, opacity: 0.95 }]}>
+                      {isVi ? 'Đang kết nối máy chủ...' : 'Connecting to server...'}
+                    </Text>
+                  </View>
                 ) : (
                   <Text style={styles.primaryBtnText}>
                     {isVi ? 'Nhận mã OTP qua Email →' : 'Send OTP via Email →'}
@@ -738,7 +748,12 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                 activeOpacity={0.85}
               >
                 {loading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <Text style={[styles.primaryBtnText, { fontSize: 13, opacity: 0.95 }]}>
+                      {isVi ? 'Đang kết nối máy chủ...' : 'Connecting to server...'}
+                    </Text>
+                  </View>
                 ) : (
                   <Text style={styles.primaryBtnText}>
                     {isVi ? 'Xác nhận & Tạo tài khoản →' : 'Confirm & Create Account →'}
@@ -792,7 +807,12 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                 activeOpacity={0.85}
               >
                 {loading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <Text style={[styles.primaryBtnText, { fontSize: 13, opacity: 0.95 }]}>
+                      {isVi ? 'Đang kết nối máy chủ...' : 'Connecting to server...'}
+                    </Text>
+                  </View>
                 ) : (
                   <Text style={styles.primaryBtnText}>
                     {isVi ? 'Gửi mã xác thực OTP →' : 'Send Reset OTP →'}
@@ -870,7 +890,12 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                 activeOpacity={0.85}
               >
                 {loading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <Text style={[styles.primaryBtnText, { fontSize: 13, opacity: 0.95 }]}>
+                      {isVi ? 'Đang kết nối máy chủ...' : 'Connecting to server...'}
+                    </Text>
+                  </View>
                 ) : (
                   <Text style={styles.primaryBtnText}>
                     {isVi ? 'Tiếp tục →' : 'Continue →'}
@@ -958,7 +983,12 @@ export const MobileAuthScreen: React.FC<MobileAuthScreenProps> = ({
                 activeOpacity={0.85}
               >
                 {loading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                    <Text style={[styles.primaryBtnText, { fontSize: 13, opacity: 0.95 }]}>
+                      {isVi ? 'Đang kết nối máy chủ...' : 'Connecting to server...'}
+                    </Text>
+                  </View>
                 ) : (
                   <Text style={styles.primaryBtnText}>
                     {isVi ? 'Đặt lại mật khẩu & Đăng nhập →' : 'Reset Password & Sign in →'}

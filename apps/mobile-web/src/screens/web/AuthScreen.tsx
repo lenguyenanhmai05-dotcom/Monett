@@ -1526,7 +1526,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     activeOpacity={0.88}
                   >
                     {loading ? (
-                      <ActivityIndicator color="#FFFFFF" />
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                        <ActivityIndicator color="#FFFFFF" size="small" />
+                        <Text style={[styles.submitBtnText, { fontSize: 13, opacity: 0.95 }]}>
+                          {language === 'vi' ? 'Đang kết nối máy chủ...' : 'Connecting to server...'}
+                        </Text>
+                      </View>
                     ) : (
                       <View style={styles.btnContentRow}>
                         <Text style={styles.submitBtnText}>
