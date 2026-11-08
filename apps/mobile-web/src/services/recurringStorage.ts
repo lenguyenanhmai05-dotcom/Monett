@@ -134,6 +134,25 @@ export const REAL_RECURRING_ITEMS_FOR_USER: RecurringItem[] = [
 
 const STORAGE_PREFIX = '@monett_recurring_items_';
 export const RECURRING_UPDATED_EVENT = 'monett:recurring_updated';
+export const RECURRING_TAB_KEY = '@monett_recurring_active_tab';
+
+export const getStoredRecurringTab = (): RecurringType => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const saved = window.localStorage.getItem(RECURRING_TAB_KEY);
+      if (saved === 'income' || saved === 'expense') return saved;
+    } catch {}
+  }
+  return 'expense';
+};
+
+export const setStoredRecurringTab = (tab: RecurringType): void => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      window.localStorage.setItem(RECURRING_TAB_KEY, tab);
+    } catch {}
+  }
+};
 
 // 1. In-memory cache đồng bộ để đọc tức thì 0ms trên cả React Native Mobile & Web
 const inMemoryCache: Record<string, RecurringItem[]> = {};
@@ -203,27 +222,27 @@ const getAsyncStorage = () => {
 };
 
 /**
- * Đọc đồng bộ dữ liệu định kỳ (ưu tiên Memory Cache -> LocalStorage -> Fallback)
+ * Đọc đồng bộ dữ liệu định kỳ (ưu tiên Memory Cache -> LocalStorage -> Seed mẫu ban đầu)
  */
 export const loadRecurringItems = (userId?: string, userEmail?: string): RecurringItem[] => {
   const normEmail = (userEmail || '').trim().toLowerCase();
   const primaryKey = getRecurringStorageKey(userId, userEmail);
 
   // 1. Kiểm tra trong bộ nhớ đệm (In-Memory Cache) trước - nhanh nhất và đảm bảo không mất giữa các lần chuyển tab
-  if (inMemoryCache[primaryKey] && inMemoryCache[primaryKey].length > 0) {
+  if (inMemoryCache[primaryKey] && Array.isArray(inMemoryCache[primaryKey]) && inMemoryCache[primaryKey].length > 0) {
     return inMemoryCache[primaryKey];
   }
 
   // Thử các khóa phụ trong bộ nhớ
   const memoryCandidates = [
     normEmail ? `${STORAGE_PREFIX}${normEmail}` : '',
-    userId ? `${STORAGE_PREFIX}${userId.trim()}` : '',
-    `${STORAGE_PREFIX}guest`,
+    userId && userId.trim() ? `${STORAGE_PREFIX}${userId.trim()}` : '',
     `${STORAGE_PREFIX}global`,
+    `${STORAGE_PREFIX}guest`,
   ].filter(Boolean);
 
   for (const cKey of memoryCandidates) {
-    if (inMemoryCache[cKey] && inMemoryCache[cKey].length > 0) {
+    if (inMemoryCache[cKey] && Array.isArray(inMemoryCache[cKey]) && inMemoryCache[cKey].length > 0) {
       inMemoryCache[primaryKey] = inMemoryCache[cKey];
       return inMemoryCache[cKey];
     }
@@ -242,6 +261,7 @@ export const loadRecurringItems = (userId?: string, userEmail?: string): Recurri
       }
 
       for (const fbKey of memoryCandidates) {
+        if (fbKey === primaryKey) continue;
         const rawFb = window.localStorage.getItem(fbKey);
         if (rawFb) {
           const parsed = JSON.parse(rawFb);
@@ -255,38 +275,36 @@ export const loadRecurringItems = (userId?: string, userEmail?: string): Recurri
           }
         }
       }
-
-      // Quét tất cả các key localStorage có tiền tố @monett_recurring_items_
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const k = window.localStorage.key(i);
-        if (k && k.startsWith(STORAGE_PREFIX)) {
-          const val = window.localStorage.getItem(k);
-          if (val) {
-            const parsed = JSON.parse(val);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              inMemoryCache[primaryKey] = parsed;
-              return parsed;
-            }
-          }
-        }
-      }
     } catch {}
   }
 
-  // 3. Fallback dữ liệu mẫu nếu là tài khoản demo đặc thù
-  if (normEmail === TARGET_EMAIL) {
-    inMemoryCache[primaryKey] = REAL_RECURRING_ITEMS_FOR_USER;
-    return REAL_RECURRING_ITEMS_FOR_USER;
+  // 3. Fallback dữ liệu mẫu ban đầu nếu người dùng chưa từng tạo dữ liệu
+  const initialSeed = [...REAL_RECURRING_ITEMS_FOR_USER];
+  inMemoryCache[primaryKey] = initialSeed;
+  inMemoryCache[`${STORAGE_PREFIX}guest`] = initialSeed;
+  inMemoryCache[`${STORAGE_PREFIX}global`] = initialSeed;
+  if (normEmail) inMemoryCache[`${STORAGE_PREFIX}${normEmail}`] = initialSeed;
+  if (userId && userId.trim()) inMemoryCache[`${STORAGE_PREFIX}${userId.trim()}`] = initialSeed;
+
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const jsonStr = JSON.stringify(initialSeed);
+      window.localStorage.setItem(primaryKey, jsonStr);
+      window.localStorage.setItem(`${STORAGE_PREFIX}guest`, jsonStr);
+      window.localStorage.setItem(`${STORAGE_PREFIX}global`, jsonStr);
+      if (normEmail) window.localStorage.setItem(`${STORAGE_PREFIX}${normEmail}`, jsonStr);
+      if (userId && userId.trim()) window.localStorage.setItem(`${STORAGE_PREFIX}${userId.trim()}`, jsonStr);
+    } catch {}
   }
 
-  return inMemoryCache[primaryKey] || [];
+  return initialSeed;
 };
 
 /**
  * Lưu dữ liệu định kỳ đồng thời vào:
  * 1. In-memory cache (cho lần đọc kế tiếp tức thì 0ms)
- * 2. AsyncStorage (lưu bền vững trên thiết bị Android / iOS)
- * 3. LocalStorage (lưu bền vững trên Web)
+ * 2. LocalStorage (lưu bền vững trên Web)
+ * 3. AsyncStorage (lưu bền vững trên thiết bị Android / iOS)
  */
 export const saveRecurringItems = (items: RecurringItem[], userId?: string, userEmail?: string): void => {
   const normEmail = (userEmail || '').trim().toLowerCase();
@@ -300,7 +318,7 @@ export const saveRecurringItems = (items: RecurringItem[], userId?: string, user
   if (normEmail) inMemoryCache[`${STORAGE_PREFIX}${normEmail}`] = items;
   if (userId && userId.trim()) inMemoryCache[`${STORAGE_PREFIX}${userId.trim()}`] = items;
 
-  // 2. Lưu vào window.localStorage nếu có
+  // 2. Lưu vào window.localStorage
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
       window.localStorage.setItem(primaryKey, jsonStr);
@@ -327,7 +345,7 @@ export const saveRecurringItems = (items: RecurringItem[], userId?: string, user
     } catch {}
   }
 
-  // 4. Phát tín hiệu cập nhật tức thời
+  // 4. Phát tín hiệu cập nhật tức thời cho các component khác
   notifyRecurringUpdated();
 };
 
@@ -346,8 +364,8 @@ export async function preloadRecurringFromAsyncStorage(userId?: string, userEmai
       primaryKey,
       normEmail ? `${STORAGE_PREFIX}${normEmail}` : '',
       userId && userId.trim() ? `${STORAGE_PREFIX}${userId.trim()}` : '',
-      `${STORAGE_PREFIX}guest`,
       `${STORAGE_PREFIX}global`,
+      `${STORAGE_PREFIX}guest`,
     ].filter(Boolean);
 
     for (const key of keysToTry) {
@@ -357,34 +375,11 @@ export async function preloadRecurringFromAsyncStorage(userId?: string, userEmai
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed) && parsed.length > 0) {
             inMemoryCache[primaryKey] = parsed;
-            inMemoryCache[`${STORAGE_PREFIX}guest`] = parsed;
-            inMemoryCache[`${STORAGE_PREFIX}global`] = parsed;
-            notifyRecurringUpdated();
             return parsed;
           }
         } catch {}
       }
     }
-
-    // Quét toàn bộ key trong AsyncStorage nếu chưa thấy
-    try {
-      const allKeys = await asyncStorage.getAllKeys();
-      const recurringKeys = allKeys.filter((k: string) => k && k.startsWith(STORAGE_PREFIX));
-      if (recurringKeys.length > 0) {
-        const pairs = await asyncStorage.multiGet(recurringKeys);
-        for (const [, v] of pairs) {
-          if (v) {
-            const parsed = JSON.parse(v);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              inMemoryCache[primaryKey] = parsed;
-              inMemoryCache[`${STORAGE_PREFIX}guest`] = parsed;
-              notifyRecurringUpdated();
-              return parsed;
-            }
-          }
-        }
-      }
-    } catch {}
   } catch {}
 
   return loadRecurringItems(userId, userEmail);

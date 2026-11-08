@@ -28,6 +28,8 @@ import {
   getFrequencyLabel,
   getFrequencyPeriodSuffix,
   calculateMonthlyEquivalent,
+  getStoredRecurringTab,
+  setStoredRecurringTab,
 } from '../../services/recurringStorage';
 
 // =========================================================================
@@ -166,8 +168,12 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
   const userEmail = (user as any)?.email || '';
   const userId = user?.id || (user as any)?._id || '';
 
-  // Tab: 'expense' (Chi định kỳ) vs 'income' (Thu định kỳ)
-  const [activeTab, setActiveTab] = useState<RecurringType>('expense');
+  // Tab: 'expense' (Chi định kỳ) vs 'income' (Thu định kỳ) - ghi nhớ trạng thái tab bền vững
+  const [activeTab, setActiveTabState] = useState<RecurringType>(() => getStoredRecurringTab());
+  const setActiveTab = (tab: RecurringType) => {
+    setActiveTabState(tab);
+    setStoredRecurringTab(tab);
+  };
 
   // Recurring Items State
   const [items, setItems] = useState<RecurringItem[]>(() => loadRecurringItems(userId, userEmail));
@@ -204,6 +210,10 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
     if (!num || isNaN(num)) return '0';
     return num.toLocaleString('vi-VN');
   };
+
+  // Đếm số lượng khoản theo từng loại tab
+  const expenseCount = useMemo(() => items.filter((i) => i.type === 'expense').length, [items]);
+  const incomeCount = useMemo(() => items.filter((i) => i.type === 'income').length, [items]);
 
   // Filter items according to active tab
   const currentTabItems = useMemo(() => {
@@ -320,6 +330,7 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
       const next = [newItem, ...items.filter((x) => x.id !== newItem.id)];
       setItems(next);
       saveRecurringItems(next, userId, userEmail);
+      setStoredRecurringTab(activeTab);
       addNotification({
         type: 'moment',
         title: isVi
@@ -396,6 +407,22 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
             >
               {isVi ? 'Chi định kỳ' : 'Recurring Expense'}
             </Text>
+            <View
+              style={[
+                styles.tabCountPill,
+                activeTab === 'expense' ? styles.tabCountPillActive : styles.tabCountPillInactive,
+                isDark && activeTab !== 'expense' && { backgroundColor: 'rgba(255, 255, 255, 0.08)' },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tabCountPillText,
+                  activeTab === 'expense' ? styles.tabCountPillTextActive : isDark ? { color: '#94A3B8' } : undefined,
+                ]}
+              >
+                {expenseCount}
+              </Text>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -411,6 +438,22 @@ export const RecurringScreen: React.FC<RecurringScreenProps> = ({ onNavigateToTa
             >
               {isVi ? 'Thu định kỳ' : 'Recurring Income'}
             </Text>
+            <View
+              style={[
+                styles.tabCountPill,
+                activeTab === 'income' ? styles.tabCountPillActive : styles.tabCountPillInactive,
+                isDark && activeTab !== 'income' && { backgroundColor: 'rgba(255, 255, 255, 0.08)' },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tabCountPillText,
+                  activeTab === 'income' ? styles.tabCountPillTextActive : isDark ? { color: '#94A3B8' } : undefined,
+                ]}
+              >
+                {incomeCount}
+              </Text>
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -1057,10 +1100,12 @@ const styles = StyleSheet.create({
   },
   tabPillBtn: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     paddingVertical: 12,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   tabPillBtnActive: {
     backgroundColor: '#064E3B',
@@ -1071,6 +1116,29 @@ const styles = StyleSheet.create({
     color: '#57534E',
   },
   tabPillBtnTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  tabCountPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    minWidth: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabCountPillActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+  },
+  tabCountPillInactive: {
+    backgroundColor: 'rgba(0, 0, 0, 0.07)',
+  },
+  tabCountPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#78716C',
+  },
+  tabCountPillTextActive: {
     color: '#FFFFFF',
     fontWeight: '800',
   },
