@@ -271,12 +271,20 @@ export const MobileNavigator: React.FC<MobileNavigatorProps> = ({ onOpenAdminDas
       {/* 1. Màn hình Tab chính */}
       <View style={styles.mainContent}>{renderCurrentTabScreen()}</View>
 
-      {/* Mascot Ếch Monett AI Lơ Lửng Ở Phần Tổng Quan (Home) */}
-      {currentTab === 'home' && (
+      {/* Mascot Ếch Monett AI Lơ Lửng (Hiển thị xuyên suốt các trang để hỗ trợ hỏi đáp dữ liệu chi tiết) */}
+      {activeModal === 'none' && (
         <FloatingFrogAIChat
           onNavigateToTab={(tab) => {
             if (tab === 'photo_journal' || tab === 'journal') {
               setActiveModal('photo_journal');
+              return;
+            }
+            if (tab === 'budget') {
+              setCurrentTab('savings');
+              return;
+            }
+            if (tab === 'debts') {
+              setCurrentTab('debt');
               return;
             }
             setCurrentTab(tab as any);

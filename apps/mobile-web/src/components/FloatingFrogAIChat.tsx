@@ -19,8 +19,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { getBaseUrl } from '../services/api';
-import { loadDebtItems } from '../services/debtStorage';
-import { loadSavingsGoals } from '../services/savingsStorage';
+import {
+  collectUserFinancialContext,
+  buildAiPromptContext,
+  generateSmartLocalContextReply,
+} from '../services/aiContext';
 
 interface ChatMessage {
   id: string;
@@ -373,111 +376,12 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
     return new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(amount)));
   };
 
-  const getSmartLocalReply = (query: string): { reply: string; action?: ChatMessage['action'] } => {
-    const q = query.toLowerCase().trim();
-
-    // 1. Chào hỏi & Làm quen
-    if (
-      q === 'hello' ||
-      q === 'hi' ||
-      q === 'helo' ||
-      q.includes('chào') ||
-      q.includes('chao') ||
-      q.includes('alo') ||
-      q.includes('ê ếch') ||
-      q.includes('ê ech') ||
-      q.includes('bạn ơi') ||
-      q.includes('ban oi')
-    ) {
-      return {
-        reply:
-          'Oa chào bạn iu nha! 🐸💚 Mình là Ếch Monett – trợ lý tài chính thông minh của bạn đây! Hôm nay ví tiền của bạn có "khỏe" không nè? Bạn muốn kiểm tra số dư, ghi chép chi tiêu hay nhờ mình tư vấn mẹo gì cứ bảo mình nhé! ✨',
-      };
-    }
-
-    // 2. Hỏi về danh tính & Vai trò của Ếch
-    if (q.includes('bạn là ai') || q.includes('ban la ai') || q.includes('tên gì') || q.includes('ten gi')) {
-      return {
-        reply:
-          'Mình là chú Ếch Monett 🐸 – linh vật may mắn kiêm Trợ lý Tài chính cá nhân của bạn! Mình có thể giúp bạn kiểm soát dòng tiền thu chi, nhắc nhở trả nợ đúng hạn và cùng bạn nuôi heo đất siêu to khổng lồ luôn! 🪙✨',
-      };
-    }
-
-    // 3. Mẹo tiết kiệm & Quản lý chi tiêu
-    if (
-      q.includes('tiết kiệm') ||
-      q.includes('tiet kiem') ||
-      q.includes('cách quản lý') ||
-      q.includes('cach quan ly') ||
-      q.includes('50/30/20') ||
-      q.includes('lương') ||
-      q.includes('hết tiền') ||
-      q.includes('het tien')
-    ) {
-      return {
-        reply:
-          'Bí kíp tài chính vàng từ Ếch Monett nè bạn ơi 🐸💡:\n\n' +
-          '1️⃣ **Quy tắc 50/30/20:** Hãy chia thu nhập làm 3 phần: 50% cho nhu cầu thiết yếu (ăn uống, tiền nhà), 30% cho sở thích cá nhân, và 20% cất ngay vào heo đất khi vừa nhận lương!\n' +
-          '2️⃣ **Quy tắc hoãn 24 giờ:** Trước khi mua một món đồ không có trong kế hoạch, hãy đợi 24 tiếng. 80% trường hợp bạn sẽ nhận ra mình chưa thực sự cần nó đâu!\n' +
-          '3️⃣ **Nuôi heo đất cùng Monett:** Tạo mục tiêu tích lũy cụ thể sẽ giúp bạn có động lực tiết kiệm gấp 3 lần đó!',
-        action: { label: '👛 Đến Trang Tích Lũy', tabKey: 'budget' },
-      };
-    }
-
-    // 4. Mẹo ăn uống & Du lịch theo nhóm
-    if (q.includes('ăn gì') || q.includes('an gi') || q.includes('du lịch') || q.includes('di choi') || q.includes('đi chơi') || q.includes('chia tiền')) {
-      return {
-        reply:
-          'Tụ tập bạn bè ăn uống hay đi du lịch thì vui hết sảy! 🐸🍕 Nhưng để tránh cảnh "ngại đòi tiền", bạn hãy dùng tính năng **Sự Kiện** của Monett để gom hóa đơn và chia tiền tự động cực kỳ sòng phẳng nhé!',
-        action: { label: '📅 Đến Trang Sự Kiện', tabKey: 'events' },
-      };
-    }
-
-    // 5. Quên đóng tiền / Hóa đơn định kỳ
-    if (q.includes('quên') || q.includes('tiền điện') || q.includes('tiền trọ') || q.includes('tiền nước') || q.includes('hóa đơn')) {
-      return {
-        reply:
-          'Đừng để bị tính phí trễ hạn hay chủ trọ nhắc nhở nè! 🐸 Bạn hãy vào tab **Định Kỳ** để lên lịch sẵn các hóa đơn cố định, Monett sẽ chủ động nhắc bạn thanh toán đúng hạn!',
-        action: { label: '🔁 Đến Trang Định Kỳ', tabKey: 'recurring' },
-      };
-    }
-
-    // 6. Cho mượn tiền & Vay nợ
-    if (q.includes('đòi nợ') || q.includes('doi no') || q.includes('cho mượn') || q.includes('cho muon') || q.includes('nợ') || q.includes('vay')) {
-      return {
-        reply:
-          'Tiền bạc phân minh, tình cảm bền lâu! 🐸📖 Mọi khoản cho bạn bè mượn hay tiền bạn đang vay hãy ghi ngay vào **Sổ Ghi Nợ** để theo dõi số tiền còn lại và đánh dấu khi thanh toán xong nhé!',
-        action: { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' },
-      };
-    }
-
-    // 7. Nhắc việc & Ghi chú
-    if (q.includes('nhắc nhở') || q.includes('nhac nho') || q.includes('ghi chú') || q.includes('ghi chu') || q.includes('lịch hẹn')) {
-      return {
-        reply:
-          'Trang **Nhắc Nhở & Ghi Chú** mới được nâng cấp cực kỳ xịn sò đó bạn! Bạn có thể đặt chuông báo hẹn giờ hoặc viết sổ tay cá nhân lưu lại mọi ý tưởng hay ho nè 🐸📝',
-        action: { label: '⏰ Đến Trang Nhắc Nhở', tabKey: 'reminders' },
-      };
-    }
-
-    // 8. Khen ngợi & Cảm xúc
-    if (q.includes('giỏi') || q.includes('dễ thương') || q.includes('cute') || q.includes('cảm ơn') || q.includes('cam on') || q.includes('thank')) {
-      return {
-        reply:
-          'Hì hì, Ếch Monett cảm ơn bạn iu nhiều nha! 🐸💚 Được đồng hành cùng bạn trên con đường quản lý chi tiêu là niềm vui lớn nhất của mình á! Chúc bạn một ngày tràn đầy năng lượng và ví luôn rủng rỉnh tiền nhé! ✨🎉',
-      };
-    }
-
-    // 9. Phản hồi chung gợi mở & đa năng
-    return {
-      reply:
-        'Ếch Monett đã lắng nghe câu hỏi của bạn nè! 🐸💚\n\n' +
-        'Bạn có thể hỏi mình về:\n' +
-        '• Tình hình sổ nợ hoặc heo đất của chính bạn\n' +
-        '• Mẹo tiết kiệm & quản lý chi tiêu thông minh (quy tắc 50/30/20)\n' +
-        '• Cách dùng các tính năng trong Monett (Tích lũy, Sổ nợ, Định kỳ, Sự kiện)\n' +
-        '• Hoặc bấm vào các nút gợi ý bên dưới để mình dẫn đường trực tiếp nhé! ✨',
-    };
+  const getSmartLocalReply = (
+    query: string,
+    ctx?: ReturnType<typeof collectUserFinancialContext>
+  ): { reply: string; action?: ChatMessage['action'] } => {
+    const contextData = ctx || collectUserFinancialContext(userId, user?.email, activeTab);
+    return generateSmartLocalContextReply(query, contextData);
   };
 
   const handleSendCustomText = async () => {
@@ -499,101 +403,48 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
     let replyText = '';
     let actionData: ChatMessage['action'] | undefined = undefined;
 
-    const userId = user?.id || (user as any)?._id;
-    const userEmail = user?.email;
+    const currentUserId = user?.id || (user as any)?._id;
+    const currentUserEmail = user?.email;
 
-    // 1. Phân tích nếu hỏi về DỮ LIỆU THỰC TẾ của chính người dùng
+    // Thu thập dữ liệu tài chính thực tế và bối cảnh màn hình hiện tại
+    const contextData = collectUserFinancialContext(currentUserId, currentUserEmail, activeTab);
+    const pagePromptContext = buildAiPromptContext(contextData);
+
+    // 1. Phân tích nếu hỏi trực tiếp lệnh Điều Hướng đến trang
     if (
-      qLower.includes('cho mượn bao nhiêu') ||
-      qLower.includes('đang nợ bao nhiêu') ||
-      qLower.includes('ai nợ tôi') ||
-      qLower.includes('tôi nợ ai') ||
-      qLower.includes('sổ nợ của tôi') ||
-      (qLower.includes('nợ') && (qLower.includes('bao nhiêu') || qLower.includes('còn lại')))
+      qLower.includes('chuyển đến') ||
+      qLower.includes('mở trang') ||
+      qLower.includes('vào trang') ||
+      qLower.includes('đến trang')
     ) {
-      try {
-        const debts = loadDebtItems(userId, userEmail);
-        const lentList = debts.filter((d) => d.type === 'lent' && !d.isSettled);
-        const borrowList = debts.filter((d) => d.type === 'borrowed' && !d.isSettled);
-        const totalLentRem = lentList.reduce((s, d) => s + (d.amount - (d.paidAmount || 0)), 0);
-        const totalBorrowRem = borrowList.reduce((s, d) => s + (d.amount - (d.paidAmount || 0)), 0);
-
-        replyText =
-          `Báo cáo sổ nợ nhanh cho bạn nè! 🐸📖\n\n` +
-          `• **Đang cho mượn:** ${lentList.length} người chưa thanh toán hết (còn lại: **${formatVND(totalLentRem)} đ**)\n` +
-          `• **Khoản bạn đang nợ:** ${borrowList.length} khoản cần trả (còn lại: **${formatVND(totalBorrowRem)} đ**)\n\n` +
-          `Bạn có thể bấm nút bên dưới để vào trang Sổ Ghi Nợ kiểm tra chi tiết hoặc ghi nhận thu hồi nhé! ✨`;
-        actionData = {
-          label: '📖 Đến Trang Sổ Ghi Nợ',
-          tabKey: 'debts',
-        };
-      } catch (err) {
-        console.warn('Lỗi đọc sổ nợ:', err);
-      }
-    } else if (
-      qLower.includes('heo đất của tôi') ||
-      qLower.includes('tôi tiết kiệm được bao nhiêu') ||
-      qLower.includes('tiến độ tích lũy') ||
-      qLower.includes('mục tiêu tiết kiệm') ||
-      (qLower.includes('tích lũy') && qLower.includes('bao nhiêu'))
-    ) {
-      try {
-        const goals = loadSavingsGoals(userId, userEmail);
-        const totalSaved = goals.reduce((s, g) => s + (g.currentAmount || 0), 0);
-        const totalTarget = goals.reduce((s, g) => s + (g.targetAmount || 0), 0);
-        const percent = totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0;
-
-        replyText =
-          `Tiến độ nuôi heo đất của bạn nè! 👛✨\n\n` +
-          `• **Số mục tiêu đang nuôi:** ${goals.length} chú heo đất\n` +
-          `• **Tổng tiền đã tích góp:** **${formatVND(totalSaved)} đ** / ${formatVND(totalTarget)} đ (${percent}%)\n\n` +
-          `Bạn đang làm rất tốt, tiếp tục kiên trì nạp tiền đều đặn để sớm rinh mục tiêu về nhà nha! 🐸💚`;
-        actionData = {
-          label: '👛 Đến Trang Tích Lũy',
-          tabKey: 'budget',
-        };
-      } catch (err) {
-        console.warn('Lỗi đọc tích lũy:', err);
+      if (qLower.includes('tích lũy') || qLower.includes('tiết kiệm') || qLower.includes('heo')) {
+        replyText = 'Trang Tích Lũy (Tiết kiệm & Heo đất) sẽ giúp bạn theo dõi tiến độ nuôi heo, đặt mục tiêu mua sắm, dự phòng để sớm đạt ước mơ nhé!';
+        actionData = { label: '👛 Đến Trang Tích Lũy', tabKey: 'budget' };
+      } else if (qLower.includes('tổng quan') || qLower.includes('trang chủ') || qLower.includes('home')) {
+        replyText = 'Trang Tổng Quan sẽ hiển thị biểu đồ thu chi, lịch chi tiêu và các lời nhắc việc hằng ngày của bạn!';
+        actionData = { label: '⊞ Đến Trang Tổng Quan', tabKey: 'home' };
+      } else if (qLower.includes('sự kiện') || qLower.includes('event')) {
+        replyText = 'Trang Sự Kiện giúp bạn theo dõi các hoạt động ăn uống, hội họp cùng bạn bè và chia tiền tiện lợi!';
+        actionData = { label: '📅 Đến Trang Sự Kiện', tabKey: 'events' };
+      } else if (qLower.includes('báo cáo') || qLower.includes('thống kê')) {
+        replyText = 'Bạn hãy vào trang Báo Cáo nhé, ở đó có biểu đồ cột, donut tròn và bảng kê chi tiết theo từng Ngày, Tháng, Năm cực kỳ sắc nét!';
+        actionData = { label: '📊 Đến Trang Báo Cáo', tabKey: 'analytics' };
+      } else if (qLower.includes('nợ') || qLower.includes('cho mượn')) {
+        replyText = 'Trang Sổ Ghi Nợ sẽ giúp bạn ghi lại rõ ràng ai đang nợ tiền bạn hoặc bạn cần trả ai, tránh quên sót!';
+        actionData = { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' };
+      } else if (qLower.includes('định kỳ') || qLower.includes('hóa đơn')) {
+        replyText = 'Trang Định Kỳ giúp bạn theo dõi và quản lý mọi hóa đơn cố định lặp lại mỗi tháng như tiền phòng, điện nước, internet!';
+        actionData = { label: '🔁 Đến Trang Định Kỳ', tabKey: 'recurring' };
+      } else if (qLower.includes('bảng tin') || qLower.includes('bạn bè')) {
+        replyText = 'Toàn bộ tính năng Bảng tin, Danh sách bạn bè và Nhắn tin trò chuyện đã được gộp gọn trong tab Bảng Tin đó bạn ơi!';
+        actionData = { label: '📰 Đến Trang Bảng Tin', tabKey: 'feed' };
+      } else if (qLower.includes('nhắc nhở') || qLower.includes('ghi chú')) {
+        replyText = 'Trang Nhắc Nhở & Ghi Chú giúp bạn đặt lịch hẹn báo trước và ghi chép sổ tay cá nhân tiện lợi!';
+        actionData = { label: '⏰ Đến Trang Nhắc Nhở', tabKey: 'reminders' };
       }
     }
 
-    // 2. Phân tích nếu hỏi trực tiếp lệnh Điều Hướng đến trang
-    if (!replyText) {
-      if (
-        qLower.includes('chuyển đến') ||
-        qLower.includes('mở trang') ||
-        qLower.includes('vào trang') ||
-        qLower.includes('đến trang')
-      ) {
-        if (qLower.includes('tích lũy') || qLower.includes('tiết kiệm') || qLower.includes('heo')) {
-          replyText = 'Trang Tích Lũy (Tiết kiệm & Heo đất) sẽ giúp bạn theo dõi tiến độ nuôi heo, đặt mục tiêu mua sắm, dự phòng để sớm đạt ước mơ nhé!';
-          actionData = { label: '👛 Đến Trang Tích Lũy', tabKey: 'budget' };
-        } else if (qLower.includes('tổng quan') || qLower.includes('trang chủ') || qLower.includes('home')) {
-          replyText = 'Trang Tổng Quan sẽ hiển thị biểu đồ thu chi, lịch chi tiêu và các lời nhắc việc hằng ngày của bạn!';
-          actionData = { label: '⊞ Đến Trang Tổng Quan', tabKey: 'home' };
-        } else if (qLower.includes('sự kiện') || qLower.includes('event')) {
-          replyText = 'Trang Sự Kiện giúp bạn theo dõi các hoạt động ăn uống, hội họp cùng bạn bè và chia tiền tiện lợi!';
-          actionData = { label: '📅 Đến Trang Sự Kiện', tabKey: 'events' };
-        } else if (qLower.includes('báo cáo') || qLower.includes('thống kê')) {
-          replyText = 'Bạn hãy vào trang Báo Cáo nhé, ở đó có biểu đồ cột, donut tròn và bảng kê chi tiết theo từng Ngày, Tháng, Năm cực kỳ sắc nét!';
-          actionData = { label: '📊 Đến Trang Báo Cáo', tabKey: 'analytics' };
-        } else if (qLower.includes('nợ') || qLower.includes('cho mượn')) {
-          replyText = 'Trang Sổ Ghi Nợ sẽ giúp bạn ghi lại rõ ràng ai đang nợ tiền bạn hoặc bạn cần trả ai, tránh quên sót!';
-          actionData = { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' };
-        } else if (qLower.includes('định kỳ') || qLower.includes('hóa đơn')) {
-          replyText = 'Trang Định Kỳ giúp bạn theo dõi và quản lý mọi hóa đơn cố định lặp lại mỗi tháng như tiền phòng, điện nước, internet!';
-          actionData = { label: '🔁 Đến Trang Định Kỳ', tabKey: 'recurring' };
-        } else if (qLower.includes('bảng tin') || qLower.includes('bạn bè')) {
-          replyText = 'Toàn bộ tính năng Bảng tin, Danh sách bạn bè và Nhắn tin trò chuyện đã được gộp gọn trong tab Bảng Tin đó bạn ơi!';
-          actionData = { label: '📰 Đến Trang Bảng Tin', tabKey: 'feed' };
-        } else if (qLower.includes('nhắc nhở') || qLower.includes('ghi chú')) {
-          replyText = 'Trang Nhắc Nhở & Ghi Chú giúp bạn đặt lịch hẹn báo trước và ghi chép sổ tay cá nhân tiện lợi!';
-          actionData = { label: '⏰ Đến Trang Nhắc Nhở', tabKey: 'reminders' };
-        }
-      }
-    }
-
-    // 3. Nếu chưa có câu trả lời, gọi Backend AI (kết nối Gemini 1.5 Flash)
+    // 2. Gọi Backend AI (kết nối Gemini kèm toàn bộ bối cảnh màn hình & dữ liệu chi tiết)
     if (!replyText) {
       try {
         const baseUrl = getBaseUrl();
@@ -611,6 +462,8 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
           body: JSON.stringify({
             message: query,
             history: historyPayload,
+            activeTab: activeTab || 'home',
+            pageContext: pagePromptContext,
           }),
           signal: controller.signal,
         });
@@ -618,7 +471,7 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
 
         if (aiResponse.ok) {
           const aiJson = await aiResponse.json();
-          if (aiJson && aiJson.reply) {
+          if (aiJson && aiJson.reply && aiJson.reply.trim()) {
             replyText = aiJson.reply;
             if (aiJson.action) {
               actionData = aiJson.action;
@@ -630,9 +483,9 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
       }
     }
 
-    // 4. Nếu Backend AI chưa có key hoặc offline, dùng Bộ tri thức tài chính thông minh nội bộ
+    // 3. Nếu Backend AI chưa có key hoặc offline hoặc timeout, dùng Bộ xử lý dữ liệu thông minh theo trang
     if (!replyText) {
-      const fallback = getSmartLocalReply(query);
+      const fallback = getSmartLocalReply(query, contextData);
       replyText = fallback.reply;
       actionData = fallback.action;
     }

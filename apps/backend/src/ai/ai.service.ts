@@ -29,9 +29,41 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
     if (apiKey) {
       try {
         const genAI = new GoogleGenerativeAI(apiKey);
+
+        const pageNames: Record<string, string> = {
+          home: 'Tổng quan (Trang chủ)',
+          events: 'Sự kiện (Quản lý sự kiện, chuyến đi, ăn uống theo nhóm)',
+          budget: 'Tích lũy & Heo đất (Mục tiêu tài chính, tiết kiệm mua sắm, quỹ khẩn cấp)',
+          savings: 'Tích lũy & Heo đất (Mục tiêu tài chính, tiết kiệm mua sắm, quỹ khẩn cấp)',
+          recurring: 'Định kỳ (Khoản chi định kỳ & Khoản thu định kỳ cố định)',
+          debt: 'Sổ ghi nợ (Theo dõi người nợ tiền và các khoản vay nợ)',
+          debts: 'Sổ ghi nợ (Theo dõi người nợ tiền và các khoản vay nợ)',
+          reminders: 'Nhắc nhở & Ghi chú (Sổ tay ghi chú cá nhân, việc cần nhớ, lịch hẹn)',
+          analytics: 'Báo cáo tài chính (Thống kê dòng tiền, phân tích thu chi)',
+          transactions: 'Lịch sử giao dịch (Chi tiết các khoản thu chi)',
+          feed: 'Bảng tin & Bạn bè (Cộng đồng chi tiêu)',
+          messages: 'Tin nhắn trò chuyện',
+          profile: 'Trang cá nhân & Cài đặt',
+        };
+        const activePageTitle = pageNames[dto.activeTab || ''] || dto.activeTab || 'Tổng quan';
+
+        let dynamicInstruction = this.systemInstruction;
+        dynamicInstruction += `\n\n=== THÔNG TIN BỐI CẢNH VÀ DỮ LIỆU HIỆN TẠI CỦA NGƯỜI DÙNG ===\n`;
+        dynamicInstruction += `- Người dùng đang đứng ở màn hình: "${activePageTitle}" (Mã tab: "${dto.activeTab || 'home'}").\n`;
+
+        if (dto.pageContext && dto.pageContext.trim()) {
+          dynamicInstruction += `\n--- DỮ LIỆU TÀI CHÍNH THỰC TẾ TRONG HỆ THỐNG CỦA NGƯỜI DÙNG ---\n${dto.pageContext.trim()}\n--------------------------------------------------------------\n`;
+          dynamicInstruction += `\nQUY TẮC BẮT BUỘC KHI TRẢ LỜI CÂU HỎI VỀ DỮ LIỆU:
+1. Khi người dùng hỏi về màn hình hiện tại (ví dụ: "ở trang này có gì", "tôi có sự kiện nào", "chi tiết các khoản nợ", "tổng chi tiêu", "tiến độ mục tiêu", "các khoản định kỳ"...):
+   -> Bạn PHẢI sử dụng trực tiếp các số liệu, tên sự kiện, tên mục tiêu, tên người nợ, số tiền trong VND, ngày tháng từ "DỮ LIỆU TÀI CHÍNH THỰC TẾ" ở trên để trả lời cụ thể, chính xác từng chi tiết cho người dùng!
+2. Tuyệt đối KHÔNG trả lời chung chung hoặc bảo người dùng "hãy tự vào trang để xem" khi thông tin đã có sẵn trong dữ liệu trên.
+3. Nếu người dùng hỏi một trang khác với trang đang đứng (ví dụ đang ở Sự kiện nhưng hỏi về Sổ nợ hay Heo đất), nếu dữ liệu trên có thông tin thì trả lời ngay và có thể gợi ý chuyển sang trang đó.
+4. Giữ phong cách chú Ếch Monett 🐸💚 vui vẻ, lễ phép, dùng emoji sinh động và định dạng số tiền rõ ràng (VD: 1.000.000 đ).\n`;
+        }
+
         const model = genAI.getGenerativeModel({
           model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
-          systemInstruction: this.systemInstruction,
+          systemInstruction: dynamicInstruction,
         });
 
         // Chuẩn bị chat history nếu có
@@ -61,7 +93,7 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
     }
 
     // Nếu chưa có API Key hoặc Gemini gặp lỗi mạng, sử dụng bộ xử lý thông minh nội bộ
-    const fallbackReply = this.generateSmartFallbackReply(dto.message);
+    const fallbackReply = this.generateSmartFallbackReply(dto.message, dto);
     return {
       success: true,
       isAi: false,
@@ -70,7 +102,10 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
     };
   }
 
-  private generateSmartFallbackReply(query: string): { reply: string; action?: { label: string; tabKey: string } } {
+  private generateSmartFallbackReply(
+    query: string,
+    dto?: ChatAiDto
+  ): { reply: string; action?: { label: string; tabKey: string } } {
     const q = query.toLowerCase().trim();
 
     // 1. Chào hỏi thân mật
