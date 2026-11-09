@@ -123,6 +123,8 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
   const [inputText, setInputText] = useState('');
   const [showTooltip, setShowTooltip] = useState(true);
   const [isAiThinking, setIsAiThinking] = useState(false);
+  const isSendingRef = useRef(false);
+  const lastSentTimeRef = useRef(0);
 
   // Kéo di chuyển chú Ếch tự do (Draggable Frog Mascot)
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
@@ -385,7 +387,14 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
   };
 
   const handleSendCustomText = async () => {
+    const now = Date.now();
+    if (now - lastSentTimeRef.current < 400) return;
+    if (isSendingRef.current) return;
     if (!inputText.trim() || isAiThinking) return;
+
+    isSendingRef.current = true;
+    lastSentTimeRef.current = now;
+
     const query = inputText.trim();
     setInputText('');
 
@@ -399,107 +408,112 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
     setMessages((prev) => [...prev, userMsg]);
     setIsAiThinking(true);
 
-    const qLower = query.toLowerCase();
-    let replyText = '';
-    let actionData: ChatMessage['action'] | undefined = undefined;
+    try {
+      const qLower = query.toLowerCase();
+      let replyText = '';
+      let actionData: ChatMessage['action'] | undefined = undefined;
 
-    const currentUserId = user?.id || (user as any)?._id;
-    const currentUserEmail = user?.email;
+      const currentUserId = user?.id || (user as any)?._id;
+      const currentUserEmail = user?.email;
 
-    // Thu thập dữ liệu tài chính thực tế và bối cảnh màn hình hiện tại
-    const contextData = collectUserFinancialContext(currentUserId, currentUserEmail, activeTab);
-    const pagePromptContext = buildAiPromptContext(contextData);
+      // Thu thập dữ liệu tài chính thực tế và bối cảnh màn hình hiện tại
+      const contextData = collectUserFinancialContext(currentUserId, currentUserEmail, activeTab);
+      const pagePromptContext = buildAiPromptContext(contextData);
 
-    // 1. Phân tích nếu hỏi trực tiếp lệnh Điều Hướng đến trang
-    if (
-      qLower.includes('chuyển đến') ||
-      qLower.includes('mở trang') ||
-      qLower.includes('vào trang') ||
-      qLower.includes('đến trang')
-    ) {
-      if (qLower.includes('tích lũy') || qLower.includes('tiết kiệm') || qLower.includes('heo')) {
-        replyText = 'Trang Tích Lũy (Tiết kiệm & Heo đất) sẽ giúp bạn theo dõi tiến độ nuôi heo, đặt mục tiêu mua sắm, dự phòng để sớm đạt ước mơ nhé!';
-        actionData = { label: '👛 Đến Trang Tích Lũy', tabKey: 'budget' };
-      } else if (qLower.includes('tổng quan') || qLower.includes('trang chủ') || qLower.includes('home')) {
-        replyText = 'Trang Tổng Quan sẽ hiển thị biểu đồ thu chi, lịch chi tiêu và các lời nhắc việc hằng ngày của bạn!';
-        actionData = { label: '⊞ Đến Trang Tổng Quan', tabKey: 'home' };
-      } else if (qLower.includes('sự kiện') || qLower.includes('event')) {
-        replyText = 'Trang Sự Kiện giúp bạn theo dõi các hoạt động ăn uống, hội họp cùng bạn bè và chia tiền tiện lợi!';
-        actionData = { label: '📅 Đến Trang Sự Kiện', tabKey: 'events' };
-      } else if (qLower.includes('báo cáo') || qLower.includes('thống kê')) {
-        replyText = 'Bạn hãy vào trang Báo Cáo nhé, ở đó có biểu đồ cột, donut tròn và bảng kê chi tiết theo từng Ngày, Tháng, Năm cực kỳ sắc nét!';
-        actionData = { label: '📊 Đến Trang Báo Cáo', tabKey: 'analytics' };
-      } else if (qLower.includes('nợ') || qLower.includes('cho mượn')) {
-        replyText = 'Trang Sổ Ghi Nợ sẽ giúp bạn ghi lại rõ ràng ai đang nợ tiền bạn hoặc bạn cần trả ai, tránh quên sót!';
-        actionData = { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' };
-      } else if (qLower.includes('định kỳ') || qLower.includes('hóa đơn')) {
-        replyText = 'Trang Định Kỳ giúp bạn theo dõi và quản lý mọi hóa đơn cố định lặp lại mỗi tháng như tiền phòng, điện nước, internet!';
-        actionData = { label: '🔁 Đến Trang Định Kỳ', tabKey: 'recurring' };
-      } else if (qLower.includes('bảng tin') || qLower.includes('bạn bè')) {
-        replyText = 'Toàn bộ tính năng Bảng tin, Danh sách bạn bè và Nhắn tin trò chuyện đã được gộp gọn trong tab Bảng Tin đó bạn ơi!';
-        actionData = { label: '📰 Đến Trang Bảng Tin', tabKey: 'feed' };
-      } else if (qLower.includes('nhắc nhở') || qLower.includes('ghi chú')) {
-        replyText = 'Trang Nhắc Nhở & Ghi Chú giúp bạn đặt lịch hẹn báo trước và ghi chép sổ tay cá nhân tiện lợi!';
-        actionData = { label: '⏰ Đến Trang Nhắc Nhở', tabKey: 'reminders' };
+      // 1. Phân tích nếu hỏi trực tiếp lệnh Điều Hướng đến trang
+      if (
+        qLower.includes('chuyển đến') ||
+        qLower.includes('mở trang') ||
+        qLower.includes('vào trang') ||
+        qLower.includes('đến trang')
+      ) {
+        if (qLower.includes('tích lũy') || qLower.includes('tiết kiệm') || qLower.includes('heo')) {
+          replyText = 'Trang Tích Lũy (Tiết kiệm & Heo đất) sẽ giúp bạn theo dõi tiến độ nuôi heo, đặt mục tiêu mua sắm, dự phòng để sớm đạt ước mơ nhé!';
+          actionData = { label: '👛 Đến Trang Tích Lũy', tabKey: 'budget' };
+        } else if (qLower.includes('tổng quan') || qLower.includes('trang chủ') || qLower.includes('home')) {
+          replyText = 'Trang Tổng Quan sẽ hiển thị biểu đồ thu chi, lịch chi tiêu và các lời nhắc việc hằng ngày của bạn!';
+          actionData = { label: '⊞ Đến Trang Tổng Quan', tabKey: 'home' };
+        } else if (qLower.includes('sự kiện') || qLower.includes('event')) {
+          replyText = 'Trang Sự Kiện giúp bạn theo dõi các hoạt động ăn uống, hội họp cùng bạn bè và chia tiền tiện lợi!';
+          actionData = { label: '📅 Đến Trang Sự Kiện', tabKey: 'events' };
+        } else if (qLower.includes('báo cáo') || qLower.includes('thống kê')) {
+          replyText = 'Bạn hãy vào trang Báo Cáo nhé, ở đó có biểu đồ cột, donut tròn và bảng kê chi tiết theo từng Ngày, Tháng, Năm cực kỳ sắc nét!';
+          actionData = { label: '📊 Đến Trang Báo Cáo', tabKey: 'analytics' };
+        } else if (qLower.includes('nợ') || qLower.includes('cho mượn')) {
+          replyText = 'Trang Sổ Ghi Nợ sẽ giúp bạn ghi lại rõ ràng ai đang nợ tiền bạn hoặc bạn cần trả ai, tránh quên sót!';
+          actionData = { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' };
+        } else if (qLower.includes('định kỳ') || qLower.includes('hóa đơn')) {
+          replyText = 'Trang Định Kỳ giúp bạn theo dõi và quản lý mọi hóa đơn cố định lặp lại mỗi tháng như tiền phòng, điện nước, internet!';
+          actionData = { label: '🔁 Đến Trang Định Kỳ', tabKey: 'recurring' };
+        } else if (qLower.includes('bảng tin') || qLower.includes('bạn bè')) {
+          replyText = 'Toàn bộ tính năng Bảng tin, Danh sách bạn bè và Nhắn tin trò chuyện đã được gộp gọn trong tab Bảng Tin đó bạn ơi!';
+          actionData = { label: '📰 Đến Trang Bảng Tin', tabKey: 'feed' };
+        } else if (qLower.includes('nhắc nhở') || qLower.includes('ghi chú')) {
+          replyText = 'Trang Nhắc Nhở & Ghi Chú giúp bạn đặt lịch hẹn báo trước và ghi chép sổ tay cá nhân tiện lợi!';
+          actionData = { label: '⏰ Đến Trang Nhắc Nhở', tabKey: 'reminders' };
+        }
       }
-    }
 
-    // 2. Gọi Backend AI (kết nối Gemini kèm toàn bộ bối cảnh màn hình & dữ liệu chi tiết)
-    if (!replyText) {
-      try {
-        const baseUrl = getBaseUrl();
-        const historyPayload = messages.slice(-6).map((m) => ({
-          role: m.sender === 'user' ? 'user' : 'model',
-          text: m.text,
-        }));
+      // 2. Gọi Backend AI (kết nối Gemini kèm toàn bộ bối cảnh màn hình & dữ liệu chi tiết)
+      if (!replyText) {
+        try {
+          const baseUrl = getBaseUrl();
+          const historyPayload = messages.slice(-6).map((m) => ({
+            role: m.sender === 'user' ? 'user' : 'model',
+            text: m.text,
+          }));
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 9000);
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 9000);
 
-        const aiResponse = await fetch(`${baseUrl}/api/ai/chat`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: query,
-            history: historyPayload,
-            activeTab: activeTab || 'home',
-            pageContext: pagePromptContext,
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeoutId);
+          const aiResponse = await fetch(`${baseUrl}/api/ai/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: query,
+              history: historyPayload,
+              activeTab: activeTab || 'home',
+              pageContext: pagePromptContext,
+            }),
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
 
-        if (aiResponse.ok) {
-          const aiJson = await aiResponse.json();
-          if (aiJson && aiJson.reply && aiJson.reply.trim()) {
-            replyText = aiJson.reply;
-            if (aiJson.action) {
-              actionData = aiJson.action;
+          if (aiResponse.ok) {
+            const aiJson = await aiResponse.json();
+            if (aiJson && aiJson.reply && aiJson.reply.trim()) {
+              replyText = aiJson.reply;
+              if (aiJson.action) {
+                actionData = aiJson.action;
+              }
             }
           }
+        } catch (e) {
+          console.warn('Backend AI network notice, switching to local smart engine:', e);
         }
-      } catch (e) {
-        console.warn('Backend AI network notice, switching to local smart engine:', e);
       }
+
+      // 3. Nếu Backend AI chưa có key hoặc offline hoặc timeout, dùng Bộ xử lý dữ liệu thông minh theo trang
+      if (!replyText) {
+        const fallback = getSmartLocalReply(query, contextData);
+        replyText = fallback.reply;
+        actionData = fallback.action;
+      }
+
+      const aiMsg: ChatMessage = {
+        id: `ai-${Date.now() + 1}`,
+        sender: 'ai',
+        text: replyText,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        action: actionData,
+      };
+
+      // Chỉ thêm aiMsg vào messages (userMsg đã được thêm ở đầu hàm)
+      setMessages((prev) => [...prev, aiMsg]);
+    } finally {
+      setIsAiThinking(false);
+      isSendingRef.current = false;
     }
-
-    // 3. Nếu Backend AI chưa có key hoặc offline hoặc timeout, dùng Bộ xử lý dữ liệu thông minh theo trang
-    if (!replyText) {
-      const fallback = getSmartLocalReply(query, contextData);
-      replyText = fallback.reply;
-      actionData = fallback.action;
-    }
-
-    const aiMsg: ChatMessage = {
-      id: `ai-${Date.now() + 1}`,
-      sender: 'ai',
-      text: replyText,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      action: actionData,
-    };
-
-    setIsAiThinking(false);
-    setMessages((prev) => [...prev, userMsg, aiMsg]);
   };
 
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -796,6 +810,7 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
           value={inputText}
           onChangeText={setInputText}
           onSubmitEditing={handleSendCustomText}
+          blurOnSubmit={false}
           returnKeyType="send"
           editable={!isAiThinking}
         />
