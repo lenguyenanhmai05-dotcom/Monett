@@ -55,10 +55,11 @@ export class OcrService {
         });
 
         const prompt = `
-          Bạn là hệ thống AI phân tích hóa đơn (receipt) của ứng dụng tài chính Monett.
-          Đọc kỹ bức ảnh hóa đơn tiếng Việt này và trả về ĐÚNG DUY NHẤT một object JSON, KHÔNG dùng markdown block (\`\`\`json), KHÔNG giải thích thêm.
+          Bạn là hệ thống AI phân tích hóa đơn và nhận diện chi tiêu/món ăn của ứng dụng tài chính Monett.
+          Đọc kỹ bức ảnh này và trả về ĐÚNG DUY NHẤT một object JSON, KHÔNG dùng markdown block (\`\`\`json), KHÔNG giải thích thêm.
           Format:
           {
+            "imageType": "bill" | "food",
             "amount": 0,
             "supplier": "",
             "date": "YYYY-MM-DD",
@@ -67,10 +68,11 @@ export class OcrService {
             "items": [{"name": "string", "quantity": 1, "price": 0, "total": 0}]
           }
           Quy tắc:
-          - "amount": Tổng số tiền thực tế khách phải trả (Net Total / Final Amount) sau khi đã trừ giảm giá / chiết khấu / voucher và cộng VAT (nếu có). TUYỆT ĐỐI KHÔNG lấy tiền khách đưa, KHÔNG lấy tiền thối / tiền thừa, KHÔNG lấy số tiền trước giảm giá. Trả về số nguyên ví dụ 85000.
-          - "supplier": Tên công ty / quán / cửa hàng trên hóa đơn (ví dụ "Công ty TNHH Công Nghệ KEKO Việt Nam", "Highlands Coffee").
-          - "date": Ngày trên hóa đơn dạng YYYY-MM-DD (ví dụ "2022-11-07").
-          - "category": Chọn 1 trong các danh mục: "Ăn uống", "Cà phê & Nước", "Đi chợ & Siêu thị", "Mua sắm", "Di chuyển & Xăng", "Hóa đơn", "Nhà cửa & Phòng", "Giải trí", "Y tế & Sức khỏe", "Làm đẹp & Bản thân", "Học tập & Sách", "Khác".
+          - "imageType": Nếu bức ảnh là hóa đơn, biên lai, phiếu thanh toán, chuyển khoản -> "bill". Nếu bức ảnh là đĩa thức ăn, tô bún, cốc trà sữa, đồ ăn thức uống thực tế -> "food".
+          - "amount": Nếu là hóa đơn -> tổng số tiền thực tế khách phải trả (Net Total / Final Amount) dạng số nguyên VND ví dụ 85000. Nếu là ảnh món ăn -> ước tính giá thị trường hợp lý của món ăn đó tại Việt Nam (ví dụ 45000, 35000) hoặc 0.
+          - "supplier": Nếu là hóa đơn -> tên quán/cửa hàng. Nếu là ảnh món ăn -> tên món ăn cụ thể được nhận diện từ ảnh (ví dụ "Phở bò tái nạm", "Cơm sườn bì chả", "Cà phê sữa đá", "Bánh mì chảo", "Trà sữa trân châu").
+          - "date": Ngày trên hóa đơn dạng YYYY-MM-DD (hoặc null nếu là ảnh món ăn).
+          - "category": Chọn 1 trong các danh mục: "Ăn uống", "Cà phê & Nước", "Đi chợ & Siêu thị", "Mua sắm", "Di chuyển & Xăng", "Hóa đơn", "Nhà cửa & Phòng", "Giải trí", "Y tế & Sức khỏe", "Làm đẹp & Bản thân", "Học tập & Sách", "Khác". Nếu là món ăn, ưu tiên chọn "Ăn uống" hoặc "Cà phê & Nước".
           - "items": Danh sách các sản phẩm / món hàng gồm tên, số lượng, đơn giá, thành tiền.
         `;
 
@@ -94,14 +96,16 @@ export class OcrService {
         }
         const parsedData = JSON.parse(responseText);
 
+        const isFoodType = parsedData.imageType === 'food';
         return {
           success: true,
           data: {
+            imageType: isFoodType ? 'food' : 'bill',
             amount: Number(parsedData.amount) || 0,
             date: parsedData.date || null,
             currency: parsedData.currency || 'VND',
-            supplier: parsedData.supplier || 'Hóa đơn chi tiêu',
-            category: parsedData.category || 'Khác',
+            supplier: parsedData.supplier || (isFoodType ? 'Món ăn ngon' : 'Hóa đơn chi tiêu'),
+            category: parsedData.category || (isFoodType ? 'Ăn uống' : 'Khác'),
             items: [],
           },
           message: 'Parsed with Google Gemini Vision AI.',

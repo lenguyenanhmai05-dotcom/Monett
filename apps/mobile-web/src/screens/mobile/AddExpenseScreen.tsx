@@ -62,10 +62,17 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
   const [selectedCategory, setSelectedCategory] = useState(initialData?.category || (isVi ? 'Ăn uống' : 'Food'));
   const [isScanning, setIsScanning] = useState(false);
   const [scanMessage, setScanMessage] = useState('');
+  const [scanType, setScanType] = useState<'bill' | 'food'>(initialMode === 'food' ? 'food' : 'bill');
   const [scanStatus, setScanStatus] = useState<'idle' | 'scanning' | 'success' | 'failed'>(
     initialPhotoUrl ? 'scanning' : 'idle'
   );
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (initialMode) {
+      setScanType(initialMode === 'food' ? 'food' : 'bill');
+    }
+  }, [initialMode]);
 
   const categories = useMemo(() => [
     { id: 'food', name: isVi ? 'Ăn uống' : 'Food', icon: '🍜', color: '#059669', bg: '#ECFDF5' },
@@ -79,12 +86,19 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     { id: 'other', name: isVi ? 'Khác' : 'Other', icon: '📦', color: '#64748B', bg: '#F1F5F9' },
   ], [isVi]);
 
-  // Quét AI và bóc tách thông tin trực tiếp từ ảnh hóa đơn
-  const processReceipt = useCallback(async (targetUri: string) => {
+  // Quét AI và bóc tách thông tin trực tiếp từ ảnh hóa đơn hoặc ảnh món ăn
+  const processReceipt = useCallback(async (targetUri: string, overrideType?: 'bill' | 'food') => {
     if (!targetUri) return;
+    const activeType = overrideType || (initialMode === 'food' ? 'food' : 'bill');
+    const isFood = activeType === 'food';
+    setScanType(activeType);
     setIsScanning(true);
     setScanStatus('scanning');
-    setScanMessage(isVi ? 'Gemini AI đang phân tích hóa đơn...' : 'Gemini AI is analyzing receipt...');
+
+    const loadingMsg = isFood
+      ? (isVi ? 'Gemini AI đang nhận diện món ăn...' : 'Gemini AI is analyzing food...')
+      : (isVi ? 'Gemini AI đang phân tích hóa đơn...' : 'Gemini AI is analyzing receipt...');
+    setScanMessage(loadingMsg);
 
     let imageForScan = targetUri;
     let didUpload = false;
@@ -92,24 +106,32 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     // Nếu ảnh là URI cục bộ của thiết bị (file:/// hoặc ph://), tải lên server trước để backend có URL đọc được
     if (!imageForScan.startsWith('data:') && !imageForScan.startsWith('http')) {
       try {
-        setScanMessage(isVi ? 'Đang tải ảnh hóa đơn...' : 'Uploading receipt image...');
-        const uploadedUrl = await uploadReceiptApi(targetUri, 'image/jpeg', 'receipt.jpg');
+        const uploadMsg = isFood
+          ? (isVi ? 'Đang tải ảnh món ăn...' : 'Uploading food image...')
+          : (isVi ? 'Đang tải ảnh hóa đơn...' : 'Uploading receipt image...');
+        setScanMessage(uploadMsg);
+        const uploadedUrl = await uploadReceiptApi(targetUri, 'image/jpeg', isFood ? 'food.jpg' : 'receipt.jpg');
         if (uploadedUrl) {
           imageForScan = uploadedUrl;
           setPhotoUrl(uploadedUrl);
           didUpload = true;
-          setScanMessage(isVi ? 'Gemini AI đang phân tích hóa đơn...' : 'Gemini AI is analyzing receipt...');
+          setScanMessage(loadingMsg);
         }
       } catch (uploadErr) {
         console.warn('Pre-upload for OCR error:', uploadErr);
       }
     }
 
-    // 1. Phân tích OCR bằng Gemini Vision AI
+    // 1. Phân tích bằng Gemini Vision AI
     try {
       const ocrData = await scanReceiptOcrApi(imageForScan);
-      if (ocrData && typeof ocrData.amount === 'number' && ocrData.amount > 0) {
-        setAmountStr(String(ocrData.amount));
+      if (ocrData) {
+        const isDetectedFood = (ocrData as any).imageType === 'food' || isFood;
+        setScanType(isDetectedFood ? 'food' : 'bill');
+
+        if (typeof ocrData.amount === 'number' && ocrData.amount > 0) {
+          setAmountStr(String(ocrData.amount));
+        }
         if (ocrData.supplier && typeof ocrData.supplier === 'string' && ocrData.supplier.trim()) {
           setTitle(ocrData.supplier.trim());
         }
@@ -121,17 +143,32 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
               c.name.toLowerCase().includes(ocrData.category.toLowerCase())
           );
           setSelectedCategory(matched ? matched.name : ocrData.category);
+        } else if (isDetectedFood) {
+          setSelectedCategory(isVi ? 'Ăn uống' : 'Food');
         }
+
+        const successMsg = isDetectedFood
+          ? (ocrData.supplier && ocrData.supplier !== 'Món ăn ngon'
+              ? (isVi ? `✓ Đã nhận diện món: ${ocrData.supplier}` : `✓ Food recognized: ${ocrData.supplier}`)
+              : (isVi ? '✓ Đã nhận diện món ăn bằng Gemini AI' : '✓ Food recognized by Gemini AI'))
+          : (isVi ? '✓ Đã nhận diện hóa đơn bằng Gemini AI' : '✓ Auto-extracted by Gemini AI');
+
         setScanStatus('success');
-        setScanMessage(isVi ? '✓ Gemini AI đã tự điền thông tin' : '✓ Auto-filled by Gemini AI');
+        setScanMessage(successMsg);
       } else {
         setScanStatus('failed');
-        setScanMessage(isVi ? 'Không đọc được hóa đơn từ ảnh này' : 'Could not read receipt from photo');
+        const failMsg = isFood
+          ? (isVi ? 'Không nhận diện được món ăn từ ảnh này' : 'Could not recognize food from photo')
+          : (isVi ? 'Không đọc được hóa đơn từ ảnh này' : 'Could not read receipt from photo');
+        setScanMessage(failMsg);
       }
     } catch (ocrErr) {
       console.warn('AI OCR scan error:', ocrErr);
       setScanStatus('failed');
-      setScanMessage(isVi ? 'Lỗi phân tích hóa đơn' : 'OCR analysis error');
+      const errFailMsg = isFood
+        ? (isVi ? 'Lỗi nhận diện món ăn' : 'Food recognition error')
+        : (isVi ? 'Lỗi phân tích hóa đơn' : 'OCR analysis error');
+      setScanMessage(errFailMsg);
     } finally {
       setIsScanning(false);
     }
@@ -139,7 +176,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
     // 2. Tải ảnh lên máy chủ ở chế độ nền nếu chưa tải
     if (!didUpload && targetUri.startsWith('data:')) {
       try {
-        const uploadResponse = await uploadReceiptApi(targetUri, 'image/jpeg', 'receipt.jpg');
+        const uploadResponse = await uploadReceiptApi(targetUri, 'image/jpeg', isFood ? 'food.jpg' : 'receipt.jpg');
         if (uploadResponse) {
           setPhotoUrl(uploadResponse);
         }
@@ -147,7 +184,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
         console.warn('Background upload receipt warning:', e);
       }
     }
-  }, [categories, isVi]);
+  }, [categories, initialMode, isVi]);
 
   useEffect(() => {
     if (initialPhotoUrl) {
@@ -458,7 +495,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
           ) : null}
         </View>
 
-        {/* Thanh Chụp / Tải ảnh hóa đơn nếu chưa có ảnh */}
+        {/* Thanh Chụp / Tải ảnh nếu chưa có ảnh */}
         {!photoUrl && (
           <View style={styles.attachReceiptRow}>
             <TouchableOpacity
@@ -468,7 +505,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
             >
               <Ionicons name="camera" size={17} color="#059669" />
               <Text style={styles.attachActionText}>
-                {isVi ? 'Chụp hóa đơn' : 'Snap receipt'}
+                {scanType === 'food' ? (isVi ? 'Chụp món ăn' : 'Snap food') : (isVi ? 'Chụp hóa đơn' : 'Snap receipt')}
               </Text>
             </TouchableOpacity>
 
@@ -479,7 +516,7 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
             >
               <Ionicons name="images" size={17} color="#059669" />
               <Text style={styles.attachActionText}>
-                {isVi ? 'Tải ảnh hóa đơn' : 'Upload receipt'}
+                {scanType === 'food' ? (isVi ? 'Tải ảnh món ăn' : 'Upload food') : (isVi ? 'Tải ảnh hóa đơn' : 'Upload receipt')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -492,17 +529,21 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
               <View style={styles.aiStatusChip}>
                 <ActivityIndicator size="small" color="#059669" />
                 <Text style={styles.aiStatusText}>
-                  {isVi ? 'Gemini AI đang phân tích hóa đơn...' : 'Gemini AI analyzing receipt...'}
+                  {scanMessage || (scanType === 'food'
+                    ? (isVi ? 'Gemini AI đang nhận diện món ăn...' : 'Gemini AI analyzing food...')
+                    : (isVi ? 'Gemini AI đang phân tích hóa đơn...' : 'Gemini AI analyzing receipt...'))}
                 </Text>
               </View>
             ) : scanStatus === 'success' ? (
               <View style={[styles.aiStatusChip, styles.aiStatusSuccessChip]}>
                 <Ionicons name="sparkles" size={15} color="#059669" />
                 <Text style={styles.aiStatusSuccessText}>
-                  {isVi ? '✓ Đã nhận diện hóa đơn bằng Gemini AI' : '✓ Auto-extracted by Gemini AI'}
+                  {scanMessage || (scanType === 'food'
+                    ? (isVi ? '✓ Đã nhận diện món ăn bằng Gemini AI' : '✓ Food recognized by Gemini AI')
+                    : (isVi ? '✓ Đã nhận diện hóa đơn bằng Gemini AI' : '✓ Auto-extracted by Gemini AI'))}
                 </Text>
                 <TouchableOpacity
-                  onPress={() => processReceipt(photoUrl)}
+                  onPress={() => processReceipt(photoUrl, scanType)}
                   style={styles.rescanLink}
                   activeOpacity={0.7}
                 >
@@ -513,10 +554,10 @@ export const AddExpenseScreen: React.FC<AddExpenseScreenProps> = ({
               <View style={styles.aiStatusChip}>
                 <Ionicons name="image-outline" size={15} color="#64748B" />
                 <Text style={styles.aiStatusNeutralText}>
-                  {isVi ? 'Đã đính kèm ảnh' : 'Photo attached'}
+                  {scanMessage || (isVi ? 'Đã đính kèm ảnh' : 'Photo attached')}
                 </Text>
                 <TouchableOpacity
-                  onPress={() => processReceipt(photoUrl)}
+                  onPress={() => processReceipt(photoUrl, scanType)}
                   style={styles.rescanLink}
                   activeOpacity={0.7}
                 >

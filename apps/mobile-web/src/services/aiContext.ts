@@ -494,7 +494,7 @@ export function generateSmartLocalContextReply(
     if (!ctx.savings || ctx.savings.length === 0) {
       return {
         reply:
-          'Bạn hiện chưa có mục tiêu tích lũy nào! 🐸👛\n\nNuôi heo đất cùng Monett sẽ giúp bạn xây dựng quỹ khẩn cấp, mua điện thoại mới, du lịch hay mua xe dễ dàng hơn gấp 3 lần. Hãy vào trang Tích Lũy và tạo chú heo đất đầu tiên nhé!',
+          'Hiện tại bạn chưa có mục tiêu tích lũy nào! 🐸👛\n\nNuôi heo đất cùng Monett sẽ giúp bạn xây dựng quỹ khẩn cấp, mua điện thoại mới, du lịch hay mua xe dễ dàng hơn gấp 3 lần. Hãy vào trang Tích Lũy và tạo chú heo đất đầu tiên nhé!',
         action: { label: '👛 Đến Trang Tích Lũy', tabKey: 'budget' },
       };
     }
@@ -509,9 +509,21 @@ export function generateSmartLocalContextReply(
       return `• **${g.title}:** Đã tích lũy **${formatVND(g.currentAmount || 0)}** / ${formatVND(g.targetAmount)} (**${pct}%**)${rem > 0 ? ` - Còn thiếu ${formatVND(rem)}` : ' - Đã đạt mục tiêu 🎉'}${g.deadline ? ` (Hạn: ${g.deadline})` : ''}`;
     });
 
+    const isAskingCount =
+      q.includes('bao nhiêu') ||
+      q.includes('mấy') ||
+      q.includes('số lượng') ||
+      q.includes('so luong') ||
+      q.includes('danh sách') ||
+      q.includes('hiện tại');
+
+    const header = isAskingCount
+      ? `Hiện tại bạn đang có **${ctx.savings.length} mục tiêu tích lũy** (chú heo đất) nè! 🐸👛✨`
+      : `Tiến độ nuôi heo đất của bạn nè! 🐸👛✨`;
+
     return {
       reply:
-        `Tiến độ nuôi heo đất của bạn nè! 🐸👛✨\n\n` +
+        `${header}\n\n` +
         `• **Số mục tiêu đang nuôi:** ${ctx.savings.length} chú heo đất\n` +
         `• **Tổng tiền đã tích góp:** **${formatVND(totalCurrent)}** / ${formatVND(totalTarget)} (**${overallPct}%**)\n\n` +
         goalList.join('\n') +

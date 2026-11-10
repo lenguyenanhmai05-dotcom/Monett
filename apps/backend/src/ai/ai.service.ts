@@ -61,8 +61,11 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
 4. Giữ phong cách chú Ếch Monett 🐸💚 vui vẻ, lễ phép, dùng emoji sinh động và định dạng số tiền rõ ràng (VD: 1.000.000 đ).\n`;
         }
 
+        const rawModel = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').replace(/['"]/g, '').trim();
+        const modelName = rawModel === 'gemini-1.5-flash' ? 'gemini-2.5-flash' : rawModel || 'gemini-2.5-flash';
+
         const model = genAI.getGenerativeModel({
-          model: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+          model: modelName,
           systemInstruction: dynamicInstruction,
         });
 
@@ -107,6 +110,91 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
     dto?: ChatAiDto
   ): { reply: string; action?: { label: string; tabKey: string } } {
     const q = query.toLowerCase().trim();
+
+    // Kiểm tra nếu trong pageContext có dữ liệu thực tế phù hợp với câu hỏi
+    if (dto?.pageContext && dto.pageContext.trim()) {
+      const pCtx = dto.pageContext;
+
+      // 1. Tích lũy & Heo đất
+      if (
+        q.includes('tích lũy') ||
+        q.includes('tich luy') ||
+        q.includes('heo đất') ||
+        q.includes('mục tiêu') ||
+        dto.activeTab === 'savings' ||
+        dto.activeTab === 'budget'
+      ) {
+        if (pCtx.includes('TÍCH LŨY & HEO ĐẤT')) {
+          const match = pCtx.match(/👛 TÍCH LŨY & HEO ĐẤT \(([^)]+)\):([\s\S]*?)(?=\n\n[🔁📅📖⏰📊🧾]|$)/);
+          if (match) {
+            return {
+              reply: `Tiến độ nuôi heo đất của bạn nè! 🐸👛✨\n\n• Hiện tại: **${match[1]}**\n\n${match[2].trim()}`,
+              action: { label: '👛 Đến Trang Tích Lũy', tabKey: 'budget' },
+            };
+          }
+        }
+      }
+
+      // 2. Sự kiện
+      if (
+        q.includes('sự kiện') ||
+        q.includes('su kien') ||
+        q.includes('event') ||
+        q.includes('du lịch') ||
+        q.includes('đi chơi') ||
+        dto.activeTab === 'events'
+      ) {
+        if (pCtx.includes('DANH SÁCH SỰ KIỆN TÀI CHÍNH')) {
+          const match = pCtx.match(/📅 DANH SÁCH SỰ KIỆN TÀI CHÍNH \(([^)]+)\):([\s\S]*?)(?=\n\n[👛🔁📖⏰📊🧾]|$)/);
+          if (match) {
+            return {
+              reply: `Thông tin sự kiện tài chính của bạn nè! 🐸📅\n\n• **${match[1]}**\n\n${match[2].trim()}`,
+              action: { label: '📅 Đến Trang Sự Kiện', tabKey: 'events' },
+            };
+          }
+        }
+      }
+
+      // 3. Định kỳ
+      if (
+        q.includes('định kỳ') ||
+        q.includes('dinh ky') ||
+        q.includes('hóa đơn') ||
+        q.includes('tiền phòng') ||
+        q.includes('tiền trọ') ||
+        dto.activeTab === 'recurring'
+      ) {
+        if (pCtx.includes('KHOẢN ĐỊNH KỲ CỐ ĐỊNH')) {
+          const match = pCtx.match(/🔁 KHOẢN ĐỊNH KỲ CỐ ĐỊNH:([\s\S]*?)(?=\n\n[👛📅📖⏰📊🧾]|$)/);
+          if (match) {
+            return {
+              reply: `Báo cáo các khoản định kỳ của bạn nè! 🐸🔁\n${match[1].trim()}`,
+              action: { label: '🔁 Đến Trang Định Kỳ', tabKey: 'recurring' },
+            };
+          }
+        }
+      }
+
+      // 4. Sổ ghi nợ
+      if (
+        q.includes('nợ') ||
+        q.includes('cho mượn') ||
+        q.includes('vay') ||
+        q.includes('ai nợ') ||
+        dto.activeTab === 'debts' ||
+        dto.activeTab === 'debt'
+      ) {
+        if (pCtx.includes('SỔ GHI NỢ')) {
+          const match = pCtx.match(/📖 SỔ GHI NỢ:([\s\S]*?)(?=\n\n[👛📅🔁⏰📊🧾]|$)/);
+          if (match) {
+            return {
+              reply: `Chi tiết sổ ghi nợ của bạn nè! 🐸📖\n${match[1].trim()}`,
+              action: { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' },
+            };
+          }
+        }
+      }
+    }
 
     // 1. Chào hỏi thân mật
     if (

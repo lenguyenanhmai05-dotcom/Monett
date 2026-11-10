@@ -236,13 +236,26 @@ export const loadSavingsGoals = (userId?: string, userEmail?: string): ISavingsG
     } catch {}
   }
 
-  // 3. Fallback dữ liệu mẫu nếu là tài khoản demo đặc thù
-  if (normEmail === TARGET_EMAIL) {
-    inMemoryCache[primaryKey] = REAL_SAVINGS_GOALS_FOR_USER;
-    return REAL_SAVINGS_GOALS_FOR_USER;
+  // 3. Fallback dữ liệu mẫu ban đầu nếu người dùng chưa từng tạo dữ liệu
+  const initialSeed = [...REAL_SAVINGS_GOALS_FOR_USER];
+  inMemoryCache[primaryKey] = initialSeed;
+  inMemoryCache[`${STORAGE_PREFIX}guest`] = initialSeed;
+  inMemoryCache[`${STORAGE_PREFIX}global`] = initialSeed;
+  if (normEmail) inMemoryCache[`${STORAGE_PREFIX}${normEmail}`] = initialSeed;
+  if (userId && userId.trim()) inMemoryCache[`${STORAGE_PREFIX}${userId.trim()}`] = initialSeed;
+
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const jsonStr = JSON.stringify(initialSeed);
+      window.localStorage.setItem(primaryKey, jsonStr);
+      window.localStorage.setItem(`${STORAGE_PREFIX}guest`, jsonStr);
+      window.localStorage.setItem(`${STORAGE_PREFIX}global`, jsonStr);
+      if (normEmail) window.localStorage.setItem(`${STORAGE_PREFIX}${normEmail}`, jsonStr);
+      if (userId && userId.trim()) window.localStorage.setItem(`${STORAGE_PREFIX}${userId.trim()}`, jsonStr);
+    } catch {}
   }
 
-  return inMemoryCache[primaryKey] || [];
+  return initialSeed;
 };
 
 export const saveSavingsGoals = (goals: ISavingsGoal[], userId?: string, userEmail?: string): void => {

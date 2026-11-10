@@ -34,7 +34,7 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
   const [facing, setFacing] = useState<CameraType>('back');
   const [flash, setFlash] = useState<FlashMode>('off');
   const [displayZoom, setDisplayZoom] = useState<number>(1);
-  const [mode, setMode] = useState<'bill' | 'food' | 'auto'>('food');
+  const [mode, setMode] = useState<'bill' | 'food'>('bill');
   const cameraRef = React.useRef<any>(null);
 
   // Swipe-up Friends Feed state & animation
@@ -263,40 +263,59 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']} {...panResponder.panHandlers}>
       <StatusBar barStyle="light-content" />
 
-      {/* 1. Header Bar trên kính ngắm */}
+      {/* 1. Header Bar: Đóng (X) bên trái, Chuyển chế độ [ Món ăn | Hóa đơn ] ở giữa, Flash (⚡) bên phải */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.topBtn} onPress={onClose} activeOpacity={0.7}>
           <Ionicons name="close" size={22} color="#FFFFFF" />
         </TouchableOpacity>
 
-        {/* Chuyển đổi chế độ: Món ăn / Hóa đơn / Tự động */}
+        {/* 2 Chế độ chụp riêng biệt & chuyên nghiệp: Món ăn vs Hóa đơn */}
         <View style={styles.modeTabs}>
           <TouchableOpacity
             style={[styles.modeTab, mode === 'food' && styles.modeTabActive]}
             onPress={() => setMode('food')}
+            activeOpacity={0.8}
           >
-            <Ionicons name="restaurant-outline" size={13} color={mode === 'food' ? '#FFFFFF' : '#D1D5DB'} style={{ marginRight: 4 }} />
-            <Text style={[styles.modeText, mode === 'food' && styles.modeTextActive]}>{isVi ? 'Món ăn' : 'Food'}</Text>
+            <Ionicons
+              name="restaurant-outline"
+              size={13}
+              color={mode === 'food' ? '#FFFFFF' : '#94A3B8'}
+              style={{ marginRight: 5 }}
+            />
+            <Text style={[styles.modeText, mode === 'food' && styles.modeTextActive]}>
+              {isVi ? 'Món ăn' : 'Food'}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={[styles.modeTab, mode === 'bill' && styles.modeTabActive]}
             onPress={() => setMode('bill')}
+            activeOpacity={0.8}
           >
-            <Ionicons name="receipt-outline" size={13} color={mode === 'bill' ? '#FFFFFF' : '#D1D5DB'} style={{ marginRight: 4 }} />
-            <Text style={[styles.modeText, mode === 'bill' && styles.modeTextActive]}>{isVi ? 'Hóa đơn' : 'Bill'}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.modeTab, mode === 'auto' && styles.modeTabActive]}
-            onPress={() => setMode('auto')}
-          >
-            <Ionicons name="sparkles-outline" size={13} color={mode === 'auto' ? '#FFFFFF' : '#D1D5DB'} style={{ marginRight: 4 }} />
-            <Text style={[styles.modeText, mode === 'auto' && styles.modeTextActive]}>{isVi ? 'Tự động' : 'Auto'}</Text>
+            <Ionicons
+              name="receipt-outline"
+              size={13}
+              color={mode === 'bill' ? '#FFFFFF' : '#94A3B8'}
+              style={{ marginRight: 5 }}
+            />
+            <Text style={[styles.modeText, mode === 'bill' && styles.modeTextActive]}>
+              {isVi ? 'Hóa đơn' : 'Bill'}
+            </Text>
           </TouchableOpacity>
         </View>
 
-        <View style={{ width: 40 }} />
+        {/* Nút bật/tắt Flash đưa lên góc phải thanh Header */}
+        <TouchableOpacity
+          style={styles.topBtn}
+          onPress={() => setFlash((f) => (f === 'off' ? 'on' : 'off'))}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name={flash === 'off' ? 'flash-off-outline' : 'flash'}
+            size={20}
+            color={flash === 'off' ? '#FFFFFF' : '#FBBF24'}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* 2. Viewfinder / Kính ngắm Camera */}
@@ -316,19 +335,6 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
             zoom={getExpoZoom()}
           />
 
-          {/* Flash Button at Top-Left */}
-          <TouchableOpacity
-            style={styles.flashBtnInside}
-            onPress={() => setFlash(f => f === 'off' ? 'on' : 'off')}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={flash === 'off' ? 'flash-off-outline' : 'flash'}
-              size={20}
-              color="#FFFFFF"
-            />
-          </TouchableOpacity>
-
           {/* Zoom Toggle at Top-Right */}
           <TouchableOpacity
             style={styles.zoomPillInside}
@@ -342,26 +348,6 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
               }
             </Text>
           </TouchableOpacity>
-
-          {/* Khung căn chỉnh hóa đơn cho chế độ Quét AI */}
-          {mode === 'bill' && (
-            <View style={styles.billScanGuideOverlay} pointerEvents="none">
-              <View style={styles.billScanFrame}>
-                <View style={[styles.scanCorner, styles.scanCornerTL]} />
-                <View style={[styles.scanCorner, styles.scanCornerTR]} />
-                <View style={[styles.scanCorner, styles.scanCornerBL]} />
-                <View style={[styles.scanCorner, styles.scanCornerBR]} />
-
-                <View style={styles.billScanBadge}>
-                  <Ionicons name="sparkles" size={13} color="#10B981" />
-                  <Text style={styles.billScanBadgeText}>Gemini Vision AI OCR</Text>
-                </View>
-              </View>
-              <Text style={styles.billScanHint}>
-                {isVi ? 'Căn chỉnh hóa đơn vào khung để AI đọc rõ nhất' : 'Align receipt within frame for best AI scan'}
-              </Text>
-            </View>
-          )}
         </View>
 
         {/* 3. Bottom Controls */}
@@ -380,21 +366,18 @@ export const CameraScreen: React.FC<CameraScreenProps> = ({
 
           {/* Nút chụp to tròn chính giữa */}
           <TouchableOpacity
-            style={[styles.shutterOuter, mode === 'bill' && styles.shutterOuterBill]}
+            style={styles.shutterOuter}
             onPress={handleCapture}
             activeOpacity={0.8}
           >
-            <View style={[styles.shutterInner, mode === 'bill' && styles.shutterInnerBill]}>
-              {mode === 'bill' ? (
+            <View style={styles.shutterInner}>
+              {mode === 'food' ? (
+                <Ionicons name="camera" size={28} color="#FFFFFF" />
+              ) : (
                 <View style={{ alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="scan" size={26} color="#FFFFFF" />
                   <Text style={styles.shutterBillText}>AI</Text>
                 </View>
-              ) : (
-                <>
-                  <View style={styles.frogEarLeft} />
-                  <View style={styles.frogEarRight} />
-                </>
               )}
             </View>
           </TouchableOpacity>
@@ -575,31 +558,25 @@ const styles = StyleSheet.create({
     width: 92,
     height: 92,
     borderRadius: 46,
-    borderWidth: 5,
-    borderColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 3,
-  },
-  shutterOuterBill: {
+    borderWidth: 4,
     borderColor: '#34D399',
     shadowColor: '#10B981',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
+    shadowOpacity: 0.5,
     shadowRadius: 10,
     elevation: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 3,
   },
   shutterInner: {
     width: '100%',
     height: '100%',
     borderRadius: 40,
-    backgroundColor: '#10B981',
+    backgroundColor: '#059669',
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  shutterInnerBill: {
-    backgroundColor: '#059669',
   },
   shutterBillText: {
     color: '#FFFFFF',

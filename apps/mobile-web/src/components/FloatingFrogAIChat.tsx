@@ -14,6 +14,7 @@ import {
   PanResponder,
   Dimensions,
   ActivityIndicator,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -123,6 +124,7 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
   const [inputText, setInputText] = useState('');
   const [showTooltip, setShowTooltip] = useState(true);
   const [isAiThinking, setIsAiThinking] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const isSendingRef = useRef(false);
   const lastSentTimeRef = useRef(0);
 
@@ -321,6 +323,72 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
     }
   }, [messages, isOpen]);
 
+  // Lắng nghe bàn phím trên thiết bị di động (Native iOS/Android & Mobile Web/Safari)
+  useEffect(() => {
+    // 1. Native Keyboard listeners
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        const h = e.endCoordinates.height;
+        if (h > 0) {
+          setKeyboardHeight(h);
+          setTimeout(() => {
+            flatListRef.current?.scrollToEnd({ animated: true });
+          }, 80);
+        }
+      }
+    );
+
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardHeight(0);
+      }
+    );
+
+    // 2. Web VisualViewport listener (Xử lý mượt mà cho Mobile Safari iPhone & Chrome Android)
+    let removeVpListener: (() => void) | undefined;
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const handleVp = () => {
+        if (window.visualViewport) {
+          const vpHeight = window.visualViewport.height;
+          const winHeight = window.innerHeight;
+          const diff = Math.max(0, winHeight - vpHeight);
+          if (diff > 140) {
+            setKeyboardHeight(diff);
+            setTimeout(() => {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }, 80);
+          } else {
+            setKeyboardHeight(0);
+          }
+        }
+      };
+
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', handleVp);
+        window.visualViewport.addEventListener('scroll', handleVp);
+        removeVpListener = () => {
+          window.visualViewport?.removeEventListener('resize', handleVp);
+          window.visualViewport?.removeEventListener('scroll', handleVp);
+        };
+      }
+    }
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+      if (removeVpListener) removeVpListener();
+    };
+  }, []);
+
+  const handleDismissKeyboard = () => {
+    Keyboard.dismiss();
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      (document.activeElement as HTMLElement)?.blur();
+    }
+  };
+
   // Hàm điều hướng và viền sáng vị trí tính năng
   const handleActionNavigate = (tabKey: string, elementId?: string) => {
     if (onNavigateToTab) {
@@ -482,9 +550,17 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
           if (aiResponse.ok) {
             const aiJson = await aiResponse.json();
             if (aiJson && aiJson.reply && aiJson.reply.trim()) {
-              replyText = aiJson.reply;
-              if (aiJson.action) {
-                actionData = aiJson.action;
+              const rawReply = aiJson.reply.trim();
+              const isGenericCanned =
+                rawReply.includes('đã nghe rõ câu hỏi của bạn nè') ||
+                rawReply.includes('Bạn có thể hỏi mình về:') ||
+                rawReply.includes('Mẹo tiết kiệm & phân bổ chi tiêu (quy tắc 50/30/20)');
+
+              if (!isGenericCanned) {
+                replyText = rawReply;
+                if (aiJson.action) {
+                  actionData = aiJson.action;
+                }
               }
             }
           }
@@ -521,8 +597,13 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
   const baseBottom = isMobile ? 84 : 24;
   const baseRight = isMobile ? 16 : 24;
 
-  const chatWidth = Math.min(360, windowWidth - 32);
-  const chatHeight = Math.min(520, windowHeight - (isMobile ? 110 : 96));
+  const chatWidth = isMobile ? Math.min(360, windowWidth - 24) : Math.min(360, windowWidth - 32);
+  const horizontalLeft = isMobile ? Math.max(12, Math.round((windowWidth - chatWidth) / 2)) : 0;
+  const chatHeight = isMobile
+    ? keyboardHeight > 0
+      ? Math.max(260, Math.min(390, windowHeight - keyboardHeight - 50))
+      : Math.min(500, windowHeight - 110)
+    : Math.min(520, windowHeight - 96);
 
   // Vị trí con ếch trên màn hình (đo từ mép trái và mép trên)
   const frogX = windowWidth - baseRight - 36 + panOffset.x;
@@ -532,7 +613,12 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
   const isFrogOnTop = frogY < windowHeight / 2;
 
   // Tính vị trí X của cửa sổ chat (luôn nằm trọn vẹn trong màn hình, không tràn mép)
-  const chatWindowHorizontalStyle = isFrogOnLeft
+  const chatWindowHorizontalStyle = isMobile
+    ? {
+        left: horizontalLeft,
+        right: undefined,
+      }
+    : isFrogOnLeft
     ? {
         left: Math.max(16, Math.min(frogX - 36, windowWidth - chatWidth - 16)),
         right: undefined,
@@ -543,16 +629,26 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
       };
 
   // Tính vị trí Y của cửa sổ chat:
-  // - Nếu ếch ở nửa trên màn hình -> Cửa sổ chat mở phía DƯỚI con ếch
-  // - Nếu ếch ở nửa dưới màn hình -> Cửa sổ chat mở phía TRÊN con ếch
-  // - LUÔN ĐƯỢC GIỚI HẠN (CLAMPED): top tối thiểu 72px (dưới navbar), bottom tối thiểu 16px!
-  const chatWindowVerticalStyle = isFrogOnTop
+  // - Trên Mobile: khi bàn phím mở -> nâng khung chat lên nằm ngay trên mép bàn phím (bottom = keyboardHeight + 8)
+  // - Khi bàn phím đóng -> nằm ngay trên bottom navigation bar (bottom = 84)
+  // - Trên Desktop: cân chỉnh theo vị trí con ếch kéo thả
+  const chatWindowVerticalStyle = isMobile
+    ? keyboardHeight > 0
+      ? {
+          bottom: keyboardHeight + (Platform.OS === 'ios' ? 8 : 6),
+          top: undefined,
+        }
+      : {
+          bottom: 84,
+          top: undefined,
+        }
+    : isFrogOnTop
     ? {
         top: Math.max(72, Math.min(frogY + 44, windowHeight - chatHeight - 16)),
         bottom: undefined,
       }
     : {
-        bottom: Math.max(isMobile ? 84 : 16, Math.min(windowHeight - frogY + 44, windowHeight - chatHeight - (isMobile ? 84 : 72))),
+        bottom: Math.max(16, Math.min(windowHeight - frogY + 44, windowHeight - chatHeight - 72)),
         top: undefined,
       };
 
@@ -625,6 +721,17 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {keyboardHeight > 0 && (
+            <TouchableOpacity
+              onPress={handleDismissKeyboard}
+              style={[styles.closeBtn, { backgroundColor: isDark ? '#334155' : '#E2E8F0' }]}
+              activeOpacity={0.7}
+              accessibilityLabel="Thu gọn bàn phím"
+            >
+              <Ionicons name="chevron-down" size={17} color={isDark ? '#F8FAFC' : '#0F172A'} />
+            </TouchableOpacity>
+          )}
+
           {messages.length > 1 && (
             <TouchableOpacity
               onPress={handleClearChat}
@@ -637,7 +744,10 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
           )}
 
           <TouchableOpacity
-            onPress={() => setIsOpen(false)}
+            onPress={() => {
+              handleDismissKeyboard();
+              setIsOpen(false);
+            }}
             style={styles.closeBtn}
             activeOpacity={0.7}
             accessibilityLabel="Đóng"
@@ -653,6 +763,8 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
         data={messages}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.messagesList}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         renderItem={({ item }) => {
           const isAi = item.sender === 'ai';
           return (
@@ -813,6 +925,11 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
           blurOnSubmit={false}
           returnKeyType="send"
           editable={!isAiThinking}
+          onFocus={() => {
+            setTimeout(() => {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }, 80);
+          }}
         />
         <TouchableOpacity
           style={[
@@ -834,98 +951,121 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
   );
 
   return (
-    <View
-      style={[
-        styles.floatingWrapper,
-        {
-          position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as any,
-          bottom: baseBottom,
-          right: baseRight,
-        },
-      ]}
-      pointerEvents="box-none"
-    >
-      {/* 1. CỬA SỔ CHAT TỰ ĐỘNG CÂN CHỈNH TRÊN MÀN HÌNH - KHÔNG BỊ TRÀN HAY MẤT NÚT ĐÓNG */}
+    <>
+      {/* 1. Backdrop chạm ra ngoài để đóng chat trên Mobile */}
+      {isOpen && isMobile && (
+        <TouchableOpacity
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as any,
+              zIndex: 999997,
+              backgroundColor: 'rgba(0, 0, 0, 0.25)',
+            },
+          ]}
+          activeOpacity={1}
+          onPress={() => {
+            handleDismissKeyboard();
+            setIsOpen(false);
+          }}
+        />
+      )}
+
+      {/* 2. CỬA SỔ CHAT TỰ ĐỘNG CÂN CHỈNH TRÊN MÀN HÌNH - KHÔNG BỊ TRÀN HAY MẤT NÚT ĐÓNG */}
       {isOpen && renderChatWindow()}
 
-      {/* 2. CHÚ ẾCH MONETT KÉO DI CHUYỂN TỰ DO (DRAGGABLE FROG MASCOT) */}
-      <Animated.View
-        style={[
-          styles.dragContainer,
-          {
-            transform: [
-              { translateX: pan.x },
-              { translateY: pan.y },
-            ],
-            zIndex: 999999,
-          },
-        ]}
-        pointerEvents="box-none"
-      >
-        <Animated.View
-          {...panResponder.panHandlers}
-          nativeID="monett-floating-frog-btn"
+      {/* 3. CHÚ ẾCH MONETT KÉO DI CHUYỂN TỰ DO (Ẩn khi đang mở chat trên mobile để không che nút Gửi) */}
+      {(!isOpen || !isMobile) && (
+        <View
           style={[
-            styles.bubbleContainer,
+            styles.floatingWrapper,
             {
-              transform: [{ scale: pulseAnim }],
+              position: (Platform.OS === 'web' ? 'fixed' : 'absolute') as any,
+              bottom: baseBottom,
+              right: baseRight,
+              zIndex: 999999,
             },
-            Platform.OS === 'web'
-              ? ({
-                  cursor: 'grab',
-                  userSelect: 'none',
-                  touchAction: 'none',
-                } as any)
-              : undefined,
           ]}
+          pointerEvents="box-none"
         >
-          {/* Tooltip mời chào */}
-          {showTooltip && !isOpen && (
-            <TouchableOpacity
-              style={[
-                styles.tooltipBubble,
-                isFrogOnLeft ? { left: 82, right: undefined } : { right: 82, left: undefined },
-              ]}
-              onPress={() => {
-                setShowTooltip(false);
-                setIsOpen(true);
-              }}
-              activeOpacity={0.9}
-            >
-              <Text style={styles.tooltipText}>Hỏi Ếch Monett</Text>
-              <View
-                style={[
-                  styles.tooltipArrow,
-                  isFrogOnLeft ? styles.tooltipArrowLeft : styles.tooltipArrowRight,
-                ]}
-              />
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={styles.frogFloatBtn}
-            onPress={() => {
-              setIsOpen((prev) => !prev);
-              setShowTooltip(false);
-            }}
-            activeOpacity={0.85}
+          <Animated.View
+            style={[
+              styles.dragContainer,
+              {
+                transform: [
+                  { translateX: pan.x },
+                  { translateY: pan.y },
+                ],
+              },
+            ]}
+            pointerEvents="box-none"
           >
-            <Image
-              source={FROG_AVATAR}
-              style={[styles.frogFloatImg, { pointerEvents: 'none' } as any]}
-              resizeMode="contain"
-            />
-            {isOpen ? (
-              <View style={styles.floatingCloseBadge}>
-                <Ionicons name="close" size={11} color="#FFFFFF" />
-              </View>
-            ) : (
-              <View style={styles.floatingOnlineBadge} />
-            )}
-          </TouchableOpacity>
-        </Animated.View>
-      </Animated.View>
-    </View>
+            <Animated.View
+              {...panResponder.panHandlers}
+              nativeID="monett-floating-frog-btn"
+              style={[
+                styles.bubbleContainer,
+                {
+                  transform: [{ scale: pulseAnim }],
+                },
+                Platform.OS === 'web'
+                  ? ({
+                      cursor: 'grab',
+                      userSelect: 'none',
+                      touchAction: 'none',
+                    } as any)
+                  : undefined,
+              ]}
+            >
+              {/* Tooltip mời chào */}
+              {showTooltip && !isOpen && (
+                <TouchableOpacity
+                  style={[
+                    styles.tooltipBubble,
+                    isFrogOnLeft ? { left: 82, right: undefined } : { right: 82, left: undefined },
+                  ]}
+                  onPress={() => {
+                    setShowTooltip(false);
+                    setIsOpen(true);
+                  }}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.tooltipText}>Hỏi Ếch Monett</Text>
+                  <View
+                    style={[
+                      styles.tooltipArrow,
+                      isFrogOnLeft ? styles.tooltipArrowLeft : styles.tooltipArrowRight,
+                    ]}
+                  />
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={styles.frogFloatBtn}
+                onPress={() => {
+                  setIsOpen((prev) => !prev);
+                  setShowTooltip(false);
+                }}
+                activeOpacity={0.85}
+              >
+                <Image
+                  source={FROG_AVATAR}
+                  style={[styles.frogFloatImg, { pointerEvents: 'none' } as any]}
+                  resizeMode="contain"
+                />
+                {isOpen ? (
+                  <View style={styles.floatingCloseBadge}>
+                    <Ionicons name="close" size={11} color="#FFFFFF" />
+                  </View>
+                ) : (
+                  <View style={styles.floatingOnlineBadge} />
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+          </Animated.View>
+        </View>
+      )}
+    </>
   );
 };
 
