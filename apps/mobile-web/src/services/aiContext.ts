@@ -25,6 +25,24 @@ import { getCachedBudget, getInitialDayRecordsFromLocalStorage, DayExpenseRecord
 import { getIncomeRecords, IncomeRecord } from './incomeStorage';
 import { getEventsApi, getRecurringBillsApi, getDebtsApi } from './api';
 
+export interface CategorySpendingSummary {
+  category: string;
+  amount: number;
+  percent: number;
+  count: number;
+}
+
+export interface FinancialAnalyticsSummary {
+  month: number;
+  year: number;
+  totalMonthExpense: number;
+  totalWeekExpense: number;
+  categoryBreakdown: CategorySpendingSummary[];
+  topCategory: CategorySpendingSummary | null;
+  highestSpendingDay: { date: string; amount: number } | null;
+  totalTransactionsCount: number;
+}
+
 export interface UserFinancialContextData {
   activeTab: string;
   activeTabName: string;
@@ -36,6 +54,7 @@ export interface UserFinancialContextData {
   budget: ReturnType<typeof getCachedBudget>;
   todayRecords: DayExpenseRecord | null;
   incomes: IncomeRecord[];
+  analytics: FinancialAnalyticsSummary;
 }
 
 export const TAB_NAME_MAP: Record<string, string> = {
@@ -111,6 +130,127 @@ export async function preloadAllFinancialData(userId?: string, userEmail?: strin
 }
 
 /**
+ * Tính toán số liệu thống kê & phân tích chi tiêu (Analytics) tự động từ dayRecords và ngân sách
+ */
+export function calculateFinancialAnalytics(
+  dayRecordsMap?: Record<string, DayExpenseRecord> | null,
+  budgetSpent?: number
+): FinancialAnalyticsSummary {
+  const now = new Date();
+  const curMonth = now.getMonth() + 1;
+  const curYear = now.getFullYear();
+
+  // Tuần này (Thứ 2 -> Chủ nhật)
+  const mondayOffset = now.getDay() === 0 ? -6 : 1 - now.getDay();
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mondayOffset, 0, 0, 0, 0);
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 23, 59, 59, 999);
+
+  const catMap: Record<string, { amount: number; count: number }> = {};
+  let totalMonthFromItems = 0;
+  let totalWeekExpense = 0;
+  let totalTxCount = 0;
+  let highestDay: { date: string; amount: number } | null = null;
+
+  if (dayRecordsMap && typeof dayRecordsMap === 'object') {
+    Object.entries(dayRecordsMap).forEach(([k, rec]) => {
+      if (!rec) return;
+
+      let dObj: Date | null = null;
+      let dateLabel = k;
+      if (k.includes('-')) {
+        const parts = k.split('-');
+        if (parts.length === 3) {
+          dObj = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+          dateLabel = `${String(parts[2]).padStart(2, '0')}/${String(parts[1]).padStart(2, '0')}/${parts[0]}`;
+        }
+      } else if (k.includes('/')) {
+        const parts = k.split('/');
+        if (parts.length === 3) {
+          dObj = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+          dateLabel = k;
+        }
+      }
+
+      if (!dObj || isNaN(dObj.getTime())) return;
+
+      const isCurrentMonth = dObj.getFullYear() === curYear && dObj.getMonth() + 1 === curMonth;
+      const isCurrentWeek = dObj >= monday && dObj <= sunday;
+
+      let dayTotal = 0;
+
+      if (Array.isArray(rec.items) && rec.items.length > 0) {
+        rec.items.forEach((it: any) => {
+          if (it.type === 'income' || it.isIncome) return;
+          const amt = Math.abs(it.amount || 0);
+          if (amt <= 0) return;
+
+          dayTotal += amt;
+
+          if (isCurrentMonth) {
+            totalMonthFromItems += amt;
+            totalTxCount += 1;
+            const cName = it.category || 'Khác';
+            if (!catMap[cName]) catMap[cName] = { amount: 0, count: 0 };
+            catMap[cName].amount += amt;
+            catMap[cName].count += 1;
+          }
+
+          if (isCurrentWeek) {
+            totalWeekExpense += amt;
+          }
+        });
+      } else if (rec.amount && rec.amount > 0 && !rec.photoUri?.includes('unsplash.com')) {
+        const amt = Math.abs(rec.amount);
+        dayTotal += amt;
+
+        if (isCurrentMonth) {
+          totalMonthFromItems += amt;
+          totalTxCount += 1;
+          const cName = rec.category || 'Khác';
+          if (!catMap[cName]) catMap[cName] = { amount: 0, count: 0 };
+          catMap[cName].amount += amt;
+          catMap[cName].count += 1;
+        }
+
+        if (isCurrentWeek) {
+          totalWeekExpense += amt;
+        }
+      }
+
+      if (isCurrentMonth && dayTotal > 0) {
+        if (!highestDay || dayTotal > highestDay.amount) {
+          highestDay = { date: dateLabel, amount: dayTotal };
+        }
+      }
+    });
+  }
+
+  const finalTotalMonth = budgetSpent && budgetSpent > 0 ? budgetSpent : totalMonthFromItems;
+
+  const categoryBreakdown: CategorySpendingSummary[] = Object.entries(catMap)
+    .map(([cat, data]) => ({
+      category: cat,
+      amount: data.amount,
+      count: data.count,
+      percent: finalTotalMonth > 0 ? Math.round((data.amount / finalTotalMonth) * 100) : 0,
+    }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const topCategory = categoryBreakdown.length > 0 ? categoryBreakdown[0] : null;
+
+  return {
+    month: curMonth,
+    year: curYear,
+    totalMonthExpense: finalTotalMonth,
+    totalWeekExpense,
+    categoryBreakdown,
+    topCategory,
+    highestSpendingDay: highestDay,
+    totalTransactionsCount: totalTxCount,
+  };
+}
+
+/**
  * Thu thập toàn bộ dữ liệu tài chính thực tế của người dùng từ các storage module
  */
 export function collectUserFinancialContext(
@@ -129,6 +269,7 @@ export function collectUserFinancialContext(
   let budget = null;
   let todayRecords: DayExpenseRecord | null = null;
   let incomes: IncomeRecord[] = [];
+  let dayRecordsMap: Record<string, DayExpenseRecord> | null = null;
 
   try {
     events = loadEventsFromStorage(userEmail, userId);
@@ -167,13 +308,13 @@ export function collectUserFinancialContext(
   }
 
   try {
-    const dayRecordsMap = getInitialDayRecordsFromLocalStorage(userId);
+    dayRecordsMap = getInitialDayRecordsFromLocalStorage(userId);
     const today = new Date();
     const dd = String(today.getDate()).padStart(2, '0');
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const yyyy = today.getFullYear();
     const todayKey = `${dd}/${mm}/${yyyy}`;
-    todayRecords = dayRecordsMap[todayKey] || null;
+    todayRecords = dayRecordsMap ? dayRecordsMap[todayKey] || null : null;
   } catch (e) {
     console.warn('Lỗi đọc chi tiêu hôm nay cho AI context:', e);
   }
@@ -183,6 +324,8 @@ export function collectUserFinancialContext(
   } catch (e) {
     console.warn('Lỗi đọc thu nhập cho AI context:', e);
   }
+
+  const analytics = calculateFinancialAnalytics(dayRecordsMap, budget?.spent);
 
   return {
     activeTab: normTab,
@@ -195,6 +338,7 @@ export function collectUserFinancialContext(
     budget,
     todayRecords,
     incomes,
+    analytics,
   };
 }
 
@@ -206,7 +350,7 @@ export function buildAiPromptContext(ctx: UserFinancialContextData): string {
 
   parts.push(
     `📍 MÀN HÌNH ĐANG XEM: "${ctx.activeTabName}" (Mã tab: ${ctx.activeTab})\n` +
-    `📌 NGUYÊN TẮC HỎI ĐÁP TOÀN DIỆN (CROSS-TAB): Người dùng có thể đứng ở bất kỳ màn hình nào (kể cả Trang chủ, Báo cáo, Cá nhân,...) và hỏi về bất kỳ dữ liệu nào của ứng dụng (Sự kiện, Tích lũy heo đất, Sổ ghi nợ, Khoản định kỳ, Chi tiêu hôm nay, Ngân sách tháng). Bạn PHẢI tra cứu toàn bộ dữ liệu thực tế bên dưới để trả lời chi tiết và chính xác số liệu cho người dùng, KHÔNG yêu cầu họ phải tự mở trang đó để xem!`
+    `📌 NGUYÊN TẮC HỎI ĐÁP TOÀN DIỆN (CROSS-TAB): Người dùng có thể đứng ở bất kỳ màn hình nào (kể cả Trang chủ, Báo cáo, Cá nhân,...) và hỏi về bất kỳ dữ liệu nào của ứng dụng (Sự kiện, Tích lũy heo đất, Sổ ghi nợ, Khoản định kỳ, Ghi chú & Nhắc nhở, Báo cáo & Thống kê chi tiêu, Chi tiêu hôm nay, Ngân sách tháng). Bạn PHẢI tra cứu toàn bộ dữ liệu thực tế bên dưới để trả lời chi tiết và chính xác số liệu cho người dùng, KHÔNG yêu cầu họ phải tự mở trang đó để xem!`
   );
 
   // 1. SỰ KIỆN
@@ -320,13 +464,32 @@ ${borrowLines.join('\n') || '  (Bạn không nợ ai cả)'}
 
   // 5. GHI CHÚ & NHẮC NHỞ (NOTES & REMINDERS)
   if (ctx.notes && ctx.notes.length > 0) {
-    const noteLines = ctx.notes.slice(0, 6).map(
+    const noteLines = ctx.notes.slice(0, 10).map(
       (n, idx) => `  ${idx + 1}. [${n.isPinned ? 'Được ghim 📌' : 'Ghi chú'}] "${n.title}": ${n.content}`
     );
-    parts.push(`⏰ SỔ TAY GHI CHÚ (${ctx.notes.length} ghi chú):\n${noteLines.join('\n')}`);
+    parts.push(`⏰ SỔ TAY GHI CHÚ & NHẮC NHỞ (${ctx.notes.length} ghi chú/lịch hẹn):\n${noteLines.join('\n')}`);
+  } else {
+    parts.push(`⏰ SỔ TAY GHI CHÚ & NHẮC NHỞ: Hiện chưa có ghi chú hay lịch hẹn nào.`);
   }
 
-  // 6. TỔNG QUAN NGÂN SÁCH THÁNG & HÔM NAY
+  // 6. BÁO CÁO & THỐNG KÊ CHI TIÊU (ANALYTICS)
+  if (ctx.analytics) {
+    const a = ctx.analytics;
+    const catLines = a.categoryBreakdown.slice(0, 8).map(
+      (c) => `    + ${c.category}: ${formatVND(c.amount)} (${c.percent}%, ${c.count} giao dịch)`
+    );
+
+    parts.push(`📈 BÁO CÁO & THỐNG KÊ CHI TIÊU THÁNG ${a.month}/${a.year}:
+  * Tổng chi tiêu tháng này: ${formatVND(a.totalMonthExpense)}
+  * Tổng chi tiêu tuần này: ${formatVND(a.totalWeekExpense)}
+  * Hạng mục chi nhiều nhất: ${a.topCategory ? `${a.topCategory.category} (${formatVND(a.topCategory.amount)} - ${a.topCategory.percent}%)` : 'Chưa có'}
+  * Cơ cấu chi tiêu theo nhóm danh mục:
+${catLines.join('\n') || '    (Chưa có khoản chi nào trong tháng)'}
+  * Ngày chi tiêu nhiều nhất trong tháng: ${a.highestSpendingDay ? `${a.highestSpendingDay.date} (${formatVND(a.highestSpendingDay.amount)})` : 'Chưa có'}
+  * Tổng số giao dịch chi tiêu trong tháng: ${a.totalTransactionsCount} giao dịch`);
+  }
+
+  // 7. TỔNG QUAN NGÂN SÁCH THÁNG & HÔM NAY
   if (ctx.budget) {
     parts.push(`📊 NGÂN SÁCH THÁNG ${ctx.budget.month}/${ctx.budget.year}:
   - Hạn mức chi tiêu: ${formatVND(ctx.budget.limit)}
@@ -723,9 +886,14 @@ export function generateSmartLocalContextReply(
     q.includes('so no') ||
     q.includes('tiền nợ');
 
+  const cleanQ = q.replace(/["']/g, '');
+
   const matchedDebt = ctx.debts?.find((d) => {
     const nameLow = (d.personName || '').toLowerCase();
-    return nameLow && (q.includes(nameLow) || nameLow.split(/\s+/).some((w) => w.length > 2 && q.includes(w)));
+    if (!nameLow) return false;
+    if (cleanQ.includes(nameLow)) return true;
+    const parts = nameLow.split(/\s+/).filter((w) => w.length >= 2);
+    return parts.length > 0 && parts.every((w) => cleanQ.includes(w));
   });
 
   const isAskingDebt =
@@ -749,20 +917,62 @@ export function generateSmartLocalContextReply(
       };
     }
 
-    // Nếu hỏi cụ thể một người
+    // Nếu hỏi cụ thể một người (VD: Khánh Vy, Hoàng Nam, Minh Quân...)
     if (matchedDebt) {
       const isLent = matchedDebt.type === 'lent';
       const rem = matchedDebt.amount - (matchedDebt.paidAmount || 0);
+      const actionRole = isLent ? 'bạn đang cho mượn' : 'bạn đang vay nợ';
       return {
         reply:
-          `Thông tin khoản nợ của **"${matchedDebt.personName}"** nè bạn ơi! 🐸📖\n\n` +
-          `• **Quan hệ:** ${isLent ? 'Bạn cho mượn tiền (Cần thu hồi) 💸' : 'Bạn đang vay tiền (Cần thanh toán) 💰'}\n` +
+          `Chào bạn iu! Chú Ếch Monett 🐸💚 đã kiểm tra ngay khoản nợ của bạn với bạn **${matchedDebt.personName}** rồi nè:\n\n` +
+          `Hiện tại ${actionRole} bạn **${matchedDebt.personName}** số tiền còn lại là **${formatVND(rem)}**!\n\n` +
+          `📌 **Chi tiết cụ thể:**\n` +
           `• **Số tiền gốc:** **${formatVND(matchedDebt.amount)}**\n` +
           `• **Đã thanh toán:** **${formatVND(matchedDebt.paidAmount || 0)}**\n` +
-          `• **Số tiền còn lại:** **${formatVND(rem)}**\n` +
+          `• **Còn nợ lại:** **${formatVND(rem)}**\n` +
           `• **Hạn trả:** ${matchedDebt.dueDate || 'Chưa đặt hạn'}\n` +
           `• **Trạng thái:** ${matchedDebt.isSettled ? 'Đã hoàn tất thanh toán ✔️' : 'Chưa thanh toán xong ⏳'}` +
           (matchedDebt.note ? `\n• **Ghi chú:** ${matchedDebt.note}` : ''),
+        action: { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' },
+      };
+    }
+
+    // Nếu hỏi riêng về "vay nợ" (mình đang nợ ai, cần trả ai)
+    const isAskingBorrowOnly =
+      (q.includes('đang vay') || q.includes('tôi nợ') || q.includes('mình nợ') || q.includes('cần trả') || q.includes('phải trả')) &&
+      !q.includes('cho mượn') &&
+      !q.includes('ai nợ');
+    if (isAskingBorrowOnly) {
+      const borrowList = ctx.debts.filter((d) => d.type === 'borrowed' && !d.isSettled);
+      const totalBorrowRem = borrowList.reduce((s, d) => s + (d.amount - (d.paidAmount || 0)), 0);
+      const borrowDetails = borrowList.map(
+        (d) => `• Vay của **${d.personName}**: Còn nợ **${formatVND(d.amount - (d.paidAmount || 0))}** (Gốc ${formatVND(d.amount)}${d.dueDate ? `, Hạn: ${d.dueDate}` : ''}${d.note ? `, Ghi chú: ${d.note}` : ''})`
+      );
+      return {
+        reply:
+          `Danh sách các khoản **bạn đang vay nợ người khác** nè! 🐸💰\n\n` +
+          `• **Tổng số tiền cần trả:** **${formatVND(totalBorrowRem)}** (${borrowList.length} khoản)\n\n` +
+          (borrowDetails.join('\n') || '• Bạn không vay nợ ai cả.'),
+        action: { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' },
+      };
+    }
+
+    // Nếu hỏi riêng về "cho mượn" (ai đang nợ tôi, cho ai mượn, cần thu)
+    const isAskingLentOnly =
+      (q.includes('cho mượn') || q.includes('cho vay') || q.includes('ai nợ') || q.includes('cần thu') || q.includes('đòi tiền')) &&
+      !q.includes('đang vay') &&
+      !q.includes('tôi nợ');
+    if (isAskingLentOnly) {
+      const lentList = ctx.debts.filter((d) => d.type === 'lent' && !d.isSettled);
+      const totalLentRem = lentList.reduce((s, d) => s + (d.amount - (d.paidAmount || 0)), 0);
+      const lentDetails = lentList.map(
+        (d) => `• Cho **${d.personName}** mượn: Còn lại **${formatVND(d.amount - (d.paidAmount || 0))}** (Gốc ${formatVND(d.amount)}${d.dueDate ? `, Hạn: ${d.dueDate}` : ''}${d.note ? `, Ghi chú: ${d.note}` : ''})`
+      );
+      return {
+        reply:
+          `Danh sách các khoản **người khác đang nợ bạn** nè! 🐸💸\n\n` +
+          `• **Tổng số tiền cần thu hồi:** **${formatVND(totalLentRem)}** (${lentList.length} người)\n\n` +
+          (lentDetails.join('\n') || '• Không có ai nợ tiền bạn cả.'),
         action: { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' },
       };
     }
@@ -797,7 +1007,22 @@ export function generateSmartLocalContextReply(
   // -------------------------------------------------------------
   // TRƯỜNG HỢP 5: HỎI VỀ NHẮC NHỞ & GHI CHÚ (REMINDERS / NOTES)
   // -------------------------------------------------------------
-  const isAskingReminders =
+  const matchedNote = ctx.notes?.find((n) => {
+    const tLow = (n.title || '').toLowerCase();
+    const cLow = (n.content || '').toLowerCase();
+    if (cleanQ.includes(tLow)) return true;
+    const words = tLow.split(/\s+/).filter((w) => w.length > 2);
+    if (words.some((w) => cleanQ.includes(w) && !['ghi', 'chú', 'nhắc', 'nhở', 'việc', 'cần', 'làm', 'danh', 'sách'].includes(w))) {
+      return true;
+    }
+    if ((cleanQ.includes('siêu thị') || cleanQ.includes('sieu thi')) && (tLow.includes('siêu thị') || cLow.includes('siêu thị') || tLow.includes('mua') || cLow.includes('mua'))) return true;
+    if ((cleanQ.includes('mua sắm') || cleanQ.includes('mua đồ')) && (tLow.includes('mua') || cLow.includes('mua'))) return true;
+    if ((cleanQ.includes('khám răng') || cleanQ.includes('bác sĩ')) && (tLow.includes('răng') || cLow.includes('răng'))) return true;
+    if ((cleanQ.includes('sinh nhật') || cleanQ.includes('quà')) && (tLow.includes('sinh nhật') || cLow.includes('sinh nhật') || tLow.includes('quà') || cLow.includes('quà'))) return true;
+    return false;
+  });
+
+  const hasReminderKeyword =
     q.includes('ghi chú') ||
     q.includes('ghi chu') ||
     q.includes('nhắc nhở') ||
@@ -805,29 +1030,54 @@ export function generateSmartLocalContextReply(
     q.includes('lịch hẹn') ||
     q.includes('lich hen') ||
     q.includes('sổ tay') ||
+    q.includes('so tay') ||
+    q.includes('việc cần làm') ||
+    q.includes('viec can lam') ||
+    q.includes('todo') ||
+    q.includes('to-do') ||
+    q.includes('note') ||
+    q.includes('reminder');
+
+  const isAskingReminders =
+    hasReminderKeyword ||
+    !!matchedNote ||
     (currentTab === 'reminders' &&
       (q.includes('ở đây') ||
         q.includes('trang này') ||
         q.includes('chi tiết') ||
         q.includes('danh sách') ||
-        q.includes('có gì')));
+        q.includes('có gì') ||
+        q.includes('mấy')));
 
   if (isAskingReminders) {
     if (!ctx.notes || ctx.notes.length === 0) {
       return {
         reply:
-          'Bạn hiện chưa có ghi chú hay danh sách nào trong sổ tay! 🐸📝\n\nBạn có thể vào tab **Nhắc Nhở & Ghi Chú** để ghi lại danh sách mua sắm, các khoản cần thanh toán hoặc đặt chuông báo hẹn giờ nhé!',
+          'Bạn hiện chưa có ghi chú hay nhắc nhở nào trong sổ tay! 🐸📝\n\nBạn có thể vào tab **Nhắc Nhở & Ghi Chú** để ghi lại danh sách mua sắm, các việc cần làm hoặc đặt chuông báo hẹn giờ nhé!',
+        action: { label: '⏰ Đến Trang Nhắc Nhở', tabKey: 'reminders' },
+      };
+    }
+
+    // Nếu hỏi cụ thể một ghi chú / việc cần làm
+    if (matchedNote) {
+      return {
+        reply:
+          `Chào bạn iu! Chú Ếch Monett 🐸💚 đã kiểm tra ngay ghi chú/nhắc nhở **"${matchedNote.title}"** cho bạn rồi nè:\n\n` +
+          `📌 **Nội dung:**\n${matchedNote.content}\n\n` +
+          `• **Trạng thái:** ${matchedNote.isPinned ? 'Được ghim quan trọng 📌' : 'Ghi chú thường'}\n` +
+          (matchedNote.createdAt ? `• **Thời gian tạo:** ${new Date(matchedNote.createdAt).toLocaleDateString('vi-VN')}\n` : '') +
+          `\nBạn có thể bấm nút bên dưới để mở trang Nhắc Nhở và chỉnh sửa thêm nhé! ✨`,
         action: { label: '⏰ Đến Trang Nhắc Nhở', tabKey: 'reminders' },
       };
     }
 
     const noteItems = ctx.notes.map(
-      (n) => `• **${n.title}**${n.isPinned ? ' 📌' : ''}:\n  ${n.content.replace(/\n/g, ' ')}`
+      (n, idx) => `• **${n.title}**${n.isPinned ? ' 📌 (Được ghim)' : ''}:\n  ${n.content.replace(/\n/g, '\n  ')}`
     );
 
     return {
       reply:
-        `Bạn đang có **${ctx.notes.length} ghi chú** trong sổ tay nè! 🐸📝✨\n\n` +
+        `Bạn đang có **${ctx.notes.length} ghi chú/nhắc nhở** trong sổ tay nè! 🐸📝✨\n\n` +
         noteItems.join('\n\n') +
         `\n\nBạn có thể vào trang Nhắc Nhở để thêm việc mới hoặc đặt chuông hẹn giờ tiện lợi nha!`,
       action: { label: '⏰ Đến Trang Nhắc Nhở', tabKey: 'reminders' },
@@ -835,7 +1085,120 @@ export function generateSmartLocalContextReply(
   }
 
   // -------------------------------------------------------------
-  // TRƯỜNG HỢP 6: HỎI VỀ NGÂN SÁCH / THU CHI HÔM NAY / THÁNG NÀY
+  // TRƯỜNG HỢP 6: HỎI VỀ BÁO CÁO & THỐNG KÊ CHI TIÊU (ANALYTICS / REPORTS)
+  // -------------------------------------------------------------
+  const isAskingAnalytics =
+    q.includes('báo cáo') ||
+    q.includes('bao cao') ||
+    q.includes('thống kê') ||
+    q.includes('thong ke') ||
+    q.includes('analytics') ||
+    q.includes('biểu đồ') ||
+    q.includes('bieu do') ||
+    q.includes('cơ cấu') ||
+    q.includes('co cau') ||
+    q.includes('tỷ trọng') ||
+    q.includes('ty trong') ||
+    q.includes('hạng mục nào') ||
+    q.includes('danh mục nào') ||
+    q.includes('tiêu nhiều nhất') ||
+    q.includes('chi nhiều nhất') ||
+    q.includes('tốn tiền nhất') ||
+    q.includes('chi tiêu tuần này') ||
+    q.includes('chi tieu tuan nay') ||
+    q.includes('chi tiêu thang này') ||
+    q.includes('chi tiêu tháng này') ||
+    ((q.includes('ăn uống') || q.includes('an uong') || q.includes('cà phê') || q.includes('cafe') || q.includes('mua sắm') || q.includes('mua sam') || q.includes('tiền xăng') || q.includes('xăng xe') || q.includes('đi lại')) &&
+      (q.includes('bao nhiêu') || q.includes('hết bao nhiêu') || q.includes('tổng') || q.includes('mấy') || q.includes('thống kê') || q.includes('báo cáo'))) ||
+    (currentTab === 'analytics' &&
+      (q.includes('ở đây') ||
+        q.includes('trang này') ||
+        q.includes('chi tiết') ||
+        q.includes('có gì') ||
+        q.includes('tình hình') ||
+        q.includes('thế nào')));
+
+  if (isAskingAnalytics) {
+    const a = ctx.analytics;
+    const catBreakdown = a?.categoryBreakdown || [];
+
+    // 6.1. Kiểm tra nếu người dùng hỏi về một danh mục chi tiêu cụ thể (Ăn uống, Cà phê, Mua sắm, Xăng xe...)
+    const matchedCategory = catBreakdown.find((c) => {
+      const cLow = c.category.toLowerCase();
+      if (cleanQ.includes(cLow)) return true;
+      if ((cleanQ.includes('ăn') || cleanQ.includes('ẩm thực') || cleanQ.includes('an uong')) && (cLow.includes('ăn') || cLow.includes('ẩm thực'))) return true;
+      if ((cleanQ.includes('cà phê') || cleanQ.includes('cafe')) && (cLow.includes('cà phê') || cLow.includes('cafe'))) return true;
+      if ((cleanQ.includes('mua sắm') || cleanQ.includes('mua sam') || cleanQ.includes('shopping')) && cLow.includes('mua')) return true;
+      if ((cleanQ.includes('xăng') || cleanQ.includes('đi lại') || cleanQ.includes('di chuyển')) && (cLow.includes('xe') || cLow.includes('di chuyển') || cLow.includes('xăng'))) return true;
+      if ((cleanQ.includes('phòng') || cleanQ.includes('tiền nhà') || cleanQ.includes('tiền trọ')) && (cLow.includes('nhà') || cLow.includes('phòng') || cLow.includes('trọ'))) return true;
+      if (cleanQ.includes('giải trí') && cLow.includes('giải trí')) return true;
+      return false;
+    });
+
+    if (matchedCategory) {
+      const advice = matchedCategory.percent > 40
+        ? '⚠️ Khoản này chiếm hơn 40% tổng chi tiêu tháng, bạn nhớ chú ý cân đối chi tiêu các ngày tới nhé!'
+        : '✨ Mức chi tiêu cho danh mục này đang rất cân đối và hợp lý đó!';
+      return {
+        reply:
+          `Chào bạn iu! Chú Ếch Monett 🐸💚 đã tra cứu thống kê chi tiêu danh mục **"${matchedCategory.category}"** cho bạn rồi nè:\n\n` +
+          `• **Tổng số tiền đã chi:** **${formatVND(matchedCategory.amount)}**\n` +
+          `• **Tỷ trọng:** Chiếm **${matchedCategory.percent}%** tổng chi tiêu tháng ${a.month}/${a.year}\n` +
+          `• **Số lần giao dịch:** ${matchedCategory.count} lần\n\n` +
+          advice,
+        action: { label: '📊 Xem Biểu Đồ Báo Cáo', tabKey: 'analytics' },
+      };
+    }
+
+    // 6.2. Nếu hỏi "tiêu nhiều nhất vào việc gì" / "danh mục nào nhiều nhất"
+    if (q.includes('nhiều nhất') || q.includes('cao nhất') || q.includes('lon nhat') || q.includes('lớn nhất') || q.includes('tốn tiền nhất')) {
+      if (a?.topCategory) {
+        return {
+          reply:
+            `Trong tháng ${a.month}/${a.year}, danh mục bạn chi tiêu nhiều nhất là **"${a.topCategory.category}"**! 🐸💸\n\n` +
+            `• **Tổng số tiền:** **${formatVND(a.topCategory.amount)}**\n` +
+            `• **Tỷ trọng:** Chiếm **${a.topCategory.percent}%** toàn bộ chi tiêu tháng (${a.topCategory.count} giao dịch)\n` +
+            (a.highestSpendingDay ? `• **Ngày chi tiêu đỉnh điểm:** Ngày ${a.highestSpendingDay.date} (${formatVND(a.highestSpendingDay.amount)})\n\n` : '\n') +
+            `Bạn có thể bấm nút bên dưới để vào trang Báo Cáo xem biểu đồ phân tích chi tiết nhé!`,
+          action: { label: '📊 Xem Biểu Đồ Báo Cáo', tabKey: 'analytics' },
+        };
+      }
+    }
+
+    // 6.3. Báo cáo chi tiêu tuần này
+    if (q.includes('tuần') || q.includes('tuan')) {
+      return {
+        reply:
+          `Báo cáo chi tiêu tuần này của bạn nè! 🐸📊✨\n\n` +
+          `• **Tổng chi tiêu tuần này:** **${formatVND(a?.totalWeekExpense || 0)}**\n` +
+          `• **Tổng chi tiêu cả tháng ${a.month}/${a.year}:** **${formatVND(a?.totalMonthExpense || 0)}**\n` +
+          (a?.topCategory ? `• **Danh mục chi nhiều nhất:** **${a.topCategory.category}** (${formatVND(a.topCategory.amount)})\n\n` : '\n') +
+          `Bạn có thể bấm vào nút bên dưới để xem chi tiết biểu đồ cột 7 ngày trong tuần nhé!`,
+        action: { label: '📊 Xem Biểu Đồ Báo Cáo', tabKey: 'analytics' },
+      };
+    }
+
+    // 6.4. Báo cáo tổng thể tháng & cơ cấu chi tiêu
+    const catLines = catBreakdown.slice(0, 6).map(
+      (c) => `• ${c.category}: **${formatVND(c.amount)}** (${c.percent}%, ${c.count} lần)`
+    );
+
+    return {
+      reply:
+        `Báo cáo & Phân tích chi tiêu tháng ${a.month}/${a.year} của bạn nè! 🐸📊✨\n\n` +
+        `• **Tổng chi tiêu tháng này:** **${formatVND(a?.totalMonthExpense || 0)}**\n` +
+        `• **Chi tiêu tuần này:** **${formatVND(a?.totalWeekExpense || 0)}**\n` +
+        (a?.topCategory ? `• **Chi nhiều nhất vào:** **${a.topCategory.category}** (${formatVND(a.topCategory.amount)} - ${a.topCategory.percent}%)\n` : '') +
+        (a?.highestSpendingDay ? `• **Ngày chi tiêu nhiều nhất:** Ngày ${a.highestSpendingDay.date} (${formatVND(a.highestSpendingDay.amount)})\n` : '') +
+        `\n📌 **Cơ cấu chi tiêu theo nhóm danh mục:**\n` +
+        (catLines.join('\n') || '• Bạn chưa phát sinh khoản chi tiêu nào trong tháng.') +
+        `\n\nBạn có thể bấm nút bên dưới để xem biểu đồ cột & biểu đồ xu hướng trực quan trên trang Báo Cáo nhé!`,
+      action: { label: '📊 Xem Biểu Đồ Báo Cáo', tabKey: 'analytics' },
+    };
+  }
+
+  // -------------------------------------------------------------
+  // TRƯỜNG HỢP 7: HỎI VỀ NGÂN SÁCH / THU CHI HÔM NAY
   // -------------------------------------------------------------
   const isAskingBudget =
     q.includes('ngân sách') ||
@@ -847,8 +1210,6 @@ export function generateSmartLocalContextReply(
     q.includes('số dư') ||
     q.includes('so du') ||
     q.includes('còn lại bao nhiêu') ||
-    q.includes('tiêu bao nhiêu') ||
-    q.includes('chi bao nhiêu') ||
     (currentTab === 'home' &&
       (q.includes('ở đây') || q.includes('trang này') || q.includes('tình hình') || q.includes('chi tiết')));
 
@@ -882,13 +1243,13 @@ export function generateSmartLocalContextReply(
   }
 
   // -------------------------------------------------------------
-  // TRƯỜNG HỢP 7: CÂU HỎI CHUNG VỀ "TRANG NÀY" MÀ KHÔNG RÕ CHỦ ĐỀ
+  // TRƯỜNG HỢP 8: CÂU HỎI CHUNG VỀ "TRANG NÀY" MÀ KHÔNG RÕ CHỦ ĐỀ
   // -------------------------------------------------------------
   if (q.includes('trang này') || q.includes('ở đây') || q.includes('màn hình này')) {
     return {
       reply:
         `Bạn đang ở màn hình **"${ctx.activeTabName}"** nè! 🐸📍\n\n` +
-        `Dù đang ở đây, bạn vẫn có thể hỏi mình mọi thông tin về Tích lũy heo đất, Sự kiện, Sổ nợ, Khoản định kỳ hay Chi tiêu hôm nay nhé! ✨`,
+        `Dù đang ở đây, bạn vẫn có thể hỏi mình mọi thông tin về Báo cáo chi tiêu, Nhắc nhở ghi chú, Tích lũy heo đất, Sự kiện, Sổ nợ, Khoản định kỳ hay Chi tiêu hôm nay nhé! ✨`,
     };
   }
 
@@ -904,7 +1265,7 @@ export function generateSmartLocalContextReply(
   ) {
     return {
       reply:
-        `Oa chào bạn iu nha! 🐸💚 Mình là Ếch Monett – trợ lý tài chính thông minh của bạn đây! Bạn có thể hỏi mình bất kỳ dữ liệu nào về Tích lũy heo đất, Sự kiện chuyến đi, Sổ ghi nợ, Hóa đơn định kỳ hay Chi tiêu hôm nay nhé! ✨🪙`,
+        `Oa chào bạn iu nha! 🐸💚 Mình là Ếch Monett – trợ lý tài chính thông minh của bạn đây! Bạn có thể hỏi mình bất kỳ dữ liệu nào về Báo cáo chi tiêu, Ghi chú & Nhắc nhở, Tích lũy heo đất, Sự kiện chuyến đi, Sổ ghi nợ, Hóa đơn định kỳ hay Ngân sách tháng nhé! ✨🪙`,
     };
   }
 
@@ -932,10 +1293,12 @@ export function generateSmartLocalContextReply(
     reply:
       `Ếch Monett đã lắng nghe câu hỏi của bạn nè! 🐸💚\n\n` +
       `Dù bạn đang ở bất kỳ màn hình nào, bạn đều có thể hỏi mình trực tiếp:\n` +
+      `• **Báo cáo & Thống kê:** "Báo cáo chi tiêu tháng này", "Tôi tiêu nhiều nhất vào việc gì?", "Tiền ăn uống hết bao nhiêu?"\n` +
+      `• **Nhắc nhở & Ghi chú:** "Tôi có những ghi chú gì?", "Nhắc nhở mua đồ siêu thị"\n` +
       `• **Sự kiện:** "Sự kiện đi du lịch ở Đà Nẵng đã chi tiêu bao nhiêu?", "Có bao nhiêu sự kiện?"\n` +
       `• **Tích lũy:** "Có bao nhiêu khoản tích lũy hiện tại?", "Tiến độ nuôi heo đất"\n` +
       `• **Định kỳ:** "Các khoản chi định kỳ tháng này", "Hóa đơn tiền phòng"\n` +
-      `• **Sổ nợ:** "Ai đang nợ tiền tôi?", "Tôi đang vay nợ ai?"\n` +
+      `• **Sổ nợ:** "Ai đang nợ tiền tôi?", "Tôi đang vay bạn Khánh Vy bao nhiêu?"\n` +
       `• **Chi tiêu:** "Chi tiêu hôm nay là bao nhiêu?", "Ngân sách tháng này" ✨`,
   };
 }

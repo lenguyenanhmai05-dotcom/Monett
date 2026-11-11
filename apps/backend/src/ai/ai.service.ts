@@ -54,10 +54,27 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
         if (dto.pageContext && dto.pageContext.trim()) {
           dynamicInstruction += `\n--- DỮ LIỆU TÀI CHÍNH THỰC TẾ TRONG HỆ THỐNG CỦA NGƯỜI DÙNG ---\n${dto.pageContext.trim()}\n--------------------------------------------------------------\n`;
           dynamicInstruction += `\nQUY TẮC BẮT BUỘC KHI TRẢ LỜI CÂU HỎI VỀ DỮ LIỆU:
-1. NGUYÊN TẮC HỎI ĐÁP TOÀN DIỆN (CROSS-TAB): Người dùng có thể đứng ở BẤT KỲ màn hình nào (kể cả Trang chủ / Tổng quan, Báo cáo, Cá nhân,...) và hỏi về BẤT KỲ dữ liệu nào của ứng dụng (Sự kiện, Tích lũy & Heo đất, Sổ ghi nợ, Khoản định kỳ, Thu chi hôm nay, Ngân sách tháng).
+1. NGUYÊN TẮC HỎI ĐÁP TOÀN DIỆN (CROSS-TAB): Người dùng có thể đứng ở BẤT KỲ màn hình nào (kể cả Trang chủ / Tổng quan, Báo cáo, Cá nhân,...) và hỏi về BẤT KỲ dữ liệu nào của ứng dụng (Sự kiện, Tích lũy & Heo đất, Sổ ghi nợ, Khoản định kỳ, Ghi chú & Nhắc nhở, Báo cáo & Thống kê chi tiêu, Thu chi hôm nay, Ngân sách tháng).
 2. Bạn PHẢI LUÔN tra cứu toàn bộ phần "DỮ LIỆU TÀI CHÍNH THỰC TẾ TRONG HỆ THỐNG CỦA NGƯỜI DÙNG" ở trên để trả lời trực tiếp, đầy đủ số liệu, tên sự kiện/mục tiêu/người nợ/khoản chi và số tiền (định dạng VND, ví dụ 150.000 đ).
-3. TUYỆT ĐỐI KHÔNG bắt người dùng phải tự mở trang đó để xem, và KHÔNG trả lời chung chung khi dữ liệu đã có sẵn trong bối cảnh.
-4. Giữ phong cách chú Ếch Monett 🐸💚 vui vẻ, lễ phép, dùng emoji sinh động và khích lệ người dùng.\n`;
+3. NGUYÊN TẮC TRẢ LỜI ĐÚNG TRỌNG TÂM (LASER-FOCUSED - CỰC KỲ QUAN TRỌNG):
+   - Khi người dùng hỏi cụ thể về một người (ví dụ: "tôi đang vay bạn Khánh Vy bao nhiêu tiền", "khoản nợ của Nam", "Minh Quân"...), một sự kiện (ví dụ: "chuyến đi Đà Nẵng"...), một mục tiêu (ví dụ: "Macbook"...), hoặc một hóa đơn cụ thể (ví dụ: "tiền phòng", "tiền điện"...):
+     -> Bạn PHẢI trả lời ĐÚNG TRỌNG TÂM vào người/đối tượng đó. Nêu rõ số tiền còn lại, số tiền gốc, đã trả, hạn trả và ghi chú liên quan.
+     -> TUYỆT ĐỐI KHÔNG liệt kê toàn bộ danh sách những người hoặc các sự kiện khác không liên quan làm loãng câu trả lời!
+   - Khi hỏi về SỔ GHI NỢ:
+     + Khi người dùng hỏi riêng về 'vay nợ' (mình đang nợ ai, cần trả ai): Chỉ trả lời danh sách các khoản mình đang vay.
+     + Khi người dùng hỏi riêng về 'cho mượn' (ai đang nợ mình, cần thu ai): Chỉ trả lời danh sách các khoản mình đang cho mượn.
+     + Chỉ khi người dùng hỏi tổng thể ("cho xem sổ ghi nợ", "tất cả các khoản nợ"): mới liệt kê cả hai bên.
+   - Khi hỏi về GHI CHÚ & NHẮC NHỞ (REMINDERS / NOTES):
+     + Khi người dùng hỏi cụ thể về một ghi chú/việc cần nhớ (ví dụ: "ghi chú mua sắm", "nhắc nhở sinh nhật", "ghi chú siêu thị", "lịch hẹn khám răng"...):
+       -> Trả lời ĐÚNG TRỌNG TÂM nội dung của ghi chú/lịch hẹn đó, nêu rõ tiêu đề, nội dung và trạng thái ghim 📌. Không đọc hết cả sổ tay!
+     + Khi người dùng hỏi tổng thể ("tôi có những ghi chú gì", "danh sách việc cần làm", "xem sổ tay"): Liệt kê rõ ràng danh sách các ghi chú, việc được ghim.
+   - Khi hỏi về BÁO CÁO & THỐNG KÊ CHI TIÊU (ANALYTICS / REPORTS):
+     + Khi người dùng hỏi về báo cáo tài chính ("báo cáo chi tiêu tháng này", "thống kê tuần này", "cơ cấu chi tiêu"):
+       -> Nêu rõ tổng chi tiêu tháng, tuần, danh mục chi tiêu nhiều nhất và tỷ trọng các nhóm chi tiêu (Ăn uống, Cà phê, Mua sắm...). Đưa ra lời nhận xét ngắn gọn, hữu ích.
+     + Khi người dùng hỏi riêng về một danh mục (ví dụ: "tháng này ăn uống hết bao nhiêu", "tiền cà phê bao nhiêu", "mua sắm bao nhiêu", "hạng mục nào tiêu nhiều nhất"):
+       -> Trả lời ĐÚNG TRỌNG TÂM vào danh mục đó: Nêu chính xác số tiền đã chi tiêu, tỷ lệ % trên tổng chi tiêu và số lần chi trong tháng.
+4. TUYỆT ĐỐI KHÔNG bắt người dùng phải tự mở trang đó để xem, và KHÔNG trả lời chung chung khi dữ liệu đã có sẵn trong bối cảnh.
+5. Giữ phong cách chú Ếch Monett 🐸💚 vui vẻ, lễ phép, dùng emoji sinh động và khích lệ người dùng.\n`;
         }
 
         const rawModel = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').replace(/['"]/g, '').trim();
@@ -148,17 +165,29 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
         const eventItems = eventsText.split(/(?=\s*\d+\.\s+Tên sự kiện:)/);
         const specificEvent = eventItems.find((item) => {
           const itemLow = item.toLowerCase();
+          const titleMatch = item.match(/Tên sự kiện:\s*"([^"]+)"/);
+          if (titleMatch) {
+            const tLow = titleMatch[1].toLowerCase();
+            const cleanQ = q.replace(/["']/g, '');
+            if (cleanQ.includes(tLow)) return true;
+            const words = tLow.split(/\s+/).filter((w) => w.length > 2);
+            if (words.some((w) => cleanQ.includes(w) && !['chuyến', 'đi', 'cùng', 'bạn', 'bè', 'năm', 'tháng'].includes(w))) {
+              return true;
+            }
+          }
           return (
-            (q.includes('đà nẵng') || q.includes('da nang')) && itemLow.includes('đà nẵng') ||
-            (q.includes('đà lạt') || q.includes('da lat')) && itemLow.includes('đà lạt') ||
-            (q.includes('phú quốc') || q.includes('phu quoc')) && itemLow.includes('phú quốc') ||
-            (q.includes('cắm trại') || q.includes('cam trai')) && itemLow.includes('cắm trại')
+            ((q.includes('đà nẵng') || q.includes('da nang')) && itemLow.includes('đà nẵng')) ||
+            ((q.includes('đà lạt') || q.includes('da lat')) && itemLow.includes('đà lạt')) ||
+            ((q.includes('phú quốc') || q.includes('phu quoc')) && itemLow.includes('phú quốc')) ||
+            ((q.includes('cắm trại') || q.includes('cam trai')) && itemLow.includes('cắm trại'))
           );
         });
 
         if (specificEvent) {
+          const titleMatch = specificEvent.match(/Tên sự kiện:\s*"([^"]+)"/);
+          const evtName = titleMatch ? titleMatch[1] : '';
           return {
-            reply: `Chào bạn iu, Chú Ếch Monett 🐸💚 đã kiểm tra ngay sự kiện cho bạn rồi nè!\n\n${specificEvent.trim()}`,
+            reply: `Chào bạn iu, Chú Ếch Monett 🐸💚 đã kiểm tra ngay sự kiện **"${evtName}"** cho bạn rồi nè!\n\n${specificEvent.trim()}`,
             action: { label: '📅 Xem Chi Tiết Sự Kiện', tabKey: 'events' },
           };
         }
@@ -189,12 +218,35 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
     if (isAskingSavings && pCtx.includes('TÍCH LŨY & HEO ĐẤT')) {
       const match = pCtx.match(/👛 TÍCH LŨY & HEO ĐẤT \(([^)]+)\):([\s\S]*?)(?=\n\n[🔁📅📖⏰📊🧾]|$)/);
       if (match) {
+        const goalBlock = match[2].trim();
+        const goalItems = goalBlock.split(/(?=\s*\d+\.\s+Mục tiêu:)/);
+        const specificGoal = goalItems.find((item) => {
+          const titleMatch = item.match(/Mục tiêu:\s*"([^"]+)"/);
+          if (titleMatch) {
+            const tLow = titleMatch[1].toLowerCase();
+            const cleanQ = q.replace(/["']/g, '');
+            if (cleanQ.includes(tLow)) return true;
+            const words = tLow.split(/\s+/).filter((w) => w.length > 2);
+            return words.some((w) => cleanQ.includes(w) && !['mục', 'tiêu', 'cho', 'năm', 'tiết', 'kiệm'].includes(w));
+          }
+          return false;
+        });
+
+        if (specificGoal) {
+          const titleMatch = specificGoal.match(/Mục tiêu:\s*"([^"]+)"/);
+          const goalName = titleMatch ? titleMatch[1] : '';
+          return {
+            reply: `Tiến độ mục tiêu **"${goalName}"** của bạn nè! 🐸👛✨\n\n${specificGoal.trim()}`,
+            action: { label: '👛 Đến Trang Tích Lũy', tabKey: 'budget' },
+          };
+        }
+
         const isCount = q.includes('bao nhiêu') || q.includes('mấy') || q.includes('số lượng') || q.includes('danh sách');
         const header = isCount
           ? `Hiện tại bạn đang có **${match[1]}** nè! 🐸👛✨`
           : `Tiến độ nuôi heo đất của bạn nè! 🐸👛✨ (Đã đạt: **${match[1]}**)`;
         return {
-          reply: `${header}\n\n${match[2].trim()}`,
+          reply: `${header}\n\n${goalBlock}`,
           action: { label: '👛 Đến Trang Tích Lũy', tabKey: 'budget' },
         };
       }
@@ -222,8 +274,56 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
     if (isAskingRecurring && pCtx.includes('KHOẢN ĐỊNH KỲ CỐ ĐỊNH')) {
       const match = pCtx.match(/🔁 KHOẢN ĐỊNH KỲ CỐ ĐỊNH:([\s\S]*?)(?=\n\n[👛📅📖⏰📊🧾]|$)/);
       if (match) {
+        const recBlock = match[1].trim();
+        const lines = recBlock.split('\n').filter((l) => l.trim().startsWith('-') || l.trim().startsWith('+'));
+        const specificLine = lines.find((line) => {
+          const lineLow = line.toLowerCase();
+          const cleanQ = q.replace(/["']/g, '');
+          const matchTitle = line.match(/\[(Chi|Thu)\]\s*([^:]+):/);
+          if (matchTitle) {
+            const bName = matchTitle[2].toLowerCase();
+            if (cleanQ.includes(bName)) return true;
+          }
+          return (
+            (cleanQ.includes('phòng') || cleanQ.includes('trọ') || cleanQ.includes('tiền nhà')) && (lineLow.includes('phòng') || lineLow.includes('trọ') || lineLow.includes('nhà')) ||
+            cleanQ.includes('điện') && lineLow.includes('điện') ||
+            cleanQ.includes('nước') && lineLow.includes('nước') ||
+            (cleanQ.includes('mạng') || cleanQ.includes('internet')) && (lineLow.includes('mạng') || lineLow.includes('internet')) ||
+            cleanQ.includes('netflix') && lineLow.includes('netflix')
+          );
+        });
+
+        if (specificLine) {
+          return {
+            reply: `Thông tin khoản định kỳ bạn hỏi nè! 🐸🔁\n\n${specificLine.trim()}`,
+            action: { label: '🔁 Đến Trang Định Kỳ', tabKey: 'recurring' },
+          };
+        }
+
+        // Nếu hỏi riêng về thu định kỳ
+        if (q.includes('thu') && !q.includes('chi')) {
+          const incSection = recBlock.match(/\* Tổng thu định kỳ ước tính[\s\S]*?(?=\n\n|$)/);
+          if (incSection) {
+            return {
+              reply: `Danh sách **Thu định kỳ** của bạn nè! 💰✨\n\n${incSection[0].trim()}`,
+              action: { label: '🔁 Đến Trang Định Kỳ', tabKey: 'recurring' },
+            };
+          }
+        }
+
+        // Nếu hỏi riêng về chi định kỳ
+        if (q.includes('chi') && !q.includes('thu')) {
+          const expSection = recBlock.match(/\* Tổng chi định kỳ ước tính[\s\S]*?(?=\* Tổng thu|$)/);
+          if (expSection) {
+            return {
+              reply: `Danh sách **Chi định kỳ** cố định của bạn nè! 🔁💸\n\n${expSection[0].trim()}`,
+              action: { label: '🔁 Đến Trang Định Kỳ', tabKey: 'recurring' },
+            };
+          }
+        }
+
         return {
-          reply: `Báo cáo các khoản định kỳ của bạn nè! 🐸🔁\n${match[1].trim()}`,
+          reply: `Báo cáo các khoản định kỳ của bạn nè! 🐸🔁\n${recBlock}`,
           action: { label: '🔁 Đến Trang Định Kỳ', tabKey: 'recurring' },
         };
       }
@@ -242,20 +342,255 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
       q.includes('nợ ai') ||
       q.includes('đòi tiền') ||
       q.includes('sổ nợ') ||
+      (pCtx.includes('SỔ GHI NỢ') && (q.includes('khánh vy') || q.includes('hoàng nam') || q.includes('minh quân'))) ||
       dto?.activeTab === 'debts' ||
       dto?.activeTab === 'debt';
 
     if (isAskingDebt && pCtx.includes('SỔ GHI NỢ')) {
       const match = pCtx.match(/📖 SỔ GHI NỢ:([\s\S]*?)(?=\n\n[👛📅🔁⏰📊🧾]|$)/);
       if (match) {
+        const debtBlock = match[1].trim();
+
+        // 4.1. Tìm kiếm cụ thể theo tên người được hỏi (VD: Khánh Vy, Hoàng Nam, Minh Quân...)
+        const debtLines = debtBlock.split('\n').filter((l) => l.trim().startsWith('-'));
+        const cleanQ = q.replace(/["']/g, '');
+
+        const matchedLine = debtLines.find((line) => {
+          const nameMatch = line.match(/"([^"]+)"/);
+          if (!nameMatch) return false;
+          const name = nameMatch[1].toLowerCase();
+          if (cleanQ.includes(name)) return true;
+          const words = name.split(/\s+/).filter((w) => w.length >= 2);
+          return words.length > 0 && words.every((w) => cleanQ.includes(w));
+        });
+
+        if (matchedLine) {
+          const isLent = matchedLine.includes('Cho "') || matchedLine.includes('mượn');
+          const nameMatch = matchedLine.match(/"([^"]+)"/);
+          const personName = nameMatch ? nameMatch[1] : '';
+
+          // Trích xuất các trường: Gốc, Đã trả, Còn nợ lại, Hạn trả, Ghi chú
+          const detailsPart = matchedLine.replace(/^[^-]*- (Cho "[^"]+" mượn|Vay của "[^"]+"): /, '').trim();
+          const parts = detailsPart.split(',').map((p) => p.trim());
+          const goc = parts.find((p) => p.startsWith('Gốc')) || '';
+          const daTra = parts.find((p) => p.startsWith('Đã trả')) || '';
+          const conLai = parts.find((p) => p.startsWith('Còn nợ lại')) || '';
+          const hanTra = parts.find((p) => p.startsWith('Hạn trả')) || '';
+          const ghiChu = parts.find((p) => p.startsWith('Ghi chú')) || '';
+
+          const conLaiAmt = conLai ? conLai.replace(/^Còn nợ lại:\s*/i, '').trim() : '';
+          const roleTitle = isLent ? 'bạn đang cho mượn' : 'bạn đang vay nợ';
+
+          let replyStr = `Chào bạn iu! Chú Ếch Monett 🐸💚 đã kiểm tra ngay khoản nợ của bạn với bạn **${personName}** rồi nè:\n\n`;
+          if (conLaiAmt) {
+            replyStr += `Hiện tại ${roleTitle} bạn **${personName}** số tiền còn lại là **${conLaiAmt}**!\n\n`;
+          }
+          replyStr += `📌 **Chi tiết cụ thể:**\n`;
+          if (goc) replyStr += `• **${goc}**\n`;
+          if (daTra) replyStr += `• ${daTra}\n`;
+          if (conLai) replyStr += `• **${conLai}**\n`;
+          if (hanTra) replyStr += `• ${hanTra}\n`;
+          if (ghiChu) replyStr += `• ${ghiChu}\n`;
+
+          return {
+            reply: replyStr.trim(),
+            action: { label: '📖 Xem Sổ Ghi NỢ', tabKey: 'debts' },
+          };
+        }
+
+        // 4.2. Nếu người dùng hỏi riêng về "vay nợ" (mình đang nợ ai, cần trả nợ ai)
+        const isAskingBorrowOnly =
+          (q.includes('đang vay') || q.includes('tôi nợ') || q.includes('mình nợ') || q.includes('cần trả') || q.includes('phải trả')) &&
+          !q.includes('cho mượn') &&
+          !q.includes('ai nợ');
+        if (isAskingBorrowOnly) {
+          const borrowMatch = debtBlock.match(/\* Bạn đang vay nợ người khác:([\s\S]*?)(?=\* Đã thanh toán|\n\n|$)/);
+          if (borrowMatch) {
+            return {
+              reply: `Danh sách các khoản **bạn đang vay nợ người khác** nè! 🐸💰\n\n${borrowMatch[0].trim()}`,
+              action: { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' },
+            };
+          }
+        }
+
+        // 4.3. Nếu người dùng hỏi riêng về "cho mượn" (ai đang nợ tôi, cho ai mượn, cần thu)
+        const isAskingLentOnly =
+          (q.includes('cho mượn') || q.includes('cho vay') || q.includes('ai nợ') || q.includes('cần thu') || q.includes('đòi tiền')) &&
+          !q.includes('đang vay') &&
+          !q.includes('tôi nợ');
+        if (isAskingLentOnly) {
+          const lentMatch = debtBlock.match(/\* Đang cho người khác mượn:([\s\S]*?)(?=\* Bạn đang vay|\n\n|$)/);
+          if (lentMatch) {
+            return {
+              reply: `Danh sách các khoản **người khác đang nợ bạn** nè! 🐸💸\n\n${lentMatch[0].trim()}`,
+              action: { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' },
+            };
+          }
+        }
+
         return {
-          reply: `Chi tiết Sổ Ghi Nợ của bạn nè! 🐸📖\n${match[1].trim()}`,
+          reply: `Chi tiết Sổ Ghi Nợ của bạn nè! 🐸📖\n\n${debtBlock}`,
           action: { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' },
         };
       }
     }
 
-    // 5. NGÂN SÁCH THÁNG & CHI TIÊU HÔM NAY (BUDGET & TODAY)
+    // 5. GHI CHÚ & NHẮC NHỞ (NOTES & REMINDERS)
+    const isAskingReminders =
+      q.includes('nhắc nhở') ||
+      q.includes('nhac nho') ||
+      q.includes('ghi chú') ||
+      q.includes('ghi chu') ||
+      q.includes('lịch hẹn') ||
+      q.includes('lich hen') ||
+      q.includes('sổ tay') ||
+      q.includes('so tay') ||
+      q.includes('việc cần làm') ||
+      q.includes('todo') ||
+      q.includes('to-do') ||
+      dto?.activeTab === 'reminders';
+
+    if (isAskingReminders && (pCtx.includes('SỔ TAY GHI CHÚ') || pCtx.includes('NHẮC NHỞ'))) {
+      const match = pCtx.match(/⏰ SỔ TAY GHI CHÚ[^:]*:([\s\S]*?)(?=\n\n[👛📅🔁📖📊🧾📈]|$)/);
+      if (match) {
+        const notesBlock = match[1].trim();
+        const noteLines = notesBlock.split('\n').filter((l) => l.trim().length > 0);
+        const cleanQ = q.replace(/["']/g, '');
+
+        // Tìm kiếm ghi chú / nhắc nhở cụ thể theo tên hoặc từ khóa
+        const matchedLine = noteLines.find((line) => {
+          const lLow = line.toLowerCase();
+          const titleMatch = line.match(/"([^"]+)"/);
+          if (titleMatch) {
+            const t = titleMatch[1].toLowerCase();
+            if (cleanQ.includes(t)) return true;
+            const words = t.split(/\s+/).filter((w) => w.length > 2);
+            if (words.some((w) => cleanQ.includes(w) && !['ghi', 'chú', 'nhắc', 'nhở', 'việc', 'cần', 'làm'].includes(w))) {
+              return true;
+            }
+          }
+          if ((cleanQ.includes('siêu thị') || cleanQ.includes('sieu thi')) && lLow.includes('siêu thị')) return true;
+          if ((cleanQ.includes('mua sắm') || cleanQ.includes('mua đồ')) && lLow.includes('mua')) return true;
+          if (cleanQ.includes('khám răng') && lLow.includes('răng')) return true;
+          if (cleanQ.includes('sinh nhật') && lLow.includes('sinh nhật')) return true;
+          return false;
+        });
+
+        if (matchedLine) {
+          const titleMatch = matchedLine.match(/"([^"]+)"/);
+          const noteTitle = titleMatch ? titleMatch[1] : 'Chi tiết';
+          const isPinned = matchedLine.includes('📌') || matchedLine.includes('Được ghim');
+          const contentPart = matchedLine.replace(/^[^-]*"[^"]+":\s*/, '').trim();
+
+          return {
+            reply:
+              `Chào bạn iu! Chú Ếch Monett 🐸💚 đã kiểm tra ngay ghi chú/nhắc nhở **"${noteTitle}"** cho bạn rồi nè:\n\n` +
+              `📌 **Nội dung:**\n${contentPart || matchedLine.trim()}\n\n` +
+              `• **Trạng thái:** ${isPinned ? 'Được ghim quan trọng 📌' : 'Ghi chú thường'}\n\n` +
+              `Bạn có thể bấm vào nút bên dưới để mở trang Nhắc Nhở chỉnh sửa nhé! ✨`,
+            action: { label: '⏰ Đến Trang Nhắc Nhở', tabKey: 'reminders' },
+          };
+        }
+
+        return {
+          reply: `Danh sách ghi chú & nhắc nhở của bạn nè! 🐸⏰✨\n\n${notesBlock}\n\nBạn có thể bấm nút bên dưới để vào trang Nhắc Nhở thêm việc mới hoặc đặt chuông báo giờ nhé!`,
+          action: { label: '⏰ Đến Trang Nhắc Nhở', tabKey: 'reminders' },
+        };
+      }
+    }
+
+    // 6. BÁO CÁO & THỐNG KÊ CHI TIÊU (ANALYTICS / REPORTS)
+    const isAskingAnalytics =
+      q.includes('báo cáo') ||
+      q.includes('bao cao') ||
+      q.includes('thống kê') ||
+      q.includes('thong ke') ||
+      q.includes('analytics') ||
+      q.includes('biểu đồ') ||
+      q.includes('bieu do') ||
+      q.includes('cơ cấu') ||
+      q.includes('co cau') ||
+      q.includes('tỷ trọng') ||
+      q.includes('hạng mục nào') ||
+      q.includes('danh mục nào') ||
+      q.includes('tiêu nhiều nhất') ||
+      q.includes('chi nhiều nhất') ||
+      q.includes('tốn tiền nhất') ||
+      q.includes('chi tiêu tuần này') ||
+      q.includes('chi tiêu tháng này') ||
+      ((q.includes('ăn uống') || q.includes('cà phê') || q.includes('cafe') || q.includes('mua sắm') || q.includes('tiền xăng') || q.includes('đi lại')) &&
+        (q.includes('bao nhiêu') || q.includes('hết bao nhiêu') || q.includes('tổng') || q.includes('mấy') || q.includes('thống kê') || q.includes('báo cáo'))) ||
+      dto?.activeTab === 'analytics';
+
+    if (isAskingAnalytics && (pCtx.includes('BÁO CÁO & THỐNG KÊ CHI TIÊU') || pCtx.includes('NGÂN SÁCH THÁNG'))) {
+      const aMatch = pCtx.match(/📈 BÁO CÁO & THỐNG KÊ CHI TIÊU[^:]*:([\s\S]*?)(?=\n\n[👛📅🔁📖⏰📊🧾]|$)/);
+      if (aMatch) {
+        const aBlock = aMatch[1].trim();
+        const cleanQ = q.replace(/["']/g, '');
+
+        // 6.1. Nếu hỏi riêng về một danh mục chi tiêu cụ thể (Ăn uống, Cà phê, Mua sắm...)
+        const lines = aBlock.split('\n');
+        const catLines = lines.filter((l) => l.trim().startsWith('+'));
+        const matchedCatLine = catLines.find((line) => {
+          const lLow = line.toLowerCase();
+          if ((cleanQ.includes('ăn') || cleanQ.includes('ẩm thực') || cleanQ.includes('an uong')) && (lLow.includes('ăn') || lLow.includes('ẩm thực'))) return true;
+          if ((cleanQ.includes('cà phê') || cleanQ.includes('cafe')) && (lLow.includes('cà phê') || lLow.includes('cafe'))) return true;
+          if ((cleanQ.includes('mua sắm') || cleanQ.includes('mua sam')) && lLow.includes('mua')) return true;
+          if ((cleanQ.includes('xăng') || cleanQ.includes('đi lại') || cleanQ.includes('di chuyển')) && (lLow.includes('xe') || lLow.includes('di chuyển') || lLow.includes('xăng'))) return true;
+          if ((cleanQ.includes('phòng') || cleanQ.includes('nhà') || cleanQ.includes('tiền trọ')) && (lLow.includes('nhà') || lLow.includes('phòng') || lLow.includes('trọ'))) return true;
+          if (cleanQ.includes('giải trí') && lLow.includes('giải trí')) return true;
+          return false;
+        });
+
+        if (matchedCatLine) {
+          const catNameMatch = matchedCatLine.match(/\+\s*([^:]+):/);
+          const catName = catNameMatch ? catNameMatch[1].trim() : 'danh mục';
+          const detailsPart = matchedCatLine.replace(/^[^+]*\+\s*[^:]+:\s*/, '').trim();
+          return {
+            reply:
+              `Chào bạn iu! Chú Ếch Monett 🐸💚 đã tra cứu thống kê chi tiêu cho mục **"${catName}"** rồi nè:\n\n` +
+              `• **Danh mục:** **${catName}**\n` +
+              `• **Chi tiêu tháng này:** **${detailsPart}**\n\n` +
+              `Bạn có thể bấm bên dưới để vào trang Báo Cáo xem chi tiết biểu đồ cột và cơ cấu chi tiêu nhé! ✨`,
+            action: { label: '📊 Xem Biểu Đồ Báo Cáo', tabKey: 'analytics' },
+          };
+        }
+
+        // 6.2. Nếu hỏi tiêu nhiều nhất vào việc gì
+        if (q.includes('nhiều nhất') || q.includes('cao nhất') || q.includes('lớn nhất') || q.includes('tốn tiền nhất')) {
+          const topMatch = aBlock.match(/\* Hạng mục chi nhiều nhất:\s*([^\n]+)/);
+          if (topMatch) {
+            return {
+              reply:
+                `Trong tháng này, danh mục bạn chi tiêu nhiều nhất là **${topMatch[1].trim()}**! 🐸💸\n\n` +
+                `Bạn có thể bấm nút bên dưới để vào trang Báo Cáo xem biểu đồ phân tích chi tiết nhé!`,
+              action: { label: '📊 Xem Biểu Đồ Báo Cáo', tabKey: 'analytics' },
+            };
+          }
+        }
+
+        // 6.3. Nếu hỏi chi tiêu tuần này
+        if (q.includes('tuần') || q.includes('tuan')) {
+          const weekMatch = aBlock.match(/\* Tổng chi tiêu tuần này:\s*([^\n]+)/);
+          const monthMatch = aBlock.match(/\* Tổng chi tiêu tháng này:\s*([^\n]+)/);
+          return {
+            reply:
+              `Báo cáo chi tiêu tuần này của bạn nè! 🐸📊✨\n\n` +
+              `• **Tổng chi tiêu tuần này:** **${weekMatch ? weekMatch[1].trim() : 'Đang cập nhật'}**\n` +
+              `• **Tổng chi tiêu cả tháng:** **${monthMatch ? monthMatch[1].trim() : 'Đang cập nhật'}**\n\n` +
+              `Bạn có thể bấm vào nút bên dưới để xem chi tiết biểu đồ cột 7 ngày trong tuần nhé!`,
+            action: { label: '📊 Xem Biểu Đồ Báo Cáo', tabKey: 'analytics' },
+          };
+        }
+
+        return {
+          reply: `Báo cáo & Phân tích chi tiêu của bạn nè! 🐸📊✨\n\n${aBlock}\n\nBạn có thể bấm nút bên dưới để xem biểu đồ phân tích chi tiết trực quan nhé!`,
+          action: { label: '📊 Xem Biểu Đồ Báo Cáo', tabKey: 'analytics' },
+        };
+      }
+    }
+
+    // 7. NGÂN SÁCH THÁNG & CHI TIÊU HÔM NAY (BUDGET & TODAY)
     const isAskingBudget =
       q.includes('hôm nay') ||
       q.includes('hom nay') ||
@@ -267,8 +602,8 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
       q.includes('lương');
 
     if (isAskingBudget && (pCtx.includes('NGÂN SÁCH THÁNG') || pCtx.includes('CHI TIÊU HÔM NAY'))) {
-      const bMatch = pCtx.match(/📊 NGÂN SÁCH THÁNG[^:]*:([\s\S]*?)(?=\n\n[👛📅🔁📖⏰🧾]|$)/);
-      const tMatch = pCtx.match(/🧾 CHI TIÊU HÔM NAY[^:]*:([\s\S]*?)(?=\n\n[👛📅🔁📖⏰📊]|$)/);
+      const bMatch = pCtx.match(/📊 NGÂN SÁCH THÁNG[^:]*:([\s\S]*?)(?=\n\n[👛📅🔁📖⏰🧾📈]|$)/);
+      const tMatch = pCtx.match(/🧾 CHI TIÊU HÔM NAY[^:]*:([\s\S]*?)(?=\n\n[👛📅🔁📖⏰📊📈]|$)/);
       let resText = 'Báo cáo ngân sách & chi tiêu của bạn nè! 🐸📊\n\n';
       if (bMatch) resText += `• **Ngân sách tháng:**\n${bMatch[1].trim()}\n\n`;
       if (tMatch) resText += `• **Hôm nay:**\n${tMatch[1].trim()}`;
@@ -276,26 +611,6 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
         reply: resText.trim(),
         action: { label: '⊞ Đến Trang Tổng Quan', tabKey: 'home' },
       };
-    }
-
-    // 6. GHI CHÚ & NHẮC NHỞ (NOTES & REMINDERS)
-    const isAskingReminders =
-      q.includes('nhắc nhở') ||
-      q.includes('nhac nho') ||
-      q.includes('ghi chú') ||
-      q.includes('ghi chu') ||
-      q.includes('lịch hẹn') ||
-      q.includes('sổ tay') ||
-      dto?.activeTab === 'reminders';
-
-    if (isAskingReminders && pCtx.includes('SỔ TAY GHI CHÚ')) {
-      const match = pCtx.match(/⏰ SỔ TAY GHI CHÚ[^:]*:([\s\S]*?)(?=\n\n[👛📅🔁📖📊🧾]|$)/);
-      if (match) {
-        return {
-          reply: `Danh sách ghi chú & nhắc nhở của bạn nè! 🐸⏰\n\n${match[1].trim()}`,
-          action: { label: '⏰ Đến Trang Nhắc Nhở', tabKey: 'reminders' },
-        };
-      }
     }
 
     // =========================================================================
@@ -316,7 +631,7 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
     ) {
       return {
         reply:
-          'Oa chào bạn iu nha! 🐸💚 Mình là Ếch Monett – trợ lý tài chính thông minh của bạn đây! Bạn có thể hỏi mình bất kỳ dữ liệu nào về Tích lũy heo đất, Sự kiện đi chơi, Sổ ghi nợ, Hóa đơn định kỳ hay Chi tiêu hôm nay nhé! ✨🪙',
+          'Oa chào bạn iu nha! 🐸💚 Mình là Ếch Monett – trợ lý tài chính thông minh của bạn đây! Bạn có thể hỏi mình bất kỳ dữ liệu nào về Báo cáo chi tiêu, Ghi chú & Nhắc nhở, Tích lũy heo đất, Sự kiện đi chơi, Sổ ghi nợ, Hóa đơn định kỳ hay Ngân sách tháng nhé! ✨🪙',
       };
     }
 
@@ -324,7 +639,7 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
     if (q.includes('bạn là ai') || q.includes('ban la ai') || q.includes('tên gì') || q.includes('ten gi')) {
       return {
         reply:
-          'Mình là chú Ếch Monett 🐸 – linh vật may mắn và trợ lý tài chính đồng hành cùng bạn trên mọi nẻo đường chi tiêu! Dù bạn đang ở bất kỳ trang nào, bạn đều có thể hỏi mình về Sự kiện, Tích lũy, Sổ nợ, Định kỳ hay Ngân sách nhé! 🪙✨',
+          'Mình là chú Ếch Monett 🐸 – linh vật may mắn và trợ lý tài chính đồng hành cùng bạn trên mọi nẻo đường chi tiêu! Dù bạn đang ở bất kỳ trang nào, bạn đều có thể hỏi mình về Báo cáo chi tiêu, Nhắc nhở, Sự kiện, Tích lũy, Sổ nợ, Định kỳ hay Ngân sách nhé! 🪙✨',
       };
     }
 
@@ -362,10 +677,12 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
       reply:
         'Ếch Monett đã nghe rõ câu hỏi của bạn nè! 🐸💚\n\n' +
         'Dù bạn đang ở bất kỳ màn hình nào, bạn đều có thể hỏi mình trực tiếp về:\n' +
+        '• **Báo cáo & Thống kê:** "Báo cáo chi tiêu tháng này", "Tôi tiêu nhiều nhất vào việc gì?", "Tiền ăn uống hết bao nhiêu?"\n' +
+        '• **Nhắc nhở & Ghi chú:** "Tôi có những ghi chú gì?", "Nhắc nhở mua đồ siêu thị"\n' +
         '• **Sự kiện:** "Sự kiện đi du lịch ở Đà Nẵng đã chi tiêu bao nhiêu?", "Danh sách các sự kiện"\n' +
         '• **Tích lũy:** "Có bao nhiêu khoản tích lũy hiện tại?", "Tiến độ nuôi heo đất"\n' +
         '• **Định kỳ:** "Các khoản chi định kỳ tháng này", "Hóa đơn tiền phòng"\n' +
-        '• **Sổ nợ:** "Ai đang nợ tiền tôi?", "Tôi đang vay nợ ai?"\n' +
+        '• **Sổ nợ:** "Ai đang nợ tiền tôi?", "Tôi đang vay bạn Khánh Vy bao nhiêu?"\n' +
         '• **Chi tiêu:** "Chi tiêu hôm nay là bao nhiêu?", "Ngân sách tháng này"\n\n' +
         'Hãy đặt câu hỏi để mình kiểm tra số liệu ngay cho bạn nhé! ✨',
     };
