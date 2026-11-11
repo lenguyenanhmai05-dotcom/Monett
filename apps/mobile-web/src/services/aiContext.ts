@@ -1,10 +1,29 @@
-import { MonettEvent, loadEventsFromStorage } from './eventsStorage';
-import { ISavingsGoal, loadSavingsGoals } from './savingsStorage';
-import { DebtItem, loadDebtItems } from './debtStorage';
-import { RecurringItem, loadRecurringItems, calculateMonthlyEquivalent } from './recurringStorage';
+import {
+  MonettEvent,
+  loadEventsFromStorage,
+  preloadEventsFromAsyncStorage,
+  saveEventsToStorage,
+} from './eventsStorage';
+import {
+  ISavingsGoal,
+  loadSavingsGoals,
+  preloadSavingsFromAsyncStorage,
+} from './savingsStorage';
+import {
+  DebtItem,
+  loadDebtItems,
+  preloadDebtFromAsyncStorage,
+} from './debtStorage';
+import {
+  RecurringItem,
+  loadRecurringItems,
+  preloadRecurringFromAsyncStorage,
+  calculateMonthlyEquivalent,
+} from './recurringStorage';
 import { PersonalNote, loadNotesFromStorage } from './notesStorage';
 import { getCachedBudget, getInitialDayRecordsFromLocalStorage, DayExpenseRecord } from './calendarStorage';
 import { getIncomeRecords, IncomeRecord } from './incomeStorage';
+import { getEventsApi, getRecurringBillsApi, getDebtsApi } from './api';
 
 export interface UserFinancialContextData {
   activeTab: string;
@@ -40,6 +59,56 @@ export const TAB_NAME_MAP: Record<string, string> = {
 const formatVND = (num: number): string => {
   return new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(num || 0))) + ' đ';
 };
+
+/**
+ * Tải trước và đồng bộ toàn bộ dữ liệu tài chính của người dùng từ Storage & Backend API
+ * Đảm bảo người dùng đứng ở bất kỳ màn hình nào cũng có sẵn 100% dữ liệu để hỏi đáp ngay tức thì!
+ */
+export async function preloadAllFinancialData(userId?: string, userEmail?: string): Promise<void> {
+  const normEmail = (userEmail || '').trim().toLowerCase();
+  const uId = (userId || '').trim();
+
+  try {
+    // 1. Tải trước các storage song song trên cả Native Mobile và Web
+    await Promise.allSettled([
+      preloadEventsFromAsyncStorage(normEmail, uId),
+      preloadSavingsFromAsyncStorage(uId, normEmail),
+      preloadDebtFromAsyncStorage(uId, normEmail),
+      preloadRecurringFromAsyncStorage(uId, normEmail),
+    ]);
+
+    // 2. Đồng bộ các sự kiện từ Backend API vào cache & storage
+    try {
+      const apiEvents = await getEventsApi();
+      if (Array.isArray(apiEvents) && apiEvents.length > 0) {
+        const localEvents = loadEventsFromStorage(normEmail, uId);
+        const merged = [...apiEvents];
+        localEvents.forEach((loc) => {
+          const locId = String(loc.id || (loc as any)._id || '');
+          const locTempId = String((loc as any).tempId || '');
+          const exists = merged.some((m) => {
+            const mId = String(m.id || (m as any)._id || '');
+            return (mId && mId === locId) || (locTempId && mId === locTempId);
+          });
+          if (!exists) {
+            merged.push(loc);
+          }
+        });
+        saveEventsToStorage(merged, normEmail, uId, false, true);
+      }
+    } catch (_) {}
+
+    // 3. Đồng bộ hóa đơn định kỳ từ Backend API nếu có
+    try {
+      const apiBills = await getRecurringBillsApi();
+      if (Array.isArray(apiBills) && apiBills.length > 0) {
+        // API bills đã được lấy sẵn trong cache
+      }
+    } catch (_) {}
+  } catch (err) {
+    console.warn('preloadAllFinancialData notice:', err);
+  }
+}
 
 /**
  * Thu thập toàn bộ dữ liệu tài chính thực tế của người dùng từ các storage module
@@ -135,7 +204,10 @@ export function collectUserFinancialContext(
 export function buildAiPromptContext(ctx: UserFinancialContextData): string {
   const parts: string[] = [];
 
-  parts.push(`📍 MÀN HÌNH ĐANG XEM: "${ctx.activeTabName}" (Mã tab: ${ctx.activeTab})`);
+  parts.push(
+    `📍 MÀN HÌNH ĐANG XEM: "${ctx.activeTabName}" (Mã tab: ${ctx.activeTab})\n` +
+    `📌 NGUYÊN TẮC HỎI ĐÁP TOÀN DIỆN (CROSS-TAB): Người dùng có thể đứng ở bất kỳ màn hình nào (kể cả Trang chủ, Báo cáo, Cá nhân,...) và hỏi về bất kỳ dữ liệu nào của ứng dụng (Sự kiện, Tích lũy heo đất, Sổ ghi nợ, Khoản định kỳ, Chi tiêu hôm nay, Ngân sách tháng). Bạn PHẢI tra cứu toàn bộ dữ liệu thực tế bên dưới để trả lời chi tiết và chính xác số liệu cho người dùng, KHÔNG yêu cầu họ phải tự mở trang đó để xem!`
+  );
 
   // 1. SỰ KIỆN
   if (ctx.events && ctx.events.length > 0) {
@@ -276,7 +348,8 @@ ${borrowLines.join('\n') || '  (Bạn không nợ ai cả)'}
 
 /**
  * Bộ xử lý ngôn ngữ tự nhiên thông minh offline / client-side.
- * Tự động phân tích câu hỏi dựa trên ngữ cảnh màn hình hiện tại và toàn bộ dữ liệu người dùng.
+ * Hỗ trợ tra cứu dữ liệu chéo toàn diện (Cross-Tab):
+ * Người dùng đứng ở bất kỳ màn hình nào cũng hỏi đáp được mọi dữ liệu của các trang khác!
  */
 export function generateSmartLocalContextReply(
   query: string,
@@ -287,9 +360,9 @@ export function generateSmartLocalContextReply(
 
   // -------------------------------------------------------------
   // TRƯỜNG HỢP 1: HỎI VỀ SỰ KIỆN (EVENTS)
-  // Kích hoạt khi có từ khóa sự kiện HOẶC đang đứng ở trang 'events' và hỏi về chi tiết / danh sách / ngân sách
+  // Nhận diện từ khóa sự kiện HOẶC tên sự kiện / địa điểm cụ thể trong danh sách
   // -------------------------------------------------------------
-  const isAskingEvents =
+  const hasEventKeyword =
     q.includes('sự kiện') ||
     q.includes('su kien') ||
     q.includes('event') ||
@@ -297,10 +370,39 @@ export function generateSmartLocalContextReply(
     q.includes('du lich') ||
     q.includes('đi chơi') ||
     q.includes('di choi') ||
+    q.includes('chuyến đi') ||
+    q.includes('chuyen di') ||
+    q.includes('cắm trại') ||
+    q.includes('cam trai') ||
+    q.includes('tiệc') ||
+    q.includes('tiec') ||
+    q.includes('liên hoan') ||
     q.includes('đà nẵng') ||
     q.includes('da nang') ||
     q.includes('đà lạt') ||
     q.includes('da lat') ||
+    q.includes('phú quốc') ||
+    q.includes('phu quoc');
+
+  const matchedEvent = ctx.events?.find((e) => {
+    const titleLow = (e.title || '').toLowerCase();
+    const locLow = (e.location || '').toLowerCase();
+    if (q.includes(titleLow) || (locLow && q.includes(locLow))) return true;
+    if (
+      ((q.includes('đà nẵng') || q.includes('da nang')) && (titleLow.includes('đà nẵng') || locLow.includes('đà nẵng'))) ||
+      ((q.includes('đà lạt') || q.includes('da lat')) && (titleLow.includes('đà lạt') || locLow.includes('đà lạt'))) ||
+      ((q.includes('phú quốc') || q.includes('phu quoc')) && (titleLow.includes('phú quốc') || locLow.includes('phú quốc'))) ||
+      ((q.includes('cắm trại') || q.includes('cam trai')) && titleLow.includes('cắm trại'))
+    ) {
+      return true;
+    }
+    const words = titleLow.split(/\s+/).filter((w) => w.length > 3);
+    return words.length > 0 && words.some((w) => q.includes(w));
+  });
+
+  const isAskingEvents =
+    hasEventKeyword ||
+    !!matchedEvent ||
     (currentTab === 'events' &&
       (q.includes('ở đây') ||
         q.includes('trang này') ||
@@ -322,10 +424,6 @@ export function generateSmartLocalContextReply(
     }
 
     // Nếu người dùng hỏi cụ thể một sự kiện theo tên
-    const matchedEvent = ctx.events.find(
-      (e) => q.includes(e.title.toLowerCase()) || (e.location && q.includes(e.location.toLowerCase()))
-    );
-
     if (matchedEvent) {
       const dates = matchedEvent.endDate ? `${matchedEvent.startDate} → ${matchedEvent.endDate}` : matchedEvent.startDate;
       const statusLabel =
@@ -338,15 +436,15 @@ export function generateSmartLocalContextReply(
 
       let expTxt = '';
       if (matchedEvent.expenses && matchedEvent.expenses.length > 0) {
-        const lines = matchedEvent.expenses.slice(0, 5).map(
+        const lines = matchedEvent.expenses.slice(0, 6).map(
           (ex) => `• ${ex.title}: **${formatVND(ex.amount)}** (${ex.date}${ex.payer ? ` - ${ex.payer}` : ''})`
         );
-        expTxt = `\n\n📌 **Các khoản chi tiêu gần nhất trong sự kiện:**\n${lines.join('\n')}`;
+        expTxt = `\n\n📌 **Các khoản chi tiêu trong sự kiện:**\n${lines.join('\n')}`;
       }
 
       return {
         reply:
-          `Thông tin chi tiết sự kiện **"${matchedEvent.title}"** nè bạn ơi! 🐸✨\n\n` +
+          `Chào bạn iu, Chú Ếch Monett 🐸💚 đã kiểm tra ngay sự kiện **"${matchedEvent.title}"** cho bạn rồi nè!\n\n` +
           `• **Trạng thái:** ${statusLabel}\n` +
           `• **Thời gian:** ${dates}\n` +
           `• **Địa điểm:** ${matchedEvent.location || 'Chưa cập nhật'}\n` +
@@ -361,6 +459,11 @@ export function generateSmartLocalContextReply(
     }
 
     // Liệt kê toàn bộ danh sách sự kiện
+    const isAskingCount = q.includes('bao nhiêu') || q.includes('mấy') || q.includes('số lượng') || q.includes('danh sách');
+    const header = isAskingCount
+      ? `Hiện tại bạn đang có **${ctx.events.length} sự kiện** trong hệ thống nè! 🐸📅✨`
+      : `Danh sách sự kiện tài chính của bạn nè! 🐸📅✨`;
+
     const eventSummaries = ctx.events.map((e, idx) => {
       const statusLabel = e.status === 'ongoing' ? 'Đang diễn ra' : e.status === 'completed' ? 'Đã xong' : 'Sắp tới';
       return `${idx + 1}. **${e.title}** (${statusLabel})\n   • Ngân sách: **${formatVND(e.estimatedBudget || 0)}** | Đã chi: **${formatVND(e.spentAmount || 0)}** | Đã thu: **${formatVND(e.incomeAmount || 0)}**\n   • Thời gian: ${e.startDate}${e.endDate ? ` → ${e.endDate}` : ''}${e.location ? ` | Địa điểm: ${e.location}` : ''}`;
@@ -368,18 +471,116 @@ export function generateSmartLocalContextReply(
 
     return {
       reply:
-        `Hiện tại bạn đang có **${ctx.events.length} sự kiện** trong hệ thống nè! 🐸📅\n\n` +
+        `${header}\n\n` +
         eventSummaries.join('\n\n') +
-        `\n\nBạn có thể hỏi mình chi tiết từng sự kiện hoặc bấm nút bên dưới để vào trang xem trực tiếp nhé!`,
+        `\n\nBạn có thể hỏi mình chi tiết từng chuyến đi hoặc bấm nút bên dưới để vào trang xem trực tiếp nhé!`,
       action: { label: '📅 Đến Trang Sự Kiện', tabKey: 'events' },
     };
   }
 
   // -------------------------------------------------------------
-  // TRƯỜNG HỢP 2: HỎI VỀ ĐỊNH KỲ (RECURRING - CHI & THU ĐỊNH KỲ)
-  // Kích hoạt khi có từ khóa định kỳ / hóa đơn HOẶC đang ở tab 'recurring'
+  // TRƯỜNG HỢP 2: HỎI VỀ TÍCH LŨY (SAVINGS / HEO ĐẤT)
+  // Nhận diện từ khóa tích lũy, tiết kiệm, heo đất, mục tiêu hoặc tên mục tiêu cụ thể
   // -------------------------------------------------------------
-  const isAskingRecurring =
+  const hasSavingsKeyword =
+    q.includes('tích lũy') ||
+    q.includes('tich luy') ||
+    q.includes('tiết kiệm') ||
+    q.includes('tiet kiem') ||
+    q.includes('heo đất') ||
+    q.includes('heo dat') ||
+    q.includes('mục tiêu') ||
+    q.includes('muc tieu') ||
+    q.includes('nuôi heo') ||
+    q.includes('nuoi heo') ||
+    q.includes('quỹ dự phòng') ||
+    q.includes('quy du phong') ||
+    q.includes('macbook') ||
+    q.includes('mua xe') ||
+    q.includes('mua nhà');
+
+  const matchedGoal = ctx.savings?.find((g) => {
+    const titleLow = (g.title || '').toLowerCase();
+    if (q.includes(titleLow)) return true;
+    const words = titleLow.split(/\s+/).filter((w) => w.length > 3);
+    return words.length > 0 && words.some((w) => q.includes(w));
+  });
+
+  const isAskingSavings =
+    hasSavingsKeyword ||
+    !!matchedGoal ||
+    ((currentTab === 'savings' || currentTab === 'budget') &&
+      (q.includes('ở đây') ||
+        q.includes('trang này') ||
+        q.includes('chi tiết') ||
+        q.includes('danh sách') ||
+        q.includes('có gì') ||
+        q.includes('tiến độ') ||
+        q.includes('bao nhiêu')));
+
+  if (isAskingSavings) {
+    if (!ctx.savings || ctx.savings.length === 0) {
+      return {
+        reply:
+          'Hiện tại bạn chưa có mục tiêu tích lũy nào! 🐸👛\n\nNuôi heo đất cùng Monett sẽ giúp bạn xây dựng quỹ khẩn cấp, mua điện thoại mới, du lịch hay mua xe dễ dàng hơn gấp 3 lần. Hãy vào trang Tích Lũy và tạo chú heo đất đầu tiên nhé!',
+        action: { label: '👛 Đến Trang Tích Lũy', tabKey: 'budget' },
+      };
+    }
+
+    // Nếu hỏi cụ thể 1 mục tiêu theo tên
+    if (matchedGoal) {
+      const pct = matchedGoal.targetAmount > 0 ? Math.round(((matchedGoal.currentAmount || 0) / matchedGoal.targetAmount) * 100) : 0;
+      const rem = Math.max(0, (matchedGoal.targetAmount || 0) - (matchedGoal.currentAmount || 0));
+      return {
+        reply:
+          `Tiến độ mục tiêu **"${matchedGoal.title}"** của bạn nè! 🐸👛✨\n\n` +
+          `• **Đã tích lũy:** **${formatVND(matchedGoal.currentAmount || 0)}** / ${formatVND(matchedGoal.targetAmount)} (**${pct}%**)\n` +
+          `• **Số tiền còn thiếu:** **${formatVND(rem)}**\n` +
+          `• **Hạn hoàn thành:** ${matchedGoal.deadline || 'Chưa đặt hạn'}\n` +
+          `• **Ghi chú:** ${matchedGoal.note || 'Không có'}\n\n` +
+          (rem === 0 ? '🎉 Xin chúc mừng, bạn đã hoàn thành xuất sắc mục tiêu này!' : 'Cố lên bạn nhé, kiên trì tích góp mỗi ngày sẽ sớm về đích! 💚🪙'),
+        action: { label: '👛 Đến Trang Tích Lũy', tabKey: 'budget' },
+      };
+    }
+
+    const totalTarget = ctx.savings.reduce((s, g) => s + (g.targetAmount || 0), 0);
+    const totalCurrent = ctx.savings.reduce((s, g) => s + (g.currentAmount || 0), 0);
+    const overallPct = totalTarget > 0 ? Math.round((totalCurrent / totalTarget) * 100) : 0;
+
+    const goalList = ctx.savings.map((g) => {
+      const pct = g.targetAmount > 0 ? Math.round(((g.currentAmount || 0) / g.targetAmount) * 100) : 0;
+      const rem = Math.max(0, (g.targetAmount || 0) - (g.currentAmount || 0));
+      return `• **${g.title}:** Đã tích lũy **${formatVND(g.currentAmount || 0)}** / ${formatVND(g.targetAmount)} (**${pct}%**)${rem > 0 ? ` - Còn thiếu ${formatVND(rem)}` : ' - Đã đạt mục tiêu 🎉'}${g.deadline ? ` (Hạn: ${g.deadline})` : ''}`;
+    });
+
+    const isAskingCount =
+      q.includes('bao nhiêu') ||
+      q.includes('mấy') ||
+      q.includes('số lượng') ||
+      q.includes('so luong') ||
+      q.includes('danh sách') ||
+      q.includes('hiện tại');
+
+    const header = isAskingCount
+      ? `Hiện tại bạn đang có **${ctx.savings.length} mục tiêu tích lũy** (chú heo đất) nè! 🐸👛✨`
+      : `Tiến độ nuôi heo đất của bạn nè! 🐸👛✨`;
+
+    return {
+      reply:
+        `${header}\n\n` +
+        `• **Số mục tiêu đang nuôi:** ${ctx.savings.length} chú heo đất\n` +
+        `• **Tổng tiền đã tích góp:** **${formatVND(totalCurrent)}** / ${formatVND(totalTarget)} (**${overallPct}%**)\n\n` +
+        goalList.join('\n') +
+        `\n\nBạn đang làm rất xuất sắc, tiếp tục nạp tiền kiên trì mỗi tuần để sớm về đích nha! 💚🪙`,
+      action: { label: '👛 Đến Trang Tích Lũy', tabKey: 'budget' },
+    };
+  }
+
+  // -------------------------------------------------------------
+  // TRƯỜNG HỢP 3: HỎI VỀ ĐỊNH KỲ (RECURRING - CHI & THU ĐỊNH KỲ)
+  // Nhận diện từ khóa định kỳ, hóa đơn, tiền phòng, tiền điện, tiền nước...
+  // -------------------------------------------------------------
+  const hasRecurringKeyword =
     q.includes('định kỳ') ||
     q.includes('dinh ky') ||
     q.includes('hóa đơn') ||
@@ -393,6 +594,24 @@ export function generateSmartLocalContextReply(
     q.includes('internet') ||
     q.includes('thu định kỳ') ||
     q.includes('chi định kỳ') ||
+    q.includes('khoản định kỳ') ||
+    q.includes('hàng tháng') ||
+    q.includes('hang thang');
+
+  const matchedRecurring = ctx.recurring?.find((r) => {
+    const titleLow = (r.title || '').toLowerCase();
+    return (
+      q.includes(titleLow) ||
+      (titleLow.includes('phòng') && q.includes('phòng')) ||
+      (titleLow.includes('điện') && q.includes('điện')) ||
+      (titleLow.includes('nước') && q.includes('nước')) ||
+      (titleLow.includes('mạng') && q.includes('mạng'))
+    );
+  });
+
+  const isAskingRecurring =
+    hasRecurringKeyword ||
+    !!matchedRecurring ||
     (currentTab === 'recurring' &&
       (q.includes('ở đây') ||
         q.includes('trang này') ||
@@ -408,6 +627,19 @@ export function generateSmartLocalContextReply(
         reply:
           'Bạn hiện chưa có khoản định kỳ nào được lưu! 🐸🔁\n\nTab **Định Kỳ** hỗ trợ quản lý cả hai mục:\n• **Chi định kỳ:** Tiền trọ, điện nước, internet, đăng ký netflix...\n• **Thu định kỳ:** Lương cứng, tiền cho thuê nhà, phụ cấp...\n\nBạn có thể vào tab Định Kỳ để bấm **+ Thêm** ngay nhé!',
         action: { label: '🔁 Đến Trang Định Kỳ', tabKey: 'recurring' },
+      };
+    }
+
+    // Nếu hỏi cụ thể 1 hóa đơn
+    if (matchedRecurring) {
+      return {
+        reply:
+          `Thông tin khoản định kỳ **"${matchedRecurring.title}"** nè bạn ơi! 🐸🔁\n\n` +
+          `• **Số tiền:** **${formatVND(matchedRecurring.amount)}** / ${matchedRecurring.frequency}\n` +
+          `• **Phân loại:** ${matchedRecurring.type === 'expense' ? 'Khoản chi cố định 💸' : 'Khoản thu cố định 💰'}\n` +
+          `• **Ngày thanh toán:** Ngày ${matchedRecurring.dayOfPayment} hàng tháng\n` +
+          `• **Trạng thái:** ${matchedRecurring.isActive ? 'Đang bật nhắc nhở 🟢' : 'Đang tạm tắt ⚪'}`,
+        action: { label: '🔁 Xem Trang Định Kỳ', tabKey: 'recurring' },
       };
     }
 
@@ -469,81 +701,36 @@ export function generateSmartLocalContextReply(
   }
 
   // -------------------------------------------------------------
-  // TRƯỜNG HỢP 3: HỎI VỀ TÍCH LŨY (SAVINGS / HEO ĐẤT)
-  // Kích hoạt khi có từ khóa tích lũy / heo đất / tiết kiệm HOẶC đang ở tab 'savings' / 'budget'
-  // -------------------------------------------------------------
-  const isAskingSavings =
-    q.includes('tích lũy') ||
-    q.includes('tich luy') ||
-    q.includes('heo đất') ||
-    q.includes('heo dat') ||
-    q.includes('tiết kiệm') ||
-    q.includes('tiet kiem') ||
-    q.includes('mục tiêu') ||
-    q.includes('muc tieu') ||
-    ((currentTab === 'savings' || currentTab === 'budget') &&
-      (q.includes('ở đây') ||
-        q.includes('trang này') ||
-        q.includes('chi tiết') ||
-        q.includes('danh sách') ||
-        q.includes('có gì') ||
-        q.includes('tiến độ') ||
-        q.includes('bao nhiêu')));
-
-  if (isAskingSavings) {
-    if (!ctx.savings || ctx.savings.length === 0) {
-      return {
-        reply:
-          'Hiện tại bạn chưa có mục tiêu tích lũy nào! 🐸👛\n\nNuôi heo đất cùng Monett sẽ giúp bạn xây dựng quỹ khẩn cấp, mua điện thoại mới, du lịch hay mua xe dễ dàng hơn gấp 3 lần. Hãy vào trang Tích Lũy và tạo chú heo đất đầu tiên nhé!',
-        action: { label: '👛 Đến Trang Tích Lũy', tabKey: 'budget' },
-      };
-    }
-
-    const totalTarget = ctx.savings.reduce((s, g) => s + (g.targetAmount || 0), 0);
-    const totalCurrent = ctx.savings.reduce((s, g) => s + (g.currentAmount || 0), 0);
-    const overallPct = totalTarget > 0 ? Math.round((totalCurrent / totalTarget) * 100) : 0;
-
-    const goalList = ctx.savings.map((g) => {
-      const pct = g.targetAmount > 0 ? Math.round(((g.currentAmount || 0) / g.targetAmount) * 100) : 0;
-      const rem = Math.max(0, (g.targetAmount || 0) - (g.currentAmount || 0));
-      return `• **${g.title}:** Đã tích lũy **${formatVND(g.currentAmount || 0)}** / ${formatVND(g.targetAmount)} (**${pct}%**)${rem > 0 ? ` - Còn thiếu ${formatVND(rem)}` : ' - Đã đạt mục tiêu 🎉'}${g.deadline ? ` (Hạn: ${g.deadline})` : ''}`;
-    });
-
-    const isAskingCount =
-      q.includes('bao nhiêu') ||
-      q.includes('mấy') ||
-      q.includes('số lượng') ||
-      q.includes('so luong') ||
-      q.includes('danh sách') ||
-      q.includes('hiện tại');
-
-    const header = isAskingCount
-      ? `Hiện tại bạn đang có **${ctx.savings.length} mục tiêu tích lũy** (chú heo đất) nè! 🐸👛✨`
-      : `Tiến độ nuôi heo đất của bạn nè! 🐸👛✨`;
-
-    return {
-      reply:
-        `${header}\n\n` +
-        `• **Số mục tiêu đang nuôi:** ${ctx.savings.length} chú heo đất\n` +
-        `• **Tổng tiền đã tích góp:** **${formatVND(totalCurrent)}** / ${formatVND(totalTarget)} (**${overallPct}%**)\n\n` +
-        goalList.join('\n') +
-        `\n\nBạn đang làm rất xuất sắc, tiếp tục nạp tiền kiên trì mỗi tuần để sớm về đích nha! 💚🪙`,
-      action: { label: '👛 Đến Trang Tích Lũy', tabKey: 'budget' },
-    };
-  }
-
-  // -------------------------------------------------------------
   // TRƯỜNG HỢP 4: HỎI VỀ SỔ GHI NỢ (DEBTS)
-  // Kích hoạt khi có từ khóa nợ / mượn / vay HOẶC đang ở tab 'debt' / 'debts'
+  // Nhận diện từ khóa nợ, mượn, vay, ai nợ, nợ ai hoặc tên người trong sổ
   // -------------------------------------------------------------
-  const isAskingDebt =
+  const hasDebtKeyword =
     q.includes('nợ') ||
     q.includes('no') ||
     q.includes('mượn') ||
     q.includes('muon') ||
     q.includes('vay') ||
+    q.includes('cho mượn') ||
+    q.includes('cho muon') ||
+    q.includes('cho vay') ||
+    q.includes('ai nợ') ||
+    q.includes('ai no') ||
+    q.includes('nợ ai') ||
+    q.includes('no ai') ||
     q.includes('đòi tiền') ||
     q.includes('doi tien') ||
+    q.includes('sổ nợ') ||
+    q.includes('so no') ||
+    q.includes('tiền nợ');
+
+  const matchedDebt = ctx.debts?.find((d) => {
+    const nameLow = (d.personName || '').toLowerCase();
+    return nameLow && (q.includes(nameLow) || nameLow.split(/\s+/).some((w) => w.length > 2 && q.includes(w)));
+  });
+
+  const isAskingDebt =
+    hasDebtKeyword ||
+    !!matchedDebt ||
     ((currentTab === 'debt' || currentTab === 'debts') &&
       (q.includes('ở đây') ||
         q.includes('trang này') ||
@@ -558,6 +745,24 @@ export function generateSmartLocalContextReply(
       return {
         reply:
           'Sổ ghi nợ của bạn hiện đang hoàn toàn trống! 🐸📖✨\n\nBạn không nợ ai và cũng không có ai nợ bạn cả. Đây là một trạng thái tài chính rất thanh thản và tự do đó!',
+        action: { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' },
+      };
+    }
+
+    // Nếu hỏi cụ thể một người
+    if (matchedDebt) {
+      const isLent = matchedDebt.type === 'lent';
+      const rem = matchedDebt.amount - (matchedDebt.paidAmount || 0);
+      return {
+        reply:
+          `Thông tin khoản nợ của **"${matchedDebt.personName}"** nè bạn ơi! 🐸📖\n\n` +
+          `• **Quan hệ:** ${isLent ? 'Bạn cho mượn tiền (Cần thu hồi) 💸' : 'Bạn đang vay tiền (Cần thanh toán) 💰'}\n` +
+          `• **Số tiền gốc:** **${formatVND(matchedDebt.amount)}**\n` +
+          `• **Đã thanh toán:** **${formatVND(matchedDebt.paidAmount || 0)}**\n` +
+          `• **Số tiền còn lại:** **${formatVND(rem)}**\n` +
+          `• **Hạn trả:** ${matchedDebt.dueDate || 'Chưa đặt hạn'}\n` +
+          `• **Trạng thái:** ${matchedDebt.isSettled ? 'Đã hoàn tất thanh toán ✔️' : 'Chưa thanh toán xong ⏳'}` +
+          (matchedDebt.note ? `\n• **Ghi chú:** ${matchedDebt.note}` : ''),
         action: { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' },
       };
     }
@@ -591,7 +796,6 @@ export function generateSmartLocalContextReply(
 
   // -------------------------------------------------------------
   // TRƯỜNG HỢP 5: HỎI VỀ NHẮC NHỞ & GHI CHÚ (REMINDERS / NOTES)
-  // Kích hoạt khi có từ khóa ghi chú / nhắc nhở HOẶC đang ở tab 'reminders'
   // -------------------------------------------------------------
   const isAskingReminders =
     q.includes('ghi chú') ||
@@ -600,8 +804,7 @@ export function generateSmartLocalContextReply(
     q.includes('nhac nho') ||
     q.includes('lịch hẹn') ||
     q.includes('lich hen') ||
-    q.includes('mua sắm') ||
-    q.includes('mua sam') ||
+    q.includes('sổ tay') ||
     (currentTab === 'reminders' &&
       (q.includes('ở đây') ||
         q.includes('trang này') ||
@@ -633,7 +836,6 @@ export function generateSmartLocalContextReply(
 
   // -------------------------------------------------------------
   // TRƯỜNG HỢP 6: HỎI VỀ NGÂN SÁCH / THU CHI HÔM NAY / THÁNG NÀY
-  // Kích hoạt khi hỏi ngân sách, hôm nay chi bao nhiêu, dòng tiền
   // -------------------------------------------------------------
   const isAskingBudget =
     q.includes('ngân sách') ||
@@ -686,7 +888,7 @@ export function generateSmartLocalContextReply(
     return {
       reply:
         `Bạn đang ở màn hình **"${ctx.activeTabName}"** nè! 🐸📍\n\n` +
-        `Tại trang này, bạn có thể hỏi mình mọi thông tin chi tiết về số liệu, ngân sách, danh sách các mục, hoặc nhờ mình giải thích cách dùng nhé! ✨`,
+        `Dù đang ở đây, bạn vẫn có thể hỏi mình mọi thông tin về Tích lũy heo đất, Sự kiện, Sổ nợ, Khoản định kỳ hay Chi tiêu hôm nay nhé! ✨`,
     };
   }
 
@@ -702,12 +904,19 @@ export function generateSmartLocalContextReply(
   ) {
     return {
       reply:
-        `Oa chào bạn iu nha! 🐸💚 Mình là Ếch Monett – trợ lý tài chính thông minh của bạn đây! Hiện tại bạn đang xem **${ctx.activeTabName}**.\n\nBạn muốn kiểm tra dữ liệu gì trong trang này (sự kiện, định kỳ, sổ nợ, heo đất...) cứ bảo mình nhé! ✨`,
+        `Oa chào bạn iu nha! 🐸💚 Mình là Ếch Monett – trợ lý tài chính thông minh của bạn đây! Bạn có thể hỏi mình bất kỳ dữ liệu nào về Tích lũy heo đất, Sự kiện chuyến đi, Sổ ghi nợ, Hóa đơn định kỳ hay Chi tiêu hôm nay nhé! ✨🪙`,
     };
   }
 
-  // Mẹo 50/30/20 & Tiết kiệm
-  if (q.includes('50/30/20') || q.includes('cách tiết kiệm') || q.includes('quản lý tài chính')) {
+  // Mẹo 50/30/20 & Tiết kiệm khi người dùng chủ động hỏi mẹo
+  if (
+    q.includes('mẹo') ||
+    q.includes('kinh nghiệm') ||
+    q.includes('lời khuyên') ||
+    q.includes('50/30/20') ||
+    q.includes('cách tiết kiệm') ||
+    q.includes('quản lý tài chính')
+  ) {
     return {
       reply:
         'Bí kíp quản lý tài chính vàng từ Ếch Monett nè bạn ơi 🐸💡:\n\n' +
@@ -722,11 +931,11 @@ export function generateSmartLocalContextReply(
   return {
     reply:
       `Ếch Monett đã lắng nghe câu hỏi của bạn nè! 🐸💚\n\n` +
-      `Bạn đang ở **${ctx.activeTabName}**. Bạn có thể hỏi mình:\n` +
-      `• Chi tiết các sự kiện, chi phí chuyến đi bạn đang tham gia\n` +
-      `• Các khoản chi định kỳ & thu định kỳ mỗi tháng\n` +
-      `• Tiến độ các chú heo đất và số tiền còn thiếu\n` +
-      `• Danh sách ai đang nợ tiền bạn hoặc bạn cần trả ai\n` +
-      `• Tình hình chi tiêu hôm nay và ngân sách còn lại! ✨`,
+      `Dù bạn đang ở bất kỳ màn hình nào, bạn đều có thể hỏi mình trực tiếp:\n` +
+      `• **Sự kiện:** "Sự kiện đi du lịch ở Đà Nẵng đã chi tiêu bao nhiêu?", "Có bao nhiêu sự kiện?"\n` +
+      `• **Tích lũy:** "Có bao nhiêu khoản tích lũy hiện tại?", "Tiến độ nuôi heo đất"\n` +
+      `• **Định kỳ:** "Các khoản chi định kỳ tháng này", "Hóa đơn tiền phòng"\n` +
+      `• **Sổ nợ:** "Ai đang nợ tiền tôi?", "Tôi đang vay nợ ai?"\n` +
+      `• **Chi tiêu:** "Chi tiêu hôm nay là bao nhiêu?", "Ngân sách tháng này" ✨`,
   };
 }

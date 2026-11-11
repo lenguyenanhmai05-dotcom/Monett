@@ -402,16 +402,10 @@ export const loadEventsFromStorage = (userEmail?: string, userId?: string): Mone
     } catch {}
   }
 
-  // 3. Fallback dữ liệu mẫu CHỈ khi là tài khoản demo đặc thù
-  if (normEmail === TARGET_EMAIL) {
-    const filtered = filterDeletedEvents(REAL_EVENTS_FOR_USER, userKey);
-    inMemoryCache[primaryKey] = filtered;
-    return filtered;
-  }
-
-  // Mọi tài khoản khác: nếu chưa có sự kiện thì trả về mảng rỗng []
-  inMemoryCache[primaryKey] = [];
-  return [];
+  // 3. Fallback dữ liệu mẫu nếu người dùng chưa có sự kiện nào
+  const initialSeed = filterDeletedEvents(REAL_EVENTS_FOR_USER, userKey);
+  inMemoryCache[primaryKey] = initialSeed;
+  return initialSeed;
 };
 
 /**

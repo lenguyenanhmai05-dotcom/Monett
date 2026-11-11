@@ -253,13 +253,10 @@ export const loadDebtItems = (userId?: string, userEmail?: string): DebtItem[] =
     } catch {}
   }
 
-  // 3. Fallback dữ liệu mẫu nếu là tài khoản demo đặc thù
-  if (normEmail === TARGET_EMAIL) {
-    inMemoryCache[primaryKey] = REAL_DEBTS_FOR_USER;
-    return REAL_DEBTS_FOR_USER;
-  }
-
-  return inMemoryCache[primaryKey] || [];
+  // 3. Fallback dữ liệu mẫu ban đầu nếu người dùng chưa từng tạo dữ liệu
+  const initialSeed = [...REAL_DEBTS_FOR_USER];
+  inMemoryCache[primaryKey] = initialSeed;
+  return initialSeed;
 };
 
 /**

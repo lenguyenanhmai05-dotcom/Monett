@@ -54,11 +54,10 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
         if (dto.pageContext && dto.pageContext.trim()) {
           dynamicInstruction += `\n--- DỮ LIỆU TÀI CHÍNH THỰC TẾ TRONG HỆ THỐNG CỦA NGƯỜI DÙNG ---\n${dto.pageContext.trim()}\n--------------------------------------------------------------\n`;
           dynamicInstruction += `\nQUY TẮC BẮT BUỘC KHI TRẢ LỜI CÂU HỎI VỀ DỮ LIỆU:
-1. Khi người dùng hỏi về màn hình hiện tại (ví dụ: "ở trang này có gì", "tôi có sự kiện nào", "chi tiết các khoản nợ", "tổng chi tiêu", "tiến độ mục tiêu", "các khoản định kỳ"...):
-   -> Bạn PHẢI sử dụng trực tiếp các số liệu, tên sự kiện, tên mục tiêu, tên người nợ, số tiền trong VND, ngày tháng từ "DỮ LIỆU TÀI CHÍNH THỰC TẾ" ở trên để trả lời cụ thể, chính xác từng chi tiết cho người dùng!
-2. Tuyệt đối KHÔNG trả lời chung chung hoặc bảo người dùng "hãy tự vào trang để xem" khi thông tin đã có sẵn trong dữ liệu trên.
-3. Nếu người dùng hỏi một trang khác với trang đang đứng (ví dụ đang ở Sự kiện nhưng hỏi về Sổ nợ hay Heo đất), nếu dữ liệu trên có thông tin thì trả lời ngay và có thể gợi ý chuyển sang trang đó.
-4. Giữ phong cách chú Ếch Monett 🐸💚 vui vẻ, lễ phép, dùng emoji sinh động và định dạng số tiền rõ ràng (VD: 1.000.000 đ).\n`;
+1. NGUYÊN TẮC HỎI ĐÁP TOÀN DIỆN (CROSS-TAB): Người dùng có thể đứng ở BẤT KỲ màn hình nào (kể cả Trang chủ / Tổng quan, Báo cáo, Cá nhân,...) và hỏi về BẤT KỲ dữ liệu nào của ứng dụng (Sự kiện, Tích lũy & Heo đất, Sổ ghi nợ, Khoản định kỳ, Thu chi hôm nay, Ngân sách tháng).
+2. Bạn PHẢI LUÔN tra cứu toàn bộ phần "DỮ LIỆU TÀI CHÍNH THỰC TẾ TRONG HỆ THỐNG CỦA NGƯỜI DÙNG" ở trên để trả lời trực tiếp, đầy đủ số liệu, tên sự kiện/mục tiêu/người nợ/khoản chi và số tiền (định dạng VND, ví dụ 150.000 đ).
+3. TUYỆT ĐỐI KHÔNG bắt người dùng phải tự mở trang đó để xem, và KHÔNG trả lời chung chung khi dữ liệu đã có sẵn trong bối cảnh.
+4. Giữ phong cách chú Ếch Monett 🐸💚 vui vẻ, lễ phép, dùng emoji sinh động và khích lệ người dùng.\n`;
         }
 
         const rawModel = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').replace(/['"]/g, '').trim();
@@ -110,91 +109,198 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
     dto?: ChatAiDto
   ): { reply: string; action?: { label: string; tabKey: string } } {
     const q = query.toLowerCase().trim();
+    const pCtx = dto?.pageContext || '';
 
-    // Kiểm tra nếu trong pageContext có dữ liệu thực tế phù hợp với câu hỏi
-    if (dto?.pageContext && dto.pageContext.trim()) {
-      const pCtx = dto.pageContext;
+    // =========================================================================
+    // TRA CỨU DỮ LIỆU THỰC TẾ XUYÊN SUỐT CÁC MÀN HÌNH (CROSS-TAB DATA LOOKUP)
+    // Người dùng đứng ở bất kỳ trang nào cũng nhận được câu trả lời chính xác 100%!
+    // =========================================================================
 
-      // 1. Tích lũy & Heo đất
-      if (
-        q.includes('tích lũy') ||
-        q.includes('tich luy') ||
-        q.includes('heo đất') ||
-        q.includes('mục tiêu') ||
-        dto.activeTab === 'savings' ||
-        dto.activeTab === 'budget'
-      ) {
-        if (pCtx.includes('TÍCH LŨY & HEO ĐẤT')) {
-          const match = pCtx.match(/👛 TÍCH LŨY & HEO ĐẤT \(([^)]+)\):([\s\S]*?)(?=\n\n[🔁📅📖⏰📊🧾]|$)/);
-          if (match) {
-            return {
-              reply: `Tiến độ nuôi heo đất của bạn nè! 🐸👛✨\n\n• Hiện tại: **${match[1]}**\n\n${match[2].trim()}`,
-              action: { label: '👛 Đến Trang Tích Lũy', tabKey: 'budget' },
-            };
-          }
+    // 1. SỰ KIỆN TÀI CHÍNH (EVENTS)
+    const isAskingEvents =
+      q.includes('sự kiện') ||
+      q.includes('su kien') ||
+      q.includes('event') ||
+      q.includes('du lịch') ||
+      q.includes('du lich') ||
+      q.includes('đi chơi') ||
+      q.includes('di choi') ||
+      q.includes('chuyến đi') ||
+      q.includes('chuyen di') ||
+      q.includes('cắm trại') ||
+      q.includes('cam trai') ||
+      q.includes('tiệc') ||
+      q.includes('tiec') ||
+      q.includes('liên hoan') ||
+      q.includes('đà nẵng') ||
+      q.includes('da nang') ||
+      q.includes('đà lạt') ||
+      q.includes('da lat') ||
+      q.includes('phú quốc') ||
+      q.includes('phu quoc') ||
+      dto?.activeTab === 'events';
+
+    if (isAskingEvents && pCtx.includes('DANH SÁCH SỰ KIỆN TÀI CHÍNH')) {
+      const matchBlock = pCtx.match(/📅 DANH SÁCH SỰ KIỆN TÀI CHÍNH \(([^)]+)\):([\s\S]*?)(?=\n\n[👛🔁📖⏰📊🧾]|$)/);
+      if (matchBlock) {
+        const eventsText = matchBlock[2].trim();
+        // Kiểm tra xem người dùng có hỏi cụ thể sự kiện nào không (VD: Đà Nẵng, Đà Lạt, Phú Quốc, cắm trại...)
+        const eventItems = eventsText.split(/(?=\s*\d+\.\s+Tên sự kiện:)/);
+        const specificEvent = eventItems.find((item) => {
+          const itemLow = item.toLowerCase();
+          return (
+            (q.includes('đà nẵng') || q.includes('da nang')) && itemLow.includes('đà nẵng') ||
+            (q.includes('đà lạt') || q.includes('da lat')) && itemLow.includes('đà lạt') ||
+            (q.includes('phú quốc') || q.includes('phu quoc')) && itemLow.includes('phú quốc') ||
+            (q.includes('cắm trại') || q.includes('cam trai')) && itemLow.includes('cắm trại')
+          );
+        });
+
+        if (specificEvent) {
+          return {
+            reply: `Chào bạn iu, Chú Ếch Monett 🐸💚 đã kiểm tra ngay sự kiện cho bạn rồi nè!\n\n${specificEvent.trim()}`,
+            action: { label: '📅 Xem Chi Tiết Sự Kiện', tabKey: 'events' },
+          };
         }
-      }
 
-      // 2. Sự kiện
-      if (
-        q.includes('sự kiện') ||
-        q.includes('su kien') ||
-        q.includes('event') ||
-        q.includes('du lịch') ||
-        q.includes('đi chơi') ||
-        dto.activeTab === 'events'
-      ) {
-        if (pCtx.includes('DANH SÁCH SỰ KIỆN TÀI CHÍNH')) {
-          const match = pCtx.match(/📅 DANH SÁCH SỰ KIỆN TÀI CHÍNH \(([^)]+)\):([\s\S]*?)(?=\n\n[👛🔁📖⏰📊🧾]|$)/);
-          if (match) {
-            return {
-              reply: `Thông tin sự kiện tài chính của bạn nè! 🐸📅\n\n• **${match[1]}**\n\n${match[2].trim()}`,
-              action: { label: '📅 Đến Trang Sự Kiện', tabKey: 'events' },
-            };
-          }
-        }
-      }
-
-      // 3. Định kỳ
-      if (
-        q.includes('định kỳ') ||
-        q.includes('dinh ky') ||
-        q.includes('hóa đơn') ||
-        q.includes('tiền phòng') ||
-        q.includes('tiền trọ') ||
-        dto.activeTab === 'recurring'
-      ) {
-        if (pCtx.includes('KHOẢN ĐỊNH KỲ CỐ ĐỊNH')) {
-          const match = pCtx.match(/🔁 KHOẢN ĐỊNH KỲ CỐ ĐỊNH:([\s\S]*?)(?=\n\n[👛📅📖⏰📊🧾]|$)/);
-          if (match) {
-            return {
-              reply: `Báo cáo các khoản định kỳ của bạn nè! 🐸🔁\n${match[1].trim()}`,
-              action: { label: '🔁 Đến Trang Định Kỳ', tabKey: 'recurring' },
-            };
-          }
-        }
-      }
-
-      // 4. Sổ ghi nợ
-      if (
-        q.includes('nợ') ||
-        q.includes('cho mượn') ||
-        q.includes('vay') ||
-        q.includes('ai nợ') ||
-        dto.activeTab === 'debts' ||
-        dto.activeTab === 'debt'
-      ) {
-        if (pCtx.includes('SỔ GHI NỢ')) {
-          const match = pCtx.match(/📖 SỔ GHI NỢ:([\s\S]*?)(?=\n\n[👛📅🔁⏰📊🧾]|$)/);
-          if (match) {
-            return {
-              reply: `Chi tiết sổ ghi nợ của bạn nè! 🐸📖\n${match[1].trim()}`,
-              action: { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' },
-            };
-          }
-        }
+        return {
+          reply: `Thông tin sự kiện tài chính của bạn nè! 🐸📅\n\n• **${matchBlock[1]}**\n\n${eventsText}`,
+          action: { label: '📅 Đến Trang Sự Kiện', tabKey: 'events' },
+        };
       }
     }
+
+    // 2. TÍCH LŨY & HEO ĐẤT (SAVINGS)
+    const isAskingSavings =
+      q.includes('tích lũy') ||
+      q.includes('tich luy') ||
+      q.includes('tiết kiệm') ||
+      q.includes('tiet kiem') ||
+      q.includes('heo đất') ||
+      q.includes('heo dat') ||
+      q.includes('mục tiêu') ||
+      q.includes('muc tieu') ||
+      q.includes('nuôi heo') ||
+      q.includes('quỹ dự phòng') ||
+      q.includes('macbook') ||
+      dto?.activeTab === 'savings' ||
+      dto?.activeTab === 'budget';
+
+    if (isAskingSavings && pCtx.includes('TÍCH LŨY & HEO ĐẤT')) {
+      const match = pCtx.match(/👛 TÍCH LŨY & HEO ĐẤT \(([^)]+)\):([\s\S]*?)(?=\n\n[🔁📅📖⏰📊🧾]|$)/);
+      if (match) {
+        const isCount = q.includes('bao nhiêu') || q.includes('mấy') || q.includes('số lượng') || q.includes('danh sách');
+        const header = isCount
+          ? `Hiện tại bạn đang có **${match[1]}** nè! 🐸👛✨`
+          : `Tiến độ nuôi heo đất của bạn nè! 🐸👛✨ (Đã đạt: **${match[1]}**)`;
+        return {
+          reply: `${header}\n\n${match[2].trim()}`,
+          action: { label: '👛 Đến Trang Tích Lũy', tabKey: 'budget' },
+        };
+      }
+    }
+
+    // 3. ĐỊNH KỲ (RECURRING - CHI & THU ĐỊNH KỲ)
+    const isAskingRecurring =
+      q.includes('định kỳ') ||
+      q.includes('dinh ky') ||
+      q.includes('hóa đơn') ||
+      q.includes('hoa don') ||
+      q.includes('tiền phòng') ||
+      q.includes('tiền trọ') ||
+      q.includes('tiền nhà') ||
+      q.includes('tiền điện') ||
+      q.includes('tiền nước') ||
+      q.includes('tiền mạng') ||
+      q.includes('internet') ||
+      q.includes('thu định kỳ') ||
+      q.includes('chi định kỳ') ||
+      q.includes('khoản định kỳ') ||
+      q.includes('hàng tháng') ||
+      dto?.activeTab === 'recurring';
+
+    if (isAskingRecurring && pCtx.includes('KHOẢN ĐỊNH KỲ CỐ ĐỊNH')) {
+      const match = pCtx.match(/🔁 KHOẢN ĐỊNH KỲ CỐ ĐỊNH:([\s\S]*?)(?=\n\n[👛📅📖⏰📊🧾]|$)/);
+      if (match) {
+        return {
+          reply: `Báo cáo các khoản định kỳ của bạn nè! 🐸🔁\n${match[1].trim()}`,
+          action: { label: '🔁 Đến Trang Định Kỳ', tabKey: 'recurring' },
+        };
+      }
+    }
+
+    // 4. SỔ GHI NỢ (DEBTS)
+    const isAskingDebt =
+      q.includes('nợ') ||
+      q.includes('no') ||
+      q.includes('mượn') ||
+      q.includes('muon') ||
+      q.includes('vay') ||
+      q.includes('cho mượn') ||
+      q.includes('cho vay') ||
+      q.includes('ai nợ') ||
+      q.includes('nợ ai') ||
+      q.includes('đòi tiền') ||
+      q.includes('sổ nợ') ||
+      dto?.activeTab === 'debts' ||
+      dto?.activeTab === 'debt';
+
+    if (isAskingDebt && pCtx.includes('SỔ GHI NỢ')) {
+      const match = pCtx.match(/📖 SỔ GHI NỢ:([\s\S]*?)(?=\n\n[👛📅🔁⏰📊🧾]|$)/);
+      if (match) {
+        return {
+          reply: `Chi tiết Sổ Ghi Nợ của bạn nè! 🐸📖\n${match[1].trim()}`,
+          action: { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' },
+        };
+      }
+    }
+
+    // 5. NGÂN SÁCH THÁNG & CHI TIÊU HÔM NAY (BUDGET & TODAY)
+    const isAskingBudget =
+      q.includes('hôm nay') ||
+      q.includes('hom nay') ||
+      q.includes('chi tiêu hôm nay') ||
+      q.includes('ngân sách') ||
+      q.includes('ngan sach') ||
+      q.includes('hạn mức') ||
+      q.includes('còn lại') ||
+      q.includes('lương');
+
+    if (isAskingBudget && (pCtx.includes('NGÂN SÁCH THÁNG') || pCtx.includes('CHI TIÊU HÔM NAY'))) {
+      const bMatch = pCtx.match(/📊 NGÂN SÁCH THÁNG[^:]*:([\s\S]*?)(?=\n\n[👛📅🔁📖⏰🧾]|$)/);
+      const tMatch = pCtx.match(/🧾 CHI TIÊU HÔM NAY[^:]*:([\s\S]*?)(?=\n\n[👛📅🔁📖⏰📊]|$)/);
+      let resText = 'Báo cáo ngân sách & chi tiêu của bạn nè! 🐸📊\n\n';
+      if (bMatch) resText += `• **Ngân sách tháng:**\n${bMatch[1].trim()}\n\n`;
+      if (tMatch) resText += `• **Hôm nay:**\n${tMatch[1].trim()}`;
+      return {
+        reply: resText.trim(),
+        action: { label: '⊞ Đến Trang Tổng Quan', tabKey: 'home' },
+      };
+    }
+
+    // 6. GHI CHÚ & NHẮC NHỞ (NOTES & REMINDERS)
+    const isAskingReminders =
+      q.includes('nhắc nhở') ||
+      q.includes('nhac nho') ||
+      q.includes('ghi chú') ||
+      q.includes('ghi chu') ||
+      q.includes('lịch hẹn') ||
+      q.includes('sổ tay') ||
+      dto?.activeTab === 'reminders';
+
+    if (isAskingReminders && pCtx.includes('SỔ TAY GHI CHÚ')) {
+      const match = pCtx.match(/⏰ SỔ TAY GHI CHÚ[^:]*:([\s\S]*?)(?=\n\n[👛📅🔁📖📊🧾]|$)/);
+      if (match) {
+        return {
+          reply: `Danh sách ghi chú & nhắc nhở của bạn nè! 🐸⏰\n\n${match[1].trim()}`,
+          action: { label: '⏰ Đến Trang Nhắc Nhở', tabKey: 'reminders' },
+        };
+      }
+    }
+
+    // =========================================================================
+    // CÁC TRƯỜNG HỢP GIAO TIẾP XÃ GIAO / TƯ VẤN MẸO
+    // =========================================================================
 
     // 1. Chào hỏi thân mật
     if (
@@ -210,7 +316,7 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
     ) {
       return {
         reply:
-          'Oa chào bạn iu nha! 🐸💚 Mình là Ếch Monett – trợ lý tài chính thông minh của bạn đây! Hôm nay ví tiền của bạn có "khỏe" không nè? Bạn muốn ghi chép chi tiêu, kiểm tra mục tiêu tiết kiệm hay cần mình tư vấn mẹo gì cứ bảo mình nhé! ✨',
+          'Oa chào bạn iu nha! 🐸💚 Mình là Ếch Monett – trợ lý tài chính thông minh của bạn đây! Bạn có thể hỏi mình bất kỳ dữ liệu nào về Tích lũy heo đất, Sự kiện đi chơi, Sổ ghi nợ, Hóa đơn định kỳ hay Chi tiêu hôm nay nhé! ✨🪙',
       };
     }
 
@@ -218,17 +324,17 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
     if (q.includes('bạn là ai') || q.includes('ban la ai') || q.includes('tên gì') || q.includes('ten gi')) {
       return {
         reply:
-          'Mình là chú Ếch Monett 🐸 – linh vật may mắn và trợ lý tài chính đồng hành cùng bạn trên mọi nẻo đường chi tiêu! Mình có thể giúp bạn kiểm soát dòng tiền, nhắc nhở trả nợ và cùng bạn nuôi heo đất siêu to khổng lồ luôn! 🪙✨',
+          'Mình là chú Ếch Monett 🐸 – linh vật may mắn và trợ lý tài chính đồng hành cùng bạn trên mọi nẻo đường chi tiêu! Dù bạn đang ở bất kỳ trang nào, bạn đều có thể hỏi mình về Sự kiện, Tích lũy, Sổ nợ, Định kỳ hay Ngân sách nhé! 🪙✨',
       };
     }
 
-    // 3. Mẹo tiết kiệm & Quản lý tài chính
+    // 3. Mẹo tiết kiệm & Quản lý tài chính khi người dùng chủ động hỏi mẹo
     if (
-      q.includes('tiết kiệm') ||
-      q.includes('tiet kiem') ||
+      q.includes('mẹo') ||
+      q.includes('kinh nghiệm') ||
+      q.includes('lời khuyên') ||
       q.includes('cách quản lý') ||
       q.includes('cach quan ly') ||
-      q.includes('lương') ||
       q.includes('50/30/20') ||
       q.includes('het tien') ||
       q.includes('hết tiền')
@@ -243,43 +349,7 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
       };
     }
 
-    // 4. Mẹo ăn uống / Đi chơi tiết kiệm
-    if (q.includes('ăn gì') || q.includes('an gi') || q.includes('du lịch') || q.includes('di choi') || q.includes('đi chơi')) {
-      return {
-        reply:
-          'Đi ăn hay đi chơi cùng hội bạn thân thì vui hết sảy, nhưng nhớ dùng tính năng **Sự Kiện** của Monett để gom hóa đơn và chia tiền minh bạch, tránh cảnh "ngại đòi tiền" nha bạn ơi! 🐸🍕',
-        action: { label: '📅 Đến Trang Sự Kiện', tabKey: 'events' },
-      };
-    }
-
-    // 5. Quên đóng tiền / Hóa đơn
-    if (q.includes('quên') || q.includes('hoa don') || q.includes('hóa đơn') || q.includes('tiền điện') || q.includes('tiền trọ')) {
-      return {
-        reply:
-          'Đừng để bị cắt điện hay chủ nhà nhắc nhở nè! 🐸 Bạn hãy vào tab **Định Kỳ** để lên lịch sẵn các hóa đơn cố định, Monett sẽ chủ động nhắc bạn đúng hạn!',
-        action: { label: '🔁 Đến Trang Định Kỳ', tabKey: 'recurring' },
-      };
-    }
-
-    // 6. Cho mượn tiền / Đòi nợ
-    if (q.includes('đòi nợ') || q.includes('doi no') || q.includes('cho mượn') || q.includes('cho muon') || q.includes('ai nợ')) {
-      return {
-        reply:
-          'Tiền bạc phân minh, tình cảm bền lâu! 🐸📖 Mọi khoản cho bạn bè mượn hay tiền bạn đang vay hãy ghi ngay vào **Sổ Ghi Nợ** để theo dõi số tiền còn lại và đánh dấu khi thanh toán xong nhé!',
-        action: { label: '📖 Đến Trang Sổ Ghi Nợ', tabKey: 'debts' },
-      };
-    }
-
-    // 7. Nhắc việc / Ghi chú
-    if (q.includes('nhắc nhở') || q.includes('nhac nho') || q.includes('ghi chú') || q.includes('ghi chu') || q.includes('lịch hẹn')) {
-      return {
-        reply:
-          'Trang **Nhắc Nhở & Ghi Chú** mới được nâng cấp cực kỳ xịn sò đó bạn! Bạn có thể đặt chuông báo hẹn giờ hoặc viết sổ tay cá nhân lưu lại mọi ý tưởng hay ho nè 🐸📝',
-        action: { label: '⏰ Đến Trang Nhắc Nhở', tabKey: 'reminders' },
-      };
-    }
-
-    // 8. Khen ngợi / Cảm xúc
+    // 4. Khen ngợi / Cảm xúc
     if (q.includes('giỏi') || q.includes('dễ thương') || q.includes('cute') || q.includes('cảm ơn') || q.includes('cam on') || q.includes('thank')) {
       return {
         reply:
@@ -287,14 +357,17 @@ Bạn là Chú Ếch Monett 🐸💚 – linh vật kiêm Trợ lý Tài chính 
       };
     }
 
-    // 9. Phản hồi chung gợi mở
+    // 5. Phản hồi chung gợi mở
     return {
       reply:
         'Ếch Monett đã nghe rõ câu hỏi của bạn nè! 🐸💚\n\n' +
-        'Bạn có thể hỏi mình về:\n' +
-        '• Mẹo tiết kiệm & phân bổ chi tiêu (quy tắc 50/30/20)\n' +
-        '• Hướng dẫn sử dụng các tính năng trong Monett (Tích lũy, Sổ nợ, Định kỳ, Sự kiện)\n' +
-        '• Hoặc bấm vào các lối tắt bên dưới để mình dẫn đường trực tiếp nhé! ✨',
+        'Dù bạn đang ở bất kỳ màn hình nào, bạn đều có thể hỏi mình trực tiếp về:\n' +
+        '• **Sự kiện:** "Sự kiện đi du lịch ở Đà Nẵng đã chi tiêu bao nhiêu?", "Danh sách các sự kiện"\n' +
+        '• **Tích lũy:** "Có bao nhiêu khoản tích lũy hiện tại?", "Tiến độ nuôi heo đất"\n' +
+        '• **Định kỳ:** "Các khoản chi định kỳ tháng này", "Hóa đơn tiền phòng"\n' +
+        '• **Sổ nợ:** "Ai đang nợ tiền tôi?", "Tôi đang vay nợ ai?"\n' +
+        '• **Chi tiêu:** "Chi tiêu hôm nay là bao nhiêu?", "Ngân sách tháng này"\n\n' +
+        'Hãy đặt câu hỏi để mình kiểm tra số liệu ngay cho bạn nhé! ✨',
     };
   }
 }

@@ -24,7 +24,12 @@ import {
   collectUserFinancialContext,
   buildAiPromptContext,
   generateSmartLocalContextReply,
+  preloadAllFinancialData,
 } from '../services/aiContext';
+import { subscribeEventsUpdates } from '../services/eventsStorage';
+import { subscribeSavingsUpdates } from '../services/savingsStorage';
+import { subscribeDebtUpdates } from '../services/debtStorage';
+import { subscribeRecurringUpdates } from '../services/recurringStorage';
 
 interface ChatMessage {
   id: string;
@@ -255,6 +260,23 @@ export const FloatingFrogAIChat: React.FC<FloatingFrogAIChatProps> = ({ onNaviga
       isMounted = false;
     };
   }, [storageKey]);
+
+  // Tải trước và đồng bộ toàn diện dữ liệu tài chính của người dùng từ API & Storage
+  useEffect(() => {
+    preloadAllFinancialData(userId, user?.email);
+
+    const unsubEvents = subscribeEventsUpdates(() => {});
+    const unsubSavings = subscribeSavingsUpdates(() => {});
+    const unsubDebt = subscribeDebtUpdates(() => {});
+    const unsubRecurring = subscribeRecurringUpdates(() => {});
+
+    return () => {
+      unsubEvents();
+      unsubSavings();
+      unsubDebt();
+      unsubRecurring();
+    };
+  }, [userId, user?.email]);
 
   // Tự động lưu mỗi khi có tin nhắn mới
   useEffect(() => {
